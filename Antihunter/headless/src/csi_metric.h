@@ -202,7 +202,8 @@ struct CsiScorer {
 
         mad = d;
 
-        float psi = 0.0f;
+        float psiPos = 0.0f;
+        float psiSq = 0.0f;
         float sigAcc = 0.0f;
         int nsig = 0;
         int nf = 0;
@@ -229,7 +230,10 @@ struct CsiScorer {
                     float p = (mGG[k] - m2) / v;
                     if (p > 1.0f) p = 1.0f;
                     if (p < -1.0f) p = -1.0f;
-                    psi += p;
+                    if (p > 0.0f) {
+                        psiPos += p;
+                        psiSq += p * p;
+                    }
                     nf++;
                     if (p > CSI_ACF_ETA_SUB) nvote++;
                 }
@@ -238,7 +242,7 @@ struct CsiScorer {
         }
         if (acfPairs < 0xFFFF) acfPairs++;
         prevValid = 1;
-        acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
+        acf = (psiPos > 1e-6f) ? (psiSq / psiPos) : 0.0f;
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
 
