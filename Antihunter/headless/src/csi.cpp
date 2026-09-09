@@ -915,6 +915,13 @@ static bool csiMoveRadio(uint8_t ch) {
 static bool csiArmCsi(uint8_t ch) {
     csiMoveRadio(ch);
 
+    {
+        const esp_err_t bwSta = esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+        const esp_err_t bwAp = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+        Serial.printf("[CSI] bandwidth HT20 sta=%s ap=%s\n",
+                      esp_err_to_name(bwSta), esp_err_to_name(bwAp));
+    }
+
     wifi_csi_config_t cfg = {};
     cfg.lltf_en = true;
     cfg.htltf_en = true;
