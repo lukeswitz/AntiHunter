@@ -305,16 +305,26 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     for (uint8_t ch : chans) {
         if (stopRequested) break;
 
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-        vTaskDelay(pdMS_TO_TICKS(30));
-
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
         g_surveyTx.store(0);
         g_surveyMacCount = 0;
+
+        wifi_scan_config_t sc = {};
+        sc.channel = ch;
+        sc.show_hidden = true;
+        sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+        sc.scan_time.passive = dwellMs;
+        sc.home_chan_dwell_time = 30;
+
         g_surveyMode.store(true);
-        vTaskDelay(pdMS_TO_TICKS(dwellMs));
+        const esp_err_t sr = esp_wifi_scan_start(&sc, true);
         g_surveyMode.store(false);
+        esp_wifi_clear_ap_list();
+        if (sr != ESP_OK) {
+            Serial.printf("[CSI]   ch%-3u survey scan failed: %s\n", ch, esp_err_to_name(sr));
+            continue;
+        }
 
         const uint32_t hits = g_surveyHits.load();
         const uint32_t strong = g_surveyStrong.load();
@@ -1338,11 +1348,6 @@ void csiMotionTask(void *pv) {
                 if (blindSinceMs == 0) blindSinceMs = now;
                 if (autoChannel && (now - blindSinceMs) >= CSI_BLIND_REHOP_MS &&
                     (lastRehopMs == 0 || (now - lastRehopMs) >= CSI_REHOP_COOLDOWN_MS)) {
-                    if (WiFi.softAPgetStationNum() > 0) {
-                        Serial.println("[CSI] blind but a client is on the AP - holding this channel");
-                        blindSinceMs = now;
-                        continue;
-                    }
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
