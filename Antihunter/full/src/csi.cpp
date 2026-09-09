@@ -26,7 +26,6 @@ extern std::vector<uint8_t> CHANNELS;
 
 std::atomic<bool> csiRawDump{false};
 std::atomic<bool> csiTelemetry{false};
-std::atomic<bool> csiAutoTrigger{false};
 std::atomic<uint8_t> csiPinnedChannel{0};
 std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint64_t> csiExcludeMac{0};
@@ -40,8 +39,6 @@ static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
 static const uint32_t CSI_REHOP_DWELL_MS = 150;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
-static const uint32_t CSI_CAL_MS = 20000;
-static const float CSI_CAL_MARGIN = 1.50f;
 static const float CSI_TRIG_MIN = 1.15f;
 static const float CSI_TRIG_MAX = 6.0f;
 
@@ -167,12 +164,6 @@ static void csiEpisodeClose(uint32_t dwellSec) {
     e.open = false;
 }
 
-static bool g_calActive = false;
-static float g_calSum = 0.0f;
-static float g_calMax = 0.0f;
-static uint32_t g_calStartMs = 0;
-static uint32_t g_calSamples = 0;
-static float g_calTrigger = 0.0f;
 
 struct CsiEvent {
     uint8_t mac[6];
@@ -575,13 +566,6 @@ static void csiProcess(const CsiEvent &ev) {
                           l.sc.score, l.sc.mad, l.sc.floorMad, l.rssi);
         }
 
-        if (g_calActive) {
-            if ((millis() - g_calStartMs) >= (CSI_CAL_MS / 2) && l.sc.settled()) {
-                g_calSum += l.sc.sigVar;
-                g_calSamples++;
-                if (l.sc.sigVar > g_calMax) g_calMax = l.sc.sigVar;
-            }
-        }
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
@@ -601,7 +585,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.elevMs = (l.elevMs > decay) ? (l.elevMs - decay) : 0;
         }
 
-        if (g_calActive || !l.sc.settled()) return;
+        if (!l.sc.settled()) return;
 
         if (!csiLinkUsable(l)) return;
 
@@ -715,11 +699,6 @@ String getCsiResults() {
                  "Motion cannot be detected. Move the node nearer an active AP or pick a busier channel.\n";
         }
     }
-    if (g_calActive) {
-        r += "Calibrating still-state trigger - alerts held until this completes\n";
-    } else if (g_calTrigger > 0.0f) {
-        r += "Trigger calibrated from this room: " + String(g_calTrigger, 2) + "x\n";
-    }
     r += "CSI records: " + String(g_csiSeen.load()) +
          "  rate: " + String(rate, 1) + "/s\n";
     r += "Rejected (FCS/40MHz/short): " + String(g_csiRejected.load()) + "\n";
@@ -782,7 +761,6 @@ String getCsiJson() {
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
-    j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
     j += ",\"areaEvents\":" + String(g_epTotal);
@@ -844,14 +822,13 @@ String getCsiJson() {
 }
 
 void csiClearCalibration() {
-    prefs.putBool("csiCalDone", false);
     csiThresholdMilli.store(0);
     prefs.putUInt("csiThr3", 0);
-    Serial.println("[CSI] Learned trigger cleared - back to the compiled default");
+    Serial.println("[CSI] Manual trigger cleared - back to the compiled default");
 }
 
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
-                  bool rawDump, bool telemetry, bool autoTrigger) {
+                  bool rawDump, bool telemetry) {
     if (channel <= 14) csiPinnedChannel.store(channel);
     if (threshold <= 0.0f) csiThresholdMilli.store(0);
     else if (threshold >= 0.02f && threshold <= 0.60f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f));
@@ -859,7 +836,6 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     if (consec >= 1 && consec <= 50) csiConsecNeeded.store(consec);
     csiRawDump.store(rawDump);
     csiTelemetry.store(telemetry);
-    csiAutoTrigger.store(autoTrigger);
 
     prefs.putUChar("csiCh", csiPinnedChannel.load());
     prefs.putUInt("csiThr3", csiThresholdMilli.load());
@@ -1023,10 +999,6 @@ void csiMotionTask(void *pv) {
     g_csiRejected.store(0);
     g_csiMotionEvents.store(0);
     g_promFrames.store(0);
-    g_calActive = false;
-    g_calSum = 0.0f;
-    g_calSamples = 0;
-    g_calTrigger = 0.0f;
     g_areaMotion = false;
     g_areaCand = false;
     g_areaCandSince = 0;
@@ -1132,20 +1104,6 @@ void csiMotionTask(void *pv) {
         }
     }
 
-    if (csiAutoTrigger.load()) {
-        g_calActive = true;
-        g_calStartMs = millis();
-        g_calSum = 0.0f;
-        g_calSamples = 0;
-        g_calMax = 0.0f;
-        Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
-    } else {
-        const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: sigvar >= %.3f (%s), lag %u-%u us\n",
-                      csiSigEta(thrMilli),
-                      thrMilli ? "learned for this node" : "default",
-                      (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
-    }
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1181,25 +1139,6 @@ void csiMotionTask(void *pv) {
 
         const uint32_t now = millis();
 
-        if (g_calActive && (now - g_calStartMs) >= CSI_CAL_MS) {
-            std::lock_guard<std::mutex> lock(g_csiMutex);
-            g_calActive = false;
-            if (g_calSamples == 0) {
-                Serial.println("[CSI] Calibration got no settled links - threshold unchanged");
-            } else {
-                const float quiet = g_calSum / (float)g_calSamples;
-                float eta = quiet * CSI_CAL_SIG_MARGIN;
-                if (eta < CSI_CAL_SIG_MIN) eta = CSI_CAL_SIG_MIN;
-                if (eta > CSI_CAL_SIG_MAX) eta = CSI_CAL_SIG_MAX;
-                csiThresholdMilli.store((uint32_t)(eta * 1000.0f));
-                prefs.putUInt("csiThr3", csiThresholdMilli.load());
-                Serial.printf("[CSI] Calibrated: quiet sigvar %.4f over %u samples (max %.4f) "
-                              "-> trigger %.3f\n", quiet, g_calSamples, g_calMax, eta);
-            }
-            g_calSum = 0.0f;
-            g_calSamples = 0;
-            g_calMax = 0.0f;
-        }
 
         if (now - lastExpireMs >= 2000) {
             lastExpireMs = now;
@@ -1257,7 +1196,7 @@ void csiMotionTask(void *pv) {
 
         if (now - lastResultsMs >= 1000) {
             lastResultsMs = now;
-            if (!g_calActive) {
+            {
                 float peakNow = 0.0f;
                 {
                     std::lock_guard<std::mutex> lock(g_csiMutex);

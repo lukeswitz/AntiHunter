@@ -846,7 +846,6 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "FOREVER") forever = true;
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
-    else if (tok == "TRAIN") train = true;
     else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     if (colon < 0) break;
@@ -869,7 +868,7 @@ static void handleCsiMotionStart(const String &command)
   csiSolicitMs.store(solicitMs);
 
   setCsiConfig(ch, (float)csiThresholdMilli.load() / 1000.0f, csiHoldMs.load(),
-               csiConsecNeeded.load(), raw, telem, train);
+               csiConsecNeeded.load(), raw, telem);
 
   stopRequested = false;
   scanning = true;
@@ -946,7 +945,7 @@ static void handleCsiCfg(const String &command)
     return;
   }
 
-  setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), csiTelemetry.load(), csiAutoTrigger.load());
+  setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), csiTelemetry.load());
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:T=" + String(thr, 2) +
                 " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
                 " CH=" + String(ch), true);
