@@ -604,6 +604,7 @@ static void csiProcess(const CsiEvent &ev) {
         for (int i = 0; i < (int)sizeof(ev.buf); i++) {
             row += "," + String((int)ev.buf[i]);
         }
+        row += ",L" + String((int)ev.len) + ",F" + String(ev.fwInvalid ? 1 : 0);
         Serial.println(row);
     }
 
