@@ -1279,6 +1279,13 @@ void csiMotionTask(void *pv) {
     }
 
     if (csiAutoTrigger.load()) {
+        const int needSec = (int)(CSI_CAL_MS / 1000) + 30;
+        if (!forever && duration < needSec) {
+            Serial.printf("[CSI] duration %ds is shorter than the %ds learn window - extending to %ds\n",
+                          duration, (int)(CSI_CAL_MS / 1000), needSec);
+            duration = needSec;
+            scanSetCountdown(duration, forever);
+        }
         g_calActive = true;
         g_calStartMs = millis();
         g_calSum = 0.0f;
