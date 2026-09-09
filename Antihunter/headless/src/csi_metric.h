@@ -14,7 +14,6 @@
 #define CSI_LEN_HTLTF 114
 #define CSI_NRAW 57
 #define CSI_NSUB 57
-#define CSI_F_EFF 17.8f
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -26,7 +25,6 @@ static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
 #else
 #define CSI_BUF_BYTES 128
 #define CSI_NSUB 47
-#define CSI_F_EFF 46.0f
 
 static const uint8_t CSI_SUB_IDX[CSI_NSUB] = {
     2,  3,  4,  5,  6,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
@@ -39,7 +37,6 @@ static const uint8_t CSI_SUB_IDX[CSI_NSUB] = {
 static const float CSI_FAST_ALPHA = 0.25f;
 static const float CSI_SLOW_ALPHA = 0.01f;
 static const float CSI_WARM_ALPHA = 0.2f;
-static const float CSI_FLOOR_ALPHA = 0.01f;
 static const uint8_t CSI_FLOOR_HIST = 120;
 static const uint16_t CSI_FLOOR_SAMPLE_EVERY = 32;
 static const float CSI_FLOOR_QUANT = 100000.0f;
@@ -54,14 +51,11 @@ static const float CSI_CAL_SIG_MARGIN = 8.0f;
 static const float CSI_CAL_SIG_MIN = 0.02f;
 static const float CSI_CAL_SIG_MAX = 0.60f;
 static const float CSI_ACF_ETA_SUB = 0.10f;
-static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
 static const float CSI_ACF_QUANT = 10000.0f;
 static const float CSI_ACF_MIN_SPREAD = 0.02f;
 static const uint8_t CSI_ACF_MIN_HIST = 12;
-static const float CSI_ACF_Z_PER_ETA = 30.0f;
-static const float CSI_ACF_Z_TRIG = 3.0f;
 static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
