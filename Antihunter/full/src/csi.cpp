@@ -1007,7 +1007,7 @@ static bool csiRadioStart(uint8_t ch) {
         return false;
     }
 
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    csiMoveRadio(ch);
     vTaskDelay(pdMS_TO_TICKS(50));
 
     wifi_csi_config_t cfg = {};
