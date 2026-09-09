@@ -109,7 +109,7 @@ Expect from a C5 node, relative to an S3 in the same room:
 
 Neither is wrong. If you want a C5 to report only what an S3 would, raise its trigger
 with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and the boot banner reports
-it as `stored override`. Send it after the mesh task is up, roughly 15s past
+it as `learned for this node`. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
@@ -121,7 +121,9 @@ Open upstream issues on C5/C61 CSI, none of which currently has a fix:
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
   unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
-  `acquire_csi_force_lltf = 1` is the documented workaround and this firmware sets it.
+  `acquire_csi_force_lltf = 1` is the documented workaround; this firmware sets it to 0,
+  because forcing it collapsed the capture to a single distinct payload on this node
+  (measured 2026-09-09: 887 packets, 22 transmitters, 1 distinct 106-byte payload).
 - [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
   order differs from the S3 on HE parts. Not reached here: ch6 traffic is legacy, so the
   C5 receives only 106-byte L-LTF.
@@ -183,3 +185,25 @@ Upstream issues covering the same failure. Both are closed as resolved internall
 
 - [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - ESP32-C5, `wifi_csi_info_t.buf` never changes while metadata updates normally.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - ESP32-C61, constant CSI on 802.11g frames, traced by the reporter to a commit in the esp-phy-lib blob. Its `acquire_csi_force_lltf` workaround does not work on the C5.
+
+### CSI field reference
+
+The decoder relies on four documented properties of the C5 CSI path. Source:
+[ESP-IDF v5.5.3, Wi-Fi Driver, ESP32-C5](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c5/api-guides/wifi.html).
+
+- "Each item is stored as two bytes: imaginary part followed by real part." `csiAmplitudesLen`
+  reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real.
+- "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes
+  of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips two
+  complex words, four bytes, when the flag is set.
+- "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
+  valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
+  in the status line; `csiRequireCeVld` gates on it.
+- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "LLTF bit width mode for I/Q components,
+  0 : 12-bit, 1 : 8-bit, default : 12-bit". `csiArmCsi` sets 1, so the int8 pair decode
+  matches what the radio is asked for. `csiWord12` in `csi_metric.h` is the 12-bit decoder,
+  retained and unused while this stays at 1.
+
+`CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
+Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
+114-byte buffer while only `len` bytes are valid.
