@@ -4629,9 +4629,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         const cal = /Calibrating still-state|Calibrating baseline/.test(text);
         const raw = d.links || [];
-        const eta = d.threshold || 0.1;
-        const voteFrac = d.voteFrac || 0.5;
-        const csiRatio = l => Math.max(0, (l.z || 0) / Math.max(1, eta * 30));
+        const csiRatio = l => Math.max(0, l.sig || 0);
         const byRadio = {};
         raw.forEach(l => {
           const r = (l.mac || '').slice(0, 14);
@@ -4669,7 +4667,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
           '</div>' +
-          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(1) + '<small>x</small></div>' +
+          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(2) + '<small>x</small></div>' +
           '<div class="res-metric-lab">movement</div></div>' +
           '</div>';
 

@@ -514,9 +514,8 @@ static float csiEta(uint32_t thrMilli) {
     return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
 }
 
-static float csiTriggerRatio(float acf, float vote, uint32_t thrMilli) {
-    if (vote < CSI_VOTE_FRAC) return 0.0f;
-    const float r = acf / csiEta(thrMilli);
+static float csiTriggerRatio(float sigVar) {
+    const float r = sigVar / CSI_SIG_ETA;
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -752,6 +751,7 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.acf = l.sc.acf;
         v.vote = l.sc.vote;
         v.z = l.sc.acfZ;
+        v.sig = csiTriggerRatio(l.sc.sigVar);
         v.score = l.sc.score;
         v.peakScore = l.peakScore;
         v.motion = l.motion;
@@ -898,6 +898,7 @@ String getCsiJson() {
         j += ",\"acf\":" + String(v.acf, 4);
         j += ",\"vote\":" + String(v.vote, 3);
         j += ",\"z\":" + String(v.z, 2);
+        j += ",\"sig\":" + String(v.sig, 2);
         j += ",\"events\":" + String(v.events);
         j += ",\"age\":" + String(v.ageMs / 1000);
         j += ",\"motion\":" + String(v.motion ? "true" : "false") + "}";
@@ -1314,13 +1315,12 @@ void csiMotionTask(void *pv) {
             if (!g_calActive) {
                 float peakNow = 0.0f;
                 {
-                    const uint32_t thrMilli = csiThresholdMilli.load();
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.acf, l.sc.vote, thrMilli);
+                        const float r = csiTriggerRatio(l.sc.sigVar);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1425,7 +1425,7 @@ void csiMotionTask(void *pv) {
             lastStatMs = now;
             const uint32_t span = now - startMs;
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
-            float statZMax = 0.0f, statFloorMax = 0.0f;
+            float statZMax = 0.0f, statFloorMax = 0.0f, statSigMax = 0.0f;
             uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
             uint32_t statPairs = 0;
             float statPrMax = 0.0f;
@@ -1444,19 +1444,20 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf >= csiEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
+                    if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
                     statPairs += l.sc.acfPairs;
                 }
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
-                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
+                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u fmtdrop=%u fw=%u frames=%u tx=%u/%u err=%d "
                           "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
-                          statZMax, statFloorMax, statPairs, statPrMax,
+                          statZMax, statSigMax, statFloorMax, statPairs, statPrMax,
                           statPassEta, statPassVote, g_rejFmt.load(), g_fwSkip.load(), g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
 
