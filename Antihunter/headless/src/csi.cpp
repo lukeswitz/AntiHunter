@@ -955,6 +955,13 @@ static bool csiRadioStart(uint8_t ch) {
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
     esp_wifi_set_ps(WIFI_PS_NONE);
 
+    {
+        const esp_err_t bwSta = esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+        const esp_err_t bwAp = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+        Serial.printf("[CSI] bandwidth HT20 sta=%s ap=%s\n",
+                      esp_err_to_name(bwSta), esp_err_to_name(bwAp));
+    }
+
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
         Serial.printf("[CSI] promiscuous enable failed: %s\n", esp_err_to_name(rp));
@@ -1104,7 +1111,7 @@ void csiMotionTask(void *pv) {
             return;
         }
         ch = picked;
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+        csiMoveRadio(ch);
         vTaskDelay(pdMS_TO_TICKS(50));
         xQueueReset(csiQueue);
         if (!csiArmCsi(ch)) Serial.println("[CSI] re-arm after survey failed");
