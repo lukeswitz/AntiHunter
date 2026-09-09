@@ -40,9 +40,6 @@ static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
 static const uint32_t CSI_CAL_MS = 180000;
-static const float CSI_CAL_MARGIN = 1.50f;
-static const float CSI_TRIG_MIN = 1.15f;
-static const float CSI_TRIG_MAX = 6.0f;
 
 static std::atomic<bool> g_surveyMode{false};
 static std::atomic<uint32_t> g_surveyHits{0};
@@ -514,8 +511,12 @@ static float csiEta(uint32_t thrMilli) {
     return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
 }
 
+static float csiSigEta(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_SIG_ETA;
+}
+
 static float csiTriggerRatio(float sigVar) {
-    const float r = sigVar / CSI_SIG_ETA;
+    const float r = sigVar / csiSigEta(csiThresholdMilli.load());
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -642,19 +643,20 @@ static void csiProcess(const CsiEvent &ev) {
         if (g_calActive) {
             const bool calSettleWindow = (millis() - g_calStartMs) >= (CSI_CAL_MS / 2);
             if (calSettleWindow && l.sc.settled() && l.sc.acfPairs > 0) {
-                g_calSum += l.sc.acf;
+                g_calSum += l.sc.sigVar;
                 g_calSamples++;
-                if (l.sc.acf > g_calMax) g_calMax = l.sc.acf;
+                if (l.sc.sigVar > g_calMax) g_calMax = l.sc.sigVar;
             }
         }
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
+        const float sigEta = csiSigEta(csiThresholdMilli.load());
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.sigVar >= CSI_SIG_ETA) {
+        if (l.sc.sigVar >= sigEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -678,7 +680,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigVar < CSI_SIG_ETA &&
+        } else if (l.motion && l.sc.sigVar < sigEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -693,6 +695,16 @@ static void csiProcess(const CsiEvent &ev) {
 static void csiExpireLinks() {
     const uint32_t now = millis();
     CsiAlert alerts[CSI_MAX_LINKS] = {};
+
+    bool flatHave = false;
+    uint8_t flatMac[6] = {};
+    uint16_t flatLen = 0;
+    uint8_t flatBins = 0;
+    uint32_t flatPkts = 0, flatScored = 0, flatPairs = 0;
+    float flatScore = 0.0f, flatMean = 0.0f, flatVar = 0.0f, flatMad = 0.0f;
+    float flatFloorMad = 0.0f, flatAcf = 0.0f, flatSig = 0.0f, flatVote = 0.0f;
+    float flatG[CSI_NSUB] = {};
+    float flatFast[CSI_NSUB] = {};
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -713,6 +725,25 @@ static void csiExpireLinks() {
             if (flat && !stale) {
                 Serial.printf("[CSI] DROP %s flat (spread %.3f over %u pkts)\n",
                               macFmt6(l.mac).c_str(), l.sc.spread(), l.packets);
+                if (!flatHave) {
+                    flatHave = true;
+                    memcpy(flatMac, l.mac, 6);
+                    flatLen = l.fmtLen;
+                    flatBins = l.liveBins;
+                    flatPkts = l.packets;
+                    flatScored = l.sc.scored;
+                    flatPairs = l.sc.acfPairs;
+                    flatScore = l.sc.score;
+                    flatMean = l.sc.scoreMean;
+                    flatVar = l.sc.scoreVar;
+                    flatMad = l.sc.mad;
+                    flatFloorMad = l.sc.floorMad;
+                    flatAcf = l.sc.acf;
+                    flatSig = l.sc.sigVar;
+                    flatVote = l.sc.vote;
+                    memcpy(flatG, l.sc.prevG, sizeof(flatG));
+                    memcpy(flatFast, l.sc.fast, sizeof(flatFast));
+                }
             }
             if (l.motion) {
                 l.motion = false;
@@ -720,6 +751,23 @@ static void csiExpireLinks() {
             }
             l.used = false;
         }
+    }
+
+    if (flatHave) {
+        Serial.printf("[CSIFLAT] %s len=%u bins=%u pkts=%u scored=%u pairs=%u "
+                      "score=%.6f mean=%.6f var=%.9f mad=%.6f floormad=%.6f "
+                      "acf=%.6f sig=%.6f vote=%.3f\n",
+                      macFmt6(flatMac).c_str(), flatLen, flatBins, flatPkts,
+                      flatScored, flatPairs, flatScore, flatMean, flatVar,
+                      flatMad, flatFloorMad, flatAcf, flatSig, flatVote);
+        String g = "[CSIFLAT] G";
+        String f = "[CSIFLAT] A";
+        for (int k = 0; k < CSI_NSUB; k++) {
+            g += "," + String(flatG[k], 5);
+            f += "," + String(flatFast[k], 5);
+        }
+        Serial.println(g);
+        Serial.println(f);
     }
 
     for (int i = 0; i < CSI_MAX_LINKS; i++) csiEmitAlert(alerts[i]);
@@ -925,14 +973,14 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     csiAutoTrigger.store(autoTrigger);
 
     prefs.putUChar("csiCh", csiPinnedChannel.load());
-    prefs.putUInt("csiThr2", csiThresholdMilli.load());
+    prefs.putUInt("csiThr3", csiThresholdMilli.load());
     prefs.putUInt("csiHold", csiHoldMs.load());
     prefs.putUInt("csiCons", csiConsecNeeded.load());
 }
 
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
-    uint32_t thrStored = prefs.getUInt("csiThr2", 0);
+    uint32_t thrStored = prefs.getUInt("csiThr3", 0);
     if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
@@ -1200,9 +1248,9 @@ void csiMotionTask(void *pv) {
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: sigvar >= %.3f (acf %.3f %s), lag %u-%u us\n",
-                      CSI_SIG_ETA, csiEta(thrMilli),
-                      thrMilli ? "stored override, unused by the gate" : "default",
+        Serial.printf("[CSI] Trigger: sigvar >= %.3f (%s), lag %u-%u us\n",
+                      csiSigEta(thrMilli),
+                      thrMilli ? "learned for this node" : "default",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
 
@@ -1247,12 +1295,12 @@ void csiMotionTask(void *pv) {
                 Serial.println("[CSI] Calibration got no settled links - threshold unchanged");
             } else {
                 const float quiet = g_calSum / (float)g_calSamples;
-                float eta = quiet * CSI_CAL_ACF_MARGIN;
-                if (eta < CSI_CAL_ETA_MIN) eta = CSI_CAL_ETA_MIN;
-                if (eta > CSI_CAL_ETA_MAX) eta = CSI_CAL_ETA_MAX;
+                float eta = quiet * CSI_CAL_SIG_MARGIN;
+                if (eta < CSI_CAL_SIG_MIN) eta = CSI_CAL_SIG_MIN;
+                if (eta > CSI_CAL_SIG_MAX) eta = CSI_CAL_SIG_MAX;
                 csiThresholdMilli.store((uint32_t)(eta * 1000.0f));
-                prefs.putUInt("csiThr2", csiThresholdMilli.load());
-                Serial.printf("[CSI] Calibrated: quiet acf %.3f over %u samples (max %.3f) "
+                prefs.putUInt("csiThr3", csiThresholdMilli.load());
+                Serial.printf("[CSI] Calibrated: quiet sigvar %.4f over %u samples (max %.4f) "
                               "-> trigger %.3f\n", quiet, g_calSamples, g_calMax, eta);
             }
             g_calSum = 0.0f;
@@ -1441,7 +1489,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acf >= csiEta(thrMilli)) statPassEta++;
+                    if (l.sc.sigVar >= csiSigEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;
