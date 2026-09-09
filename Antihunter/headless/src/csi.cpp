@@ -306,12 +306,6 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
 }
 
 static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
-    if (WiFi.softAPgetStationNum() > 0) {
-        const uint8_t home = apHomeChannel();
-        Serial.printf("[CSI] a client is on the AP - skipping the survey, staying on ch%u\n", home);
-        return home;
-    }
-
     std::vector<uint8_t> chans;
     for (uint8_t c : CHANNELS) {
         if (c >= 1 && c <= 14) chans.push_back(c);
@@ -329,17 +323,27 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     for (uint8_t ch : chans) {
         if (stopRequested) break;
 
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-        vTaskDelay(pdMS_TO_TICKS(30));
-
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
         g_surveyHt.store(0);
         g_surveyTx.store(0);
         g_surveyMacCount = 0;
+
+        wifi_scan_config_t sc = {};
+        sc.channel = ch;
+        sc.show_hidden = true;
+        sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+        sc.scan_time.passive = dwellMs;
+        sc.home_chan_dwell_time = 30;
+
         g_surveyMode.store(true);
-        vTaskDelay(pdMS_TO_TICKS(dwellMs));
+        const esp_err_t sr = esp_wifi_scan_start(&sc, true);
         g_surveyMode.store(false);
+        esp_wifi_clear_ap_list();
+        if (sr != ESP_OK) {
+            Serial.printf("[CSI]   ch%-3u survey scan failed: %s\n", ch, esp_err_to_name(sr));
+            continue;
+        }
 
         const uint32_t hits = g_surveyHits.load();
         const uint32_t strong = g_surveyStrong.load();
@@ -917,6 +921,10 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
 }
 
 void loadCsiConfigFromPrefs() {
+    if (prefs.isKey("csiThr2")) {
+        prefs.remove("csiThr2");
+        Serial.println("[CSI] removed stale csiThr2 from NVS (pre-sigvar threshold)");
+    }
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
     uint32_t thrStored = prefs.getUInt("csiThr3", 0);
     if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
@@ -925,8 +933,39 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
 }
 
+static bool csiMoveRadio(uint8_t ch) {
+    if (WiFi.softAPgetStationNum() > 0) {
+        wifi_config_t apCfg = {};
+        if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK && apCfg.ap.channel != ch) {
+            apCfg.ap.channel = ch;
+            if (apCfg.ap.csa_count == 0) apCfg.ap.csa_count = 3;
+            const esp_err_t r = esp_wifi_set_config(WIFI_IF_AP, &apCfg);
+            Serial.printf("[CSI] AP channel switch announced to ch%u (csa_count=%u): %s\n",
+                          ch, apCfg.ap.csa_count, esp_err_to_name(r));
+            if (r == ESP_OK) {
+                vTaskDelay(pdMS_TO_TICKS(400));
+                uint8_t priCh = 0;
+                wifi_second_chan_t secCh = WIFI_SECOND_CHAN_NONE;
+                if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh == ch) return true;
+            }
+        }
+    }
+    return esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) == ESP_OK;
+}
+
+static void csiForceHt20() {
+    wifi_bandwidths_t bw = {};
+    bw.ghz_2g = WIFI_BW_HT20;
+    bw.ghz_5g = WIFI_BW_HT20;
+    const esp_err_t sta = esp_wifi_set_bandwidths(WIFI_IF_STA, &bw);
+    const esp_err_t ap = esp_wifi_set_bandwidths(WIFI_IF_AP, &bw);
+    Serial.printf("[CSI] bandwidth HT20 sta=%s ap=%s\n",
+                  esp_err_to_name(sta), esp_err_to_name(ap));
+}
+
 static bool csiArmCsi(uint8_t ch) {
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    csiMoveRadio(ch);
+    csiForceHt20();
 
     wifi_csi_config_t cfg = {};
 #if CONFIG_SOC_WIFI_HE_SUPPORT
@@ -984,7 +1023,8 @@ static bool csiRadioStart(uint8_t ch) {
         return false;
     }
 
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    csiMoveRadio(ch);
+    csiForceHt20();
     vTaskDelay(pdMS_TO_TICKS(50));
 
     wifi_csi_config_t cfg = {};
@@ -1144,7 +1184,7 @@ void csiMotionTask(void *pv) {
             return;
         }
         ch = picked;
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+        csiMoveRadio(ch);
         vTaskDelay(pdMS_TO_TICKS(50));
         xQueueReset(csiQueue);
         if (!csiArmCsi(ch)) Serial.println("[CSI] re-arm after survey failed");
@@ -1166,7 +1206,7 @@ void csiMotionTask(void *pv) {
         if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh != ch) {
             Serial.printf("[CSI] WARNING: radio reports ch%u, not the selected ch%u - "
                           "re-applying\n", priCh, ch);
-            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            csiMoveRadio(ch);
             vTaskDelay(pdMS_TO_TICKS(30));
             if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
                 Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
@@ -1379,11 +1419,6 @@ void csiMotionTask(void *pv) {
                 if (blindSinceMs == 0) blindSinceMs = now;
                 if (autoChannel && (now - blindSinceMs) >= CSI_BLIND_REHOP_MS &&
                     (lastRehopMs == 0 || (now - lastRehopMs) >= CSI_REHOP_COOLDOWN_MS)) {
-                    if (WiFi.softAPgetStationNum() > 0) {
-                        Serial.println("[CSI] blind but a client is on the AP - holding this channel");
-                        blindSinceMs = now;
-                        continue;
-                    }
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
