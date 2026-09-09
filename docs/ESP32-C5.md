@@ -109,7 +109,7 @@ Expect from a C5 node, relative to an S3 in the same room:
 
 Neither is wrong. If you want a C5 to report only what an S3 would, raise its trigger
 with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and the boot banner reports
-it as `stored override`. Send it after the mesh task is up, roughly 15s past
+it as `learned for this node`. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
@@ -121,7 +121,9 @@ Open upstream issues on C5/C61 CSI, none of which currently has a fix:
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
   unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
-  `acquire_csi_force_lltf = 1` is the documented workaround and this firmware sets it.
+  `acquire_csi_force_lltf = 1` is the documented workaround; this firmware sets it to 0,
+  because forcing it collapsed the capture to a single distinct payload on this node
+  (measured 2026-09-09: 887 packets, 22 transmitters, 1 distinct 106-byte payload).
 - [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
   order differs from the S3 on HE parts. Not reached here: ch6 traffic is legacy, so the
   C5 receives only 106-byte L-LTF.
@@ -157,3 +159,51 @@ Upstream issues covering the same failure on other targets. None is specific to 
 - [esp-idf#10294](https://github.com/espressif/esp-idf/issues/10294) - SD fails to mount a second time, host init failed.
 - [esp-idf#15535](https://github.com/espressif/esp-idf/issues/15535) - SDSPI example failing on ESP32-S3.
 - [arduino-esp32#9218](https://github.com/espressif/arduino-esp32/issues/9218) - the SD library does not force SPI mode before activating the card.
+
+### CSI stops updating and only a power cycle clears it
+
+After hours of continuous CSI capture the C5 PHY latches its channel-estimate buffer. Packets keep arriving and every metadata field stays correct - `records` climbs at the normal rate, `rejected` stays flat, `rx_channel_estimate_info_vld` stays set, RSSI and source MAC vary per frame - but the IQ bytes in `wifi_csi_info_t.buf` stop changing.
+
+Every link then reads a constant score, `scoreVar` decays to zero, and `csiExpireLinks` drops the link as flat. New links rebuild and die the same way at roughly 500 packets, so detection stops with `links=0 pairs=0` and the event counter frozen.
+
+Measured on AH94, 2026-09-09: 1505 packets from 18 transmitters spanning -95 to -18 dBm produced 2 distinct 106-byte payloads, and those two were one byte sequence at two alignments. A working node in the same room on the same channel produced a distinct payload per packet.
+
+The onset is gradual, roughly 90 seconds, visible in the status line as `acf` climbing toward 1.0 while `sig` collapses:
+
+```
+00:10:48  acf=0.748..0.823  sig=0.0956
+00:11:18  acf=0.772..0.848  sig=0.0054
+00:11:48  acf=0.850..0.850  sig=0.0001
+00:12:19  links=0           sig=0.0000
+```
+
+Nothing in firmware clears it. Tested and ruled out on hardware, each as a single-variable A/B: `acquire_csi_force_lltf=1`, `acquire_csi_legacy=0` (HT-only), a different channel, `bandMode=0`, `esp_phy_erase_cal_data_in_nvs()`, CSI stop/start, a full reflash, and an RTS reset. Unplugging the node for ten seconds restores a distinct payload per packet immediately.
+
+The RF block keeps the latched state across any reset that leaves it powered, and `esp_phy_init.h:157` states PHY and RF enabling is driven only by the WiFi start path, so there is no application-level call that power-cycles it.
+
+Upstream issues covering the same failure. Both are closed as resolved internally with no published cause or workaround:
+
+- [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - ESP32-C5, `wifi_csi_info_t.buf` never changes while metadata updates normally.
+- [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - ESP32-C61, constant CSI on 802.11g frames, traced by the reporter to a commit in the esp-phy-lib blob. Its `acquire_csi_force_lltf` workaround does not work on the C5.
+
+### CSI field reference
+
+The decoder relies on four documented properties of the C5 CSI path. Source:
+[ESP-IDF v5.5.3, Wi-Fi Driver, ESP32-C5](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c5/api-guides/wifi.html).
+
+- "Each item is stored as two bytes: imaginary part followed by real part." `csiAmplitudesLen`
+  reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real.
+- "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes
+  of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips two
+  complex words, four bytes, when the flag is set.
+- "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
+  valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
+  in the status line; `csiRequireCeVld` gates on it.
+- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "LLTF bit width mode for I/Q components,
+  0 : 12-bit, 1 : 8-bit, default : 12-bit". `csiArmCsi` sets 1, so the int8 pair decode
+  matches what the radio is asked for. `csiWord12` in `csi_metric.h` is the 12-bit decoder,
+  retained and unused while this stays at 1.
+
+`CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
+Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
+114-byte buffer while only `len` bytes are valid.
