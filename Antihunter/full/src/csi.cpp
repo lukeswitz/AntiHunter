@@ -919,6 +919,10 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
 }
 
 void loadCsiConfigFromPrefs() {
+    if (prefs.isKey("csiThr2")) {
+        prefs.remove("csiThr2");
+        Serial.println("[CSI] removed stale csiThr2 from NVS (pre-sigvar threshold)");
+    }
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
     uint32_t thrStored = prefs.getUInt("csiThr3", 0);
     if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
@@ -927,8 +931,28 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
 }
 
+static bool csiMoveRadio(uint8_t ch) {
+    if (WiFi.softAPgetStationNum() > 0) {
+        wifi_config_t apCfg = {};
+        if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK && apCfg.ap.channel != ch) {
+            apCfg.ap.channel = ch;
+            if (apCfg.ap.csa_count == 0) apCfg.ap.csa_count = 3;
+            const esp_err_t r = esp_wifi_set_config(WIFI_IF_AP, &apCfg);
+            Serial.printf("[CSI] AP channel switch announced to ch%u (csa_count=%u): %s\n",
+                          ch, apCfg.ap.csa_count, esp_err_to_name(r));
+            if (r == ESP_OK) {
+                vTaskDelay(pdMS_TO_TICKS(400));
+                uint8_t priCh = 0;
+                wifi_second_chan_t secCh = WIFI_SECOND_CHAN_NONE;
+                if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh == ch) return true;
+            }
+        }
+    }
+    return esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) == ESP_OK;
+}
+
 static bool csiArmCsi(uint8_t ch) {
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    csiMoveRadio(ch);
 
     wifi_csi_config_t cfg = {};
     cfg.lltf_en = true;
@@ -1132,7 +1156,7 @@ void csiMotionTask(void *pv) {
         if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh != ch) {
             Serial.printf("[CSI] WARNING: radio reports ch%u, not the selected ch%u - "
                           "re-applying\n", priCh, ch);
-            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            csiMoveRadio(ch);
             vTaskDelay(pdMS_TO_TICKS(30));
             if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
                 Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
