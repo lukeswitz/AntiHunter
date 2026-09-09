@@ -1109,7 +1109,7 @@ void csiMotionTask(void *pv) {
         return;
     }
 
-    if (!csiRadioStart(ch ? ch : 1)) {
+    if (!csiRadioStart(ch ? ch : (uint8_t)AP_CHANNEL)) {
         vQueueDeleteWithCaps(csiQueue);
         csiQueue = nullptr;
         scanning = false;
