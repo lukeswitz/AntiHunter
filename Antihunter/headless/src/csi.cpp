@@ -358,53 +358,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     return bestStrongCh;
 }
 
-static bool csiChannelAllowed(uint8_t ch) {
-    if (ch < 1 || ch > 14) return false;
-    if (CHANNELS.empty()) return true;
-    for (uint8_t c : CHANNELS) {
-        if (c == ch) return true;
-    }
-    return false;
-}
-
-static uint8_t csiRehopPickChannel() {
-    wifi_scan_config_t sc = {};
-    sc.show_hidden = true;
-    sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
-    sc.scan_time.passive = CSI_REHOP_DWELL_MS;
-    sc.home_chan_dwell_time = 30;
-
-    g_surveyMode.store(true);
-    const esp_err_t r = esp_wifi_scan_start(&sc, true);
-    g_surveyMode.store(false);
-    if (r != ESP_OK) {
-        Serial.printf("[CSI] rehop scan failed: %s\n", esp_err_to_name(r));
-        return 0;
-    }
-
-    wifi_ap_record_t rec;
-    uint8_t bestCh = 0;
-    int bestRssi = -127;
-    uint16_t seen = 0;
-    while (esp_wifi_scan_get_ap_record(&rec) == ESP_OK) {
-        seen++;
-        if (!csiChannelAllowed(rec.primary)) continue;
-        if (rec.rssi > bestRssi) {
-            bestRssi = rec.rssi;
-            bestCh = rec.primary;
-        }
-    }
-    esp_wifi_clear_ap_list();
-
-    if (bestCh == 0 || bestRssi < CSI_SURVEY_MIN_RSSI) {
-        Serial.printf("[CSI] rehop: %u APs seen, none stronger than %ddBm - staying on ch%u\n",
-                      seen, (int)CSI_SURVEY_MIN_RSSI, g_csiActiveChannel);
-        return 0;
-    }
-    Serial.printf("[CSI] rehop: best ch%u at %ddBm (%u APs seen)\n", bestCh, bestRssi, seen);
-    return bestCh;
-}
-
 static const uint8_t kCsiProbeHdr[24] = {
     0x40, 0x00, 0x00, 0x00,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -458,10 +411,6 @@ static void csiLinkReset(CsiLink &l) {
 static bool csiLinkUsable(const CsiLink &l) {
     if (!l.used || l.packets < CSI_LINK_MIN_PKTS) return false;
     return l.rssi >= CSI_LINK_MIN_RSSI;
-}
-
-static float csiEta(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
 }
 
 static float csiSigEta(uint32_t thrMilli) {
@@ -1352,7 +1301,7 @@ void csiMotionTask(void *pv) {
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
-                    const uint8_t next = csiRehopPickChannel();
+                    const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
                     if (next != 0 && next != g_csiActiveChannel) {
                         Serial.printf("[CSI] blind %us on ch%u - moving to ch%u, SoftAP moves with it\n",
                                       blindFor, g_csiActiveChannel, next);
@@ -1395,7 +1344,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acf >= csiEta(thrMilli)) statPassEta++;
+                    if (l.sc.sigVar >= csiSigEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;
