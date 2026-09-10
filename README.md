@@ -133,7 +133,7 @@ Flash it from your browser.
 | **MAC Randomization Correlation** (beta) | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** (beta) | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **CSI Motion Detection** (beta) | Device-free motion sensing on the WiDetect ACF statistic -- no calibration, no device on the person, per-area strength | WiFi, one channel |
+| **CSI Motion Detection** (beta) | Device-free motion sensing on the WiDetect noise-subtracted variance -- no calibration, no device on the person, per-area strength | WiFi, one channel |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Packet Capture** | Writes a standard pcap to SD that Wireshark opens -- WiFi frames with a radiotap header, BLE as Bluetooth HCI. One radio per capture, channel list selectable, bounded by a file size cap | WiFi or BLE |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
@@ -321,15 +321,30 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **No calibration.** The threshold is derived from the statistic itself, not a per-room baseline, so there is no learning phase and nothing that drifts. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **Signal strength is not the limit.** Links from -76 to -91 dBm all carry detection; the statistic is a ratio, so path loss divides out
-- **Two gates before an alert.** A link counts as moving only when most of its 47 subcarriers agree ([Origin Wireless US10291460B2](https://patents.google.com/patent/US10291460B2/en)); an area alert needs two transmitters to agree when two are available. Single links cross the threshold on their own even in an empty room, and this is what keeps that off the alert layer
-- **Range.** Reliable in the same room, intermittent at roughly 30 ft through one interior wall
+- **No calibration.** The noise term is subtracted from the channel variance on every packet pair, so the trigger is an absolute number rather than a level learned from a quiet period. No learning phase, nothing that drifts, nothing to re-run when the room changes. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **One gate.** A link is moving when the noise-subtracted variance crosses the trigger, default 0.050. The per-subcarrier vote and the autocorrelation are reported for display and tuning; neither one gates an alert
+- **Alerts are duty-cycled.** An area alert needs 12 seconds of link motion inside a rolling 60-second window and then holds 15 seconds before it changes state, so one link crossing once does not raise anything
+- **Signal strength is not the limit.** Detections seen on links from -24 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
+- **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
 - **Almost passive.** It transmits only when fewer than 15 CSI packets arrive in a second, sending one broadcast probe request to draw traffic, at most once per second
 - The Movement view shows live strength, the links tracked, and a session heat strip. Cells start at one minute and widen as the session runs - 5, 15, 30 minutes, then hours - so the strip always covers the whole session
 
+#### Measured
+
+One home, both node types side by side on 2.4 GHz ch6, 16 hours continuous, operator-reported occupancy. `MOVE` is the fraction of minutes the node held an area alert.
+
+| window | minutes | ESP32-S3 | ESP32-C5 |
+|---|---|---|---|
+| occupied, awake | 236 | 48.3% | 92.4% |
+| asleep, occupants still | 240 | 3.3% | 0.0% |
+| waking, 06:00-06:30 | 28 | 60.7% | 78.6% |
+
+Per-link `MOTION` events over the same three windows: S3 137 / 18 / 19, C5 519 / 0 / 25.
+
+Read the middle row as the false-alarm figure and the outer two as sensitivity. Occupied-and-awake is not the same as continuously moving, so the top row is a floor on detection, not a recall score. Single site, single run, one interior wall between the nodes and most of the activity.
+
 > [!IMPORTANT]
-> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet.
+> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. The asleep row above is that property working, not a failure.
 
 > [!NOTE]
 > **Indoor only.** Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors and the sensitive region collapses to a narrow zone on the line between node and transmitter - a tripwire, not area cover. Outdoor detection needs RadarNode (in development).
@@ -340,7 +355,7 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 >
 > **Settings**
 > - Trigger, hold, consecutive hits and channel `@ALL CSI_CFG:0.10:5000:3:0`
-> - Drop a learned trigger `@ALL CSI_RECAL`
+> - Reset the trigger to the compiled default `@ALL CSI_RECAL`
 
 ---
 
