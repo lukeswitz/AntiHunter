@@ -133,7 +133,7 @@ Flash it from your browser.
 | **MAC Randomization Correlation** (beta) | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** (beta) | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **CSI Motion Detection** (beta) | Device-free motion sensing on the WiDetect noise-subtracted variance -- no calibration, no device on the person, per-area strength | WiFi, one channel |
+| **CSI Motion Detection** (experimental) | Device-free motion sensing on the WiDetect noise-subtracted variance -- no calibration, no device on the person, per-area strength | WiFi, one channel |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Packet Capture** | Writes a standard pcap to SD that Wireshark opens -- WiFi frames with a radiotap header, BLE as Bluetooth HCI. One radio per capture, channel list selectable, bounded by a file size cap | WiFi or BLE |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
@@ -313,7 +313,11 @@ Watches for deauthentication and disassociation frames in real time.
 
 ---
 
-### Detection: CSI Motion (beta)
+### Detection: CSI Motion (experimental)
+
+> **Experimental.** The detector works, but its input rate depends on the ESP32 radio and on
+> what traffic is in the air, and both vary more than the statistic does. Read
+> [Limitations](#csi-limitations) before deploying it as a primary sensor.
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
@@ -348,6 +352,25 @@ Read the middle row as the false-alarm figure and the outer two as sensitivity. 
 
 > [!NOTE]
 > **Indoor only.** Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors and the sensitive region collapses to a narrow zone on the line between node and transmitter - a tripwire, not area cover. Outdoor detection needs RadarNode (in development).
+
+<a id="csi-limitations"></a>
+#### Limitations
+
+CSI is computed only from OFDM frames, so the sample rate is whatever OFDM traffic is on the
+channel. That varies far more than the detector does.
+
+- **Never hand-pick the channel.** Started without a channel argument, the node surveys all 11
+  and ranks them by measured CSI yield. One S3, same room, four minutes apart: ch6 gave 2.8
+  records/s, ch1 gave 49.7.
+- **The rate is bursty.** A surveyed channel held 36-62/s; a poor one swung 10x between
+  adjacent 15s windows. [WiDetect](https://cswu.me/papers/ubicomp19_widetect_paper.pdf) works
+  down to 30 Hz.
+- **Board choice.** The S3 is dual-core and has more headroom for scanning, mesh and the web UI
+  together. The C5 is the better CSI receiver - roughly 3x the ingest rate on the same channel,
+  lower noise, and it picks up more 802.11n. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
+- **Movement, not presence.** Someone who stops moving reads as quiet.
+
+`phy=b/g/ht/x` in the serial status line shows the frame mix when a site underperforms.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >

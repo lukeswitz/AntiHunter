@@ -79,7 +79,20 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
 
-### CSI motion detection: the C5 is more sensitive than the S3
+### CSI motion detection: the C5 ingests more than the S3
+
+The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other way from CSI:
+
+| | ESP32-S3 | ESP32-C5 |
+|---|---|---|
+| cores | 2 | 1 |
+| WiFi and BLE scanning, mesh, web UI | more headroom - scan callbacks and the server do not share a core | everything shares one core |
+| CSI ingest rate | reference | ~3x the S3, measured same channel same intervals |
+| CSI measurement noise | reference | 7-57x lower |
+| 802.11n frames seen | almost none | hundreds per 15s |
+| release channel | stable | experimental |
+
+Run scanning on S3 nodes, put a C5 where sensing matters most.
 
 Both boards run the same detector and the same trigger. The gate is the
 noise-corrected signal variance, `var(G) - E[dG^2]/2` averaged over subcarriers,
@@ -140,6 +153,26 @@ Open upstream issues on C5/C61 CSI, none of which currently has a fix:
   layouts. The counter is reported as `fmtdrop` in the status line.
 - [esp-csi#258](https://github.com/espressif/esp-csi/issues/258) - Espressif publishes a
   chip CSI ranking of `C5 > C6 > C3 ~= S3 > ESP32` and has not said what it measures.
+
+#### Why the C5 ingests more
+
+Measured on ch6, same room, same 15s intervals, no SoftAP client on either board:
+
+| per 15s | DSSS | legacy 11g | HT |
+|---|---|---|---|
+| S3 | 5983-7279 | 1129 | 3-12 |
+| C5 | 5983 | 3020 | 194-666 |
+
+The S3 hears more DSSS, so both radios are getting the same air. Ruled out by measurement:
+receiver sensitivity (the gap is widest on the strongest frames), STA and AP bandwidth,
+the `esp_wifi_set_protocol` bits (`0x07`, 11N on), the promiscuous filter, and
+misclassification (`sig_mode==0` frames all read `aggregation=0`, `mcs=0`). Matches
+[esp-idf#736](https://github.com/espressif/esp-idf/issues/736), closed on the grounds that no
+11n was in the air - here a C5 12 cm away was decoding hundreds per 15s.
+
+Channel-specific, not a chip verdict: on ch1 the same S3 decoded 10120 HT frames, 15.7% of
+its OFDM against the C5's 33.6% on ch6. Why ch6 starved it is unexplained. Let the survey
+pick the channel.
 
 ### SD card does not survive a reset without power removal
 

@@ -270,6 +270,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-state-l{flex:1 1 260px;min-width:0}
       .csi-state-word{font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;color:var(--txt)}
       .csi-state.move .csi-state-word{color:var(--csi-hit)}
+      .csi-exp{display:inline-block;margin-bottom:6px;padding:3px 9px;border:1px solid var(--bord);border-radius:999px;background:var(--surf);color:var(--mut);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
       .csi-state-sub{font-size:13.5px;color:var(--mut);margin-top:4px;line-height:1.45}
       .csi-bar{position:relative;height:7px;border-radius:99px;background:var(--accbg);margin-top:14px;overflow:hidden}
       .csi-bar i{display:block;height:100%;border-radius:99px;background:var(--acc);transition:width .35s ease}
@@ -4648,7 +4649,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
           '</div>' +
-          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(2) + '<small>x</small></div>' +
+          '<div class="csi-state-r">' +
+          '<div class="csi-exp" title="CSI motion detection is experimental - see the Limitations section in the README">experimental</div>' +
+          '<div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(2) + '<small>x</small></div>' +
           '<div class="res-metric-lab">movement</div></div>' +
           '</div>';
 
