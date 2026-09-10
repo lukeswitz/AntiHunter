@@ -240,6 +240,8 @@ static uint32_t g_sigModeHist[4];
 static uint32_t g_mcsHist[8];
 static uint32_t g_cwbHist[2];
 #endif
+static uint32_t g_rssiDsss[16];
+static uint32_t g_rssiOfdm[16];
 
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
@@ -248,6 +250,17 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen.fetch_add(1, std::memory_order_relaxed);
     if (!ppkt) return;
     g_rateHist[ppkt->rx_ctrl.rate & 31]++;
+    {
+        int ri = (ppkt->rx_ctrl.rssi + 100) / 5;
+        if (ri < 0) ri = 0; if (ri > 15) ri = 15;
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+        if (ppkt->rx_ctrl.cur_bb_format == RX_BB_FORMAT_11B) g_rssiDsss[ri]++;
+        else g_rssiOfdm[ri]++;
+#else
+        if (ppkt->rx_ctrl.sig_mode == 0 && ppkt->rx_ctrl.rate <= WIFI_PHY_RATE_11M_S) g_rssiDsss[ri]++;
+        else g_rssiOfdm[ri]++;
+#endif
+    }
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     g_fmtHist[ppkt->rx_ctrl.cur_bb_format & 15]++;
     g_secHist[ppkt->rx_ctrl.second ? 1 : 0]++;
@@ -293,6 +306,14 @@ static void csiPrintPhyDiag() {
         if (g_mcsHist[i]) r += String(i) + ":" + String(g_mcsHist[i]) + " ";
     }
 #endif
+    r += "rssiB=";
+    for (int i = 0; i < 16; i++) {
+        if (g_rssiDsss[i]) r += String(-100 + i * 5) + ":" + String(g_rssiDsss[i]) + " ";
+    }
+    r += "rssiO=";
+    for (int i = 0; i < 16; i++) {
+        if (g_rssiOfdm[i]) r += String(-100 + i * 5) + ":" + String(g_rssiOfdm[i]) + " ";
+    }
     Serial.println(r);
 }
 
@@ -1266,6 +1287,8 @@ void csiMotionTask(void *pv) {
     g_phyHt.store(0);
     g_phyOther.store(0);
     memset((void *)g_rateHist, 0, sizeof(g_rateHist));
+    memset((void *)g_rssiDsss, 0, sizeof(g_rssiDsss));
+    memset((void *)g_rssiOfdm, 0, sizeof(g_rssiOfdm));
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     memset((void *)g_fmtHist, 0, sizeof(g_fmtHist));
     memset((void *)g_secHist, 0, sizeof(g_secHist));
