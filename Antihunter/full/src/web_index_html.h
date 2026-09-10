@@ -269,7 +269,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-state.cal{border-left-color:var(--mut)}
       .csi-state-l{flex:1 1 260px;min-width:0}
       .csi-state-word{font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;color:var(--txt)}
-      .csi-exp{display:inline-block;vertical-align:middle;margin-left:10px;padding:3px 9px;border:1px solid var(--bord);border-radius:999px;background:var(--surf);color:var(--mut);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+      .csi-exp{display:inline-block;margin-bottom:6px;padding:3px 9px;border:1px solid var(--bord);border-radius:999px;background:var(--surf);color:var(--mut);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
       .csi-state.move .csi-state-word{color:var(--csi-hit)}
       .csi-state-sub{font-size:13.5px;color:var(--mut);margin-top:4px;line-height:1.45}
       .csi-bar{position:relative;height:7px;border-radius:99px;background:var(--accbg);margin-top:14px;overflow:hidden}
@@ -4666,12 +4666,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         let h = '<div class="csi-state ' + (cal || blind ? 'cal' : (moving ? 'move' : 'still')) + '">' +
           '<div class="csi-state-l">' +
-          '<div class="csi-state-word">' + (cal ? 'Setting up' : (blind ? 'Not detecting' : (moving ? 'Movement' : 'All quiet'))) +
-            '<span class="csi-exp" title="CSI on the C5 is experimental - see docs/ESP32-C5.md">experimental</span></div>' +
+          '<div class="csi-state-word">' + (cal ? 'Setting up' : (blind ? 'Not detecting' : (moving ? 'Movement' : 'All quiet'))) + '</div>' +
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
           '</div>' +
-          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(2) + '<small>x</small></div>' +
+          '<div class="csi-state-r">' +
+          '<div class="csi-exp" title="CSI motion detection is experimental - see the Limitations section in the README">experimental</div>' +
+          '<div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(2) + '<small>x</small></div>' +
           '<div class="res-metric-lab">movement</div></div>' +
           '</div>';
 

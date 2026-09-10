@@ -75,7 +75,7 @@
 | **Drone RID** | Drones broadcasting Remote ID over WiFi and BLE, with operator position | Recon |
 | **Baseline Anomaly** | Devices that are new, gone, returned, or that moved | Detection |
 | **Deauth Detection** | Deauth and disassoc attacks, fingerprinted to the tool behind them | Detection |
-| **CSI Motion** | Movement in the room, from how bodies disturb nearby WiFi | Detection |
+| **CSI Motion** (experimental) | Movement in the room, from how bodies disturb nearby WiFi | Detection |
 | **Sentinel** | Attacker-tool activity: floods, evil twins, karma, handshake capture, PMKID harvesting | Sentinel tab |
 | **Packet Capture** | Raw WiFi or BLE traffic to SD as a standard pcap | Capture |
 | **Triangulation** | Multi-node RSSI location estimate for one target | Scan tab |
@@ -291,7 +291,11 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ---
 
-### Detection: CSI Motion
+### Detection: CSI Motion (experimental)
+
+> **Experimental.** The detector works, but its input rate depends on the ESP32 radio and on
+> what traffic is in the air, and both vary more than the statistic does. Read
+> [Limitations](#csi-limitations) before deploying it as a primary sensor.
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
@@ -332,6 +336,25 @@ Read the middle row as the false-alarm figure and the outer two as sensitivity. 
 
 > [!NOTE]
 > A C5 node measures far cleaner than an S3 on the same channel - 7-57x less CSI measurement noise and about 3x the record rate. It opens motion episodes earlier, holds them longer, and detects weak or distant movement an S3 misses. The relationship is containment rather than agreement: over a 16-hour side-by-side run the C5 flagged 97% of the minutes the S3 called moving, plus a comparable number again that the S3 missed. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
+
+<a id="csi-limitations"></a>
+#### Limitations
+
+CSI is computed only from OFDM frames, so the sample rate is whatever OFDM traffic is on the
+channel. That varies far more than the detector does.
+
+- **Never hand-pick the channel.** Started without a channel argument, the node surveys all 11
+  and ranks them by measured CSI yield. One S3, same room, four minutes apart: ch6 gave 2.8
+  records/s, ch1 gave 49.7.
+- **The rate is bursty.** A surveyed channel held 36-62/s; a poor one swung 10x between
+  adjacent 15s windows. [WiDetect](https://cswu.me/papers/ubicomp19_widetect_paper.pdf) works
+  down to 30 Hz.
+- **Board choice.** The S3 is dual-core and has more headroom for scanning, mesh and the web UI
+  together. The C5 is the better CSI receiver - roughly 3x the ingest rate on the same channel,
+  lower noise, and it picks up more 802.11n. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
+- **Movement, not presence.** Someone who stops moving reads as quiet.
+
+`phy=b/g/ht/x` in the serial status line shows the frame mix when a site underperforms.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
