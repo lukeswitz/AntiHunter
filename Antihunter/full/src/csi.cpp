@@ -232,6 +232,8 @@ static uint32_t g_sigModeHist[4];
 static uint32_t g_rateHist[32];
 static uint32_t g_mcsHist[8];
 static uint32_t g_cwbHist[2];
+static uint32_t g_rssiDsss[16];
+static uint32_t g_rssiOfdm[16];
 
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
@@ -242,6 +244,12 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     const unsigned sm = ppkt->rx_ctrl.sig_mode;
     const unsigned rt = ppkt->rx_ctrl.rate;
     g_sigModeHist[sm & 3]++;
+    {
+        int ri = (ppkt->rx_ctrl.rssi + 100) / 5;
+        if (ri < 0) ri = 0; if (ri > 15) ri = 15;
+        if (sm == 0 && rt <= WIFI_PHY_RATE_11M_S) g_rssiDsss[ri]++;
+        else g_rssiOfdm[ri]++;
+    }
     g_rateHist[rt & 31]++;
     g_cwbHist[ppkt->rx_ctrl.cwb & 1]++;
     if (sm == 1) g_mcsHist[ppkt->rx_ctrl.mcs & 7]++;
@@ -262,6 +270,14 @@ static void csiPrintPhyDiag() {
     r += "mcs=";
     for (int i = 0; i < 8; i++) {
         if (g_mcsHist[i]) r += String(i) + ":" + String(g_mcsHist[i]) + " ";
+    }
+    r += "rssiB=";
+    for (int i = 0; i < 16; i++) {
+        if (g_rssiDsss[i]) r += String(-100 + i * 5) + ":" + String(g_rssiDsss[i]) + " ";
+    }
+    r += "rssiO=";
+    for (int i = 0; i < 16; i++) {
+        if (g_rssiOfdm[i]) r += String(-100 + i * 5) + ":" + String(g_rssiOfdm[i]) + " ";
     }
     Serial.println(r);
 }
@@ -1154,6 +1170,8 @@ void csiMotionTask(void *pv) {
     memset((void *)g_rateHist, 0, sizeof(g_rateHist));
     memset((void *)g_mcsHist, 0, sizeof(g_mcsHist));
     memset((void *)g_cwbHist, 0, sizeof(g_cwbHist));
+    memset((void *)g_rssiDsss, 0, sizeof(g_rssiDsss));
+    memset((void *)g_rssiOfdm, 0, sizeof(g_rssiOfdm));
     g_csiStartMs = millis();
     g_csiEndMs = 0;
 
