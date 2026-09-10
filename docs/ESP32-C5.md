@@ -82,7 +82,7 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 ### CSI motion detection: the C5 is more sensitive than the S3
 
 Both boards run the same detector and the same trigger. The gate is the
-noise-corrected signal variance, `var(G) - var(dG)/2` averaged over subcarriers,
+noise-corrected signal variance, `var(G) - E[dG^2]/2` averaged over subcarriers,
 against a single constant (`CSI_SIG_ETA`, 0.050). Subtracting the measurement noise
 makes the statistic receiver-independent, so no per-board tuning is needed.
 
@@ -94,10 +94,18 @@ from the same transmitters:
 - it ingests roughly 3x the CSI records per second
 
 So it resolves weaker movement. Over a 50 minute run with an operator moving in and
-out, the two boards agreed on every event, but the C5 opened episodes 22-88s earlier
-and held them longer. Where the S3 stayed quiet, the C5 was reading a signal roughly
-twice the S3's on the same disturbance - the S3 was elevated too, just short of its
-gate.
+out, the C5 opened episodes 22-88s earlier and held them longer.
+
+A 16 hour side-by-side run measured the relationship as containment, not agreement.
+Comparing per-minute area state, the C5 flagged 194 of the 200 minutes the S3 called
+moving (97%), and flagged a further 235 minutes the S3 called quiet. Agreement 0.585
+against a chance rate of 0.426, Cohen's kappa 0.278. On the minutes only the C5
+flagged, the S3's own statistic was elevated too - median 0.0357 against its 0.0203
+when both were quiet - so it was seeing the same disturbance and falling short of the
+gate, not missing it entirely. Both boards read the same floor across the sleeping
+hours (C5 0.0176, S3 0.0203), which is what rules out a noise difference as the cause.
+Occupants were present and still, not absent, so this is a quiet floor rather than a
+true empty-building control.
 
 Expect from a C5 node, relative to an S3 in the same room:
 
@@ -108,8 +116,8 @@ Expect from a C5 node, relative to an S3 in the same room:
 | weak or distant movement | often missed | usually detected |
 
 Neither is wrong. If you want a C5 to report only what an S3 would, raise its trigger
-with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and the boot banner reports
-it as `learned for this node`. Send it after the mesh task is up, roughly 15s past
+with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and `CSI_RECAL` clears it
+back to the compiled default. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
@@ -125,8 +133,11 @@ Open upstream issues on C5/C61 CSI, none of which currently has a fix:
   because forcing it collapsed the capture to a single distinct payload on this node
   (measured 2026-09-09: 887 packets, 22 transmitters, 1 distinct 106-byte payload).
 - [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
-  order differs from the S3 on HE parts. Not reached here: ch6 traffic is legacy, so the
-  C5 receives only 106-byte L-LTF.
+  order differs from the S3 on HE parts. This is reached: a ch6 capture measured 2.71M
+  106-byte L-LTF and 454k 114-byte HT-LTF records, so roughly 14% of traffic arrives as
+  HT-LTF. It is contained rather than fixed - each link locks to the first payload
+  length it sees and rejects the other format, so a link's scorer never mixes the two
+  layouts. The counter is reported as `fmtdrop` in the status line.
 - [esp-csi#258](https://github.com/espressif/esp-csi/issues/258) - Espressif publishes a
   chip CSI ranking of `C5 > C6 > C3 ~= S3 > ESP32` and has not said what it measures.
 
