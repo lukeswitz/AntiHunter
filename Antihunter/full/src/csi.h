@@ -32,6 +32,7 @@ extern std::atomic<uint64_t> csiExcludeMac;
 extern std::atomic<uint32_t> csiHoldMs;
 extern std::atomic<uint32_t> csiConsecNeeded;
 extern std::atomic<uint32_t> csiSolicitMs;
+extern std::atomic<uint8_t> csiMgmtOnly;
 
 void csiMotionTask(void *pv);
 String getCsiResults();

@@ -877,6 +877,8 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "RAW") raw = true;
     else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
+    else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
+    else if (tok == "MGMTDATA") csiMgmtOnly.store(0);
     if (colon < 0) break;
     params = params.substring(colon + 1);
     idx++;

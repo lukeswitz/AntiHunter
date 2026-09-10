@@ -32,6 +32,7 @@ std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
+std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
@@ -235,17 +236,6 @@ static std::atomic<uint32_t> g_phyDsss{0};
 static std::atomic<uint32_t> g_phyOfdm{0};
 static std::atomic<uint32_t> g_phyHt{0};
 static std::atomic<uint32_t> g_phyOther{0};
-static uint32_t g_rateHist[32];
-#if CONFIG_SOC_WIFI_HE_SUPPORT
-static uint32_t g_fmtHist[16];
-static uint32_t g_secHist[2];
-#else
-static uint32_t g_sigModeHist[4];
-static uint32_t g_mcsHist[8];
-static uint32_t g_cwbHist[2];
-#endif
-static uint32_t g_rssiDsss[16];
-static uint32_t g_rssiOfdm[16];
 
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
@@ -255,21 +245,7 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
         framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
     if (!ppkt) return;
-    g_rateHist[ppkt->rx_ctrl.rate & 31]++;
-    {
-        int ri = (ppkt->rx_ctrl.rssi + 100) / 5;
-        if (ri < 0) ri = 0; if (ri > 15) ri = 15;
 #if CONFIG_SOC_WIFI_HE_SUPPORT
-        if (ppkt->rx_ctrl.cur_bb_format == RX_BB_FORMAT_11B) g_rssiDsss[ri]++;
-        else g_rssiOfdm[ri]++;
-#else
-        if (ppkt->rx_ctrl.sig_mode == 0 && ppkt->rx_ctrl.rate <= WIFI_PHY_RATE_11M_S) g_rssiDsss[ri]++;
-        else g_rssiOfdm[ri]++;
-#endif
-    }
-#if CONFIG_SOC_WIFI_HE_SUPPORT
-    g_fmtHist[ppkt->rx_ctrl.cur_bb_format & 15]++;
-    g_secHist[ppkt->rx_ctrl.second ? 1 : 0]++;
     switch (ppkt->rx_ctrl.cur_bb_format) {
         case RX_BB_FORMAT_11B: g_phyDsss.fetch_add(1, std::memory_order_relaxed); break;
         case RX_BB_FORMAT_11G: g_phyOfdm.fetch_add(1, std::memory_order_relaxed); break;
@@ -279,9 +255,6 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 #else
     const unsigned sm = ppkt->rx_ctrl.sig_mode;
     const unsigned rt = ppkt->rx_ctrl.rate;
-    g_sigModeHist[sm & 3]++;
-    g_cwbHist[ppkt->rx_ctrl.cwb & 1]++;
-    if (sm == 1) g_mcsHist[ppkt->rx_ctrl.mcs & 7]++;
     if (sm == 1) g_phyHt.fetch_add(1, std::memory_order_relaxed);
     else if (sm == 0 && rt <= WIFI_PHY_RATE_11M_S) g_phyDsss.fetch_add(1, std::memory_order_relaxed);
     else if (sm == 0 && rt <= WIFI_PHY_RATE_9M) g_phyOfdm.fetch_add(1, std::memory_order_relaxed);
@@ -289,39 +262,6 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 #endif
 }
 
-static void csiPrintPhyDiag() {
-    String r = "[CSI] PHYDIAG ";
-#if CONFIG_SOC_WIFI_HE_SUPPORT
-    r += "fmt=";
-    for (int i = 0; i < 16; i++) {
-        if (g_fmtHist[i]) r += String(i) + ":" + String(g_fmtHist[i]) + " ";
-    }
-    r += "sec=none:" + String(g_secHist[0]) + ",ht40:" + String(g_secHist[1]) + " ";
-#else
-    r += "sig=";
-    for (int i = 0; i < 4; i++) r += String(i) + ":" + String(g_sigModeHist[i]) + (i < 3 ? "," : "");
-    r += " cwb=20M:" + String(g_cwbHist[0]) + ",40M:" + String(g_cwbHist[1]) + " ";
-#endif
-    r += "rate=";
-    for (int i = 0; i < 32; i++) {
-        if (g_rateHist[i]) r += "0x" + String(i, HEX) + ":" + String(g_rateHist[i]) + " ";
-    }
-#if !CONFIG_SOC_WIFI_HE_SUPPORT
-    r += "mcs=";
-    for (int i = 0; i < 8; i++) {
-        if (g_mcsHist[i]) r += String(i) + ":" + String(g_mcsHist[i]) + " ";
-    }
-#endif
-    r += "rssiB=";
-    for (int i = 0; i < 16; i++) {
-        if (g_rssiDsss[i]) r += String(-100 + i * 5) + ":" + String(g_rssiDsss[i]) + " ";
-    }
-    r += "rssiO=";
-    for (int i = 0; i < 16; i++) {
-        if (g_rssiOfdm[i]) r += String(-100 + i * 5) + ":" + String(g_rssiOfdm[i]) + " ";
-    }
-    Serial.println(r);
-}
 
 static const uint8_t CSI_LEN_SLOTS = 6;
 static volatile uint16_t g_lenVal[CSI_LEN_SLOTS];
@@ -1154,20 +1094,13 @@ static bool csiRadioStart(uint8_t ch) {
     esp_wifi_set_country(&ctry);
 
     wifi_promiscuous_filter_t filter = {};
-    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
+    filter.filter_mask = csiMgmtOnly.load()
+                             ? WIFI_PROMIS_FILTER_MASK_MGMT
+                             : (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA);
     esp_wifi_set_promiscuous_filter(&filter);
+    Serial.printf("[CSI] promisc filter=%s\n", csiMgmtOnly.load() ? "MGMT" : "MGMT|DATA");
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
     esp_wifi_set_ps(WIFI_PS_NONE);
-
-    {
-        uint8_t pSta = 0, pAp = 0;
-        const esp_err_t gs = esp_wifi_get_protocol(WIFI_IF_STA, &pSta);
-        const esp_err_t ga = esp_wifi_get_protocol(WIFI_IF_AP, &pAp);
-        Serial.printf("[CSI] protocol sta=0x%02X(%s) ap=0x%02X(%s) get=%s/%s\n",
-                      pSta, (pSta & WIFI_PROTOCOL_11N) ? "11N on" : "11N OFF",
-                      pAp, (pAp & WIFI_PROTOCOL_11N) ? "11N on" : "11N OFF",
-                      esp_err_to_name(gs), esp_err_to_name(ga));
-    }
 
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
@@ -1344,17 +1277,6 @@ void csiMotionTask(void *pv) {
     g_phyOfdm.store(0);
     g_phyHt.store(0);
     g_phyOther.store(0);
-    memset((void *)g_rateHist, 0, sizeof(g_rateHist));
-    memset((void *)g_rssiDsss, 0, sizeof(g_rssiDsss));
-    memset((void *)g_rssiOfdm, 0, sizeof(g_rssiOfdm));
-#if CONFIG_SOC_WIFI_HE_SUPPORT
-    memset((void *)g_fmtHist, 0, sizeof(g_fmtHist));
-    memset((void *)g_secHist, 0, sizeof(g_secHist));
-#else
-    memset((void *)g_sigModeHist, 0, sizeof(g_sigModeHist));
-    memset((void *)g_mcsHist, 0, sizeof(g_mcsHist));
-    memset((void *)g_cwbHist, 0, sizeof(g_cwbHist));
-#endif
     g_csiStartMs = millis();
     g_csiEndMs = 0;
 
@@ -1623,7 +1545,6 @@ void csiMotionTask(void *pv) {
                           (unsigned)g_lenVal[1], (unsigned)g_lenFmt[1], (unsigned)g_lenCnt[1],
                           g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load(),
                           g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load());
-            csiPrintPhyDiag();
         }
     }
 
