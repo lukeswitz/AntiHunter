@@ -296,10 +296,12 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
 - **No calibration.** The trigger is the noise-corrected signal variance of the channel response, so it is receiver-independent and one constant covers every board type. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **Signal strength is not the limit.** Weak links carry detection as well as strong ones; the statistic is a ratio, so path loss divides out
-- **Two gates before an alert.** A link counts as moving only when most of its subcarriers agree ([Origin Wireless US10291460B2](https://patents.google.com/patent/US10291460B2/en)); an area alert needs two transmitters to agree when two are available
+- **One gate.** A link is moving when the noise-subtracted variance crosses the trigger, default 0.050. The per-subcarrier vote and the autocorrelation are reported for display and tuning; neither one gates an alert
+- **Alerts are duty-cycled.** An area alert needs 12 seconds of link motion inside a rolling 60-second window and then holds 15 seconds before it changes state, so one link crossing once does not raise anything
+- **Signal strength is not the limit.** Detections seen on links from -32 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
+- **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
 - **Almost passive.** It transmits only when the channel is too quiet to measure - fewer than 15 CSI packets in the last second - sending one broadcast probe request, at most once per second
-- Emits one `CSI_MOTION` line when the area goes from quiet to moving, not one per transmitter, rate limited to one per 30s; one `CSI_CLEAR` when every link settles
+- Emits one `CSI_MOTION` line when the area goes from quiet to moving, not one per transmitter; one `CSI_CLEAR` when every link settles
 
 Under **Advanced** on the Scan tab:
 
@@ -308,15 +310,28 @@ Under **Advanced** on the Scan tab:
 | Channel | 0-14, `0` = auto | Pin one channel, or let it pick the strongest AP's |
 | Clear after | 500-120000 ms | How long the area must be still before it reports clear |
 | Consecutive packets | 1-50 | Packets over the trigger before a hit fires |
-| Learn the trigger from this area | - | Calibration in an empty room, replaces the default trigger |
 | Per-packet score to serial | - | Telemetry for tuning |
 | Raw CSI to serial | - | Full complex-value dump |
 
+#### Measured
+
+One home, a C5 and an S3 node side by side on 2.4 GHz ch6, 16 hours continuous, operator-reported occupancy. `MOVE` is the fraction of minutes the node held an area alert.
+
+| window | minutes | ESP32-S3 | ESP32-C5 |
+|---|---|---|---|
+| occupied, awake | 236 | 48.3% | 92.4% |
+| asleep, occupants still | 240 | 3.3% | 0.0% |
+| waking, 06:00-06:30 | 28 | 60.7% | 78.6% |
+
+Per-link `MOTION` events over the same three windows: S3 137 / 18 / 19, C5 519 / 0 / 25.
+
+Read the middle row as the false-alarm figure and the outer two as sensitivity. Occupied-and-awake is not the same as continuously moving, so the top row is a floor on detection, not a recall score. Single site, single run, one interior wall between the nodes and most of the activity.
+
 > [!IMPORTANT]
-> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. Indoor only: multipath is what makes it work, and open ground has nothing to bounce off.
+> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. The asleep row above is that property working, not a failure. Indoor only: multipath is what makes it work, and open ground has nothing to bounce off.
 
 > [!NOTE]
-> A C5 node measures far cleaner than an S3 on the same channel - 7-57x less CSI measurement noise and about 3x the record rate. It opens motion episodes up to 90s earlier, holds them longer, and detects weak or distant movement an S3 misses. Both agree on which events occurred. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
+> A C5 node measures far cleaner than an S3 on the same channel - 7-57x less CSI measurement noise and about 3x the record rate. It opens motion episodes earlier, holds them longer, and detects weak or distant movement an S3 misses. The relationship is containment rather than agreement: over a 16-hour side-by-side run the C5 flagged 97% of the minutes the S3 called moving, plus a comparable number again that the S3 missed. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
@@ -324,7 +339,7 @@ Under **Advanced** on the Scan tab:
 >
 > **Settings**
 > - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.10:5000:3:0`
-> - Drop a learned trigger `@ALL CSI_RECAL`
+> - Reset the trigger to the compiled default `@ALL CSI_RECAL`
 > - State to serial `@AH01 CSI_STATUS` or `@AH01 CSI_JSON`
 > - Add `:TELEM` or `:RAW` to the start command for tuning output
 
@@ -864,12 +879,12 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]` | `@ALL CSI_MOTION_START:300:CH11` |
+| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:300:CH11` |
 | `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
-| `CSI_RECAL` | Drop a learned trigger, back to default | None | `@ALL CSI_RECAL` |
+| `CSI_RECAL` | Reset the trigger to the compiled default | None | `@ALL CSI_RECAL` |
 
-`CSI_CFG` ranges: trigger 0.02-0.60, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TRAIN` on start learns the trigger from the current room over 20s; `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
+`CSI_CFG` ranges: trigger 0.02-0.60, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
 
 ### Sentinel Commands
 
@@ -979,7 +994,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Triangulation final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Triangulation cycle start | `@ALL TRI_CYCLE_START:<ms>:<node,node,...>` - the coordinating node broadcasts it so every node in the run reports in its own slot. Sent by the firmware, not something you issue |
-| CSI motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s |
+| CSI motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. One per state change, held 15s |
 | CSI motion clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving |
 | Tamper detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Packet capture started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` runs until stopped |
