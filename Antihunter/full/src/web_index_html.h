@@ -4652,16 +4652,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         const pct = Math.min(100, Math.round((act / (trig * 2)) * 100));
 
+        const blind = !cal && (d.armed === 0);
+
         let sub;
         if (cal) sub = 'Learning the empty baseline. Keep the area clear.';
+        else if (blind) sub = (d.usable || 0) === 0
+          ? 'No signal in range. Nothing can be detected.'
+          : (d.usable + ' signal(s) in range, none armed yet. Nothing can be detected.');
         else if (moving) sub = 'Something is moving in range right now';
         else if (sinceMotion >= 0) sub = sinceMotion < 60 ? 'Last movement just now'
                                                           : 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
         else sub = 'Nothing has moved since this started';
 
-        let h = '<div class="csi-state ' + (cal ? 'cal' : (moving ? 'move' : 'still')) + '">' +
+        let h = '<div class="csi-state ' + (cal || blind ? 'cal' : (moving ? 'move' : 'still')) + '">' +
           '<div class="csi-state-l">' +
-          '<div class="csi-state-word">' + (cal ? 'Setting up' : (moving ? 'Movement' : 'All quiet')) +
+          '<div class="csi-state-word">' + (cal ? 'Setting up' : (blind ? 'Not detecting' : (moving ? 'Movement' : 'All quiet'))) +
             '<span class="csi-exp" title="CSI on the C5 is experimental - see docs/ESP32-C5.md">experimental</span></div>' +
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +

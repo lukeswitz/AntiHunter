@@ -60,14 +60,17 @@ static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
 static void csiHeatPush(float act, bool alerting) {
-    uint16_t q = (act > 0.0f) ? (uint16_t)(act * 25.0f) : 0;
-    if (q > 255) q = 255;
-    if (q > g_heatSum) g_heatSum = q;
-    if (alerting) g_heatHotCur = 1;
+    (void)act;
+    if (alerting) {
+        g_heatSum++;
+        g_heatHotCur = 1;
+    }
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
-    const uint8_t cell = (uint8_t)g_heatSum;
+    const uint16_t span = g_heatSec ? g_heatSec : 1;
+    const uint32_t alertSec = (g_heatSum > span) ? span : g_heatSum;
+    const uint8_t cell = (uint8_t)((alertSec * 255U) / span);
     const uint8_t hot = g_heatHotCur;
     g_heatSum = 0;
     g_heatHotCur = 0;
@@ -87,12 +90,14 @@ static void csiHeatPush(float act, bool alerting) {
         }
         uint8_t out = 0;
         for (uint8_t i = 0; i < CSI_HEAT_CELLS; i += factor) {
-            uint8_t mx = 0, mhot = 0;
+            uint16_t acc = 0;
+            uint8_t n = 0, mhot = 0;
             for (uint8_t k = i; k < i + factor && k < CSI_HEAT_CELLS; k++) {
-                if (g_heat[k] > mx) mx = g_heat[k];
+                acc = (uint16_t)(acc + g_heat[k]);
+                n++;
                 mhot |= g_heatHot[k];
             }
-            g_heat[out] = mx;
+            g_heat[out] = (uint8_t)(acc / (n ? n : 1));
             g_heatHot[out] = mhot;
             out++;
         }
@@ -226,6 +231,20 @@ std::atomic<bool> csiRequireCeVld{false};
 
 extern std::atomic<uint32_t> framesSeen;
 
+static std::atomic<uint32_t> g_phyDsss{0};
+static std::atomic<uint32_t> g_phyOfdm{0};
+static std::atomic<uint32_t> g_phyHt{0};
+static std::atomic<uint32_t> g_phyOther{0};
+static uint32_t g_rateHist[32];
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+static uint32_t g_fmtHist[16];
+static uint32_t g_secHist[2];
+#else
+static uint32_t g_sigModeHist[4];
+static uint32_t g_mcsHist[8];
+static uint32_t g_cwbHist[2];
+#endif
+
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
     g_promFrames.fetch_add(1);
@@ -233,6 +252,54 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (ppkt && ppkt->rx_ctrl.sig_len >= 24) {
         framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
+    if (!ppkt) return;
+    g_rateHist[ppkt->rx_ctrl.rate & 31]++;
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    g_fmtHist[ppkt->rx_ctrl.cur_bb_format & 15]++;
+    g_secHist[ppkt->rx_ctrl.second ? 1 : 0]++;
+    switch (ppkt->rx_ctrl.cur_bb_format) {
+        case RX_BB_FORMAT_11B: g_phyDsss.fetch_add(1, std::memory_order_relaxed); break;
+        case RX_BB_FORMAT_11G: g_phyOfdm.fetch_add(1, std::memory_order_relaxed); break;
+        case RX_BB_FORMAT_HT:  g_phyHt.fetch_add(1, std::memory_order_relaxed); break;
+        default:               g_phyOther.fetch_add(1, std::memory_order_relaxed); break;
+    }
+#else
+    const unsigned sm = ppkt->rx_ctrl.sig_mode;
+    const unsigned rt = ppkt->rx_ctrl.rate;
+    g_sigModeHist[sm & 3]++;
+    g_cwbHist[ppkt->rx_ctrl.cwb & 1]++;
+    if (sm == 1) g_mcsHist[ppkt->rx_ctrl.mcs & 7]++;
+    if (sm == 1) g_phyHt.fetch_add(1, std::memory_order_relaxed);
+    else if (sm == 0 && rt <= WIFI_PHY_RATE_11M_S) g_phyDsss.fetch_add(1, std::memory_order_relaxed);
+    else if (sm == 0 && rt <= WIFI_PHY_RATE_9M) g_phyOfdm.fetch_add(1, std::memory_order_relaxed);
+    else g_phyOther.fetch_add(1, std::memory_order_relaxed);
+#endif
+}
+
+static void csiPrintPhyDiag() {
+    String r = "[CSI] PHYDIAG ";
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    r += "fmt=";
+    for (int i = 0; i < 16; i++) {
+        if (g_fmtHist[i]) r += String(i) + ":" + String(g_fmtHist[i]) + " ";
+    }
+    r += "sec=none:" + String(g_secHist[0]) + ",ht40:" + String(g_secHist[1]) + " ";
+#else
+    r += "sig=";
+    for (int i = 0; i < 4; i++) r += String(i) + ":" + String(g_sigModeHist[i]) + (i < 3 ? "," : "");
+    r += " cwb=20M:" + String(g_cwbHist[0]) + ",40M:" + String(g_cwbHist[1]) + " ";
+#endif
+    r += "rate=";
+    for (int i = 0; i < 32; i++) {
+        if (g_rateHist[i]) r += "0x" + String(i, HEX) + ":" + String(g_rateHist[i]) + " ";
+    }
+#if !CONFIG_SOC_WIFI_HE_SUPPORT
+    r += "mcs=";
+    for (int i = 0; i < 8; i++) {
+        if (g_mcsHist[i]) r += String(i) + ":" + String(g_mcsHist[i]) + " ";
+    }
+#endif
+    Serial.println(r);
 }
 
 static const uint8_t CSI_LEN_SLOTS = 6;
@@ -520,6 +587,14 @@ static uint8_t csiUsableCount() {
     return n;
 }
 
+static uint8_t csiArmedCount() {
+    uint8_t n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        if (csiLinkUsable(g_links[i]) && g_links[i].sc.settled()) n++;
+    }
+    return n;
+}
+
 static CsiLink *csiFindLink(const uint8_t *mac) {
     CsiLink *freeSlot = nullptr;
     CsiLink *worst = nullptr;
@@ -803,14 +878,20 @@ String getCsiResults() {
     r += "Channel: " + String(g_csiActiveChannel) + " (pinned)\n";
     {
         uint8_t usable;
+        uint8_t armed;
         {
             std::lock_guard<std::mutex> lock(g_csiMutex);
             usable = csiUsableCount();
+            armed = csiArmedCount();
         }
         r += "Usable links: " + String(usable) + "\n";
+        r += "Armed links: " + String(armed) + "\n";
         if (usable == 0) {
             r += "BLIND - no link reaches " + String((int)CSI_LINK_MIN_RSSI) + "dBm.\n"
                  "Motion cannot be detected. Move the node nearer an active AP or pick a busier channel.\n";
+        } else if (armed == 0) {
+            r += "BLIND - " + String(usable) + " link(s) in range but none armed.\n"
+                 "Motion cannot be detected until a link settles.\n";
         }
     }
     r += "CSI records: " + String(g_csiSeen.load()) +
@@ -858,11 +939,14 @@ String getCsiJson() {
 
     String j = "{\"channel\":" + String(g_csiActiveChannel);
     uint8_t usableNow;
+    uint8_t armedNow;
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
         usableNow = csiUsableCount();
+        armedNow = csiArmedCount();
     }
     j += ",\"usable\":" + String(usableNow);
+    j += ",\"armed\":" + String(armedNow);
     j += ",\"records\":" + String(g_csiSeen.load());
     j += ",\"rejFcs\":" + String(g_rejFcs.load());
     j += ",\"rejWidth\":" + String(g_rejWidth.load());
@@ -1054,6 +1138,16 @@ static bool csiRadioStart(uint8_t ch) {
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
     esp_wifi_set_ps(WIFI_PS_NONE);
 
+    {
+        uint8_t pSta = 0, pAp = 0;
+        const esp_err_t gs = esp_wifi_get_protocol(WIFI_IF_STA, &pSta);
+        const esp_err_t ga = esp_wifi_get_protocol(WIFI_IF_AP, &pAp);
+        Serial.printf("[CSI] protocol sta=0x%02X(%s) ap=0x%02X(%s) get=%s/%s\n",
+                      pSta, (pSta & WIFI_PROTOCOL_11N) ? "11N on" : "11N OFF",
+                      pAp, (pAp & WIFI_PROTOCOL_11N) ? "11N on" : "11N OFF",
+                      esp_err_to_name(gs), esp_err_to_name(ga));
+    }
+
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
         Serial.printf("[CSI] promiscuous enable failed: %s\n", esp_err_to_name(rp));
@@ -1225,6 +1319,19 @@ void csiMotionTask(void *pv) {
     g_csiSeen.store(0);
     g_csiRejected.store(0);
     g_csiDropped.store(0);
+    g_phyDsss.store(0);
+    g_phyOfdm.store(0);
+    g_phyHt.store(0);
+    g_phyOther.store(0);
+    memset((void *)g_rateHist, 0, sizeof(g_rateHist));
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    memset((void *)g_fmtHist, 0, sizeof(g_fmtHist));
+    memset((void *)g_secHist, 0, sizeof(g_secHist));
+#else
+    memset((void *)g_sigModeHist, 0, sizeof(g_sigModeHist));
+    memset((void *)g_mcsHist, 0, sizeof(g_mcsHist));
+    memset((void *)g_cwbHist, 0, sizeof(g_cwbHist));
+#endif
     g_csiStartMs = millis();
     g_csiEndMs = 0;
 
@@ -1393,19 +1500,25 @@ void csiMotionTask(void *pv) {
             float peakRoll = 0.0f;
             int movingRoll = 0;
             uint8_t usableRoll = 0;
+            uint8_t armedRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
+                armedRoll = csiArmedCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u events=%u up=%us\n",
-                          usableRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
-                          peakRoll, movingRoll, usableRoll,
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u events=%u up=%us\n",
+                          armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
+                          peakRoll, movingRoll, usableRoll, armedRoll,
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
+            if (armedRoll == 0 && usableRoll > 0) {
+                Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
+                              usableRoll);
+            }
             if (g_memcpyBadLenRejects) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
@@ -1473,7 +1586,8 @@ void csiMotionTask(void *pv) {
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u fmtdrop=%u fw=%u frames=%u tx=%u/%u err=%d "
-                          "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u\n",
+                          "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u "
+                          "phy=b:%u/g:%u/ht:%u/x:%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
@@ -1484,7 +1598,9 @@ void csiMotionTask(void *pv) {
 
                           (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
                           (unsigned)g_lenVal[1], (unsigned)g_lenFmt[1], (unsigned)g_lenCnt[1],
-                          g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load());
+                          g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load(),
+                          g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load());
+            csiPrintPhyDiag();
         }
     }
 
