@@ -44,8 +44,8 @@ static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
-static const uint32_t CSI_ACF_LAG_MIN_US = 90000;
-static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
+static const uint32_t CSI_ACF_LAG_MIN_US = 5000;
+static const uint32_t CSI_ACF_LAG_MAX_US = 3000000;
 static const float CSI_SIG_ETA = 0.050f;
 static const float CSI_PSI_K = 3.0f;
 
@@ -157,6 +157,8 @@ struct CsiScorer {
     uint8_t hpos;
     uint16_t sampCount;
     uint32_t acfPairs;
+    uint32_t lagSkips;
+    uint32_t lagBkt[5];
     uint8_t prevValid;
     uint32_t lagAccum;
 
@@ -190,6 +192,8 @@ struct CsiScorer {
         hpos = 0;
         sampCount = 0;
         acfPairs = 0;
+        lagSkips = 0;
+        for (int i = 0; i < 5; i++) lagBkt[i] = 0;
         prevValid = 0;
         lagAccum = 0;
     }
@@ -265,9 +269,15 @@ struct CsiScorer {
         int nf = 0;
         int nvote = 0;
         float psiAll = 0.0f;
+        const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
+        if (!lagOk && lagSkips < 0xFFFFFFFFu) lagSkips++;
+        if (dtUs != 0xFFFFFFFFu) {
+            const int bi = (dtUs < 50000) ? 0 : (dtUs < 200000) ? 1 : (dtUs < 1000000) ? 2 : (dtUs < 3000000) ? 3 : 4;
+            if (lagBkt[bi] < 0xFFFFFFFFu) lagBkt[bi]++;
+        }
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
-            if (acfPairs > 0) {
+            if (acfPairs > 0 && lagOk) {
                 const float dG = G - prevG[k];
                 mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
                 mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
@@ -298,7 +308,7 @@ struct CsiScorer {
             }
             prevG[k] = G;
         }
-        if (acfPairs < 0xFFFF) acfPairs++;
+        if (lagOk && acfPairs < 0xFFFFFFFFu) acfPairs++;
         prevValid = 1;
         acf = (psiPos > 1e-6f) ? (psiSq / psiPos) : 0.0f;
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
