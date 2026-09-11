@@ -823,7 +823,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
                   bool rawDump, bool telemetry) {
     if (channel <= 14) csiPinnedChannel.store(channel);
     if (threshold <= 0.0f) csiThresholdMilli.store(0);
-    else if (threshold >= 0.02f && threshold <= 0.60f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f));
+    else if (threshold >= 0.02f && threshold <= 0.95f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f));
     if (holdMs >= 500 && holdMs <= 120000) csiHoldMs.store(holdMs);
     if (consec >= 1 && consec <= 50) csiConsecNeeded.store(consec);
     csiRawDump.store(rawDump);
