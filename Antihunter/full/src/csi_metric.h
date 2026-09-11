@@ -75,6 +75,7 @@ struct CsiScorer {
     float acf;
     float sigVar;
     float vote;
+    float psi;
     float acfFloor;
     float acfSpread;
     float acfZ;
@@ -109,6 +110,7 @@ struct CsiScorer {
         acf = 0.0f;
         sigVar = 0.0f;
         vote = 0.0f;
+        psi = 0.0f;
         acfFloor = 0.0f;
         acfSpread = CSI_ACF_MIN_SPREAD;
         acfZ = 0.0f;
@@ -201,6 +203,7 @@ struct CsiScorer {
         int nsig = 0;
         int nf = 0;
         int nvote = 0;
+        float psiAll = 0.0f;
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
             if (acfPairs > 0) {
@@ -228,6 +231,7 @@ struct CsiScorer {
                         psiSq += p * p;
                     }
                     nf++;
+                    psiAll += p;
                     if (p > CSI_ACF_ETA_SUB) nvote++;
                 }
             }
@@ -238,6 +242,7 @@ struct CsiScorer {
         acf = (psiPos > 1e-6f) ? (psiSq / psiPos) : 0.0f;
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
+        psi = (nf > 0) ? (psiAll / (float)nf) : 0.0f;
 
         if (!holdFloor &&
             ++asampCount >= CSI_ACF_SAMPLE_EVERY) {

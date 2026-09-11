@@ -1394,6 +1394,17 @@ void csiMotionTask(void *pv) {
                           statPassEta, statPassVote, g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
                           g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load());
+            if (csiTelemetry.load()) {
+                std::lock_guard<std::mutex> lock(g_csiMutex);
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    const CsiLink &l = g_links[i];
+                    if (!l.used) continue;
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f pr=%.1f\n",
+                                  macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
+                                  csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
+                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.pairRate);
+                }
+            }
         }
     }
 

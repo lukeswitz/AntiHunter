@@ -923,6 +923,7 @@ static void handleCsiCfg(const String &command)
   uint32_t hold = csiHoldMs.load();
   uint32_t consec = csiConsecNeeded.load();
   uint8_t ch = csiPinnedChannel.load();
+  bool telemetry = csiTelemetry.load();
   int idx = 0;
 
   while (params.length() > 0) {
@@ -933,6 +934,7 @@ static void handleCsiCfg(const String &command)
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();
       else if (idx == 3) ch = (uint8_t)tok.toInt();
+      else if (idx == 4) telemetry = tok.toInt() != 0;
     }
     if (colon < 0) break;
     params = params.substring(colon + 1);
@@ -945,7 +947,7 @@ static void handleCsiCfg(const String &command)
     return;
   }
 
-  setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), csiTelemetry.load());
+  setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:T=" + String(thr, 2) +
                 " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
                 " CH=" + String(ch), true);
