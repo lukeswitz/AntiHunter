@@ -727,11 +727,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" name="csiHold" id="csiHold" min="500" max="120000" step="500" value="5000">
                     </div>
                     <div>
-                      <label style="font-size:11px;">Consecutive packets</label>
+                      <label style="font-size:11px;">Packets in a row before alerting</label>
                       <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
                     </div>
                   </div>
-                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Sensitivity is self-normalizing, so the default works anywhere. Only tick this if a location reads wrong.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -4517,21 +4516,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const el = document.getElementById('detectionDesc');
         if (el) el.textContent = DETECTION_DESC[mode] || '';
       }
-      async function refreshCsiCalState() {
-        const el = document.getElementById('csiCalState');
-        if (!el) return;
-        try {
-          const j = await (await fetch('/csi-json')).json();
-          const t = (j.threshold || 0).toFixed(2);
-          el.innerHTML = j.calibrated
-            ? 'Using a trigger learned here: <strong>' + t + 'x</strong>. Untick to go back to the default.'
-            : 'Sensitivity is self-normalizing, so the default <strong>' + t +
-              'x</strong> works anywhere. Only tick this if a location reads wrong.';
-        } catch (e) {
-          console.warn('refreshCsiCalState: /csi-json fetch failed', e);
-          el.textContent = 'Baseline state unavailable.';
-        }
-      }
       function csiCellLabel(sec) {
         if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min';
         return Math.round(sec / 360) / 10 + ' hr';
@@ -5867,7 +5851,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           csiControls.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
-          refreshCsiCalState();
 
         } else if (selectedMethod === 'pcap') {
           standardControls.style.display = 'block';
