@@ -560,8 +560,8 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float sigEta = csiSigEta(csiThresholdMilli.load());
-        if (l.sc.sigVar >= sigEta) {
+        const float voteFrac = CSI_VOTE_FRAC;
+        if (l.sc.vote >= voteFrac) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -584,7 +584,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigVar < sigEta &&
+        } else if (l.motion && l.sc.vote < voteFrac &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
