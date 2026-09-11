@@ -26,7 +26,12 @@ static const uint32_t CSI_ACF_LAG_MIN_US = 90000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_SIG_ETA = 0.050f;
-static const float CSI_PSI_ETA = 0.10f;
+static const float CSI_PSI_K = 3.0f;
+
+static inline float csiAnalyticEta() {
+    const float T = 1.0f / CSI_ACF_ALPHA;
+    return -1.0f / T + CSI_PSI_K * sqrtf(1.0f / ((float)CSI_NSUB * T));
+}
 static const int CSI_AREA_LINK_NUM = 2;
 static const int CSI_AREA_LINK_DEN = 3;
 static const float CSI_ACF_ETA_SUB = 0.10f;

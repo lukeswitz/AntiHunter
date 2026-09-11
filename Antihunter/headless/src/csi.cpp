@@ -560,7 +560,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float psiEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : CSI_PSI_ETA;
+        const float psiEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : csiAnalyticEta();
         if (l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
