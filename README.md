@@ -340,12 +340,19 @@ One home, both node types side by side on 2.4 GHz ch6, 16 hours continuous, oper
 | window | minutes | ESP32-S3 | ESP32-C5 |
 |---|---|---|---|
 | occupied, awake | 236 | 48.3% | 92.4% |
-| asleep, occupants still | 240 | 3.3% | 0.0% |
+| asleep, occupants still | 240 | 3.3% | see note |
 | waking, 06:00-06:30 | 28 | 60.7% | 78.6% |
 
 Per-link `MOTION` events over the same three windows: S3 137 / 18 / 19, C5 519 / 0 / 25.
 
-Read the middle row as the false-alarm figure and the outer two as sensitivity. Occupied-and-awake is not the same as continuously moving, so the top row is a floor on detection, not a recall score. Single site, single run, one interior wall between the nodes and most of the activity.
+Read the middle row as the false-alarm figure for the S3, and the outer two as sensitivity. Occupied-and-awake is not the same as continuously moving, so the top row is a floor on detection, not a recall score. Single site, single run, one interior wall between the nodes and most of the activity.
+
+The C5's asleep figure is withheld deliberately. It originally read 0.0%, which looks like a
+perfect false-alarm rate and is not one: on that run the C5 held **zero settled links for 93%
+of 01:00-05:00**, flat-dropping every link it built. It reported nothing because it had
+nothing to detect with. Firmware now prints `BLIND` and an `armed=` count so this state is
+visible rather than passing for quiet, but the C5 still has no validated overnight
+false-alarm figure.
 
 > [!IMPORTANT]
 > It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. The asleep row above is that property working, not a failure.
