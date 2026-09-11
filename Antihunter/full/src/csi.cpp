@@ -663,7 +663,7 @@ static void csiProcess(const CsiEvent &ev) {
         if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
 
-        if (csiTelemetry.load()) {
+        if (csiRawDump.load()) {
             Serial.printf("CSIT,%lu,%s,%.3f,%.5f,%.5f,%d\n",
                           (unsigned long)now, macFmt6(l.mac).c_str(),
                           l.sc.score, l.sc.mad, l.sc.floorMad, l.rssi);
@@ -672,12 +672,12 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float voteFrac = CSI_VOTE_FRAC;
+        const float psiEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : CSI_PSI_ETA;
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.vote >= voteFrac) {
+        if (l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -701,7 +701,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.vote < voteFrac &&
+        } else if (l.motion && l.sc.psi < psiEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -717,15 +717,6 @@ static void csiExpireLinks() {
     const uint32_t now = millis();
     CsiAlert alerts[CSI_MAX_LINKS] = {};
 
-    bool flatHave = false;
-    uint8_t flatMac[6] = {};
-    uint16_t flatLen = 0;
-    uint8_t flatBins = 0;
-    uint32_t flatPkts = 0, flatScored = 0, flatPairs = 0;
-    float flatScore = 0.0f, flatMean = 0.0f, flatVar = 0.0f, flatMad = 0.0f;
-    float flatFloorMad = 0.0f, flatAcf = 0.0f, flatSig = 0.0f, flatVote = 0.0f;
-    float flatG[CSI_NSUB] = {};
-    float flatFast[CSI_NSUB] = {};
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -740,55 +731,14 @@ static void csiExpireLinks() {
             l.pairRate += 0.5f * (dpps - l.pairRate);
 
             const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
-            const bool flat = l.sc.settled() && l.sc.spread() < CSI_LINK_MIN_SPREAD;
-            if (!stale && !flat) continue;
+            if (!stale) continue;
 
-            if (flat && !stale) {
-                Serial.printf("[CSI] DROP %s flat (spread %.3f over %u pkts)\n",
-                              macFmt6(l.mac).c_str(), l.sc.spread(), l.packets);
-                if (!flatHave) {
-                    flatHave = true;
-                    memcpy(flatMac, l.mac, 6);
-                    flatLen = l.fmtLen;
-                    flatBins = l.liveBins;
-                    flatPkts = l.packets;
-                    flatScored = l.sc.scored;
-                    flatPairs = l.sc.acfPairs;
-                    flatScore = l.sc.score;
-                    flatMean = l.sc.scoreMean;
-                    flatVar = l.sc.scoreVar;
-                    flatMad = l.sc.mad;
-                    flatFloorMad = l.sc.floorMad;
-                    flatAcf = l.sc.acf;
-                    flatSig = l.sc.sigVar;
-                    flatVote = l.sc.vote;
-                    memcpy(flatG, l.sc.prevG, sizeof(flatG));
-                    memcpy(flatFast, l.sc.fast, sizeof(flatFast));
-                }
-            }
             if (l.motion) {
                 l.motion = false;
                 csiStageAlert(alerts[i], l, false);
             }
             l.used = false;
         }
-    }
-
-    if (flatHave) {
-        Serial.printf("[CSIFLAT] %s len=%u bins=%u pkts=%u scored=%u pairs=%u "
-                      "score=%.6f mean=%.6f var=%.9f mad=%.6f floormad=%.6f "
-                      "acf=%.6f sig=%.6f vote=%.3f\n",
-                      macFmt6(flatMac).c_str(), flatLen, flatBins, flatPkts,
-                      flatScored, flatPairs, flatScore, flatMean, flatVar,
-                      flatMad, flatFloorMad, flatAcf, flatSig, flatVote);
-        String g = "[CSIFLAT] G";
-        String f = "[CSIFLAT] A";
-        for (int k = 0; k < CSI_NSUB; k++) {
-            g += "," + String(flatG[k], 5);
-            f += "," + String(flatFast[k], 5);
-        }
-        Serial.println(g);
-        Serial.println(f);
     }
 
     for (int i = 0; i < CSI_MAX_LINKS; i++) csiEmitAlert(alerts[i]);

@@ -648,7 +648,7 @@ static void csiProcess(const CsiEvent &ev) {
         if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
 
-        if (csiTelemetry.load()) {
+        if (csiRawDump.load()) {
             Serial.printf("CSIT,%lu,%s,%.3f,%.5f,%.5f,%d\n",
                           (unsigned long)now, macFmt6(l.mac).c_str(),
                           l.sc.score, l.sc.mad, l.sc.floorMad, l.rssi);
@@ -657,12 +657,12 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float voteFrac = CSI_VOTE_FRAC;
+        const float psiEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : CSI_PSI_ETA;
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.vote >= voteFrac) {
+        if (l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -686,7 +686,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.vote < voteFrac &&
+        } else if (l.motion && l.sc.psi < psiEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -715,13 +715,8 @@ static void csiExpireLinks() {
             l.pairRate += 0.5f * (dpps - l.pairRate);
 
             const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
-            const bool flat = l.sc.settled() && l.sc.spread() < CSI_LINK_MIN_SPREAD;
-            if (!stale && !flat) continue;
+            if (!stale) continue;
 
-            if (flat && !stale) {
-                Serial.printf("[CSI] DROP %s flat (spread %.3f over %u pkts)\n",
-                              macFmt6(l.mac).c_str(), l.sc.spread(), l.packets);
-            }
             if (l.motion) {
                 l.motion = false;
                 csiStageAlert(alerts[i], l, false);
