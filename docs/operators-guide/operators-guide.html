@@ -720,7 +720,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Detects a person moving through a room from how their body disturbs the WiFi already in the air. Needs no calibration. Indoor only: it works off signals bouncing between walls and furniture.</p>
   <pre>@ALL CSI_MOTION_START:300
 @ALL CSI_MOTION_START:300:CH11</pre>
-  <p>Leave the channel at 0. The node surveys all 11 and picks the one with the best measured CSI yield, then stays there for the run; the web UI moves with it, so rejoin there. Do not pin a channel by hand unless you have surveyed it - the wrong channel can cost a factor of fifteen in sample rate. Motion for the node needs two thirds of its armed links moving at once, not just one. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
+  <p>Leave the channel at 0 so the node picks its own; the web UI moves with it, so rejoin there. A hand-picked channel can cripple it. Motion for the node needs two thirds of its links moving at once. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
   <div class="box"><span class="t">Do not tune the trigger</span>
     <p>The trigger is the noise-corrected signal variance of the channel response, which is receiver-independent, so one constant is correct on every board and in every room. A location that reads wrong is nearly always a channel with no traffic on it.</p>
   </div>
@@ -728,7 +728,7 @@ python3 scripts/meshtastic_config.py</pre>
     <p>Everything here is passive except one case: if fewer than 15 CSI packets arrive in a second, the node sends a broadcast probe request to draw traffic, at most once per second.</p>
   </div>
   <div class="box"><span class="t">A C5 node reads hotter than an S3</span>
-    <p>Measured side by side on one channel, the ESP32-C5 carries 7-57x less CSI measurement noise than the S3 and about 3x the record rate, so it resolves weaker movement. The S3 is dual-core and has more headroom for scanning, mesh and the web UI together, so run scanning on S3 nodes and put a C5 where sensing matters most. Neither board has a validated false-alarm rate yet.</p>
+    <p>The C5 is the better CSI receiver. The S3 is dual-core and handles scanning, mesh and the web UI together better. Run scanning on S3 nodes, put a C5 where sensing matters most.</p>
   </div>
 
   <h3>9.11 Packet Capture</h3>
