@@ -1343,9 +1343,11 @@ void csiMotionTask(void *pv) {
             csiExpireLinks();
 
             int movingLinks = 0;
+            int armedLinks = 0;
             float peak = 0.0f;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
+                armedLinks = csiArmedCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     movingLinks++;
@@ -1353,7 +1355,10 @@ void csiMotionTask(void *pv) {
                 }
             }
 
-            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
+            int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
+            if (needLinks < 1) needLinks = 1;
+
+            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks >= needLinks ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
