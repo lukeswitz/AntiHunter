@@ -87,6 +87,7 @@ struct CsiScorer {
     float psiFloor;
     float psiSpread;
     float psiZ;
+    bool psiValid;
     uint16_t ahist[CSI_ACF_HIST];
     uint8_t ahlen;
     uint8_t ahpos;
@@ -131,6 +132,7 @@ struct CsiScorer {
         psiFloor = 0.0f;
         psiSpread = CSI_ACF_MIN_SPREAD;
         psiZ = 0.0f;
+        psiValid = false;
         phlen = 0;
         phpos = 0;
         psampCount = 0;
@@ -289,6 +291,7 @@ struct CsiScorer {
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
         psi = (nf > 0) ? (psiAll / (float)nf) : 0.0f;
+        psiValid = (nf > 0);
 
         if (!holdFloor &&
             ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
@@ -303,7 +306,7 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
-        if (!holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        if (psiValid && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;
@@ -313,7 +316,7 @@ struct CsiScorer {
             if (phlen < CSI_ACF_HIST) phlen++;
             psiFloor = psiHistStats(&psiSpread);
         }
-        psiZ = (phlen >= CSI_ACF_MIN_HIST) ? ((psi - psiFloor) / psiSpread) : 0.0f;
+        psiZ = (psiValid && phlen >= CSI_ACF_MIN_HIST) ? ((psi - psiFloor) / psiSpread) : 0.0f;
 
         if (!holdFloor && ++sampCount >= CSI_FLOOR_SAMPLE_EVERY) {
             sampCount = 0;
