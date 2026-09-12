@@ -475,7 +475,8 @@ static int csiCountRadios(bool movingOnly) {
 
 static CsiLink *csiFindLink(const uint8_t *mac) {
     CsiLink *freeSlot = nullptr;
-    CsiLink *worst = nullptr;
+    CsiLink *worstUnsettled = nullptr;
+    CsiLink *worstSettled = nullptr;
 
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
         CsiLink &l = g_links[i];
@@ -486,12 +487,14 @@ static CsiLink *csiFindLink(const uint8_t *mac) {
         }
         if (l.motion) continue;
         if (l.pairRate >= CSI_LINK_MIN_PAIR_RATE) continue;
-        if (!worst || l.pairRate < worst->pairRate ||
-            (l.pairRate == worst->pairRate && (int32_t)(l.lastMs - worst->lastMs) < 0)) worst = &l;
+        CsiLink *&cand = l.sc.settled() ? worstSettled : worstUnsettled;
+        if (!cand || l.pairRate < cand->pairRate ||
+            (l.pairRate == cand->pairRate && (int32_t)(l.lastMs - cand->lastMs) < 0)) cand = &l;
     }
 
     CsiLink *slot = freeSlot;
     if (!slot) {
+        CsiLink *worst = worstUnsettled ? worstUnsettled : worstSettled;
         if (!worst) return nullptr;
         slot = worst;
     }
