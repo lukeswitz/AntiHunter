@@ -27,7 +27,7 @@ static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_SIG_ETA = 0.050f;
 static const float CSI_PSI_K = 3.0f;
-static const float CSI_PSI_Z = 2.5f;
+static const float CSI_PSI_Z = 2.0f;
 
 static inline float csiAnalyticEta() {
     const float T = 1.0f / CSI_ACF_ALPHA;
