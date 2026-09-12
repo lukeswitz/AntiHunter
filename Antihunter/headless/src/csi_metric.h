@@ -38,6 +38,7 @@ static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
 static const float CSI_ACF_QUANT = 10000.0f;
 static const float CSI_ACF_MIN_SPREAD = 0.02f;
+static const uint32_t CSI_PSI_HOLD_MAX_US = 60000000;
 static const uint8_t CSI_ACF_MIN_HIST = 12;
 static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
@@ -96,6 +97,7 @@ struct CsiScorer {
     uint8_t phlen;
     uint8_t phpos;
     uint16_t psampCount;
+    uint32_t psiHoldUs;
     float floorCache;
     float floorMad;
     float mad;
@@ -136,6 +138,7 @@ struct CsiScorer {
         phlen = 0;
         phpos = 0;
         psampCount = 0;
+        psiHoldUs = 0;
         ahlen = 0;
         ahpos = 0;
         asampCount = 0;
@@ -306,9 +309,15 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
+        if (holdFloor) {
+            if (dtUs != 0xFFFFFFFFu && psiHoldUs < CSI_PSI_HOLD_MAX_US) psiHoldUs += dtUs;
+        } else {
+            psiHoldUs = 0;
+        }
+        const bool psiHoldExpired = (psiHoldUs >= CSI_PSI_HOLD_MAX_US);
         const bool psiBaseline = (phlen < CSI_ACF_MIN_HIST) ||
                                  (psi <= psiFloor + CSI_PSI_Z * psiSpread);
-        if (psiValid && psiBaseline && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        if (psiValid && psiBaseline && (!holdFloor || psiHoldExpired) && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;
