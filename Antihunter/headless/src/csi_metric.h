@@ -306,7 +306,9 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
-        if (psiValid && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        const bool psiBaseline = (phlen < CSI_ACF_MIN_HIST) ||
+                                 (psi <= psiFloor + CSI_PSI_Z * psiSpread);
+        if (psiValid && psiBaseline && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;
