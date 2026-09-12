@@ -116,7 +116,7 @@ static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
 static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
-static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
+static const uint16_t CSI_AREA_DUTY_MIN_S = 30;
 static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
 static uint8_t g_areaDutyPos = 0;
 static bool g_areaMotion = false;

@@ -48,7 +48,7 @@ static const uint32_t CSI_ACF_LAG_MIN_US = 50000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 3000000;
 static const float CSI_SIG_ETA = 0.050f;
 static const float CSI_PSI_K = 3.0f;
-static const float CSI_PSI_Z = 3.0f;
+static const float CSI_PSI_Z = 2.5f;
 
 static inline float csiAnalyticEta(int liveBins) {
     const float T = 1.0f / CSI_ACF_ALPHA;
@@ -363,7 +363,9 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
-        if (psiValid && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        const bool psiBaseline = (phlen < CSI_ACF_MIN_HIST) ||
+                                 (psi <= psiFloor + CSI_PSI_Z * psiSpread);
+        if (psiValid && psiBaseline && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;

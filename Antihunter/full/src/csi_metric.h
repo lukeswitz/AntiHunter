@@ -48,15 +48,15 @@ static const uint32_t CSI_ACF_LAG_MIN_US = 50000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 3000000;
 static const float CSI_SIG_ETA = 0.050f;
 static const float CSI_PSI_K = 3.0f;
-static const float CSI_PSI_Z = 3.0f;
+static const float CSI_PSI_Z = 2.5f;
 
 static inline float csiAnalyticEta(int liveBins) {
     const float T = 1.0f / CSI_ACF_ALPHA;
     const float F = (liveBins > 0) ? (float)liveBins : (float)CSI_NSUB;
     return -1.0f / T + CSI_PSI_K * sqrtf(1.0f / (F * T));
 }
-static const int CSI_AREA_LINK_NUM = 2;
-static const int CSI_AREA_LINK_DEN = 3;
+static const int CSI_AREA_LINK_NUM = 1;
+static const int CSI_AREA_LINK_DEN = 2;
 static const float CSI_ACF_ETA_SUB = 0.10f;
 static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
@@ -365,7 +365,9 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
-        if (psiValid && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        const bool psiBaseline = (phlen < CSI_ACF_MIN_HIST) ||
+                                 (psi <= psiFloor + CSI_PSI_Z * psiSpread);
+        if (psiValid && psiBaseline && !holdFloor && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;
