@@ -109,7 +109,7 @@ static void csiHeatPush(float act, bool alerting) {
 
 static const uint16_t CSI_DRAIN_BURST = 64;
 static const uint32_t CSI_MOTION_MIN_MS = 300;
-static const uint8_t CSI_RADIO_KEY_LEN = 5;
+static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
@@ -547,6 +547,32 @@ static uint8_t csiArmedCount() {
     return n;
 }
 
+static bool csiSameRadio(const uint8_t *a, const uint8_t *b) {
+    return memcmp(a + 1, b + 1, 4) == 0;
+}
+
+static int csiCountRadios(bool movingOnly) {
+    uint8_t reps[CSI_MAX_LINKS][6];
+    int n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        const CsiLink &l = g_links[i];
+        if (!l.used) continue;
+        if (movingOnly) {
+            if (!l.motion) continue;
+        } else if (!csiLinkUsable(l) || !l.sc.settled()) {
+            continue;
+        }
+        bool dup = false;
+        for (int j = 0; j < n; j++) {
+            if (csiSameRadio(reps[j], l.mac)) { dup = true; break; }
+        }
+        if (dup) continue;
+        memcpy(reps[n], l.mac, 6);
+        n++;
+    }
+    return n;
+}
+
 static CsiLink *csiFindLink(const uint8_t *mac) {
     CsiLink *freeSlot = nullptr;
     CsiLink *worst = nullptr;
@@ -668,7 +694,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.psi >= psiEta) {
+        if (l.sc.psiValid && l.sc.psiZ >= CSI_PSI_Z && l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -692,7 +718,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.psi < psiEta &&
+        } else if (l.motion && (l.sc.psiZ < CSI_PSI_Z || l.sc.psi < psiEta) &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -1285,9 +1311,9 @@ void csiMotionTask(void *pv) {
             float peak = 0.0f;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
+                movingLinks = csiCountRadios(true);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
-                    movingLinks++;
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
             }
@@ -1487,10 +1513,10 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used) continue;
-                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
                                   macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
                                   csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
-                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.pairRate, (unsigned)l.sc.lagSkips,
+                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate, (unsigned)l.sc.lagSkips,
                                   (unsigned)l.sc.lagBkt[0], (unsigned)l.sc.lagBkt[1],
                                   (unsigned)l.sc.lagBkt[2], (unsigned)l.sc.lagBkt[3],
                                   (unsigned)l.sc.lagBkt[4]);
