@@ -103,6 +103,15 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstW
     }
     if (m < 8) return false;
     if (sum <= 0.0f) return false;
+    for (int k = 0; k + 1 < m; k++) {
+        const float d = out[k + 1] - out[k];
+        out[k] = d < 0.0f ? -d : d;
+    }
+    m -= 1;
+    if (m < 8) return false;
+    sum = 0.0f;
+    for (int k = 0; k < m; k++) sum += out[k];
+    if (sum <= 0.0f) return false;
     const float norm = (float)m / sum;
     for (int k = 0; k < m; k++) out[k] *= norm;
     for (int k = m; k < CSI_NSUB; k++) out[k] = 0.0f;
@@ -313,7 +322,7 @@ struct CsiScorer {
         }
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
-            if (acfPairs > 0 && lagOk) {
+            if (acfPairs > 0 && prevValid) {
                 const float dG = G - prevG[k];
                 mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
                 mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
@@ -344,7 +353,7 @@ struct CsiScorer {
             }
             prevG[k] = G;
         }
-        if (lagOk && acfPairs < 0xFFFFFFFFu) acfPairs++;
+        if (acfPairs < 0xFFFFFFFFu) acfPairs++;
         prevValid = 1;
         acf = (psiPos > 1e-6f) ? (psiSq / psiPos) : 0.0f;
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;

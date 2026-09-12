@@ -114,9 +114,9 @@ static const uint32_t CSI_MOTION_MIN_MS = 300;
 static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
-static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
+static const uint32_t CSI_AREA_DEBOUNCE_MS = 6000;
 static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
-static const uint16_t CSI_AREA_DUTY_MIN_S = 30;
+static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
 static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
 static uint8_t g_areaDutyPos = 0;
 static bool g_areaMotion = false;
@@ -709,7 +709,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.psiValid && l.sc.psiZ >= CSI_PSI_Z && l.sc.psi >= psiEta) {
+        if (l.sc.psiValid && l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -733,7 +733,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && (l.sc.psiZ < CSI_PSI_Z || l.sc.psi < psiEta) &&
+        } else if (l.motion && l.sc.psi < psiEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
