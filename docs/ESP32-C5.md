@@ -128,10 +128,18 @@ Expect from a C5 node, relative to an S3 in the same room:
 | episode length | reference | longer |
 | weak or distant movement | often missed | usually detected |
 
-Neither is wrong. If you want a C5 to report only what an S3 would, raise its trigger
-with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and `CSI_RECAL` clears it
+Neither is wrong. Set each board's trigger from its own idle distribution with
+`CSI_CFG:<value>:5000:3:0`; the value persists in NVS and `CSI_RECAL` clears it
 back to the compiled default. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
+
+Raising a C5's trigger to match an S3's event rate does not work at every placement.
+Measured on one install: the C5's idle `acf` peaked above its own in-room movement
+`acf`, so no trigger both rejected the idle window and detected movement in the room.
+Where that holds, the two boards cannot be made to agree by tuning; move the board or
+its antenna. Confirm before assuming a trigger exists: capture an idle window and a
+labelled movement window on the channel the node surveyed onto, and compare the two
+distributions.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 

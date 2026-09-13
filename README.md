@@ -907,7 +907,9 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Reset the trigger to the compiled default | None | `@ALL CSI_RECAL` |
 
-`CSI_CFG` ranges: trigger 0.02-0.60, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
+`CSI_CFG` ranges: trigger 0.005-0.95, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
+
+The trigger compares against `acf`, the subcarrier-weighted autocorrelation of CSI power at lag one. Weighting is `w(f) proportional to the per-subcarrier ACF`, so subcarriers carrying more motion signature contribute more. A link reads MOTION while `acf` is at or above the trigger, and clears once it falls below for `hold` ms. The value is per-install: measure the idle distribution on the channel the node settles on, then set the trigger above it.
 
 ### Sentinel Commands
 
