@@ -972,14 +972,14 @@ static void handleCsiCfg(const String &command)
     idx++;
   }
 
-  if ((thr != 0.0f && (thr < 0.02f || thr > 0.95f)) || hold < 500 || hold > 120000 ||
+  if ((thr != 0.0f && (thr < 0.005f || thr > 0.95f)) || hold < 500 || hold > 120000 ||
       consec < 1 || consec > 50 || ch > 14) {
     sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);
     return;
   }
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
-  sendToSerial1(nodeId + ": CSI_CFG_ACK:T=" + String(thr, 2) +
+  sendToSerial1(nodeId + ": CSI_CFG_ACK:T=" + String(thr, 3) +
                 " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
                 " CH=" + String(ch), true);
 }
