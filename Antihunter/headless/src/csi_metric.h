@@ -372,9 +372,7 @@ struct CsiScorer {
             psiHoldUs = 0;
         }
         const bool psiHoldExpired = (psiHoldUs >= CSI_PSI_HOLD_MAX_US);
-        const bool psiBaseline = (phlen < CSI_ACF_MIN_HIST) ||
-                                 (psi <= psiFloor + CSI_PSI_Z * psiSpread);
-        if (psiValid && psiBaseline && (!holdFloor || psiHoldExpired) && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
+        if (psiValid && (!holdFloor || psiHoldExpired) && ++psampCount >= CSI_ACF_SAMPLE_EVERY) {
             psampCount = 0;
             float pq = (psi + 1.0f) * CSI_ACF_QUANT;
             if (pq < 0.0f) pq = 0.0f;
