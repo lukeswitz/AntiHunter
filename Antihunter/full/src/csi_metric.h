@@ -118,7 +118,7 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_SETTLE_PAIRS; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
