@@ -133,7 +133,7 @@ Flash it from your browser.
 | **MAC Randomization Correlation** (beta) | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** (beta) | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **CSI Motion Detection** (experimental) | Device-free motion sensing on the WiDetect noise-subtracted variance -- no calibration, no device on the person, per-area strength | WiFi, one channel |
+| **CSI Motion Detection** (experimental) | Device-free motion sensing on the lag-one autocorrelation of CSI power -- no device on the person, per-area strength, trigger measured per install | WiFi, one channel |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Packet Capture** | Writes a standard pcap to SD that Wireshark opens -- WiFi frames with a radiotap header, BLE as Bluetooth HCI. One radio per capture, channel list selectable, bounded by a file size cap | WiFi or BLE |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
@@ -325,8 +325,8 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **No calibration.** The noise term is subtracted from the channel variance on every packet pair, so the trigger is an absolute number rather than a level learned from a quiet period. No learning phase, nothing that drifts, nothing to re-run when the room changes. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **One gate.** A link is moving when the noise-subtracted variance crosses the trigger, default 0.050. The per-subcarrier vote and the autocorrelation are reported for display and tuning; neither one gates an alert
+- **Per-install trigger.** `acf` is an absolute quantity whose idle level depends on the channel and the transmitters in range, so the trigger has to be measured where the node sits. Capture an idle window and a labelled movement window on the surveyed channel, then set the trigger above the idle distribution. A value measured on one channel does not carry to another. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **One gate.** A link is moving when `acf` crosses the trigger — the lag-one autocorrelation of CSI power, weighted per subcarrier by that subcarrier's own ACF. The per-subcarrier vote, the noise-subtracted variance and the z-scores are reported for display and tuning; none of them gates an alert
 - **Alerts need agreement across links.** Two thirds of a node's armed links must be moving at once, then 12 seconds of that inside a rolling 60-second window, then a 15-second hold before the state changes. One link crossing raises nothing - that was the old rule and it fired on noise whenever a node tracked many links
 - **Signal strength is not the limit.** Detections seen on links from -24 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
 - **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
