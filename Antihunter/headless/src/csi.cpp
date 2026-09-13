@@ -114,7 +114,6 @@ static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 6000;
-static const uint32_t CSI_AREA_CLEAR_MS = 60000;
 static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
 static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
 static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
@@ -1198,7 +1197,7 @@ void csiMotionTask(void *pv) {
             }
 
             if (g_areaCand != g_areaMotion &&
-                (now - g_areaCandSince) >= (g_areaCand ? CSI_AREA_DEBOUNCE_MS : CSI_AREA_CLEAR_MS)) {
+                (now - g_areaCandSince) >= CSI_AREA_DEBOUNCE_MS) {
                 g_areaMotion = g_areaCand;
                 if (g_areaMotion) {
                     g_areaSinceMs = g_areaCandSince;
