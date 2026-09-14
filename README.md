@@ -299,8 +299,8 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
-- **Set the trigger where the node lives.** The node measures how much the WiFi signal is shifting around, shown as `sig` in the status line. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch `sig` with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house settled on 0.080 and 0.045. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **Re-measure after a channel change.** A node picks its channel at startup and can move on its own if the one it picked goes quiet. The old trigger will not fit the new channel
+- **Set the trigger where the node is setup.** The node measures how much the WiFi signal is shifting around, shown as `sig` in the status line. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch `sig` with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house settled on 0.080 and 0.045. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **Re-measure after a channel change.** A node picks its channel at startup and moves on its own if that channel turns out to carry too little traffic to detect on. Watch for `STARVED` or `taking ch<n> instead` in the serial log - the old trigger will not fit the new channel
 - **One gate.** A link counts as moving when `sig` crosses the trigger. Everything else on the status line is there to help you tune; none of it raises an alert
 - **Alerts are duty-cycled.** An area alert needs 12 seconds of link motion inside a rolling 60-second window and then holds 15 seconds before it changes state, so one link crossing once does not raise anything
 - **Signal strength is not the limit.** Detections seen on links from -32 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
@@ -311,11 +311,17 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 > [!WARNING]
 > **CSI motion transmits. Every other scan in this firmware is receive-only; this one is not.**
 > When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to
-> pull traffic out of the air, at most once per second. No setting turns this off. The frame is a
-> standard 802.11 probe request with a locally-administered source address (`02:00:00:00:00:01`),
-> not the node's own MAC - the same class of frame a phone sends while scanning. It is still RF on
-> the air, so a node running CSI can be seen by anyone monitoring the channel. `tx=` in the serial
-> status line is the running count of frames sent.
+> pull traffic out of the air, at most once per second. On a channel with normal traffic it never
+> needs to: one node measured `tx=0` across a whole session on a busy channel, against `tx=640` on
+> a starved one. The frame is a standard 802.11 probe request with a locally-administered source
+> address (`02:00:00:00:00:01`), not the node's own MAC - the same class of frame a phone sends
+> while scanning. It is still RF on the air, so a node running CSI can be seen by anyone monitoring
+> the channel. `tx=` in the serial status line is the running count of frames sent.
+>
+> **To keep it silent:** tick **Listen only, never transmit** under Advanced, or send
+> `CSI_CFG:BROADCAST=OFF` over mesh (`BROADCAST=ON` allows it again, and the current state comes
+> back in `CSI_CFG_ACK`). The choice persists across reboots. A silent node can only detect
+> movement while other traffic is already in the air.
 >
 > Sending a probe request is ordinary unlicensed WiFi client behavior, not blocking or
 > deauthentication. Rules differ by country and by site - check before deploying where
@@ -376,8 +382,9 @@ channel. That varies far more than the detector does.
 >
 > **Settings**
 > - Plain-language form `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
-> - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree)
+> - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree), `BROADCAST=OFF` (never transmit)
 > - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.10:5000:3:0`
+> - Start silent `@ALL CSI_MOTION_START:0:FOREVER:LISTEN_ONLY` - `ALLOW_TRANSMIT` undoes it
 > - Reset the trigger to the compiled default `@ALL CSI_RECAL`
 > - State to serial `@AH01 CSI_STATUS` or `@AH01 CSI_JSON`
 > - Add `:TELEM` or `:RAW` to the start command for tuning output
