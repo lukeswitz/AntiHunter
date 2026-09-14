@@ -1227,6 +1227,7 @@ void csiMotionTask(void *pv) {
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
             if (needLinks < 1) needLinks = 1;
+            if (needLinks > CSI_AREA_LINK_CAP) needLinks = CSI_AREA_LINK_CAP;
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
             if (peak > g_areaPeakScore) g_areaPeakScore = peak;
