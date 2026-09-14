@@ -100,7 +100,8 @@ with `CSI_CFG`.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
-nodes sitting in the same house. Two here measured 0.120 on ch1 and 0.170 on ch6.
+nodes sitting in the same house. Two here settled on 0.080 for the S3 on ch1 and 0.045
+for the C5 on ch6, both confirmed against a walk-in.
 
 The C5 does not behave identically to the S3, and the difference is physical rather
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
@@ -135,6 +136,17 @@ Neither is wrong. Set each board's trigger from its own idle distribution with
 `CSI_CFG:<value>:5000:3:0`; the value persists in NVS and `CSI_RECAL` clears it
 back to the compiled default. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
+
+The C5 is harder to set a trigger for than the S3, and it is not the channel. Measured
+with both boards on ch1 in the same room over the same 20 minutes:
+
+| | quietest reading | loudest reading | average |
+|---|---|---|---|
+| S3 | 0.0250 | 0.4007 | 0.0883 |
+| C5 | 0.0112 | 0.9758 | 0.1168 |
+
+The C5 reads lower when the room is still and spikes far higher, so its quiet and its
+moving overlap more than the S3's do.
 
 Set the trigger too low and the node sticks on. Measured here: a C5 set to 0.080 on a
 channel where an empty room already read up to 0.144 stayed in one alert for 384
