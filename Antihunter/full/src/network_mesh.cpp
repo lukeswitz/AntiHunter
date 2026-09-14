@@ -963,12 +963,7 @@ static void handleCsiCfg(const String &command)
     int colon = params.indexOf(':');
     String tok = (colon < 0) ? params : params.substring(0, colon);
     if (tok.length() > 0) {
-      if (idx == 0) thr = tok.toFloat();
-      else if (idx == 1) hold = (uint32_t)tok.toInt();
-      else if (idx == 2) consec = (uint32_t)tok.toInt();
-      else if (idx == 3) ch = (uint8_t)tok.toInt();
-      else if (idx == 4) telemetry = tok.toInt() != 0;
-      else if (tok.startsWith("SENSITIVITY=")) {
+      if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
         if (v == "LOW") { thr = 0.70f; dwell = 20; radios = 3; }
         else if (v == "MEDIUM" || v == "MED") { thr = 0.52f; dwell = 12; radios = 3; }
@@ -978,6 +973,11 @@ static void handleCsiCfg(const String &command)
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
       else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
       else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
+      else if (idx == 0) thr = tok.toFloat();
+      else if (idx == 1) hold = (uint32_t)tok.toInt();
+      else if (idx == 2) consec = (uint32_t)tok.toInt();
+      else if (idx == 3) ch = (uint8_t)tok.toInt();
+      else if (idx == 4) telemetry = tok.toInt() != 0;
     }
     if (colon < 0) break;
     params = params.substring(colon + 1);
