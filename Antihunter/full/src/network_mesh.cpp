@@ -866,6 +866,8 @@ static void handleCsiMotionStart(const String &command)
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
     else if (tok == "MGMTDATA") csiMgmtOnly.store(0);
+    else if (tok == "NOTX" || tok == "RXONLY") setCsiNoTx(true);
+    else if (tok == "TX") setCsiNoTx(false);
     if (colon < 0) break;
     params = params.substring(colon + 1);
     idx++;
@@ -980,6 +982,10 @@ static void handleCsiCfg(const String &command)
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
       else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
       else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
+      else if (tok.startsWith("BROADCAST=")) {
+        const String v = tok.substring(10);
+        setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
+      }
       else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();
@@ -1002,7 +1008,8 @@ static void handleCsiCfg(const String &command)
   setCsiAreaConfig(dwell, radios);
   sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
-                "s SPOTS=" + String(radios) + " CH=" + String(ch), true);
+                "s SPOTS=" + String(radios) + " CH=" + String(ch) +
+                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
 }
 
 static void handleRandomizationStart(const String &command)
