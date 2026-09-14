@@ -1,5 +1,3 @@
-
-
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 </p>
@@ -20,9 +18,9 @@
 
 <div align="center">
   <h3 align="center">DIGI Detection Node Firmware</h3>
-  <h4><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY</a> • <a href="docs/README.md">Start Here</a></h4>
+  <h4><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY</a> • <a href="docs/README.md">Docs</a></h4>
   
-  <h5><strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO">Command Center</a></strong></h5>
+  <strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO">Command Center</a></strong>
 
   <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
   
@@ -56,9 +54,10 @@ Vibration based scans and self-destruct option. Defensive by design. Knows the d
 
 ---
 
-## Table of Contents
+> [!TIP]
+> **New to AntiHunter? [Start Here](docs/README.md)** - *setup, decisions, troubleshooting, and every guide & manual.*
 
-**[Start Here](docs/README.md)** - *setup order, decisions, symptom table, and every guide, manual and scripts.*
+## Table of Contents
 
 1. [Quick Start](#quick-start)
 2. [What It Detects](#what-it-detects)
@@ -111,7 +110,8 @@ Flash it from your browser.
 4. Add a watchlist entry or start a scan.
 
 > [!WARNING]
-> The AP default is `Antihunter` / `antihunt3r123`, published here and the same on every unit. Change both in RF Settings before you deploy, and set the erase PSK if you plan to use [Secure Data Destruction](#secure-data-destruction). Privacy Mode redacts the web UI only - exported logs and SD data still carry MACs, SSIDs and GPS.
+> - The AP default is `Antihunter` / `antihunt3r123`, published here and the same on every unit. Change both in RF Settings before you deploy.
+> - Set the erase PSK if you plan to use [Secure Data Destruction](#secure-data-destruction). Privacy Mode redacts the web UI only - exported logs and SD data still carry MACs, SSIDs and GPS.
 
 *To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
 
@@ -315,14 +315,15 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (beta)
 
-Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
+Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Uses no baseline, **for indoor use**.
 
 <p align="center">
-  <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
+  <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/dc9addd4-d7bd-421f-a38b-bb2f540b7d00" />
 </p>
 
-- **Set the trigger where the node lives.** The node measures how much the WiFi signal is shifting around, shown as `sig` in the status line. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch `sig` with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house settled on 0.080 and 0.045. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **Re-measure after a channel change.** A node picks its channel at startup and can move on its own if the one it picked goes quiet. The old trigger will not fit the new channel
+
+- **Set the trigger where the node is setup.** The node measures how much the WiFi signal is shifting around, shown as `sig` in the status line. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch `sig` with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house settled on 0.080 and 0.045. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **Re-measure after a channel change.** A node picks its channel at startup and can move on its own if the one it picked goes quiet.
 - **Alerts need agreement.** An area alert needs several access points moving at once, then 12 seconds of that inside a rolling 60-second window, then a hold before the state changes. One link crossing once raises nothing
 - **Signal strength is not the limit.** Detections seen on links from -24 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
 - **This mode transmits** - see the warning below. It is the only scan in this firmware that does
