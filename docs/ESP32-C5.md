@@ -94,11 +94,13 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards run the same detector. The gate is the noise-corrected signal variance,
-`var(G) - E[dG^2]/2` averaged over subcarriers, against a runtime trigger
-(`CSI_SIG_ETA`, 0.050, until `CSI_CFG` overrides it). The trigger level follows the
-channel and the link set, so each board carries its own: two nodes in one house
-measured 0.120 on ch1 and 0.170 on ch6.
+Both boards run the same detector. It watches how much the WiFi signal shifts around,
+reported as `sig` in the status line, and alerts when that crosses the trigger you set
+with `CSI_CFG` (0.050 until you change it).
+
+Each board needs its own trigger. What counts as a quiet room depends on the channel
+the node picked and which access points it can hear, and those differ between two
+nodes sitting in the same house. Two here measured 0.120 on ch1 and 0.170 on ch6.
 
 The C5 does not behave identically to the S3, and the difference is physical rather
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
@@ -134,13 +136,24 @@ Neither is wrong. Set each board's trigger from its own idle distribution with
 back to the compiled default. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
 
-A trigger sized on the wrong window latches the detector on. Measured on one install:
-a C5 set to 0.080 while its ch6 idle `sig` ran to 0.144 held a single AREA MOTION for
-384s and produced no edge when a person actually moved. Size the value against a
-window with nobody in the space, not against one that happens to be quiet.
+The C5 is harder to set a trigger for than the S3, and it is not the channel. Measured
+with both boards on ch1 in the same room over the same 20 minutes:
 
-Capture an idle window and a labelled movement window on the channel the node surveyed
-onto, and compare the two distributions before setting the trigger.
+| | quietest reading | loudest reading | average |
+|---|---|---|---|
+| S3 | 0.0250 | 0.4007 | 0.0883 |
+| C5 | 0.0112 | 0.9758 | 0.1168 |
+
+The C5 reads lower when the room is still and spikes far higher, so its quiet and its
+moving overlap more than the S3's do. Set it too low and it sticks on - a C5 at 0.080
+stayed in one alert for 384 seconds and then showed nothing when someone walked in,
+because it was already alerting. Set it too high and it misses - the same node at 0.170
+peaked at 0.2216 when someone moved, dropped back the next reading, and never held the
+12 seconds an area alert needs.
+
+Get it from the room, not from a guess. Watch `sig` with nobody in the space and note
+the highest value. Watch it again while someone walks around. Put the trigger between
+the two. If the two overlap, move the node or its antenna - no number will work.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
