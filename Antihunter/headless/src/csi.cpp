@@ -408,6 +408,14 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         return bestTotalCh;
     }
 
+    const uint32_t needHits = CSI_SOLICIT_FLOOR * dwellMs / 1000u;
+    if (bestStrongHits < needHits && bestTotal >= needHits && bestTotalCh != bestStrongCh) {
+        Serial.printf("[CSI] ch%u has the strongest transmitters but only %.1f/s - taking ch%u (%.1f/s) instead\n",
+                      bestStrongCh, (float)bestStrongHits * 1000.0f / (float)dwellMs,
+                      bestTotalCh, (float)bestTotal * 1000.0f / (float)dwellMs);
+        return bestTotalCh;
+    }
+
     Serial.printf("[CSI] Selected ch%u (%.1f/s, %u strong, %u transmitters)\n",
                   bestStrongCh,
                   (float)bestStrongHits * 1000.0f / (float)dwellMs, bestStrong, bestStrongTx);
@@ -1297,6 +1305,7 @@ void csiMotionTask(void *pv) {
     uint32_t lastRejSnap = 0;
     uint32_t blindSinceMs = 0;
     uint32_t lastRehopMs = 0;
+    uint32_t rollSeenSnap = 0;
     uint32_t lastSolicitMs = millis();
     uint32_t lastSolicitSeen = 0;
 
@@ -1447,7 +1456,15 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
             }
-            if (armedRoll == 0) {
+            const uint32_t rollSeenNow = g_csiSeen.load();
+            const uint32_t rollRecords = rollSeenNow - rollSeenSnap;
+            rollSeenSnap = rollSeenNow;
+            const bool starved = (rollRecords < CSI_SOLICIT_FLOOR * 60u);
+            if (starved) {
+                Serial.printf("[CSI] STARVED: %u records in 60s on ch%u - too little traffic to detect motion\n",
+                              rollRecords, g_csiActiveChannel);
+            }
+            if (armedRoll == 0 || starved) {
                 if (usableRoll == 0)
                     Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                                   (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
