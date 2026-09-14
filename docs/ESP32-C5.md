@@ -100,7 +100,8 @@ with `CSI_CFG` (0.050 until you change it).
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
-nodes sitting in the same house. Two here measured 0.120 on ch1 and 0.170 on ch6.
+nodes sitting in the same house. Two here settled on 0.080 for the S3 on ch1 and 0.045
+for the C5 on ch6, both confirmed against a walk-in.
 
 The C5 does not behave identically to the S3, and the difference is physical rather
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
