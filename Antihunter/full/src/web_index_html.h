@@ -4549,12 +4549,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const heat = d.heat || [];
         if (!heat.length) return '';
         let cells = '';
+        const hotArr = d.hot || [];
         for (let i = 0; i < heat.length; i++) {
-          const v = heat[i] / 25;
-          const hotArr = d.hot || [];
-          const hot = hotArr.length > i ? !!hotArr[i] : (v >= trig);
-          const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
-          cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
+          const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
+          const hot = hotArr.length > i && !!hotArr[i];
+          const f = hot ? 1 : (0.06 + 0.54 * lvl);
+          const tip = hot ? 'movement event started here'
+                          : 'movement ' + Math.round(lvl * 200) + '% of the alert line';
+          cells += '<i title="' + tip + '" style="opacity:' + f.toFixed(2) +
+                   (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
         }
         const sec = d.heatSec || 5;
         return '<div class="csi-heat">' + cells + '</div>' +
