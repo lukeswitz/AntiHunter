@@ -755,6 +755,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                   </div>
                   <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="This mode is the only scan that transmits. It sends one broadcast probe request per second when traffic is too thin to measure. Tick this to stay receive-only - the node stays silent, but detection depends entirely on traffic already in the air."><input type="checkbox" id="csiNoTx" name="csiNoTx" value="1">Never transmit (receive only)</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>

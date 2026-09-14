@@ -1434,6 +1434,7 @@ void registerRemainingRoutes() {
                          req->hasParam("csiRaw", true),
                          req->hasParam("csiTelem", true));
             setCsiAreaConfig(csiDwell, csiSpots);
+            setCsiNoTx(req->hasParam("csiNoTx", true));
             if (req->hasParam("csiRecal", true)) csiClearCalibration();
 
             stopRequested = false;

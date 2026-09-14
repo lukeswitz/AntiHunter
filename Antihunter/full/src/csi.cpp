@@ -34,6 +34,7 @@ std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{12};
 std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 std::atomic<uint32_t> csiSolicitMs{0};
+std::atomic<uint8_t> csiNoTx{0};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
@@ -458,6 +459,7 @@ static const uint8_t kCsiProbeRates[10] = {
 
 
 static void csiSolicit() {
+    if (csiNoTx.load()) return;
     uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
     memcpy(frame, kCsiProbeHdr, 24);
     frame[24] = 0x00;
@@ -996,6 +998,12 @@ void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded) {
     prefs.putUInt("csiRad", csiAreaRadiosNeeded.load());
 }
 
+void setCsiNoTx(bool noTx) {
+    csiNoTx.store(noTx ? 1 : 0);
+    prefs.putUInt("csiNoTx", noTx ? 1 : 0);
+    Serial.printf("[CSI] probe solicitation %s\n", noTx ? "DISABLED - receive only" : "enabled");
+}
+
 void loadCsiConfigFromPrefs() {
     if (prefs.isKey("csiThr2")) {
         prefs.remove("csiThr2");
@@ -1009,6 +1017,7 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
 }
 
 static bool csiMoveRadio(uint8_t ch) {
