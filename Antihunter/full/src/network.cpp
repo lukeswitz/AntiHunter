@@ -1403,12 +1403,27 @@ void registerRemainingRoutes() {
             float csiThr = (float)csiThresholdMilli.load() / 1000.0f;
             if (req->hasParam("csiThreshold", true)) {
                 float t = req->getParam("csiThreshold", true)->value().toFloat();
-                if (t >= 0.02f && t <= 0.60f) csiThr = t;
+                if (t >= 0.005f && t <= 0.95f) csiThr = t;
+            }
+            if (req->hasParam("csiThr", true)) {
+                float t = req->getParam("csiThr", true)->value().toFloat();
+                if (t >= 0.005f && t <= 0.95f) csiThr = t;
             }
             uint32_t csiHold = csiHoldMs.load();
             if (req->hasParam("csiHold", true)) {
                 uint32_t h = (uint32_t)req->getParam("csiHold", true)->value().toInt();
+                if (h >= 1 && h <= 120) h *= 1000UL;
                 if (h >= 500 && h <= 120000) csiHold = h;
+            }
+            uint32_t csiDwell = csiAreaDutyMinS.load();
+            if (req->hasParam("csiDwell", true)) {
+                uint32_t d = (uint32_t)req->getParam("csiDwell", true)->value().toInt();
+                if (d >= 2 && d <= 60) csiDwell = d;
+            }
+            uint32_t csiSpots = csiAreaRadiosNeeded.load();
+            if (req->hasParam("csiSpots", true)) {
+                uint32_t s = (uint32_t)req->getParam("csiSpots", true)->value().toInt();
+                if (s >= 1 && s <= 12) csiSpots = s;
             }
             uint32_t csiCons = csiConsecNeeded.load();
             if (req->hasParam("csiConsec", true)) {
@@ -1418,6 +1433,7 @@ void registerRemainingRoutes() {
             setCsiConfig(csiCh, csiThr, csiHold, csiCons,
                          req->hasParam("csiRaw", true),
                          req->hasParam("csiTelem", true));
+            setCsiAreaConfig(csiDwell, csiSpots);
             if (req->hasParam("csiRecal", true)) csiClearCalibration();
 
             stopRequested = false;

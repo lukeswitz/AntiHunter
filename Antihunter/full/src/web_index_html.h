@@ -714,6 +714,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
               <div id="csiControls" style="display:none;margin-top:10px;">
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
+                <label style="font-size:11px;">Sensitivity</label>
+                <select id="csiPreset" name="csiPreset" onchange="csiApplyPreset(this.value)">
+                  <option value="low">Low — only obvious movement, fewest false alarms</option>
+                  <option value="medium" selected>Medium — someone walking in the room</option>
+                  <option value="high">High — small movement, more false alarms</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <div style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">
+                  Higher sensitivity catches brief or distant movement but reports more when nothing is there.
+                  If a room reads wrong, change this before touching Advanced.
+                </div>
                 <details style="margin-top:4px;">
                   <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
@@ -723,15 +734,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                              oninput="document.getElementById('csiChannel').value=this.value">
                     </div>
                     <div>
-                      <label style="font-size:11px;">Clear after (ms)</label>
-                      <input type="number" name="csiHold" id="csiHold" min="500" max="120000" step="500" value="5000">
+                      <label style="font-size:11px;" title="How long movement must continue before it reports">Movement needed before alerting (s)</label>
+                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="12">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;" title="How long stillness must last before it says all-clear">Stillness before all-clear (s)</label>
+                      <input type="number" name="csiHold" id="csiHold" min="1" max="120" value="5">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;" title="How many access points must see it at once. Lower catches movement in areas only one AP reaches">Access points that must agree</label>
+                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="3">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
+                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="0.95" step="0.005" value="0.52">
                     </div>
                     <div>
                       <label style="font-size:11px;">Consecutive packets</label>
                       <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
                     </div>
                   </div>
-                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Sensitivity is self-normalizing, so the default works anywhere. Only tick this if a location reads wrong.</div>
+                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -5844,6 +5867,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         probeScanModeControls.style.display = 'none';
         droneScanModeControls.style.display = 'none';
         csiControls.style.display = 'none';
+        if (!window.csiApplyPreset) {
+          window.csiApplyPreset = function (p) {
+            const presets = { low: [0.70, 20, 3], medium: [0.52, 12, 3], high: [0.40, 6, 1] };
+            const v = presets[p];
+            if (!v) return;
+            document.getElementById('csiThr').value = v[0];
+            document.getElementById('csiDwell').value = v[1];
+            document.getElementById('csiSpots').value = v[2];
+          };
+          ['csiThr', 'csiDwell', 'csiSpots'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', function () {
+              document.getElementById('csiPreset').value = 'custom';
+            });
+          });
+        }
         pcapControls.style.display = 'none';
         pcapFiles.style.display = 'none';
         startBtn.textContent = (selectedMethod === 'pcap') ? 'Start Capture' : 'Start Scan';
@@ -5886,6 +5925,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (selectedMethod === 'csi-motion') {
           standardControls.style.display = 'block';
           csiControls.style.display = 'block';
+          csiApplyPreset(document.getElementById('csiPreset').value);
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
           refreshCsiCalState();
