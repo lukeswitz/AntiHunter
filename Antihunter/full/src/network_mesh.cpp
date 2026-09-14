@@ -879,8 +879,8 @@ static void handleCsiMotionStart(const String &command)
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
     else if (tok == "MGMTDATA") csiMgmtOnly.store(0);
-    else if (tok == "NOTX" || tok == "RXONLY") setCsiNoTx(true);
-    else if (tok == "TX") setCsiNoTx(false);
+    else if (tok == "LISTEN_ONLY") setCsiNoTx(true);
+    else if (tok == "ALLOW_TRANSMIT") setCsiNoTx(false);
     if (colon < 0) break;
     params = params.substring(colon + 1);
     idx++;

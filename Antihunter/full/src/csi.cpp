@@ -1001,7 +1001,8 @@ void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded) {
 void setCsiNoTx(bool noTx) {
     csiNoTx.store(noTx ? 1 : 0);
     prefs.putUInt("csiNoTx", noTx ? 1 : 0);
-    Serial.printf("[CSI] probe solicitation %s\n", noTx ? "DISABLED - receive only" : "enabled");
+    Serial.printf("[CSI] %s\n", noTx ? "listen only - this node will not transmit"
+                                     : "transmit allowed - sends a probe request when traffic is thin");
 }
 
 void loadCsiConfigFromPrefs() {
