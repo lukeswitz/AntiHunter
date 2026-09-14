@@ -305,8 +305,21 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 - **Alerts are duty-cycled.** An area alert needs 12 seconds of link motion inside a rolling 60-second window and then holds 15 seconds before it changes state, so one link crossing once does not raise anything
 - **Signal strength is not the limit.** Detections seen on links from -32 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
 - **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
-- **Almost passive.** It transmits only when the channel is too quiet to measure - fewer than 15 CSI packets in the last second - sending one broadcast probe request, at most once per second
+- **This mode transmits** - see the warning below. It is the only scan in this firmware that does
 - Emits one `CSI_MOTION` line when the area goes from quiet to moving, not one per transmitter; one `CSI_CLEAR` when every link settles
+
+> [!WARNING]
+> **CSI motion transmits. Every other scan in this firmware is receive-only; this one is not.**
+> When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to
+> pull traffic out of the air, at most once per second. No setting turns this off. The frame is a
+> standard 802.11 probe request with a locally-administered source address (`02:00:00:00:00:01`),
+> not the node's own MAC - the same class of frame a phone sends while scanning. It is still RF on
+> the air, so a node running CSI can be seen by anyone monitoring the channel. `tx=` in the serial
+> status line is the running count of frames sent.
+>
+> Sending a probe request is ordinary unlicensed WiFi client behavior, not blocking or
+> deauthentication. Rules differ by country and by site - check before deploying where
+> transmitting is restricted.
 
 Under **Advanced** on the Scan tab:
 
