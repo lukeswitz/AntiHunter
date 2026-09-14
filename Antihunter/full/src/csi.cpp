@@ -633,7 +633,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float acfEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : 0.40f;
-        if (l.sc.psiValid && l.sc.acf >= acfEta) {
+        if (l.sc.psiValid && l.sc.sigVar >= acfEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -656,7 +656,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.acf < acfEta &&
+        } else if (l.motion && l.sc.sigVar < acfEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -894,7 +894,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
                   bool rawDump, bool telemetry) {
     if (channel <= 14) csiPinnedChannel.store(channel);
     if (threshold <= 0.0f) csiThresholdMilli.store(0);
-    else if (threshold >= 0.005f && threshold <= 0.95f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f + 0.5f));
+    else if (threshold >= 0.005f && threshold <= 20.0f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f + 0.5f));
     if (holdMs >= 500 && holdMs <= 120000) csiHoldMs.store(holdMs);
     if (consec >= 1 && consec <= 50) csiConsecNeeded.store(consec);
     csiRawDump.store(rawDump);
@@ -1363,9 +1363,10 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
             }
-            if (usableRoll == 0) {
-                Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
-                              (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
+            if (armedRoll == 0) {
+                if (usableRoll == 0)
+                    Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
+                                  (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
                 if (blindSinceMs == 0) blindSinceMs = now;
                 if (autoChannel && (now - blindSinceMs) >= CSI_BLIND_REHOP_MS &&
                     (lastRehopMs == 0 || (now - lastRehopMs) >= CSI_REHOP_COOLDOWN_MS)) {
@@ -1440,10 +1441,10 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used) continue;
-                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f acfz=%.2f afloor=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
                                   macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
                                   csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
-                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate, (unsigned)l.sc.lagSkips,
+                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.acfZ, l.sc.acfFloor, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate, (unsigned)l.sc.lagSkips,
                                   (unsigned)l.sc.lagBkt[0], (unsigned)l.sc.lagBkt[1],
                                   (unsigned)l.sc.lagBkt[2], (unsigned)l.sc.lagBkt[3],
                                   (unsigned)l.sc.lagBkt[4]);

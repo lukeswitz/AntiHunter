@@ -325,8 +325,9 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **Per-install trigger.** `acf` is an absolute quantity whose idle level depends on the channel and the transmitters in range, so the trigger has to be measured where the node sits. Capture an idle window and a labelled movement window on the surveyed channel, then set the trigger above the idle distribution. A value measured on one channel does not carry to another. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **One gate.** A link is moving when `acf` crosses the trigger — the lag-one autocorrelation of CSI power, weighted per subcarrier by that subcarrier's own ACF. The per-subcarrier vote, the noise-subtracted variance and the z-scores are reported for display and tuning; none of them gates an alert
+- **Set the trigger where the node lives.** The node measures how much the WiFi signal is shifting around. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch the `sig` number in the status line with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house needed 0.120 and 0.170. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **Re-measure after a channel change.** A node picks its channel at startup and can move on its own if the one it picked goes quiet. The old trigger will not fit the new channel
+- **One gate.** A link counts as moving when `sig` crosses the trigger. Everything else on the status line is there to help you tune; none of it raises an alert
 - **Alerts need agreement across links.** Two thirds of a node's armed links must be moving at once, then 12 seconds of that inside a rolling 60-second window, then a 15-second hold before the state changes. One link crossing raises nothing - that was the old rule and it fired on noise whenever a node tracked many links
 - **Signal strength is not the limit.** Detections seen on links from -24 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
 - **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
@@ -384,8 +385,12 @@ channel. That varies far more than the detector does.
 > **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
 >
 > **Settings**
+> - Plain-language form `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
+> - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree)
 > - Trigger, hold, consecutive hits and channel `@ALL CSI_CFG:0.10:5000:3:0`
 > - Reset the trigger to the compiled default `@ALL CSI_RECAL`
+>
+> Trigger range 0.005-20.0. A node with access points in range but none usable for 3 minutes moves channel on its own.
 
 ---
 
