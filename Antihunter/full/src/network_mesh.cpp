@@ -962,6 +962,8 @@ static void handleCsiCfg(const String &command)
   uint32_t consec = csiConsecNeeded.load();
   uint8_t ch = csiPinnedChannel.load();
   bool telemetry = csiTelemetry.load();
+  uint32_t dwell = csiAreaDutyMinS.load();
+  uint32_t radios = csiAreaRadiosNeeded.load();
   int idx = 0;
 
   while (params.length() > 0) {
@@ -973,6 +975,16 @@ static void handleCsiCfg(const String &command)
       else if (idx == 2) consec = (uint32_t)tok.toInt();
       else if (idx == 3) ch = (uint8_t)tok.toInt();
       else if (idx == 4) telemetry = tok.toInt() != 0;
+      else if (tok.startsWith("SENSITIVITY=")) {
+        const String v = tok.substring(12);
+        if (v == "LOW") { thr = 0.70f; dwell = 20; radios = 3; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.52f; dwell = 12; radios = 3; }
+        else if (v == "HIGH") { thr = 0.40f; dwell = 6; radios = 1; }
+        else thr = v.toFloat();
+      }
+      else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
+      else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
+      else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
     }
     if (colon < 0) break;
     params = params.substring(colon + 1);
@@ -980,15 +992,17 @@ static void handleCsiCfg(const String &command)
   }
 
   if ((thr != 0.0f && (thr < 0.005f || thr > 0.95f)) || hold < 500 || hold > 120000 ||
-      consec < 1 || consec > 50 || ch > 14) {
+      consec < 1 || consec > 50 || ch > 14 ||
+      dwell < 2 || dwell > 60 || radios < 1 || radios > 12) {
     sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);
     return;
   }
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
-  sendToSerial1(nodeId + ": CSI_CFG_ACK:T=" + String(thr, 3) +
-                " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
-                " CH=" + String(ch), true);
+  setCsiAreaConfig(dwell, radios);
+  sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
+                " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
+                "s SPOTS=" + String(radios) + " CH=" + String(ch), true);
 }
 
 static void handleRandomizationStart(const String &command)

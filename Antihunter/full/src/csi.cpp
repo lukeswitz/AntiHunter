@@ -31,6 +31,8 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
+std::atomic<uint32_t> csiAreaDutyMinS{12};
+std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
@@ -904,6 +906,13 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     prefs.putUInt("csiCons", csiConsecNeeded.load());
 }
 
+void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded) {
+    if (dutyMinS >= 2 && dutyMinS <= 60) csiAreaDutyMinS.store(dutyMinS);
+    if (radiosNeeded >= 1 && radiosNeeded <= 12) csiAreaRadiosNeeded.store(radiosNeeded);
+    prefs.putUInt("csiDuty", csiAreaDutyMinS.load());
+    prefs.putUInt("csiRad", csiAreaRadiosNeeded.load());
+}
+
 void loadCsiConfigFromPrefs() {
     if (prefs.isKey("csiThr2")) {
         prefs.remove("csiThr2");
@@ -915,6 +924,8 @@ void loadCsiConfigFromPrefs() {
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
+    csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
+    csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
 }
 
 static bool csiMoveRadio(uint8_t ch) {
@@ -1227,7 +1238,10 @@ void csiMotionTask(void *pv) {
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
             if (needLinks < 1) needLinks = 1;
-            if (needLinks > CSI_AREA_LINK_CAP) needLinks = CSI_AREA_LINK_CAP;
+            {
+                const int cap = (int)csiAreaRadiosNeeded.load();
+                if (cap > 0 && needLinks > cap) needLinks = cap;
+            }
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
             if (peak > g_areaPeakScore) g_areaPeakScore = peak;
@@ -1235,7 +1249,7 @@ void csiMotionTask(void *pv) {
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= CSI_AREA_DUTY_MIN_S);
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load());
             if (areaNow) g_areaLastMotionMs = now;
 
             if (areaNow != g_areaCand) {
