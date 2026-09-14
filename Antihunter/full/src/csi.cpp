@@ -1342,6 +1342,7 @@ void csiMotionTask(void *pv) {
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
             if (needLinks < 1) needLinks = 1;
+            if (needLinks > CSI_AREA_LINK_CAP) needLinks = CSI_AREA_LINK_CAP;
 
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks >= needLinks ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
