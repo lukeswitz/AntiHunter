@@ -94,10 +94,11 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards run the same detector and the same trigger. The gate is the
-noise-corrected signal variance, `var(G) - E[dG^2]/2` averaged over subcarriers,
-against a single constant (`CSI_SIG_ETA`, 0.050). Subtracting the measurement noise
-makes the statistic receiver-independent, so no per-board tuning is needed.
+Both boards run the same detector. The gate is the noise-corrected signal variance,
+`var(G) - E[dG^2]/2` averaged over subcarriers, against a runtime trigger
+(`CSI_SIG_ETA`, 0.050, until `CSI_CFG` overrides it). The trigger level follows the
+channel and the link set, so each board carries its own: two nodes in one house
+measured 0.120 on ch1 and 0.170 on ch6.
 
 The C5 does not behave identically to the S3, and the difference is physical rather
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
@@ -133,13 +134,13 @@ Neither is wrong. Set each board's trigger from its own idle distribution with
 back to the compiled default. Send it after the mesh task is up, roughly 15s past
 `Hardware initialized` - a command sent during boot is dropped silently.
 
-Raising a C5's trigger to match an S3's event rate does not work at every placement.
-Measured on one install: the C5's idle `acf` peaked above its own in-room movement
-`acf`, so no trigger both rejected the idle window and detected movement in the room.
-Where that holds, the two boards cannot be made to agree by tuning; move the board or
-its antenna. Confirm before assuming a trigger exists: capture an idle window and a
-labelled movement window on the channel the node surveyed onto, and compare the two
-distributions.
+A trigger sized on the wrong window latches the detector on. Measured on one install:
+a C5 set to 0.080 while its ch6 idle `sig` ran to 0.144 held a single AREA MOTION for
+384s and produced no edge when a person actually moved. Size the value against a
+window with nobody in the space, not against one that happens to be quiet.
+
+Capture an idle window and a labelled movement window on the channel the node surveyed
+onto, and compare the two distributions before setting the trigger.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 

@@ -965,9 +965,9 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.70f; dwell = 20; radios = 3; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.52f; dwell = 12; radios = 3; }
-        else if (v == "HIGH") { thr = 0.40f; dwell = 6; radios = 1; }
+        if (v == "LOW") { thr = 0.15f; dwell = 20; radios = 3; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.10f; dwell = 12; radios = 3; }
+        else if (v == "HIGH") { thr = 0.06f; dwell = 6; radios = 1; }
         else thr = v.toFloat();
       }
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
@@ -984,7 +984,7 @@ static void handleCsiCfg(const String &command)
     idx++;
   }
 
-  if ((thr != 0.0f && (thr < 0.005f || thr > 0.95f)) || hold < 500 || hold > 120000 ||
+  if ((thr != 0.0f && (thr < 0.005f || thr > 20.0f)) || hold < 500 || hold > 120000 ||
       consec < 1 || consec > 50 || ch > 14 ||
       dwell < 2 || dwell > 60 || radios < 1 || radios > 12) {
     sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);

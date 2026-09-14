@@ -1403,11 +1403,11 @@ void registerRemainingRoutes() {
             float csiThr = (float)csiThresholdMilli.load() / 1000.0f;
             if (req->hasParam("csiThreshold", true)) {
                 float t = req->getParam("csiThreshold", true)->value().toFloat();
-                if (t >= 0.005f && t <= 0.95f) csiThr = t;
+                if (t >= 0.005f && t <= 20.0f) csiThr = t;
             }
             if (req->hasParam("csiThr", true)) {
                 float t = req->getParam("csiThr", true)->value().toFloat();
-                if (t >= 0.005f && t <= 0.95f) csiThr = t;
+                if (t >= 0.005f && t <= 20.0f) csiThr = t;
             }
             uint32_t csiHold = csiHoldMs.load();
             if (req->hasParam("csiHold", true)) {

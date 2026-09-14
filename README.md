@@ -299,8 +299,8 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
-- **No calibration.** The trigger is the noise-corrected signal variance of the channel response, so it is receiver-independent and one constant covers every board type. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **One gate.** A link is moving when the noise-subtracted variance crosses the trigger, default 0.050. The per-subcarrier vote and the autocorrelation are reported for display and tuning; neither one gates an alert
+- **One gate.** A link is moving when the noise-subtracted signal variance of the channel response crosses the trigger, default 0.050. The per-subcarrier vote and the autocorrelation are reported for display and tuning; neither one gates an alert. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **The trigger is per-install.** Its level tracks the channel and the link set, not the board model, and both change when a node re-surveys. Two nodes in one house measured 0.120 on ch1 and 0.170 on ch6. Set each from its own idle distribution
 - **Alerts are duty-cycled.** An area alert needs 12 seconds of link motion inside a rolling 60-second window and then holds 15 seconds before it changes state, so one link crossing once does not raise anything
 - **Signal strength is not the limit.** Detections seen on links from -32 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
 - **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
@@ -524,8 +524,8 @@ Mesh: `AUTOERASE_ENABLE:<setup>:<erase>:<vibrations>:<window>:<cooldown>` in sec
 >   `esp_wifi_scan_start`, which returns the radio to the AP channel between hops, so the link survives
 >   and the AP channel takes a larger share of the airtime while a browser is connected.
 > - **CSI measures far cleaner than the S3** on the same channel, with a higher record rate. A trigger
->   tuned on an S3 will not behave the same here. The detector threshold is derived from the statistic
->   rather than the receiver, so one value covers both boards.
+>   tuned on an S3 will not behave the same here. Measure each board's own idle distribution on the
+>   channel it surveyed onto and set its trigger from that.
 
 ## RF Configuration
 
@@ -907,9 +907,13 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Reset the trigger to the compiled default | None | `@ALL CSI_RECAL` |
 
-`CSI_CFG` ranges: trigger 0.005-0.95, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
+`CSI_CFG` ranges: trigger 0.005-20.0, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
 
-The trigger compares against `acf`, the subcarrier-weighted autocorrelation of CSI power at lag one. Weighting is `w(f) proportional to the per-subcarrier ACF`, so subcarriers carrying more motion signature contribute more. A link reads MOTION while `acf` is at or above the trigger, and clears once it falls below for `hold` ms. The value is per-install: measure the idle distribution on the channel the node settles on, then set the trigger above it.
+The trigger compares against `sig`, the noise-subtracted signal variance `var(G) - E[dG^2]/2` averaged over subcarriers. A link reads MOTION while `sig` is at or above the trigger, and clears once it falls below for `hold` ms. The value is per-install: measure the idle distribution on the channel the node settled on, then set the trigger above it. A node that re-surveys onto another channel needs the value re-measured.
+
+Named fields work in place of the positional form: `CSI_CFG:SENSITIVITY=<LOW|MEDIUM|HIGH|value>:MIN_MOTION=<s>:CLEAR_AFTER=<s>:SPOTS=<n>`.
+
+A node with links in range but none armed for 3 minutes re-surveys and moves channel on its own.
 
 ### Sentinel Commands
 
