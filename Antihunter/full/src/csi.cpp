@@ -34,7 +34,7 @@ std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{12};
 std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 std::atomic<uint32_t> csiSolicitMs{0};
-std::atomic<uint8_t> csiNoTx{0};
+std::atomic<uint8_t> csiNoTx{1};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
@@ -955,7 +955,7 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
-    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
 }
 
 static bool csiMoveRadio(uint8_t ch) {
