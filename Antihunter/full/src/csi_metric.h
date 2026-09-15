@@ -421,7 +421,8 @@ struct CsiScorer {
         psiZ = (psiValid && phlen >= CSI_ACF_MIN_HIST) ? ((psi - psiFloor) / psiSpread) : 0.0f;
 
         const bool sigBaseline = (shlen < CSI_ACF_MIN_HIST) ||
-                                 (sigVar <= sigFloor + CSI_PSI_Z * sigSpread);
+                                 (sigVar <= sigFloor + CSI_PSI_Z * sigSpread) ||
+                                 psiHoldExpired;
         if (psiValid && sigBaseline && ++ssampCount >= CSI_ACF_SAMPLE_EVERY) {
             ssampCount = 0;
             float sq = sigVar * CSI_SIG_QUANT;
