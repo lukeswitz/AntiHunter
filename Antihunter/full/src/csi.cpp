@@ -213,6 +213,7 @@ struct CsiLink {
 };
 
 static CsiLink g_links[CSI_MAX_LINKS];
+static float *g_gring = nullptr;
 static std::mutex g_csiMutex;
 static QueueHandle_t csiQueue = nullptr;
 
@@ -1212,7 +1213,15 @@ void csiMotionTask(void *pv) {
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
-        for (int i = 0; i < CSI_MAX_LINKS; i++) csiLinkReset(g_links[i]);
+        if (g_gring == nullptr) {
+            const size_t bytes = sizeof(float) * CSI_MAX_LINKS * CsiScorer::windowFloats();
+            g_gring = (float *)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            Serial.printf("[CSI] psi window ring %s (%u bytes)\n", g_gring ? "allocated" : "ALLOC FAILED", (unsigned)bytes);
+        }
+        for (int i = 0; i < CSI_MAX_LINKS; i++) {
+            g_links[i].sc.attachWindow(g_gring ? (g_gring + (size_t)i * CsiScorer::windowFloats()) : nullptr);
+            csiLinkReset(g_links[i]);
+        }
     }
 
     g_csiSeen.store(0);
