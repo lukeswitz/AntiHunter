@@ -1482,9 +1482,10 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used) continue;
-                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f acfz=%.2f afloor=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d sigz=%.2f sfloor=%.4f sspread=%.4f vote=%.2f psi=%.3f acf=%.3f acfz=%.2f afloor=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lagskip=%u lag=%u/%u/%u/%u/%u\n",
                                   macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
                                   csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
+                                  l.sc.sigZ, l.sc.sigFloor, l.sc.sigSpread,
                                   l.sc.vote, l.sc.psi, l.sc.acf, l.sc.acfZ, l.sc.acfFloor, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate, (unsigned)l.sc.lagSkips,
                                   (unsigned)l.sc.lagBkt[0], (unsigned)l.sc.lagBkt[1],
                                   (unsigned)l.sc.lagBkt[2], (unsigned)l.sc.lagBkt[3],
