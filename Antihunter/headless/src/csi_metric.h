@@ -126,11 +126,11 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
     float *gring;
+    float *gS1;
+    float *gS2;
+    float *gP;
     uint8_t gpos;
     uint8_t gcnt;
-    float gS1[CSI_NSUB];
-    float gS2[CSI_NSUB];
-    float gP[CSI_NSUB];
 
     bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
@@ -182,11 +182,22 @@ struct CsiScorer {
         lagAccum = 0;
         gpos = 0;
         gcnt = 0;
-        for (int k = 0; k < CSI_NSUB; k++) { gS1[k] = 0.0f; gS2[k] = 0.0f; gP[k] = 0.0f; }
+        if (gS1 && gS2 && gP) {
+            for (int k = 0; k < CSI_NSUB; k++) { gS1[k] = 0.0f; gS2[k] = 0.0f; gP[k] = 0.0f; }
+        }
     }
 
+    void attachWindow(float *block) {
+        gring = block;
+        gS1 = block ? block + (size_t)CSI_ACF_T * CSI_NSUB : nullptr;
+        gS2 = gS1 ? gS1 + CSI_NSUB : nullptr;
+        gP = gS2 ? gS2 + CSI_NSUB : nullptr;
+    }
+
+    static size_t windowFloats() { return (size_t)CSI_ACF_T * CSI_NSUB + 3u * CSI_NSUB; }
+
     float windowPsi(const float *a) {
-        if (!gring) return -2.0f;
+        if (!gring || !gS1) return -2.0f;
         const uint8_t T = (uint8_t)CSI_ACF_T;
         const bool full = (gcnt >= T);
         const uint8_t lastIdx = (uint8_t)((gpos + T - 1) % T);
@@ -333,7 +344,6 @@ struct CsiScorer {
         int nsig = 0;
         int nf = 0;
         int nvote = 0;
-        float psiAll = 0.0f;
         const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
         if (dtUs != 0xFFFFFFFFu) {
             const int bi = (dtUs < 50000) ? 0 : (dtUs < 200000) ? 1 : (dtUs < 1000000) ? 2 : (dtUs < 3000000) ? 3 : 4;
@@ -367,7 +377,6 @@ struct CsiScorer {
                         psiSq += p * p;
                     }
                     nf++;
-                    psiAll += p;
                     if (p > CSI_ACF_ETA_SUB) nvote++;
                 }
             }

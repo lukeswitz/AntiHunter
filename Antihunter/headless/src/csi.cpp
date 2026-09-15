@@ -1041,14 +1041,13 @@ void csiMotionTask(void *pv) {
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
         if (g_gring == nullptr) {
-            g_gring = (float *)heap_caps_malloc(sizeof(float) * CSI_MAX_LINKS * CSI_ACF_T * CSI_NSUB,
-                                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            Serial.printf("[CSI] psi window ring %s (%u bytes)\n", g_gring ? "allocated" : "ALLOC FAILED",
-                          (unsigned)(sizeof(float) * CSI_MAX_LINKS * CSI_ACF_T * CSI_NSUB));
+            const size_t bytes = sizeof(float) * CSI_MAX_LINKS * CsiScorer::windowFloats();
+            g_gring = static_cast<float *>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+            Serial.printf("[CSI] psi window ring %s (%u bytes)\n", g_gring ? "allocated" : "ALLOC FAILED", (unsigned)bytes);
         }
         for (int i = 0; i < CSI_MAX_LINKS; i++) {
+            g_links[i].sc.attachWindow(g_gring ? (g_gring + (size_t)i * CsiScorer::windowFloats()) : nullptr);
             csiLinkReset(g_links[i]);
-            g_links[i].sc.gring = g_gring ? (g_gring + (size_t)i * CSI_ACF_T * CSI_NSUB) : nullptr;
         }
     }
 
