@@ -133,7 +133,7 @@ Flash it from your browser.
 | **MAC Randomization Correlation** (beta) | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** (beta) | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **CSI Motion Detection** (experimental) | Device-free motion sensing on the lag-one autocorrelation of CSI power -- no device on the person, per-area strength, trigger measured per install | WiFi, one channel |
+| **CSI Motion Detection** (experimental) | Device-free sensing on the channel state of WiFi frames in the air -- movement and a still occupant both register, movement more; no device on the person, trigger measured per install | WiFi, one channel |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Packet Capture** | Writes a standard pcap to SD that Wireshark opens -- WiFi frames with a radiotap header, BLE as Bluetooth HCI. One radio per capture, channel list selectable, bounded by a file size cap | WiFi or BLE |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
@@ -315,102 +315,65 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (experimental)
 
-> **Experimental.** The detector works, but its input rate depends on the ESP32 radio and on
-> what traffic is in the air, and both vary more than the statistic does. Read
-> [Limitations](#csi-limitations) before deploying it as a primary sensor.
+> **Experimental.** Input rate depends on the radio and on what traffic is in the air. Read [Limitations](#csi-limitations) before using it as a primary sensor.
 
-Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
+Device-free sensing on the channel state of WiFi frames already in the air. Nothing is worn, no network joined. It reads both movement and a still occupant: Espressif states CSI senses "large movements such as people or animals walking and running but also subtle actions in a static environment, such as breathing and chewing" ([esp-csi](https://github.com/espressif/esp-csi)); DeMan measured movement at up to 4 dB of envelope change against 1.5 dB for breathing ([Wu et al., IEEE JSAC vol. 33, 2015](https://doi.org/10.1109/JSAC.2015.2430294)). Movement drives the statistic hardest, a still person less, an empty building least. The trigger picks the level.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **Set the trigger where the node is setup.** The node measures how much the WiFi signal is shifting around. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Watch the `sig` number in the status line with nobody in the space, then set the trigger above the highest value you see. Default is 0.600; measured over one 11.6-hour night with the room empty, an S3 read a night p95 of 0.2789 against a movement median of 0.3267. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
-- **Re-measure after a channel change.** A node picks its channel at startup and moves on its own if that channel turns out to carry too little traffic to detect on. Watch for `STARVED` or `taking ch<n> instead` in the serial log - the old trigger will not fit the new channel
-- **One gate.** A link counts as moving when `sig` crosses the trigger. Everything else on the status line is there to help you tune; none of it raises an alert
-- **Alerts need agreement across links.** Two thirds of a node's armed links must be moving at once, then 12 seconds of that inside a rolling 60-second window, then a 15-second hold before the state changes. One link crossing raises nothing - that was the old rule and it fired on noise whenever a node tracked many links
-- **Signal strength is not the limit.** Detections seen on links from -24 to -92 dBm in a single run; the statistic is normalized per link, so path loss divides out
-- **Range.** Set by the Fresnel zone around each node-transmitter link, not by distance from the node. Published work with commodity ESP32 hardware reports through-wall activity recognition across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
-- **This mode transmits** - see the warning below. It is the only scan in this firmware that does
-- The Movement view shows live strength, the links tracked, and a session heat strip. Cells start at one minute and widen as the session runs - 5, 15, 30 minutes, then hours - so the strip always covers the whole session
+- **Statistic, per board.** S3: `psi`, the mean lag-one autocorrelation of CSI power over a 60-packet window per link ([WiDetect, ACM IMWUT 3(3), 2019](https://doi.org/10.1145/3351280), Definition 1). C5: `sig`, the noise-corrected variance of the same power. Chosen on each board's own raw capture, operator moving then still in the node room: S3 `psi` 0.25 held motion 60% moving / 13% still (`sig` 0.08: 60% / 39%); C5 `psi` read still above moving (46% / 37%) while `sig` 0.09 read 26% / 12%
+- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Defaults S3 0.25, C5 0.09. Presets S3 `LOW` 0.30 / 20 s / 3 spots, `MEDIUM` 0.25 / 12 / 3, `HIGH` 0.20 / 6 / 1; C5 0.13 / 0.09 / 0.07. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log)
+- **Alert rule.** Half of armed access points, capped at `SPOTS`, moving at once; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger
+- **Sampling rate is the structural limit.** Per link 5.3 (S3) / 6.0 (C5) pairs/s at the median, 2% under 50 ms apart. WiDetect used 30 Hz; Espressif's sender 100 Hz ([console_test](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/main/app_main.c)). Listen-only cannot raise it
+- **Range.** Fresnel zone around each node-transmitter link, not distance from the node. WiDetect: "whole-home coverage ... using a single link on commodity WiFi"; ESP32 through-wall work across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
+- **Listen-only by default.** `BROADCAST=ON` is the only scan in this firmware that transmits - see below
 
 > [!WARNING]
-> **CSI motion transmits. Every other scan in this firmware is receive-only; this one is not.**
-> When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to
-> pull traffic out of the air, at most once per second. On a channel with normal traffic it never
-> needs to: one node measured `tx=0` across a whole session on a busy channel, against `tx=640` on
-> a starved one. The frame is a standard 802.11 probe request with a locally-administered source
-> address (`02:00:00:00:00:01`), not the node's own MAC - the same class of frame a phone sends
-> while scanning. It is still RF on the air, so a node running CSI can be seen by anyone monitoring
-> the channel. `tx=` in the serial status line is the running count of frames sent.
->
-> **To keep it silent:** tick **Listen only, never transmit** under Advanced, or send
-> `CSI_CFG:BROADCAST=OFF` over mesh (`BROADCAST=ON` allows it again, and the current state comes
-> back in `CSI_CFG_ACK`). The choice persists across reboots. A silent node can only detect
-> movement while other traffic is already in the air.
->
-> Sending a probe request is ordinary unlicensed WiFi client behavior, not blocking or
-> deauthentication. Rules differ by country and by site - check before deploying where
-> transmitting is restricted.
+> **Transmit is off unless you turn it on** (`BROADCAST=OFF` in every `CSI_CFG_ACK`, persists in NVS). With `BROADCAST=ON`, under 15 CSI frames/s the node sends one broadcast probe request per second, source `02:00:00:00:00:01`, the frame class a phone sends while scanning. Measured `tx=0` over a session on a busy channel, `tx=640` on a starved one. Anyone monitoring the channel can see it. Rules differ by country and site.
 
 #### Measured
 
-One home, both node types side by side on 2.4 GHz ch6, 16 hours continuous, operator-reported occupancy. `MOVE` is the fraction of minutes the node held an area alert.
+One home, both boards in one ground-floor room, operator-marked windows, `sig` on both. Per-link samples 15 s apart; `above` = fraction over 0.080.
 
-| window | minutes | ESP32-S3 | ESP32-C5 |
-|---|---|---|---|
-| occupied, awake | 236 | 48.3% | 92.4% |
-| asleep, occupants still | 240 | 3.3% | see note |
-| waking, 06:00-06:30 | 28 | 60.7% | 78.6% |
+| window | S3 n / median / above | C5 n / median / above |
+|---|---|---|
+| building empty, 57 min | 1678 / 0.0235 / 5% | 1702 / 0.0272 / 1% |
+| household asleep upstairs, 4.5 h | 1914 / 0.0652 / 36% | 2157 / 0.0243 / 13% |
+| operator seated in the node room, 1.5 h | 3482 / 0.0632 / 36% | 3871 / 0.0899 / 57% |
+| operator moving in the node room, 2.2 h | 3680 / 0.0908 / 61% | 4174 / 0.0455 / 14% (ch6; rest ch1) |
 
-Per-link `MOTION` events over the same three windows: S3 137 / 18 / 19, C5 519 / 0 / 25.
-
-Read the middle row as the false-alarm figure for the S3, and the outer two as sensitivity. Occupied-and-awake is not the same as continuously moving, so the top row is a floor on detection, not a recall score. Single site, single run, one interior wall between the nodes and most of the activity.
-
-The C5's asleep figure is withheld deliberately. It originally read 0.0%, which looks like a
-perfect false-alarm rate and is not one: on that run the C5 held **zero settled links for 93%
-of 01:00-05:00**, flat-dropping every link it built. It reported nothing because it had
-nothing to detect with. Firmware now prints `BLIND` and an `armed=` count so this state is
-visible rather than passing for quiet, but the C5 still has no validated overnight
-false-alarm figure.
+Asleep night 16:15-03:51 (41760 s), both ch1 at 0.080: area alert held 78.7% (S3), 46.9% (C5). Empty row = false alarms; asleep and seated rows = a still occupant registering. Single site, single run.
 
 > [!IMPORTANT]
-> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. The asleep row above is that property working, not a failure.
+> One trigger cannot fully separate a still occupant from movement. Espressif's detector keeps two features - `waveform_wander` (someone/noneone) and `waveform_jitter` (move/static) - each thresholded by an empty-room calibration ([console_test README](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/README.md)); DeMan adds a 0.15-0.70 Hz breathing band. This firmware has one statistic and one trigger per board.
 
 > [!NOTE]
-> **Indoor only.** Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors and the sensitive region collapses to a narrow zone on the line between node and transmitter - a tripwire, not area cover. Outdoor detection needs RadarNode (in development).
+> **Indoor only.** Outdoors the sensitive region collapses to the line between node and transmitter. Outdoor detection needs RadarNode (in development).
 
 <a id="csi-limitations"></a>
 #### Limitations
 
-CSI is computed only from OFDM frames, so the sample rate is whatever OFDM traffic is on the
-channel. That varies far more than the detector does.
+- **Never hand-pick the channel.** Started with channel 0 the node surveys all 11 by CSI yield. Same room, four minutes apart: ch6 2.8 records/s, ch1 49.7.
+- **The rate is bursty.** A surveyed channel held 36-62/s; a poor one swung 10x between 15 s windows.
+- **Board choice.** S3 is dual-core with more headroom for scanning, mesh and web UI. C5 ingests more: four paired surveys on ch1, same minute, S3 44.8 / 18.4 / 14.8 / 24.4 records/s against C5 74.8 / 36.0 / 41.2 / 43.2. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
+- **Still occupants register.** A sleeping household one floor up kept the S3 over its `sig` trigger 36% of the night; the empty building 5%.
 
-- **Never hand-pick the channel.** Started without a channel argument, the node surveys all 11
-  and ranks them by measured CSI yield. One S3, same room, four minutes apart: ch6 gave 2.8
-  records/s, ch1 gave 49.7.
-- **The rate is bursty.** A surveyed channel held 36-62/s; a poor one swung 10x between
-  adjacent 15s windows. [WiDetect](https://cswu.me/papers/ubicomp19_widetect_paper.pdf) works
-  down to 30 Hz.
-- **Board choice.** The S3 is dual-core and has more headroom for scanning, mesh and the web UI
-  together. The C5 is the better CSI receiver - roughly 3x the ingest rate on the same channel,
-  lower noise, and it picks up more 802.11n. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
-- **Movement, not presence.** Someone who stops moving reads as quiet.
-
-`phy=b/g/ht/x` in the serial status line shows the frame mix when a site underperforms.
+`phy=b/g/ht/x` in the status line shows the frame mix when a site underperforms.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
 > **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
 >
 > **Settings**
-> - Plain-language form `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
-> - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree), `BROADCAST=OFF` (never transmit)
-> - Trigger, hold, consecutive hits and channel `@ALL CSI_CFG:0.10:5000:3:0`
-> - Start silent `@ALL CSI_MOTION_START:0:FOREVER:LISTEN_ONLY` - `ALLOW_TRANSMIT` undoes it
-> - Reset the trigger to the compiled default `@ALL CSI_RECAL`
+> - `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number (values above)
+> - Add any of `MIN_MOTION=<s>`, `CLEAR_AFTER=<s>`, `SPOTS=<n>`, `BROADCAST=ON`
+> - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.25:5000:3:0`
+> - `@ALL CSI_MOTION_START:0:FOREVER:ALLOW_TRANSMIT` - `LISTEN_ONLY` is the default
+> - `@ALL CSI_RECAL` resets the trigger to the compiled default
 >
-> Trigger range 0.005-20.0. A node moves channel on its own after 3 minutes with no usable access point, or with too few records to detect on.
+> Trigger range 0.005-20.0. A node moves channel on its own after 3 minutes with no usable access point.
 
 ---
 
