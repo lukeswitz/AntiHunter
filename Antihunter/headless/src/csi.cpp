@@ -31,7 +31,7 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
-std::atomic<uint8_t> csiNoTx{0};
+std::atomic<uint8_t> csiNoTx{1};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
@@ -1001,7 +1001,7 @@ void loadCsiConfigFromPrefs() {
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
-    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
 }
 
 void setCsiNoTx(bool noTx) {
