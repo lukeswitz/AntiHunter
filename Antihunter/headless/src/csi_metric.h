@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define CSI_NSUB 47
+#define CSI_WINDOW_PSI 1
 
 static const uint8_t CSI_SUB_IDX[CSI_NSUB] = {
     2,  3,  4,  5,  6,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
@@ -25,7 +26,7 @@ static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 8000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_ACF_ETA = 0.10f;
-static const float CSI_SIG_ETA = 0.080f;
+static const float CSI_PSI_ETA = 0.25f;
 static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 2.0f;
 
@@ -124,6 +125,12 @@ struct CsiScorer {
     uint32_t lagBkt[5];
     uint8_t prevValid;
     uint32_t lagAccum;
+    float *gring;
+    uint8_t gpos;
+    uint8_t gcnt;
+    float gS1[CSI_NSUB];
+    float gS2[CSI_NSUB];
+    float gP[CSI_NSUB];
 
     bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
@@ -173,6 +180,51 @@ struct CsiScorer {
         for (int i = 0; i < 5; i++) lagBkt[i] = 0;
         prevValid = 0;
         lagAccum = 0;
+        gpos = 0;
+        gcnt = 0;
+        for (int k = 0; k < CSI_NSUB; k++) { gS1[k] = 0.0f; gS2[k] = 0.0f; gP[k] = 0.0f; }
+    }
+
+    float windowPsi(const float *a) {
+        if (!gring) return -2.0f;
+        const uint8_t T = (uint8_t)CSI_ACF_T;
+        const bool full = (gcnt >= T);
+        const uint8_t lastIdx = (uint8_t)((gpos + T - 1) % T);
+        const uint8_t secondIdx = (uint8_t)((gpos + 1) % T);
+        for (int k = 0; k < CSI_NSUB; k++) {
+            const float G = a[k] * a[k];
+            if (full) {
+                const float old = gring[gpos * CSI_NSUB + k];
+                gS1[k] -= old;
+                gS2[k] -= old * old;
+                gP[k] -= old * gring[secondIdx * CSI_NSUB + k];
+            }
+            if (gcnt > 0) gP[k] += gring[lastIdx * CSI_NSUB + k] * G;
+            gS1[k] += G;
+            gS2[k] += G * G;
+            gring[gpos * CSI_NSUB + k] = G;
+        }
+        gpos = (uint8_t)((gpos + 1) % T);
+        if (gcnt < T) gcnt++;
+        if (gcnt < T) return -2.0f;
+        const uint8_t firstIdx = gpos;
+        const uint8_t newIdx = (uint8_t)((gpos + T - 1) % T);
+        const float n = (float)gcnt;
+        float sum = 0.0f;
+        int nb = 0;
+        for (int k = 0; k < CSI_NSUB; k++) {
+            const float m = gS1[k] / n;
+            const float v0 = gS2[k] / n - m * m;
+            if (v0 <= 1e-9f) continue;
+            const float sa = gS1[k] - gring[firstIdx * CSI_NSUB + k];
+            const float sb = gS1[k] - gring[newIdx * CSI_NSUB + k];
+            float p = (gP[k] - m * (sa + sb) + (n - 1.0f) * m * m) / (n * v0);
+            if (p > 1.0f) p = 1.0f;
+            if (p < -1.0f) p = -1.0f;
+            sum += p;
+            nb++;
+        }
+        return (nb > 0) ? (sum / (float)nb) : -2.0f;
     }
 
     float psiHistStats(float *spreadOut) const {
@@ -326,7 +378,8 @@ struct CsiScorer {
         acf = (psiPos > 1e-6f) ? (psiSq / psiPos) : 0.0f;
         sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
-        psi = (nf > 0) ? (psiAll / (float)nf) : 0.0f;
+        const float wpsi = windowPsi(a);
+        psi = (wpsi > -1.5f) ? wpsi : 0.0f;
         psiValid = (nf > 0);
 
         if (!holdFloor &&

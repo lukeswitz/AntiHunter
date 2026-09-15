@@ -974,9 +974,9 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.12f; dwell = 20; radios = 3; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.08f; dwell = 12; radios = 3; }
-        else if (v == "HIGH") { thr = 0.06f; dwell = 6; radios = 1; }
+        if (v == "LOW") { thr = 0.30f; dwell = 20; radios = 3; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.25f; dwell = 12; radios = 3; }
+        else if (v == "HIGH") { thr = 0.20f; dwell = 6; radios = 1; }
         else thr = v.toFloat();
       }
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
