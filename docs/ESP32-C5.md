@@ -100,8 +100,22 @@ with `CSI_CFG`.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
-nodes sitting in the same house. Two here settled on 0.080 for the S3 on ch1 and 0.045
-for the C5 on ch6, both confirmed against a walk-in.
+nodes sitting in the same house. Size it against a window with nobody in the room. Default is
+0.600.
+
+Measured over one 11.6-hour night, room empty, both boards on ch1, 57 twelve-minute windows each:
+
+| | movement window p50 | night p90 | night p95 | night max |
+|---|---|---|---|---|
+| S3 | 0.3267 | 0.2349 | 0.2789 | 0.7292 |
+| C5 | 0.2797 | 0.3958 | 0.5290 | 0.9377 |
+
+The S3 separates: movement sits above its night p95, and 0.600 clears 54 of its 57 night windows
+while still catching the movement window. The C5 does not: its night p75 (0.2901) is above its
+movement p50 (0.2797) and its movement max (0.4702) is below its night p95, so on this statistic
+the night distribution contains the movement distribution and no single cut splits them. `sig` is
+the maximum across links, which discards which links moved; separating the two cases on a C5
+needs the per-link pattern, not a different number.
 
 The C5 does not behave identically to the S3, and the difference is physical rather
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
