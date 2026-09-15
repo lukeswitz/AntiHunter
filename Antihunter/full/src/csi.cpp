@@ -653,7 +653,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float acfEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : 0.40f;
-        if (l.sc.psiValid && l.sc.sigZ >= acfEta) {
+        if (l.sc.psiValid && l.sc.sigVar >= acfEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -676,7 +676,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigZ < acfEta &&
+        } else if (l.motion && l.sc.sigVar < acfEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;

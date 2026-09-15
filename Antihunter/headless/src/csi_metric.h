@@ -25,7 +25,7 @@ static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 8000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_ACF_ETA = 0.10f;
-static const float CSI_SIG_ETA = 2.000f;
+static const float CSI_SIG_ETA = 0.080f;
 static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 2.0f;
 
