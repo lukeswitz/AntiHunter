@@ -50,10 +50,10 @@ static const float CSI_SIG_ETA = 0.090f;
 static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 1.5f;
 
-static inline float csiAnalyticEta(int liveBins) {
+static inline float csiAnalyticEta(int liveBins, float k) {
     const float T = 1.0f / CSI_ACF_ALPHA;
     const float F = (liveBins > 0) ? (float)liveBins : (float)CSI_NSUB;
-    return -1.0f / T + CSI_PSI_K * sqrtf(1.0f / (F * T));
+    return -1.0f / T + k * sqrtf(1.0f / (F * T));
 }
 static const int CSI_AREA_LINK_NUM = 1;
 static const int CSI_AREA_LINK_DEN = 2;

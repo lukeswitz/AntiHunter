@@ -729,12 +729,14 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float acfEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : 0.40f;
+        const uint32_t kMilli = csiThresholdMilli.load();
+        const float sigK = kMilli ? ((float)kMilli / 1000.0f) : CSI_PSI_K;
+        const float acfEta = csiAnalyticEta(l.liveBins, sigK);
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.psiValid && l.sc.sigVar >= acfEta) {
+        if (l.sc.psiValid && l.sc.acf >= acfEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -758,7 +760,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigVar < acfEta &&
+        } else if (l.motion && l.sc.acf < acfEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
