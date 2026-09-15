@@ -5837,7 +5837,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.70, 20, 3], medium: [0.52, 12, 3], high: [0.40, 6, 1] };
+            const presets = { low: [0.12, 20, 3], medium: [0.08, 12, 3], high: [0.06, 6, 1] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];
