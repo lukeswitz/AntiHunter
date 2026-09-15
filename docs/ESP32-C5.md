@@ -87,16 +87,19 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 |---|---|---|
 | cores | 2 | 1 |
 | WiFi and BLE scanning, mesh, web UI | more headroom - scan callbacks and the server do not share a core | everything shares one core |
-| CSI ingest rate | reference | ~3x the S3, measured same channel same intervals |
+| CSI ingest rate | reference | 1.7-2.8x the S3, four paired surveys on ch1 (S3 44.8 / 18.4 / 14.8 / 24.4 records/s, C5 74.8 / 36.0 / 41.2 / 43.2) |
 | CSI measurement noise | reference | 7-57x lower |
 | 802.11n frames seen | almost none | hundreds per 15s |
 | release channel | stable | experimental |
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards run the same detector. It watches how much the WiFi signal shifts around,
-reported as `sig` in the status line, and alerts when that crosses the trigger you set
-with `CSI_CFG` (0.050 until you change it).
+The boards gate on different statistics. The C5 gates on `sig`, the noise-corrected
+variance of CSI power; the S3 gates on `psi`, the WiDetect lag-one autocorrelation over a
+60-packet window. On the C5's own raw capture (operator moving, then still in the node
+room) `psi` read the still window above the moving one (46% / 37% of samples in motion at
+0.25) while `sig` at 0.09 read 26% / 12%, so the C5 keeps `sig`. Both statistics appear
+in `[CSIL]` telemetry on both boards.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
@@ -122,7 +125,7 @@ than a fault. Measured on one C5 and one S3 in the same room, on the same channe
 from the same transmitters:
 
 - the C5's CSI carries 7-57x less measurement noise for the same signal variance
-- it ingests roughly 3x the CSI records per second
+- it ingests 1.7-2.8x the CSI records per second on the same channel
 
 So it resolves weaker movement. Over a 50 minute run with an operator moving in and
 out, the C5 opened episodes 22-88s earlier and held them longer.
