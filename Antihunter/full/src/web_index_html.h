@@ -747,7 +747,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
-                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="0.95" step="0.005" value="0.52">
+                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.005" value="0.60">
                     </div>
                     <div>
                       <label style="font-size:11px;">Consecutive packets</label>
