@@ -401,7 +401,6 @@ struct CsiScorer {
         int nsig = 0;
         int nf = 0;
         int nvote = 0;
-        float psiAll = 0.0f;
         const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
         if (!lagOk && lagSkips < 0xFFFFFFFFu) lagSkips++;
         if (dtUs != 0xFFFFFFFFu) {
@@ -435,7 +434,6 @@ struct CsiScorer {
                         psiSq += p * p;
                     }
                     nf++;
-                    psiAll += p;
                     if (p > CSI_ACF_ETA_SUB) nvote++;
                 }
             }
