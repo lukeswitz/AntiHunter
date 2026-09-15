@@ -25,7 +25,7 @@ static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 8000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_ACF_ETA = 0.10f;
-static const float CSI_SIG_ETA = 0.600f;
+static const float CSI_SIG_ETA = 2.000f;
 static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 2.0f;
 
@@ -41,6 +41,8 @@ static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
 static const float CSI_ACF_QUANT = 10000.0f;
 static const float CSI_ACF_MIN_SPREAD = 0.02f;
+static const float CSI_SIG_MIN_SPREAD = 0.01f;
+static const float CSI_SIG_QUANT = 20000.0f;
 static const uint32_t CSI_PSI_HOLD_MAX_US = 60000000;
 static const uint8_t CSI_ACF_MIN_HIST = 12;
 static const float CSI_VOTE_FRAC = 0.50f;
@@ -91,6 +93,13 @@ struct CsiScorer {
     float psiFloor;
     float psiSpread;
     float psiZ;
+    float sigFloor;
+    float sigSpread;
+    float sigZ;
+    uint16_t shist[CSI_ACF_HIST];
+    uint8_t shlen;
+    uint8_t shpos;
+    uint16_t ssampCount;
     bool psiValid;
     uint16_t ahist[CSI_ACF_HIST];
     uint8_t ahlen;
@@ -137,6 +146,12 @@ struct CsiScorer {
         psiFloor = 0.0f;
         psiSpread = CSI_ACF_MIN_SPREAD;
         psiZ = 0.0f;
+        sigFloor = 0.0f;
+        sigSpread = CSI_SIG_MIN_SPREAD;
+        sigZ = 0.0f;
+        shlen = 0;
+        shpos = 0;
+        ssampCount = 0;
         psiValid = false;
         phlen = 0;
         phpos = 0;
@@ -177,6 +192,24 @@ struct CsiScorer {
         const float q3 = (float)tmp[(3 * phlen) / 4] / CSI_ACF_QUANT - 1.0f;
         float sp = (q3 - q1) / 1.349f;
         if (sp < CSI_ACF_MIN_SPREAD) sp = CSI_ACF_MIN_SPREAD;
+        *spreadOut = sp;
+        return med;
+    }
+
+    float sigHistStats(float *spreadOut) const {
+        uint16_t tmp[CSI_ACF_HIST];
+        for (uint8_t i = 0; i < shlen; i++) tmp[i] = shist[i];
+        for (uint8_t i = 1; i < shlen; i++) {
+            uint16_t v = tmp[i];
+            int16_t j = (int16_t)i - 1;
+            while (j >= 0 && tmp[j] > v) { tmp[j + 1] = tmp[j]; j--; }
+            tmp[j + 1] = v;
+        }
+        const float med = (float)tmp[shlen / 2] / CSI_SIG_QUANT;
+        const float q1 = (float)tmp[shlen / 4] / CSI_SIG_QUANT;
+        const float q3 = (float)tmp[(3 * shlen) / 4] / CSI_SIG_QUANT;
+        float sp = (q3 - q1) / 1.349f;
+        if (sp < CSI_SIG_MIN_SPREAD) sp = CSI_SIG_MIN_SPREAD;
         *spreadOut = sp;
         return med;
     }
@@ -331,6 +364,20 @@ struct CsiScorer {
             psiFloor = psiHistStats(&psiSpread);
         }
         psiZ = (psiValid && phlen >= CSI_ACF_MIN_HIST) ? ((psi - psiFloor) / psiSpread) : 0.0f;
+
+        const bool sigBaseline = (shlen < CSI_ACF_MIN_HIST) ||
+                                 (sigVar <= sigFloor + CSI_PSI_Z * sigSpread);
+        if (psiValid && sigBaseline && ++ssampCount >= CSI_ACF_SAMPLE_EVERY) {
+            ssampCount = 0;
+            float sq = sigVar * CSI_SIG_QUANT;
+            if (sq < 0.0f) sq = 0.0f;
+            if (sq > 65535.0f) sq = 65535.0f;
+            shist[shpos] = (uint16_t)sq;
+            shpos = (uint8_t)((shpos + 1) % CSI_ACF_HIST);
+            if (shlen < CSI_ACF_HIST) shlen++;
+            sigFloor = sigHistStats(&sigSpread);
+        }
+        sigZ = (psiValid && shlen >= CSI_ACF_MIN_HIST) ? ((sigVar - sigFloor) / sigSpread) : 0.0f;
 
         if (!holdFloor && ++sampCount >= CSI_FLOOR_SAMPLE_EVERY) {
             sampCount = 0;

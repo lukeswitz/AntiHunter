@@ -126,6 +126,7 @@ static const uint32_t CSI_MOTION_MIN_MS = 300;
 static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
+static const uint32_t CSI_MOTION_MAX_DWELL_MS = 300000;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 6000;
 static const uint32_t CSI_AREA_BRIDGE_MS = 120000;
 static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
@@ -652,7 +653,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float acfEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : 0.40f;
-        if (l.sc.psiValid && l.sc.sigVar >= acfEta) {
+        if (l.sc.psiValid && l.sc.sigZ >= acfEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -675,7 +676,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigVar < acfEta &&
+        } else if (l.motion && l.sc.sigZ < acfEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
