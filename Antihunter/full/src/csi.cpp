@@ -431,7 +431,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                       ch, hits, rate, tx, strong, ht, peak);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (peak >= CSI_PAIR_RSSI && hits > bestPeakHits) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
+        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
         const uint32_t chScore = hits * strong;
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
@@ -444,9 +444,9 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         return 0;
     }
     if (bestPeak >= CSI_PAIR_RSSI) {
-        Serial.printf("[CSI] Selected ch%u: paired transmitter at %ddBm (%.1f/s)\n",
-                      bestPeakCh, bestPeak, (float)bestPeakHits * 1000.0f / (float)dwellMs);
-        return bestPeakCh;
+        Serial.printf("[CSI] Paired node heard at %ddBm on ch%u (%.1f/s) - holding the SoftAP channel ch%u so both nodes meet there\n",
+                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs, (unsigned)AP_CHANNEL);
+        return (uint8_t)AP_CHANNEL;
     }
 
     if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
