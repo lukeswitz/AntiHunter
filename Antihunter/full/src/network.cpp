@@ -208,6 +208,13 @@ void initializeNetwork()
 
   WiFi.mode(WIFI_AP_STA);
   delay(100);
+  {
+    const esp_err_t stopErr = esp_wifi_stop();
+    const esp_err_t rateErr = esp_wifi_config_11b_rate(WIFI_IF_AP, true);
+    const esp_err_t startErr = esp_wifi_start();
+    Serial.printf("[WIFI] AP 11b rates disabled (OFDM beacons): stop=%s cfg=%s start=%s\n",
+                  esp_err_to_name(stopErr), esp_err_to_name(rateErr), esp_err_to_name(startErr));
+  }
 
   applyBandMode();
 

@@ -77,6 +77,7 @@ static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
 static const int8_t CSI_SURVEY_MIN_RSSI = -85;
+static const int8_t CSI_PAIR_RSSI = -60;
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
 static inline int csiWord12(const uint8_t *u) {
