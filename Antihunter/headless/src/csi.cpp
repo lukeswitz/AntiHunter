@@ -46,6 +46,7 @@ static const float CSI_TRIG_MAX = 6.0f;
 static std::atomic<bool> g_surveyMode{false};
 static std::atomic<uint32_t> g_surveyHits{0};
 static std::atomic<uint32_t> g_surveyStrong{0};
+static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
 static uint8_t g_surveyMacCount = 0;
@@ -284,6 +285,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (g_surveyMode.load()) {
         g_surveyHits.fetch_add(1);
         if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
+        {
+            int pk = g_surveyPeak.load();
+            while ((int)rx.rssi > pk && !g_surveyPeak.compare_exchange_weak(pk, (int)rx.rssi)) {}
+        }
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
             if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
@@ -319,12 +324,16 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
+    int bestPeak = -128;
+    uint8_t bestPeakCh = 0;
+    uint32_t bestPeakHits = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
 
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
+        g_surveyPeak.store(-128);
         g_surveyTx.store(0);
         g_surveyMacCount = 0;
 
@@ -347,11 +356,13 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t hits = g_surveyHits.load();
         const uint32_t strong = g_surveyStrong.load();
         const uint32_t tx = g_surveyTx.load();
+        const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong\n",
-                      ch, hits, rate, tx, strong);
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  peak %ddBm\n",
+                      ch, hits, rate, tx, strong, peak);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
+        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
         const uint32_t chScore = hits * strong;
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
@@ -362,6 +373,11 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
+    }
+    if (bestPeak >= CSI_PAIR_RSSI) {
+        Serial.printf("[CSI] Selected ch%u: paired transmitter at %ddBm (%.1f/s)\n",
+                      bestPeakCh, bestPeak, (float)bestPeakHits * 1000.0f / (float)dwellMs);
+        return bestPeakCh;
     }
 
     if (bestStrong == 0) {
