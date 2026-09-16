@@ -396,7 +396,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                       ch, hits, rate, tx, strong, ht, peak);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
+        if (peak >= CSI_PAIR_RSSI && hits > bestPeakHits) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
         const uint32_t chScore = hits * strong;
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
