@@ -34,6 +34,7 @@ std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
+static const uint32_t CSI_LINK_FORGET_MS = 600000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_SURVEY_MIN_HT = 8;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
@@ -537,6 +538,7 @@ static void csiLinkReset(CsiLink &l) {
 
 static bool csiLinkUsable(const CsiLink &l) {
     if (!l.used || l.packets < CSI_LINK_MIN_PKTS) return false;
+    if ((millis() - l.lastMs) >= CSI_LINK_STALE_MS) return false;
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
@@ -774,7 +776,9 @@ static void csiExpireLinks() {
                 l.motion = false;
                 csiStageAlert(alerts[i], l, false);
             }
-            l.used = false;
+            l.consec = 0;
+            l.elevMs = 0;
+            if ((now - l.lastMs) >= CSI_LINK_FORGET_MS) l.used = false;
         }
     }
 
