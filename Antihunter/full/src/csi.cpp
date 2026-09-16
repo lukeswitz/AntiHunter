@@ -507,6 +507,10 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
+static bool csiLinkPaired(const CsiLink &l) {
+    return l.rssi >= CSI_PAIR_RSSI;
+}
+
 static float csiPsiEta(uint32_t thrMilli) {
     return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_PSI_ETA;
 }
@@ -702,7 +706,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float psiEta = csiPsiEta(csiThresholdMilli.load());
+        const float psiEta = csiLinkPaired(l) ? csiAnalyticEta() : csiPsiEta(csiThresholdMilli.load());
         if (l.sc.psiValid && l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
@@ -1319,6 +1323,8 @@ void csiMotionTask(void *pv) {
 
             int movingLinks = 0;
             int armedLinks = 0;
+            int pairedArmed = 0;
+            int pairedMoving = 0;
             float peak = 0.0f;
             int radiosRecent = 0;
             {
@@ -1330,6 +1336,12 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
                 radiosRecent = csiRadiosRecent(now, CSI_AREA_DUTY_SLOTS * 2000u);
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    const CsiLink &l = g_links[i];
+                    if (!l.used || !csiLinkPaired(l)) continue;
+                    if (csiLinkUsable(l) && l.sc.settled()) pairedArmed++;
+                    if (l.motion) pairedMoving++;
+                }
             }
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
@@ -1338,6 +1350,11 @@ void csiMotionTask(void *pv) {
                 const int cap = (int)csiAreaRadiosNeeded.load();
                 if (cap > 0 && needLinks > cap) needLinks = cap;
                 if (cap >= 2 && needLinks < 2) needLinks = 2;
+            }
+            if (pairedArmed > 0) {
+                movingLinks = pairedMoving;
+                radiosRecent = pairedMoving > 0 ? 1 : 0;
+                needLinks = 1;
             }
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
