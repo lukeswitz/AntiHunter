@@ -5062,6 +5062,11 @@ R"HTML(
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
           }
+          const boardMatch = diagText.match(/^Board: (\w+)/m);
+          if (boardMatch) {
+            if (window.__board && window.__board !== boardMatch[1]) { location.reload(); return; }
+            window.__board = boardMatch[1];
+          }
           updateStatusIndicators(diagText);
           updateMeshTxIndicator(diagText);
 
