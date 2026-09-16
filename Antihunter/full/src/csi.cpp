@@ -1317,6 +1317,7 @@ void csiMotionTask(void *pv) {
             {
                 const int cap = (int)csiAreaRadiosNeeded.load();
                 if (cap > 0 && needLinks > cap) needLinks = cap;
+                if (cap >= 2 && needLinks < 2) needLinks = 2;
             }
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
