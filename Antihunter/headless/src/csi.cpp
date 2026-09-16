@@ -558,6 +558,10 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
+static bool csiLinkPaired(const CsiLink &l) {
+    return l.rssi >= CSI_PAIR_RSSI;
+}
+
 static float csiPsiEta(uint32_t thrMilli) {
     return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_PSI_ETA;
 }
@@ -728,7 +732,7 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float psiEta = csiPsiEta(csiThresholdMilli.load());
+        const float psiEta = csiLinkPaired(l) ? csiAnalyticEta(l.liveBins) : csiPsiEta(csiThresholdMilli.load());
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
@@ -1370,6 +1374,8 @@ void csiMotionTask(void *pv) {
             csiExpireLinks();
 
             int movingLinks = 0;
+            int pairedArmed = 0;
+            int pairedMoving = 0;
             float peak = 0.0f;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -1378,7 +1384,14 @@ void csiMotionTask(void *pv) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    const CsiLink &l = g_links[i];
+                    if (!l.used || !csiLinkPaired(l)) continue;
+                    if (csiLinkUsable(l) && l.sc.settled()) pairedArmed++;
+                    if (l.motion) pairedMoving++;
+                }
             }
+            if (pairedArmed > 0) movingLinks = pairedMoving;
 
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
