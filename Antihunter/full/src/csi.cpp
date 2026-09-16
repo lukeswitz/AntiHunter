@@ -32,7 +32,6 @@ std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{12};
-std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
 std::atomic<uint8_t> csiMgmtOnly{0};
@@ -132,9 +131,6 @@ static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
 static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
 static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
 static uint8_t g_areaDutyPos = 0;
-static uint8_t g_radioKey[CSI_MAX_LINKS][6];
-static uint32_t g_radioLastMs[CSI_MAX_LINKS];
-static uint8_t g_radioN = 0;
 static bool g_areaMotion = false;
 static bool g_areaCand = false;
 static uint32_t g_areaCandSince = 0;
@@ -462,7 +458,6 @@ bool csiClearResults() {
         memset(g_areaDuty, 0, sizeof(g_areaDuty));
         g_areaDutyPos = 0;
         g_areaLastMotionMs = 0;
-        g_radioN = 0;
         csiEpisodesReset();
     }
     g_csiMotionEvents.store(0);
@@ -536,34 +531,6 @@ static int csiCountRadios(bool movingOnly) {
         if (dup) continue;
         memcpy(reps[n], l.mac, 6);
         n++;
-    }
-    return n;
-}
-
-static int csiRadiosRecent(uint32_t now, uint32_t windowMs) {
-    for (int i = 0; i < CSI_MAX_LINKS; i++) {
-        const CsiLink &l = g_links[i];
-        if (!l.used || !l.motion) continue;
-        int slot = -1;
-        for (uint8_t j = 0; j < g_radioN; j++) {
-            if (csiSameRadio(g_radioKey[j], l.mac)) { slot = j; break; }
-        }
-        if (slot < 0) {
-            if (g_radioN < CSI_MAX_LINKS) {
-                slot = g_radioN++;
-            } else {
-                slot = 0;
-                for (uint8_t j = 1; j < g_radioN; j++) {
-                    if ((int32_t)(g_radioLastMs[j] - g_radioLastMs[slot]) < 0) slot = j;
-                }
-            }
-            memcpy(g_radioKey[slot], l.mac, 6);
-        }
-        g_radioLastMs[slot] = now;
-    }
-    int n = 0;
-    for (uint8_t j = 0; j < g_radioN; j++) {
-        if (now - g_radioLastMs[j] <= windowMs) n++;
     }
     return n;
 }
@@ -875,6 +842,7 @@ String getCsiJson() {
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
+    j += ",\"psiRing\":" + String(g_gring ? 1 : 0);
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
@@ -960,11 +928,9 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     prefs.putUInt("csiCons", csiConsecNeeded.load());
 }
 
-void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded) {
+void setCsiAreaConfig(uint32_t dutyMinS) {
     if (dutyMinS >= 2 && dutyMinS <= 60) csiAreaDutyMinS.store(dutyMinS);
-    if (radiosNeeded >= 1 && radiosNeeded <= 12) csiAreaRadiosNeeded.store(radiosNeeded);
     prefs.putUInt("csiDuty", csiAreaDutyMinS.load());
-    prefs.putUInt("csiRad", csiAreaRadiosNeeded.load());
 }
 
 void setCsiNoTx(bool noTx) {
@@ -986,7 +952,6 @@ void loadCsiConfigFromPrefs() {
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
-    csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
     csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
 }
 
@@ -1149,7 +1114,6 @@ void csiMotionTask(void *pv) {
     g_areaCandSince = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
-    g_radioN = 0;
     csiEpisodesReset();
     g_heatLen = 0;
     g_heatSec = 60;
@@ -1298,26 +1262,14 @@ void csiMotionTask(void *pv) {
             csiExpireLinks();
 
             int movingLinks = 0;
-            int armedLinks = 0;
             float peak = 0.0f;
-            int radiosRecent = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
-                armedLinks = csiCountRadios(false);
                 movingLinks = csiCountRadios(true);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
-                radiosRecent = csiRadiosRecent(now, CSI_AREA_DUTY_SLOTS * 2000u);
-            }
-
-            int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
-            if (needLinks < 1) needLinks = 1;
-            {
-                const int cap = (int)csiAreaRadiosNeeded.load();
-                if (cap > 0 && needLinks > cap) needLinks = cap;
-                if (cap >= 2 && needLinks < 2) needLinks = 2;
             }
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
@@ -1326,7 +1278,7 @@ void csiMotionTask(void *pv) {
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (radiosRecent >= needLinks);
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load());
             if (areaNow) g_areaLastMotionMs = now;
 
             if (areaNow != g_areaCand) {
@@ -1484,7 +1436,7 @@ void csiMotionTask(void *pv) {
             lastStatMs = now;
             const uint32_t span = now - startMs;
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
-            float statZMax = 0.0f, statFloorMax = 0.0f, statSigMax = 0.0f;
+            float statZMax = 0.0f, statFloorMax = 0.0f, statSigMax = 0.0f, statPsiMax = 0.0f;
             uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
             uint32_t statPairs = 0;
             float statPrMax = 0.0f;
@@ -1504,6 +1456,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;
+                    if (l.sc.psi > statPsiMax) statPsiMax = l.sc.psi;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
                     statPairs += l.sc.acfPairs;
                 }
@@ -1511,7 +1464,7 @@ void csiMotionTask(void *pv) {
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d "
-                          "phy=b:%u/g:%u/ht:%u/x:%u\n",
+                          "phy=b:%u/g:%u/ht:%u/x:%u psimax=%.3f ring=%s\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
@@ -1519,7 +1472,8 @@ void csiMotionTask(void *pv) {
                           statZMax, statSigMax, statFloorMax, statPairs, statPrMax,
                           statPassEta, statPassVote, g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
-                          g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load());
+                          g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load(),
+                          statPsiMax, g_gring ? "ok" : "FAIL");
             if (csiTelemetry.load()) {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {

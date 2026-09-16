@@ -742,10 +742,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" name="csiHold" id="csiHold" min="1" max="120" value="5">
                     </div>
                     <div>
-                      <label style="font-size:11px;" title="How many access points must see it at once. Lower catches movement in areas only one AP reaches">Access points that must agree</label>
-                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="3">
-                    </div>
-                    <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
                       <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.005" value="0.25">
                     </div>
@@ -5837,14 +5833,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.30, 20, 3], medium: [0.25, 12, 3], high: [0.20, 6, 1] };
+            const presets = { low: [0.30, 20], medium: [0.25, 12], high: [0.20, 6] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];
             document.getElementById('csiDwell').value = v[1];
-            document.getElementById('csiSpots').value = v[2];
           };
-          ['csiThr', 'csiDwell', 'csiSpots'].forEach(function (id) {
+          ['csiThr', 'csiDwell'].forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', function () {
               document.getElementById('csiPreset').value = 'custom';
