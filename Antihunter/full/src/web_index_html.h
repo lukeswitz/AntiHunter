@@ -1006,7 +1006,7 @@ R"HTML(
             <label style="font-size:11px;">Security</label>
             <select id="apAuth" style="margin-bottom:8px;">
               <option value="0">WPA2/WPA3 (default)</option>
-              <option value="1">WPA2 only (more stable)</option>
+              <option value="1">WPA2 only</option>
             </select>
 
             <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="apHidden" value="1">Hidden network (no SSID beacon)</label>
