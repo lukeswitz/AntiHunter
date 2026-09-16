@@ -324,8 +324,8 @@ Device-free sensing on the channel state of WiFi frames already in the air. Noth
 </p>
 
 - **Statistic, per board.** S3: `psi`, the mean lag-one autocorrelation of CSI power over a 60-packet window per link ([WiDetect, ACM IMWUT 3(3), 2019](https://doi.org/10.1145/3351280), Definition 1). C5: `sig`, the noise-corrected variance of the same power. Chosen on each board's own raw capture, operator moving then still in the node room: S3 `psi` 0.25 held motion 60% moving / 13% still (`sig` 0.08: 60% / 39%); C5 `psi` read still above moving (46% / 37%) while `sig` 0.09 read 26% / 12%
-- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Defaults S3 0.25, C5 0.09. Presets S3 `LOW` 0.30 / 20 s, `MEDIUM` 0.25 / 12 s, `HIGH` 0.20 / 6 s; C5 0.13 / 0.09 / 0.07. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log)
-- **Alert rule.** Any armed link in motion; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger
+- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Defaults S3 0.25, C5 0.09. Presets S3 `LOW` 0.30 / 20 s / 3 spots, `MEDIUM` 0.25 / 12 / 3, `HIGH` 0.20 / 6 / 1; C5 0.13 / 0.09 / 0.07. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log)
+- **Alert rule.** Half of armed access points, capped at `SPOTS`, moving at once; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger
 - **Sampling rate is the structural limit.** Per link 5.3 (S3) / 6.0 (C5) pairs/s at the median, 2% under 50 ms apart. WiDetect used 30 Hz; Espressif's sender 100 Hz ([console_test](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/main/app_main.c)). Listen-only cannot raise it
 - **Range.** Fresnel zone around each node-transmitter link, not distance from the node. WiDetect: "whole-home coverage ... using a single link on commodity WiFi"; ESP32 through-wall work across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
 - **Listen-only by default.** `BROADCAST=ON` is the only scan in this firmware that transmits - see below
@@ -368,7 +368,7 @@ Asleep night 16:15-03:51 (41760 s), both ch1 at 0.080: area alert held 78.7% (S3
 >
 > **Settings**
 > - `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number (values above)
-> - Add any of `MIN_MOTION=<s>`, `CLEAR_AFTER=<s>`, `BROADCAST=ON`
+> - Add any of `MIN_MOTION=<s>`, `CLEAR_AFTER=<s>`, `SPOTS=<n>`, `BROADCAST=ON`
 > - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.25:5000:3:0`
 > - `@ALL CSI_MOTION_START:0:FOREVER:ALLOW_TRANSMIT` - `LISTEN_ONLY` is the default
 > - `@ALL CSI_RECAL` resets the trigger to the compiled default
