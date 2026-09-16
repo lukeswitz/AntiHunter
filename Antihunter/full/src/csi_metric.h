@@ -9,10 +9,10 @@
 #endif
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
-#define CSI_BUF_BYTES 212
+#define CSI_BUF_BYTES 114
 #define CSI_LEN_LLTF 106
-#define CSI_LEN_LLTF12 212
 #define CSI_LEN_HTLTF 114
+#define CSI_FORCE_LLTF 1
 #define CSI_NRAW 57
 #define CSI_NSUB 57
 
@@ -94,16 +94,16 @@ static inline int csiSubCount(uint16_t len) {
 }
 
 static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstWordInvalid, float *out, int *liveOut) {
-    const bool wide = (len == CSI_LEN_LLTF12);
-    const int n = wide ? csiSubCount(len / 2) : csiSubCount(len);
+    const bool wide = (CSI_FORCE_LLTF != 0) && (len == CSI_LEN_LLTF);
+    const int n = wide ? (int)((len - 2) / 4) : csiSubCount(len);
     if (n < 8 || n > CSI_NSUB) return false;
-    const int k0 = firstWordInvalid ? 2 : 0;
+    const int k0 = firstWordInvalid ? (wide ? 1 : 2) : 0;
     if (n - k0 < 8) return false;
     float sum = 0.0f;
     int m = 0;
     const uint8_t *u = reinterpret_cast<const uint8_t *>(buf);
     for (int k = k0; k < n; k++) {
-        if (k == n / 2) continue;
+        if (!wide && k == n / 2) continue;
         const float im = wide ? (float)csiWord12(u + k * 4) : (float)buf[k * 2];
         const float re = wide ? (float)csiWord12(u + k * 4 + 2) : (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
