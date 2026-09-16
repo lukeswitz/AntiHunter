@@ -282,7 +282,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-state.move .csi-act{color:var(--csi-hit)}
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
       .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
-      .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block}
+      .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block;cursor:pointer}
+      .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
+      .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
       .det-desc{font-size:12px;color:var(--mut);line-height:1.5;margin-top:8px;padding-left:11px;border-left:2px solid var(--acc);max-width:70ch}
       .res-card.csi-hit::before{background:var(--csi-hit)}
@@ -4581,24 +4583,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min';
         return Math.round(sec / 360) / 10 + ' hr';
       }
+      let csiPick = -1;
+      function csiHeatTap(ev) {
+        const i = +ev.target.dataset.i;
+        csiPick = (isNaN(i) || i === csiPick) ? -1 : i;
+        if (window._csiJson) ev.currentTarget.outerHTML = csiHeatRender(window._csiJson);
+      }
       function csiHeatRender(d, trig) {
         const heat = d.heat || [];
         if (!heat.length) return '';
-        let cells = '';
+        let cells = '', pick = '';
         const hotArr = d.hot || [];
+        const sec = d.heatSec || 5;
         for (let i = 0; i < heat.length; i++) {
           const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
           const hot = hotArr.length > i && !!hotArr[i];
           const f = hot ? 1 : (0.06 + 0.54 * lvl);
           const tip = hot ? 'movement event started here'
                           : 'movement ' + Math.round(lvl * 200) + '% of the alert line';
-          cells += '<i title="' + tip + '" style="opacity:' + f.toFixed(2) +
-                   (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
+          cells += '<i data-i="' + i + '" title="' + tip + '" style="opacity:' + f.toFixed(2) +
+                   (hot ? ';background:var(--csi-hit)' : '') + (i === csiPick ? ';outline:2px solid var(--txt);outline-offset:-2px' : '') + '"></i>';
+          if (i === csiPick) {
+            const t = new Date(Date.now() - (heat.length - i - 0.5) * sec * 1000);
+            pick = '<div class="csi-pick"><b>~' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</b>' + tip + '</div>';
+          }
         }
-        const sec = d.heatSec || 5;
-        return '<div class="csi-heat">' + cells + '</div>' +
+        return '<div class="csi-heatwrap" onclick="csiHeatTap(event)"><div class="csi-heat">' + cells + '</div>' + pick +
                '<div class="csi-room-lab"><span>whole session &middot; ' + csiAgo(heat.length * sec * 1000) +
-               '</span><span>' + csiCellLabel(sec) + ' per block</span></div>';
+               '</span><span>' + csiCellLabel(sec) + ' per block</span></div></div>';
       }
       const csiHist = {};
       let csiRoom = [];
