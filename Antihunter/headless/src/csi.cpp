@@ -293,7 +293,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         return;
     }
 #endif
-    if (info->len != CSI_LEN_LLTF && info->len != CSI_LEN_HTLTF) {
+    if (info->len != CSI_LEN_LLTF && info->len != CSI_LEN_LLTF12 && info->len != CSI_LEN_HTLTF) {
         g_csiRejected.fetch_add(1);
         g_rejShort.fetch_add(1);
         return;
@@ -1084,7 +1084,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
-    cfg.lltf_bit_mode = 1;
+    cfg.lltf_bit_mode = 0;
     cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #else
     cfg.lltf_en = true;
@@ -1144,7 +1144,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
-    cfg.lltf_bit_mode = 1;
+    cfg.lltf_bit_mode = 0;
     cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #else
     cfg.lltf_en = true;
