@@ -540,12 +540,12 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiSigEta(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_SIG_ETA;
+static float csiPsiEta(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_PSI_ETA;
 }
 
-static float csiTriggerRatio(float sigVar) {
-    const float r = sigVar / csiSigEta(csiThresholdMilli.load());
+static float csiTriggerRatio(float psi) {
+    const float r = psi / csiPsiEta(csiThresholdMilli.load());
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -710,12 +710,12 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float acfEta = csiThresholdMilli.load() ? ((float)csiThresholdMilli.load() / 1000.0f) : 0.40f;
+        const float psiEta = csiPsiEta(csiThresholdMilli.load());
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.psiValid && l.sc.sigVar >= acfEta) {
+        if (l.sc.psiValid && l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -739,7 +739,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.sigVar < acfEta &&
+        } else if (l.motion && l.sc.psi < psiEta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -807,7 +807,7 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.acf = l.sc.acf;
         v.vote = l.sc.vote;
         v.z = l.sc.acfZ;
-        v.sig = csiTriggerRatio(l.sc.sigVar);
+        v.sig = csiTriggerRatio(l.sc.psi);
         v.score = l.sc.score;
         v.peakScore = l.peakScore;
         v.motion = l.motion;
@@ -1405,7 +1405,7 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.sigVar);
+                        const float r = csiTriggerRatio(l.sc.psi);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1537,7 +1537,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.sigVar >= csiSigEta(thrMilli)) statPassEta++;
+                    if (l.sc.psi >= csiPsiEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;
