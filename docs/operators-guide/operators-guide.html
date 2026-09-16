@@ -724,7 +724,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Detects a body disturbing the WiFi already in the air. It reads both movement and a still occupant; movement registers hardest, an empty building least. Indoor only: it works off signals bouncing between walls and furniture.</p>
   <pre>@ALL CSI_MOTION_START:300
 @ALL CSI_MOTION_START:300:CH11</pre>
-  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Motion for the node needs half of its armed access points (capped at <span class="mono">SPOTS</span>) moving at once for <span class="mono">MIN_MOTION</span> seconds. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
+  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Motion for the node needs any armed link in motion for <span class="mono">MIN_MOTION</span> seconds of a rolling minute. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
   <div class="box"><span class="t">Listen-only by default</span>
     <p>Transmit is off unless <span class="mono">BROADCAST=ON</span> is set. With it on, if fewer than 15 CSI packets arrive in a second the node sends one broadcast probe request per second to draw traffic. Every <span class="mono">CSI_CFG_ACK</span> shows the state.</p>
   </div>
@@ -883,7 +883,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW]</span></td></tr>
-    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger</td><td><span class="mono">trigger:hold_ms:consec:channel</span> or <span class="mono">SENSITIVITY=LOW|MEDIUM|HIGH</span>, <span class="mono">MIN_MOTION=</span>, <span class="mono">CLEAR_AFTER=</span>, <span class="mono">SPOTS=</span>, <span class="mono">BROADCAST=ON|OFF</span></td></tr>
+    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger</td><td><span class="mono">trigger:hold_ms:consec:channel</span> or <span class="mono">SENSITIVITY=LOW|MEDIUM|HIGH</span>, <span class="mono">MIN_MOTION=</span>, <span class="mono">CLEAR_AFTER=</span>, <span class="mono">BROADCAST=ON|OFF</span></td></tr>
     <tr><td><span class="mono">CSI_STATUS</span> and <span class="mono">CSI_JSON</span></td><td>Dump motion state to serial</td><td>None</td></tr>
     <tr><td><span class="mono">CSI_RECAL</span></td><td>Drop a saved trigger</td><td>None</td></tr>
     <tr><td><span class="mono">CSI_EXCLUDE</span></td><td>Ignore one MAC for motion</td><td><span class="mono">&lt;MAC&gt;</span> or <span class="mono">NONE</span></td></tr>

@@ -56,9 +56,6 @@ static inline float csiAnalyticEta(int liveBins, float k) {
     const float F = (liveBins > 0) ? (float)liveBins : (float)CSI_NSUB;
     return -1.0f / T + k * sqrtf(1.0f / (F * T));
 }
-static const int CSI_AREA_LINK_NUM = 1;
-static const int CSI_AREA_LINK_DEN = 2;
-static const int CSI_AREA_LINK_CAP = 3;
 static const float CSI_ACF_ETA_SUB = 0.10f;
 static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;

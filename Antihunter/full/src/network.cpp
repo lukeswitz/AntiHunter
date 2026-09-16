@@ -1420,11 +1420,6 @@ void registerRemainingRoutes() {
                 uint32_t d = (uint32_t)req->getParam("csiDwell", true)->value().toInt();
                 if (d >= 2 && d <= 60) csiDwell = d;
             }
-            uint32_t csiSpots = csiAreaRadiosNeeded.load();
-            if (req->hasParam("csiSpots", true)) {
-                uint32_t s = (uint32_t)req->getParam("csiSpots", true)->value().toInt();
-                if (s >= 1 && s <= 12) csiSpots = s;
-            }
             uint32_t csiCons = csiConsecNeeded.load();
             if (req->hasParam("csiConsec", true)) {
                 uint32_t c = (uint32_t)req->getParam("csiConsec", true)->value().toInt();
@@ -1433,7 +1428,7 @@ void registerRemainingRoutes() {
             setCsiConfig(csiCh, csiThr, csiHold, csiCons,
                          req->hasParam("csiRaw", true),
                          req->hasParam("csiTelem", true));
-            setCsiAreaConfig(csiDwell, csiSpots);
+            setCsiAreaConfig(csiDwell);
             setCsiNoTx(req->hasParam("csiNoTx", true));
             if (req->hasParam("csiRecal", true)) csiClearCalibration();
 

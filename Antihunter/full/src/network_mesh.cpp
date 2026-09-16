@@ -958,7 +958,6 @@ static void handleCsiCfg(const String &command)
   uint8_t ch = csiPinnedChannel.load();
   bool telemetry = csiTelemetry.load();
   uint32_t dwell = csiAreaDutyMinS.load();
-  uint32_t radios = csiAreaRadiosNeeded.load();
   int idx = 0;
 
   while (params.length() > 0) {
@@ -967,14 +966,13 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.13f; dwell = 20; radios = 3; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.09f; dwell = 12; radios = 3; }
-        else if (v == "HIGH") { thr = 0.07f; dwell = 6; radios = 1; }
+        if (v == "LOW") { thr = 0.13f; dwell = 20; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.09f; dwell = 12; }
+        else if (v == "HIGH") { thr = 0.07f; dwell = 6; }
         else thr = v.toFloat();
       }
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
       else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
-      else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
       else if (tok.startsWith("BROADCAST=")) {
         const String v = tok.substring(10);
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
@@ -992,16 +990,16 @@ static void handleCsiCfg(const String &command)
 
   if ((thr != 0.0f && (thr < 0.005f || thr > 20.0f)) || hold < 500 || hold > 120000 ||
       consec < 1 || consec > 50 || ch > 14 ||
-      dwell < 2 || dwell > 60 || radios < 1 || radios > 12) {
+      dwell < 2 || dwell > 60) {
     sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);
     return;
   }
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
-  setCsiAreaConfig(dwell, radios);
+  setCsiAreaConfig(dwell);
   sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
-                "s SPOTS=" + String(radios) + " CH=" + String(ch) +
+                "s CH=" + String(ch) +
                 " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
 }
 
