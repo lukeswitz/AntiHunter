@@ -1599,6 +1599,10 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
                               usableRoll);
             }
+            if (windowRoll == 0 && armedRoll > 0) {
+                Serial.printf("[CSI] BLIND: %u armed link(s) but none reaches %.1f pkt/s - cannot fill a window on ch%u\n",
+                              armedRoll, CSI_LINK_MIN_PAIR_RATE, g_csiActiveChannel);
+            }
             if (g_memcpyBadLenRejects) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
@@ -1611,7 +1615,7 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[CSI] STARVED: %u records in 60s on ch%u - too little traffic to detect motion\n",
                               rollRecords, g_csiActiveChannel);
             }
-            if (armedRoll == 0 || starved) {
+            if (windowRoll == 0 || starved) {
                 if (usableRoll == 0)
                     Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                                   (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
