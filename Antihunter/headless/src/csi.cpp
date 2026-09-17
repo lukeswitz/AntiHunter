@@ -35,6 +35,8 @@ std::atomic<uint8_t> csiNoTx{1};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
+static const uint32_t CSI_PAIR_HOLD_MS = 900000;
+static uint32_t g_pairSeenMs = 0;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
@@ -1087,6 +1089,7 @@ void csiMotionTask(void *pv) {
     g_areaDutyPos = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
+    g_pairSeenMs = 0;
     csiEpisodesReset();
     g_heatLen = 0;
     g_heatSec = 60;
@@ -1252,7 +1255,8 @@ void csiMotionTask(void *pv) {
                     if (l.motion) pairedMoving++;
                 }
             }
-            if (pairedArmed > 0) movingLinks = pairedMoving;
+            if (pairedArmed > 0) g_pairSeenMs = now;
+            if (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS) movingLinks = pairedMoving;
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
             if (peak > g_areaPeakScore) g_areaPeakScore = peak;

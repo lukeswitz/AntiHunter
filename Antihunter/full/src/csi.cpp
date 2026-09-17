@@ -39,6 +39,8 @@ std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
+static const uint32_t CSI_PAIR_HOLD_MS = 900000;
+static uint32_t g_pairSeenMs = 0;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
@@ -479,6 +481,7 @@ bool csiClearResults() {
         memset(g_areaDuty, 0, sizeof(g_areaDuty));
         g_areaDutyPos = 0;
         g_areaLastMotionMs = 0;
+        g_pairSeenMs = 0;
         g_radioN = 0;
         csiEpisodesReset();
     }
@@ -1351,7 +1354,8 @@ void csiMotionTask(void *pv) {
                 if (cap > 0 && needLinks > cap) needLinks = cap;
                 if (cap >= 2 && needLinks < 2) needLinks = 2;
             }
-            if (pairedArmed > 0) {
+            if (pairedArmed > 0) g_pairSeenMs = now;
+            if (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS) {
                 movingLinks = pairedMoving;
                 radiosRecent = pairedMoving > 0 ? 1 : 0;
                 needLinks = 1;
@@ -1472,10 +1476,11 @@ void csiMotionTask(void *pv) {
                     if (l.motion) pairMovRoll++;
                 }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u paired=%u/%u events=%u up=%us\n",
+            const bool pairHold = (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS);
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u paired=%u/%u hold=%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll,
-                          pairMovRoll, pairArmRoll,
+                          pairMovRoll, pairArmRoll, pairHold ? 1u : 0u,
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
