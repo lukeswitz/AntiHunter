@@ -937,7 +937,7 @@ static void handleCsiExclude(const String &command)
   uint64_t v = 0;
   for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
   csiExcludeMac.store(v);
-  sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:" + p, true);
+  sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:" + p + " (matches the first five bytes)", true);
 }
 
 static void handleCsiCfg(const String &command)
