@@ -83,7 +83,7 @@ static void csiHeatPush(float act, bool alerting) {
     const uint8_t hot = (evNow != g_heatEvSnap) ? 1 : 0;
     g_heatEvSnap = evNow;
 
-    float lvl = g_heatActMax * (1.0f / CSI_HEAT_FULL_RATIO);
+    float lvl = (float)g_heatSum / (float)(g_heatSec ? g_heatSec : 1);
     if (lvl > 1.0f) lvl = 1.0f;
     const uint8_t cell = (uint8_t)(lvl * 255.0f + 0.5f);
     g_heatActMax = 0.0f;
@@ -1034,7 +1034,7 @@ String getCsiJson() {
     }
     if (g_heatCurSec > 0) {
         if (g_heatLen) j += ",";
-        float liveLvl = g_heatActMax * (1.0f / CSI_HEAT_FULL_RATIO);
+        float liveLvl = (float)g_heatSum / (float)g_heatCurSec;
         if (liveLvl > 1.0f) liveLvl = 1.0f;
         j += String((uint8_t)(liveLvl * 255.0f + 0.5f));
     }
