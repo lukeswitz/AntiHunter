@@ -93,16 +93,18 @@ static inline int csiSubCount(uint16_t len) {
 }
 
 static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstWordInvalid, float *out, int *liveOut) {
-    const int n = csiSubCount(len);
+    const bool wide = (CSI_FORCE_LLTF != 0) && (len == CSI_LEN_LLTF);
+    const int n = wide ? (int)((len - 2) / 4) : csiSubCount(len);
     if (n < 8 || n > CSI_NSUB) return false;
-    const int k0 = firstWordInvalid ? 2 : 0;
+    const int k0 = firstWordInvalid ? (wide ? 1 : 2) : 0;
     if (n - k0 < 8) return false;
     float sum = 0.0f;
     int m = 0;
+    const uint8_t *u = reinterpret_cast<const uint8_t *>(buf);
     for (int k = k0; k < n; k++) {
-        if (k == n / 2) continue;
-        const float im = (float)buf[k * 2];
-        const float re = (float)buf[k * 2 + 1];
+        if (!wide && k == n / 2) continue;
+        const float im = wide ? (float)csiWord12(u + k * 4) : (float)buf[k * 2];
+        const float re = wide ? (float)csiWord12(u + k * 4 + 2) : (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
         out[m++] = mag;
         sum += mag;

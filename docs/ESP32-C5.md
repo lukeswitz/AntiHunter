@@ -98,7 +98,10 @@ Open bugs in Espressif's CSI support on C5/C61, none with a fix:
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
-  This firmware reads the documented layout: 53 subcarriers, one signed byte per component.
+  Measured on ch6: with `acquire_csi_force_lltf = 1` every odd-index byte of the 106-byte
+  payload falls in 0-15 across 1474 packets, and in about 73% of packets captured before
+  that flag was set it did not. The buffer holds 53 twelve-bit words, each in a 2-byte
+  container, not 53 signed byte pairs. The decoder still reads byte pairs.
 - [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
@@ -143,7 +146,8 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
 [ESP-IDF v5.5.3, Wi-Fi Driver, ESP32-C5](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c5/api-guides/wifi.html).
 
 - "Each item is stored as two bytes: imaginary part followed by real part." `csiAmplitudesLen`
-  reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real.
+  reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real. The measured L-LTF payload does not
+  match this; see esp-idf#18982 above.
 - "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes
   of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips two
   complex words, four bytes, when the flag is set.
@@ -152,12 +156,13 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
   in the status line; `csiRequireCeVld` gates on it.
 - `val_scale_cfg`, `esp_wifi_he_types.h:61`: "value 0-8", set to 0. **Open.** C5 reads far
   quieter than S3, same channel and trigger, 30 min: 1.6% over the line against 21.7%. Looks
-  like too few quantisation steps, which this field should widen. No documented semantics —
+  like too few quantization steps, which this field should widen. No documented semantics —
   needs testing, not guessing.
 - `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
-  `csiArmCsi` sets 0 but the decode reads int8 pairs. Harmless so far — the payload is 106
-  bytes either way, too small for 12-bit across 53 subcarriers — but the request should be 1.
-  `csiWord12` is the 12-bit decoder, retained and unused.
+  `csiArmCsi` sets 0 and the payload is 12-bit, but `csiAmplitudesLen` reads int8 pairs.
+  An earlier byte-budget argument called 12-bit impossible in 106 bytes; that only rules out
+  a bit-packed layout, and the words are not packed. `csiWord12` reads one word and is
+  currently unused. Which decode detects better is untested.
 
 `CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
 Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
