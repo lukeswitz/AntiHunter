@@ -94,11 +94,13 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards now gate on `psi`, the WiDetect lag-one autocorrelation over a 60-packet
-window. An earlier capture had the C5 reading its still window above its moving one on
-`psi`, which is why it ran on `sig`, the noise-corrected variance; that behavior came
-from the L-LTF word width below, not from the statistic. Both statistics appear in
-`[CSIL]` telemetry on both boards.
+Both boards gate on `psi`, the WiDetect lag-one autocorrelation over a 60-packet window,
+at the same trigger. Both statistics appear in `[CSIL]` telemetry on both boards.
+
+Every earlier claim on this page that the C5 needs its own trigger, reads `psi` differently
+from the S3, or carries less measurement noise, traces to the L-LTF decoding fault described
+below. With that corrected and both boards on one channel, the C5 measured `psi` p50 -0.0040
+against the S3's 0.0150, and both run 0.065.
 
 ### C5 legacy CSI word width — the 12-bit reading was withdrawn 2026-09-17
 
@@ -122,8 +124,19 @@ word width: `cfg.val_scale_cfg` is set to 0 and the header allows 0-8, so no sca
 ever applied. That is the next thing to test.
 
 **The "CSI measurement noise 7-57x lower" figure in the table above was taken under the
-12-bit reader.** Smoothing lowers apparent noise by construction, so treat it as unverified
-until re-measured.
+12-bit reader.** Smoothing lowers apparent noise by construction, so treat it as unverified.
+
+**Confirmed on hardware 2026-09-17.** The corrected reader was flashed and the board re-armed
+on the same channel at the same trigger, changing nothing but the decode:
+
+| C5 `psi` | p50 | p90 | p99 |
+|---|---|---|---|
+| 12-bit reader | 0.0750 | 0.2610 | 0.5730 |
+| documented layout | -0.0040 | 0.0430 | 0.0820 |
+
+The prediction and its falsification condition were written down before the flash: the reader
+was to be judged wrong only if `psi` p50 stayed above roughly 0.05. It landed on the `-1/T`
+null instead. The C5 then ran the S3's 0.065 trigger.
 
 ### Withdrawn: C5 legacy CSI must be forced to 12-bit words
 
@@ -142,6 +155,14 @@ component; that component is not vendored in this arduino-esp32 build and the ga
 fields it reads are not public in `wifi_pkt_rx_ctrl_t`, so the compensation is not
 available here. Per-frame amplitude normalization already removes any whole-frame gain
 step.
+
+> [!WARNING]
+> **Everything from here to the end of this section was measured under the withdrawn 12-bit
+> reader and is superseded.** It described a C5 that needed its own trigger, resolved weaker
+> movement, and contained the S3's detections. That behaviour was the decoding fault, not the
+> board. With the corrected decode both boards run the same trigger and read the same floor.
+> The text is kept because the measurements were real and someone may want to re-check them
+> against the corrected build; do not configure a node from it.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
