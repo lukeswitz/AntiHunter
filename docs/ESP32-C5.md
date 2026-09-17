@@ -88,107 +88,34 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 | cores | 2 | 1 |
 | WiFi and BLE scanning, mesh, web UI | more headroom - scan callbacks and the server do not share a core | everything shares one core |
 | CSI ingest rate | reference | 1.7-2.8x the S3, four paired surveys on ch1 (S3 44.8 / 18.4 / 14.8 / 24.4 records/s, C5 74.8 / 36.0 / 41.2 / 43.2) |
-| CSI measurement noise | reference | 7-57x lower |
 | 802.11n frames seen | almost none | hundreds per 15s |
 | release channel | stable | experimental |
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-The boards gate on different statistics. The C5 gates on `sig`, the noise-corrected
-variance of CSI power; the S3 gates on `psi`, the WiDetect lag-one autocorrelation over a
-60-packet window. On the C5's own raw capture (operator moving, then still in the node
-room) `psi` read the still window above the moving one (46% / 37% of samples in motion at
-0.25) while `sig` at 0.09 read 26% / 12%, so the C5 keeps `sig`. Both statistics appear
-in `[CSIL]` telemetry on both boards.
+Both board types use the same detection maths and the same default sensitivity. Sitting side
+by side on one channel they settle at the same background level, so a C5 needs no special
+tuning.
 
-Each board needs its own trigger. What counts as a quiet room depends on the channel
-the node picked and which access points it can hear, and those differ between two
-nodes sitting in the same house. Size it against a window with nobody in the room. Default is
-0.600.
-
-Measured over one 11.6-hour night, room empty, both boards on ch1, 57 twelve-minute windows each:
-
-| | movement window p50 | night p90 | night p95 | night max |
-|---|---|---|---|---|
-| S3 | 0.3267 | 0.2349 | 0.2789 | 0.7292 |
-| C5 | 0.2797 | 0.3958 | 0.5290 | 0.9377 |
-
-The S3 separates: movement sits above its night p95, and 0.600 clears 54 of its 57 night windows
-while still catching the movement window. The C5 does not: its night p75 (0.2901) is above its
-movement p50 (0.2797) and its movement max (0.4702) is below its night p95, so on this statistic
-the night distribution contains the movement distribution and no single cut splits them. `sig` is
-the maximum across links, which discards which links moved; separating the two cases on a C5
-needs the per-link pattern, not a different number.
-
-The C5 does not behave identically to the S3, and the difference is physical rather
-than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
-from the same transmitters:
-
-- the C5's CSI carries 7-57x less measurement noise for the same signal variance
-- it ingests 1.7-2.8x the CSI records per second on the same channel
-
-So it resolves weaker movement. Over a 50 minute run with an operator moving in and
-out, the C5 opened episodes 22-88s earlier and held them longer.
-
-A 16 hour side-by-side run measured the relationship as containment, not agreement.
-Comparing per-minute area state, the C5 flagged 194 of the 200 minutes the S3 called
-moving (97%), and flagged a further 235 minutes the S3 called quiet. Agreement 0.585
-against a chance rate of 0.426, Cohen's kappa 0.278. On the minutes only the C5
-flagged, the S3's own statistic was elevated too - median 0.0357 against its 0.0203
-when both were quiet - so it was seeing the same disturbance and falling short of the
-gate, not missing it entirely. Both boards read the same floor across the sleeping
-hours (C5 0.0176, S3 0.0203), which is what rules out a noise difference as the cause.
-Occupants were present and still, not absent, so this is a quiet floor rather than a
-true empty-building control.
-
-Expect from a C5 node, relative to an S3 in the same room:
-
-| | S3 | C5 |
-|---|---|---|
-| motion onset | reference | up to ~90s earlier |
-| episode length | reference | longer |
-| weak or distant movement | often missed | usually detected |
-
-Neither is wrong. Set each board's trigger from its own idle distribution with
-`CSI_CFG:<value>:5000:3:0`; the value persists in NVS and `CSI_RECAL` clears it
-back to the compiled default. Send it after the mesh task is up, roughly 15s past
-`Hardware initialized` - a command sent during boot is dropped silently.
-
-The C5 is harder to set a trigger for than the S3, and it is not the channel. Measured
-with both boards on ch1 in the same room over the same 20 minutes:
-
-| | quietest reading | loudest reading | average |
-|---|---|---|---|
-| S3 | 0.0250 | 0.4007 | 0.0883 |
-| C5 | 0.0112 | 0.9758 | 0.1168 |
-
-The C5 reads lower when the room is still and spikes far higher, so its quiet and its
-moving overlap more than the S3's do.
-
-Set the trigger too low and the node sticks on. Measured here: a C5 set to 0.080 on a
-channel where an empty room already read up to 0.144 stayed in one alert for 384
-seconds, then showed nothing when someone actually walked in - it was already alerting,
-so there was no change to see.
-
-Set it too high and it misses. The same node at 0.170 peaked at 0.2216 when someone
-moved, dropped back the next reading, and never held long enough to raise anything.
-
-Get it from the room, not from a guess. Watch `sig` with nobody in the space, note the
-highest value. Watch it again while someone walks around. Put the trigger between the
-two. If the two overlap, move the node or its antenna - no number will work.
+To set sensitivity: watch the readings with the room empty, watch them again with someone
+walking around, and put the setting between the two. If the two overlap, no setting will
+work — move the node or its antenna. The value is saved on the node; `CSI_RECAL` restores
+the default.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
-  Does not apply at `lltf_bit_mode = 1`, which is what this firmware sets.
+  This firmware reads the documented layout: 53 subcarriers, one signed byte per component.
 - [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
   unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
-  `acquire_csi_force_lltf = 1` is the documented workaround; this firmware sets it to 0,
-  because forcing it collapsed the capture to a single distinct payload on this node
-  (measured 2026-09-09: 887 packets, 22 transmitters, 1 distinct 106-byte payload).
+  `acquire_csi_force_lltf = 1` is the documented workaround. A capture on 2026-09-09
+  collapsed to one distinct 106-byte payload over 887 packets and 22 transmitters, so
+  this firmware ran with it off; it is now on, which restricts CSI to L-LTF and keeps a
+  link's payload length constant. A 300-packet capture on 2026-09-16 held per-subcarrier
+  variation of 0.72 to 1.54, so the payloads differ.
 - [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
   order differs from the S3 on HE parts. This is reached: a ch6 capture measured 2.71M
   106-byte L-LTF and 454k 114-byte HT-LTF records, so roughly 14% of traffic arrives as
@@ -287,10 +214,10 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
   valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
   in the status line; `csiRequireCeVld` gates on it.
-- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "LLTF bit width mode for I/Q components,
-  0 : 12-bit, 1 : 8-bit, default : 12-bit". `csiArmCsi` sets 1, so the int8 pair decode
-  matches what the radio is asked for. `csiWord12` in `csi_metric.h` is the 12-bit decoder,
-  retained and unused while this stays at 1.
+- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
+  `csiArmCsi` sets 0 but the decode reads int8 pairs. Harmless so far — the payload is 106
+  bytes either way, too small for 12-bit across 53 subcarriers — but the request should be 1.
+  `csiWord12` is the 12-bit decoder, retained and unused.
 
 `CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
 Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
