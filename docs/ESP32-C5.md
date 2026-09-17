@@ -88,7 +88,7 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 | cores | 2 | 1 |
 | WiFi and BLE scanning, mesh, web UI | more headroom - scan callbacks and the server do not share a core | everything shares one core |
 | CSI ingest rate | reference | 1.7-2.8x the S3, four paired surveys on ch1 (S3 44.8 / 18.4 / 14.8 / 24.4 records/s, C5 74.8 / 36.0 / 41.2 / 43.2) |
-| CSI measurement noise | reference | 7-57x lower |
+| CSI measurement noise | reference | 7-57x lower — unverified, measured under the withdrawn 12-bit reader |
 | 802.11n frames seen | almost none | hundreds per 15s |
 | release channel | stable | experimental |
 
@@ -100,7 +100,32 @@ window. An earlier capture had the C5 reading its still window above its moving 
 from the L-LTF word width below, not from the statistic. Both statistics appear in
 `[CSIL]` telemetry on both boards.
 
-### C5 legacy CSI must be forced to 12-bit words
+### C5 legacy CSI word width — the 12-bit reading was withdrawn 2026-09-17
+
+The section below records what was measured at the time and why 12-bit was adopted. The
+conclusion no longer holds and the code no longer does it, for three reasons:
+
+- Espressif documents the CSI buffer as one item per subcarrier, two bytes, imaginary then
+  real ([Wi-Fi Driver, ESP32-C5](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c5/api-guides/wifi.html)).
+  106 bytes is 53 subcarriers at that layout.
+- 12-bit I/Q for 53 subcarriers needs 159 bytes. The device only ever reports 106
+  (`len=106/1` and `106/2` in the status line), so the buffer cannot hold 12-bit data for a
+  full L-LTF.
+- The 12-bit reader consumed 104 bytes as 26 pairs at stride 4, fusing two subcarriers into
+  one value. That is a smoothing operation, and smoothing raises lag-one autocorrelation
+  without changing variance or packet timing — which is the signature measured in the field:
+  same `sig` on both boards (p50 0.0090 S3, 0.0078 C5), same lag distribution, but `psi`
+  p50 0.0170 against 0.0780.
+
+The sub-LSB behaviour that motivated the change is real but points at scaling rather than
+word width: `cfg.val_scale_cfg` is set to 0 and the header allows 0-8, so no scaling was
+ever applied. That is the next thing to test.
+
+**The "CSI measurement noise 7-57x lower" figure in the table above was taken under the
+12-bit reader.** Smoothing lowers apparent noise by construction, so treat it as unverified
+until re-measured.
+
+### Withdrawn: C5 legacy CSI must be forced to 12-bit words
 
 `wifi_csi_acquire_config_t.lltf_bit_mode` documents 12-bit I/Q as the default, but the
 106-byte L-LTF buffer only carries 12-bit words when `acquire_csi_force_lltf` is set;
@@ -146,7 +171,7 @@ The C5 does not behave identically to the S3, and the difference is physical rat
 than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
 from the same transmitters:
 
-- the C5's CSI carries 7-57x less measurement noise for the same signal variance
+- the C5's CSI was measured carrying 7-57x less measurement noise for the same signal variance, under the withdrawn 12-bit reader; unverified since
 - it ingests 1.7-2.8x the CSI records per second on the same channel
 
 So it resolves weaker movement. Over a 50 minute run with an operator moving in and
