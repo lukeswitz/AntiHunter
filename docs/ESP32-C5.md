@@ -73,7 +73,6 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 ## Known limits
 
 - Experimental build — it does not follow the stable release schedule.
-- **Motion sensing can stall after hours of continuous running** and only a power cycle clears it. The chip's radio stops producing fresh signal data while everything else looks normal, so the node reports no movement rather than reporting a fault. Nothing in firmware recovers it.
 - 5 GHz is for scanning only. The node's own WiFi access point stays on 2.4 GHz.
 - Changing band briefly restarts that access point, so a browser connected to the node reconnects.
 
@@ -145,32 +144,6 @@ misclassification (`sig_mode==0` frames all read `aggregation=0`, `mcs=0`). Matc
 Channel-specific, not a chip verdict: on ch1 the same S3 decoded 10120 HT frames, 15.7% of
 its OFDM against the C5's 33.6% on ch6. Why ch6 starved it is unexplained. Let the survey
 pick the channel.
-
-### CSI stops updating and only a power cycle clears it
-
-After hours of continuous CSI capture the C5 PHY latches its channel-estimate buffer. Packets keep arriving and every metadata field stays correct - `records` climbs at the normal rate, `rejected` stays flat, `rx_channel_estimate_info_vld` stays set, RSSI and source MAC vary per frame - but the IQ bytes in `wifi_csi_info_t.buf` stop changing.
-
-Every link then reads a constant score, `scoreVar` decays to zero, and `csiExpireLinks` drops the link as flat. New links rebuild and die the same way at roughly 500 packets, so detection stops with `links=0 pairs=0` and the event counter frozen.
-
-Measured on AH94, 2026-09-09: 1505 packets from 18 transmitters spanning -95 to -18 dBm produced 2 distinct 106-byte payloads, and those two were one byte sequence at two alignments. A working node in the same room on the same channel produced a distinct payload per packet.
-
-The onset is gradual, roughly 90 seconds, visible in the status line as `acf` climbing toward 1.0 while `sig` collapses:
-
-```
-00:10:48  acf=0.748..0.823  sig=0.0956
-00:11:18  acf=0.772..0.848  sig=0.0054
-00:11:48  acf=0.850..0.850  sig=0.0001
-00:12:19  links=0           sig=0.0000
-```
-
-Nothing in firmware clears it. Tested and ruled out on hardware, each as a single-variable A/B: `acquire_csi_force_lltf=1`, `acquire_csi_legacy=0` (HT-only), a different channel, `bandMode=0`, `esp_phy_erase_cal_data_in_nvs()`, CSI stop/start, a full reflash, and an RTS reset. Unplugging the node for ten seconds restores a distinct payload per packet immediately.
-
-The RF block keeps the latched state across any reset that leaves it powered, and `esp_phy_init.h:157` states PHY and RF enabling is driven only by the WiFi start path, so there is no application-level call that power-cycles it.
-
-Upstream issues covering the same failure. Both are closed as resolved internally with no published cause or workaround:
-
-- [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - ESP32-C5, `wifi_csi_info_t.buf` never changes while metadata updates normally.
-- [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - ESP32-C61, constant CSI on 802.11g frames, traced by the reporter to a commit in the esp-phy-lib blob. Its `acquire_csi_force_lltf` workaround does not work on the C5.
 
 ### CSI field reference
 
