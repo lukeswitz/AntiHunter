@@ -295,14 +295,15 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 > **Experimental.** Input rate depends on the radio and on what traffic is in the air. Read [Limitations](#csi-limitations) before using it as a primary sensor.
 
-Device-free sensing on the channel state of WiFi frames already in the air. Nothing is worn, no network joined. It reads both movement and a still occupant: Espressif states CSI senses "large movements such as people or animals walking and running but also subtle actions in a static environment, such as breathing and chewing" ([esp-csi](https://github.com/espressif/esp-csi)); DeMan measured movement at up to 4 dB of envelope change against 1.5 dB for breathing ([Wu et al., IEEE JSAC vol. 33, 2015](https://doi.org/10.1109/JSAC.2015.2430294)). Movement drives the statistic hardest, a still person less, an empty building least. The trigger picks the level.
+Device-free sensing on the channel state of WiFi frames already in the air. Nothing is worn, no network joined, no association with any access point: the node reads CSI out of frames it receives in promiscuous mode. Two nodes in the same room also illuminate each other - each one's SoftAP beacon carries CSI to the other, giving a link whose endpoint is known and whose level is checkable in the log. It reads both movement and a still occupant: Espressif states CSI senses "large movements such as people or animals walking and running but also subtle actions in a static environment, such as breathing and chewing" ([esp-csi](https://github.com/espressif/esp-csi)); DeMan measured movement at up to 4 dB of envelope change against 1.5 dB for breathing ([Wu et al., IEEE JSAC vol. 33, 2015](https://doi.org/10.1109/JSAC.2015.2430294)). Movement drives the statistic hardest, a still person less, an empty building least. The trigger picks the level.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **Statistic, per board.** S3: `psi`, the mean lag-one autocorrelation of CSI power over a 60-packet window per link ([WiDetect, ACM IMWUT 3(3), 2019](https://doi.org/10.1145/3351280), Definition 1). C5: `sig`, the noise-corrected variance of the same power. Chosen on each board's own raw capture, operator moving then still in the node room: S3 `psi` 0.25 held motion 60% moving / 13% still (`sig` 0.08: 60% / 39%); C5 `psi` read still above moving (46% / 37%) while `sig` 0.09 read 26% / 12%
-- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Defaults S3 0.25, C5 0.09. Presets S3 `LOW` 0.30 / 20 s / 3 spots, `MEDIUM` 0.25 / 12 / 3, `HIGH` 0.20 / 6 / 1; C5 0.13 / 0.09 / 0.07. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log)
+- **Statistic.** `psi`, the mean lag-one autocorrelation of CSI power over a 60-packet window per link ([WiDetect, ACM IMWUT 3(3), 2019](https://doi.org/10.1145/3351280), Definition 1), on both boards. Its null under no motion is `-1/T` for a window of `T` packets, `-0.017` at `T=60`
+- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Presets `LOW` 0.30 / 20 s / 3 spots, `MEDIUM` 0.25 / 12 / 3, `HIGH` 0.20 / 6 / 1. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log)
+- **Paired nodes take over when present.** Any transmitter at or above -40 dBm is treated as a second node rather than a neighbor's access point. Both nodes then hold the SoftAP channel instead of chasing survey yield, the paired link gates on WiDetect's analytic threshold `-1/T + 3*sqrt(1/(F*T))` rather than the operator trigger, and the area decision follows paired links only. A node one foot from its pair reads it at -10 to -12 dBm; neighbors in the same room read -80 dBm and below
 - **Alert rule.** Half of armed access points, capped at `SPOTS`, moving at once; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger
 - **Sampling rate is the structural limit.** Per link 5.3 (S3) / 6.0 (C5) pairs/s at the median, 2% under 50 ms apart. WiDetect used 30 Hz; Espressif's sender 100 Hz ([console_test](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/main/app_main.c)). Listen-only cannot raise it
 - **Range.** Fresnel zone around each node-transmitter link, not distance from the node. WiDetect: "whole-home coverage ... using a single link on commodity WiFi"; ESP32 through-wall work across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
@@ -313,7 +314,7 @@ Device-free sensing on the channel state of WiFi frames already in the air. Noth
 
 #### Measured
 
-One home, both boards in one ground-floor room, operator-marked windows, `sig` on both. Per-link samples 15 s apart; `above` = fraction over 0.080.
+One home, both boards in one ground-floor room, operator-marked windows, `sig` on both. Per-link samples 15 s apart; `above` = fraction over 0.080. These windows predate paired-node illumination and the `psi` gate, so they measure neighbors' access points as the only illuminators.
 
 | window | S3 n / median / above | C5 n / median / above |
 |---|---|---|
@@ -333,7 +334,8 @@ Asleep night 16:15-03:51 (41760 s), both ch1 at 0.080: area alert held 78.7% (S3
 <a id="csi-limitations"></a>
 #### Limitations
 
-- **Never hand-pick the channel.** Started with channel 0 the node surveys all 11 by CSI yield. Same room, four minutes apart: ch6 2.8 records/s, ch1 49.7.
+- **Never hand-pick the channel.** Started with channel 0 the node surveys all 11 by CSI yield, unless it hears a paired node at or above -40 dBm, in which case both nodes hold the SoftAP channel so they meet there. Same room, four minutes apart: ch6 2.8 records/s, ch1 49.7.
+- **C5 legacy CSI needs 12-bit words.** `wifi_csi_acquire_config_t.lltf_bit_mode` defaults to 12-bit but only delivers 12-bit words under `acquire_csi_force_lltf`. At 8 bits a link one foot away peaked at 39.6 of 127 counts and its per-subcarrier variation sat under one count, which drove `psi` negative: median `-0.105`, floor `-0.255` over a 139 s capture. Forced 12-bit on the same link gives median `-0.026`, floor `-0.144`, against the `-0.017` null. The C5 still swings wider than the S3 on an idle link; Espressif compensates per-packet AGC and FFT gain with `esp_csi_gain_ctrl`, which is not vendored in this arduino-esp32 build and whose gain fields are not public in `wifi_pkt_rx_ctrl_t`.
 - **The rate is bursty.** A surveyed channel held 36-62/s; a poor one swung 10x between 15 s windows.
 - **Board choice.** S3 is dual-core with more headroom for scanning, mesh and web UI. C5 ingests more: four paired surveys on ch1, same minute, S3 44.8 / 18.4 / 14.8 / 24.4 records/s against C5 74.8 / 36.0 / 41.2 / 43.2. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
 - **Still occupants register.** A sleeping household one floor up kept the S3 over its `sig` trigger 36% of the night; the empty building 5%.
