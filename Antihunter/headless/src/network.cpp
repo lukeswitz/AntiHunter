@@ -932,6 +932,26 @@ static void handleCsiJson()
   sendToSerial1(getNodeId() + ": CSI_JSON_LEN:" + String(j.length()), true);
 }
 
+static void handleCsiExclude(const String &command)
+{
+  String p = command.substring(12);
+  p.trim();
+  if (p.equalsIgnoreCase("NONE") || p.length() == 0) {
+    csiExcludeMac.store(0);
+    sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:NONE", true);
+    return;
+  }
+  uint8_t m[6];
+  if (!parseMac6(p, m)) {
+    sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:INVALID", true);
+    return;
+  }
+  uint64_t v = 0;
+  for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
+  csiExcludeMac.store(v);
+  sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:" + p + " (matches the first five bytes)", true);
+}
+
 static void handleCsiCfg(const String &command)
 {
   String params = command.substring(8);
@@ -2194,6 +2214,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
   else if (command.startsWith("CSI_MOTION_START:"))   handleCsiMotionStart(command);
+  else if (command.startsWith("CSI_EXCLUDE:"))        handleCsiExclude(command);
   else if (command.startsWith("CSI_CFG:"))            handleCsiCfg(command);
   else if (command == "CSI_STATUS")                   handleCsiStatus();
   else if (command == "CSI_JSON")                     handleCsiJson();
