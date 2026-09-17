@@ -1675,6 +1675,7 @@ void csiMotionTask(void *pv) {
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u fmtdrop=%u fw=%u frames=%u tx=%u/%u err=%d "
+                          "poll=%u/%u perr=%d sta=%u "
                           "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u "
                           "phy=b:%u/g:%u/ht:%u/x:%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
@@ -1684,7 +1685,8 @@ void csiMotionTask(void *pv) {
                           statZMax, statSigMax, statFloorMax, statPairs, statPrMax,
                           statPassEta, statPassVote, g_rejFmt.load(), g_fwSkip.load(), g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
-
+                          g_pollOk.load(), g_pollErr.load(), (int)g_pollLastErr.load(),
+                          (unsigned)g_apStas.num,
                           (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
                           (unsigned)g_lenVal[1], (unsigned)g_lenFmt[1], (unsigned)g_lenCnt[1],
                           g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load(),

@@ -860,6 +860,8 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
     else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
+    else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
+    else if (tok == "MGMTDATA") csiMgmtOnly.store(0);
     else if (tok == "LISTEN_ONLY") setCsiNoTx(true);
     else if (tok == "ALLOW_TRANSMIT") setCsiNoTx(false);
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
