@@ -94,12 +94,29 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-The boards gate on different statistics. The C5 gates on `sig`, the noise-corrected
-variance of CSI power; the S3 gates on `psi`, the WiDetect lag-one autocorrelation over a
-60-packet window. On the C5's own raw capture (operator moving, then still in the node
-room) `psi` read the still window above the moving one (46% / 37% of samples in motion at
-0.25) while `sig` at 0.09 read 26% / 12%, so the C5 keeps `sig`. Both statistics appear
-in `[CSIL]` telemetry on both boards.
+Both boards now gate on `psi`, the WiDetect lag-one autocorrelation over a 60-packet
+window. An earlier capture had the C5 reading its still window above its moving one on
+`psi`, which is why it ran on `sig`, the noise-corrected variance; that behavior came
+from the L-LTF word width below, not from the statistic. Both statistics appear in
+`[CSIL]` telemetry on both boards.
+
+### C5 legacy CSI must be forced to 12-bit words
+
+`wifi_csi_acquire_config_t.lltf_bit_mode` documents 12-bit I/Q as the default, but the
+106-byte L-LTF buffer only carries 12-bit words when `acquire_csi_force_lltf` is set;
+otherwise it carries signed bytes. At 8 bits a link one foot from the node peaked at
+39.6 of 127 counts and its per-subcarrier variation stayed under one count, so `psi`
+measured quantization rather than the channel: median `-0.105`, floor `-0.255` over a
+139 s capture, against a no-motion null of `-1/T` = `-0.017`. Forcing L-LTF and decoding
+the buffer as 52 little-endian 12-bit words gives median `-0.026`, floor `-0.144` on the
+same link, with per-subcarrier variation an order of magnitude higher.
+
+An idle C5 pair link still swings wider than the same link on an S3. Espressif's own
+receiver compensates per-packet AGC and FFT gain through the `esp_csi_gain_ctrl`
+component; that component is not vendored in this arduino-esp32 build and the gain
+fields it reads are not public in `wifi_pkt_rx_ctrl_t`, so the compensation is not
+available here. Per-frame amplitude normalization already removes any whole-frame gain
+step.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
@@ -177,14 +194,16 @@ Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
-  Does not apply at `lltf_bit_mode = 1`, which is what this firmware sets.
+  This firmware sets `lltf_bit_mode = 0` and reads the buffer as 12-bit words.
 - [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
   unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
-  `acquire_csi_force_lltf = 1` is the documented workaround; this firmware sets it to 0,
-  because forcing it collapsed the capture to a single distinct payload on this node
-  (measured 2026-09-09: 887 packets, 22 transmitters, 1 distinct 106-byte payload).
+  `acquire_csi_force_lltf = 1` is the documented workaround. A capture on 2026-09-09
+  collapsed to one distinct 106-byte payload over 887 packets and 22 transmitters, so
+  this firmware ran with it off; it is now on, because it is also what makes the buffer
+  carry 12-bit words. A 300-packet capture on 2026-09-16 held per-subcarrier variation
+  of 0.72 to 1.54, so the payloads differ.
 - [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
   order differs from the S3 on HE parts. This is reached: a ch6 capture measured 2.71M
   106-byte L-LTF and 454k 114-byte HT-LTF records, so roughly 14% of traffic arrives as
