@@ -966,7 +966,7 @@ static void handleCsiExclude(const String &command)
   uint64_t v = 0;
   for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
   csiExcludeMac.store(v);
-  sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:" + p, true);
+  sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:" + p + " (matches the first five bytes)", true);
 }
 
 static void handleCsiCfg(const String &command)
@@ -1026,7 +1026,8 @@ static void handleCsiCfg(const String &command)
   sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +
-                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
+                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON") +
+                " REQUIRE_CE=" + String(csiRequireCeVld.load() ? "ON" : "OFF"), true);
 }
 
 static void handleRandomizationStart(const String &command)
