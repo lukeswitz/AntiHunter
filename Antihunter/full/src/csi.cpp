@@ -39,8 +39,6 @@ std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
-static const uint32_t CSI_PAIR_HOLD_MS = 900000;
-static uint32_t g_pairSeenMs = 0;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_SURVEY_MIN_HT = 8;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
@@ -54,6 +52,7 @@ static std::atomic<uint32_t> g_surveyHt{0};
 static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
+static uint32_t g_surveyMacHits[16];
 static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
@@ -355,10 +354,11 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         }
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
+            if (memcmp(g_surveyMacs[i], m, 6) == 0) { g_surveyMacHits[i]++; known = true; break; }
         }
         if (!known && g_surveyMacCount < 16) {
             memcpy(g_surveyMacs[g_surveyMacCount], m, 6);
+            g_surveyMacHits[g_surveyMacCount] = 1;
             g_surveyMacCount++;
             g_surveyTx.fetch_add(1);
         }
@@ -392,9 +392,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
     uint8_t bestHtCh = 0;
     uint32_t bestHt = 0, bestHtStrong = 0, bestHtScore = 0;
-    int bestPeak = -128;
-    uint8_t bestPeakCh = 0;
-    uint32_t bestPeakHits = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -411,7 +408,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         sc.show_hidden = true;
         sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
         sc.scan_time.passive = dwellMs;
-        sc.home_chan_dwell_time = 30;
+        sc.home_chan_dwell_time = 1;
 
         g_surveyMode.store(true);
         const esp_err_t sr = esp_wifi_scan_start(&sc, true);
@@ -426,15 +423,30 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t strong = g_surveyStrong.load();
         const uint32_t ht = g_surveyHt.load();
         const uint32_t tx = g_surveyTx.load();
-        if (ht > bestHt) { bestHt = ht; bestHtCh = ch; bestHtStrong = strong; bestHtScore = hits * strong; }
+        if (ht > bestHt) {
+            bestHt = ht; bestHtCh = ch; bestHtStrong = strong;
+            uint32_t htLink = 0;
+            for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+                if (g_surveyMacHits[i] > htLink) htLink = g_surveyMacHits[i];
+            }
+            bestHtScore = htLink * (strong ? 1u : 0u);
+        }
         const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht  peak %ddBm\n",
-                      ch, hits, rate, tx, strong, ht, peak);
+        uint32_t topLink = 0;
+        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+            if (g_surveyMacHits[i] > topLink) topLink = g_surveyMacHits[i];
+        }
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht  peak %ddBm  best link %.1f/s\n",
+                      ch, hits, rate, tx, strong, ht, peak,
+                      (float)topLink * 1000.0f / (float)dwellMs);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
-        const uint32_t chScore = hits * strong;
+        uint32_t bestLinkHits = 0;
+        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+            if (g_surveyMacHits[i] > bestLinkHits) bestLinkHits = g_surveyMacHits[i];
+        }
+        const uint32_t chScore = bestLinkHits * (strong ? 1u : 0u);
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
             bestStrongTx = tx; bestStrongCh = ch;
@@ -444,11 +456,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
-    }
-    if (bestPeak >= CSI_PAIR_RSSI && bestPeakHits >= CSI_SOLICIT_FLOOR * dwellMs / 1000u) {
-        Serial.printf("[CSI] Anchor transmitter at %ddBm on ch%u (%.1f/s) - taking that channel\n",
-                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs);
-        return bestPeakCh;
     }
 
     if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
@@ -556,7 +563,6 @@ bool csiClearResults() {
         memset(g_areaDuty, 0, sizeof(g_areaDuty));
         g_areaDutyPos = 0;
         g_areaLastMotionMs = 0;
-        g_pairSeenMs = 0;
         g_radioN = 0;
         csiEpisodesReset();
     }
@@ -583,10 +589,6 @@ static bool csiLinkUsable(const CsiLink &l) {
         if ((m >> 8) == (ex >> 8)) return false;
     }
     return l.rssi >= CSI_LINK_MIN_RSSI;
-}
-
-static bool csiLinkPaired(const CsiLink &l) {
-    return l.rssi >= CSI_PAIR_RSSI;
 }
 
 static float csiPsiEta(uint32_t thrMilli) {
@@ -760,7 +762,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
         const uint32_t thrMilli = csiThresholdMilli.load();
-        const float psiEta = csiLinkPaired(l) ? csiAnalyticEta(l.liveBins, CSI_PSI_K) : csiPsiEta(thrMilli);
+        const float psiEta = csiPsiEta(thrMilli);
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
@@ -1415,8 +1417,6 @@ void csiMotionTask(void *pv) {
 
             int movingLinks = 0;
             int armedLinks = 0;
-            int pairedArmed = 0;
-            int pairedMoving = 0;
             float peak = 0.0f;
             int radiosRecent = 0;
             {
@@ -1428,12 +1428,6 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
                 radiosRecent = movingLinks;
-                for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                    const CsiLink &l = g_links[i];
-                    if (!l.used || !csiLinkPaired(l)) continue;
-                    if (csiLinkUsable(l) && l.sc.settled()) pairedArmed++;
-                    if (l.motion) pairedMoving++;
-                }
             }
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
@@ -1442,12 +1436,6 @@ void csiMotionTask(void *pv) {
                 const int cap = (int)csiAreaRadiosNeeded.load();
                 if (cap > 0 && needLinks > cap) needLinks = cap;
                 if (cap >= 2 && needLinks < 2) needLinks = 2;
-            }
-            if (pairedArmed > 0) g_pairSeenMs = now;
-            if (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS) {
-                movingLinks = pairedMoving;
-                radiosRecent = pairedMoving > 0 ? 1 : 0;
-                needLinks = 1;
             }
 
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
@@ -1543,8 +1531,6 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
-            uint8_t pairArmRoll = 0;
-            uint8_t pairMovRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
@@ -1554,18 +1540,11 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
-                for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                    const CsiLink &l = g_links[i];
-                    if (!l.used || !csiLinkPaired(l)) continue;
-                    if (csiLinkUsable(l) && l.sc.settled()) pairArmRoll++;
-                    if (l.motion) pairMovRoll++;
-                }
             }
-            const bool pairHold = (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS);
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u paired=%u/%u hold=%u events=%u up=%us\n",
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u need=%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll,
-                          pairMovRoll, pairArmRoll, pairHold ? 1u : 0u,
+                          (unsigned)csiAreaRadiosNeeded.load(),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",

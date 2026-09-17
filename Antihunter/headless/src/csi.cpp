@@ -35,8 +35,6 @@ std::atomic<uint8_t> csiNoTx{1};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
-static const uint32_t CSI_PAIR_HOLD_MS = 900000;
-static uint32_t g_pairSeenMs = 0;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_SURVEY_MIN_HT = 8;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
@@ -357,9 +355,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
     uint8_t bestHtCh = 0;
     uint32_t bestHt = 0, bestHtStrong = 0, bestHtScore = 0;
-    int bestPeak = -128;
-    uint8_t bestPeakCh = 0;
-    uint32_t bestPeakHits = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -398,7 +393,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                       ch, hits, rate, tx, strong, ht, peak);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
         const uint32_t chScore = hits * strong;
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
@@ -409,11 +403,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
-    }
-    if (bestPeak >= CSI_PAIR_RSSI && bestPeakHits >= CSI_SOLICIT_FLOOR * dwellMs / 1000u) {
-        Serial.printf("[CSI] Anchor transmitter at %ddBm on ch%u (%.1f/s) - taking that channel\n",
-                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs);
-        return bestPeakCh;
     }
 
     if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
@@ -558,10 +547,6 @@ static bool csiLinkUsable(const CsiLink &l) {
     if (!l.used || l.packets < CSI_LINK_MIN_PKTS) return false;
     if ((millis() - l.lastMs) >= CSI_LINK_STALE_MS) return false;
     return l.rssi >= CSI_LINK_MIN_RSSI;
-}
-
-static bool csiLinkPaired(const CsiLink &l) {
-    return l.rssi >= CSI_PAIR_RSSI;
 }
 
 static float csiPsiEta(uint32_t thrMilli) {
@@ -734,7 +719,7 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
-        const float psiEta = csiLinkPaired(l) ? csiAnalyticEta(l.liveBins) : csiPsiEta(csiThresholdMilli.load());
+        const float psiEta = csiPsiEta(csiThresholdMilli.load());
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
@@ -1228,7 +1213,6 @@ void csiMotionTask(void *pv) {
     g_areaDutyPos = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
-    g_pairSeenMs = 0;
     csiEpisodesReset();
     g_heatLen = 0;
     g_heatSec = 60;
@@ -1377,8 +1361,6 @@ void csiMotionTask(void *pv) {
             csiExpireLinks();
 
             int movingLinks = 0;
-            int pairedArmed = 0;
-            int pairedMoving = 0;
             float peak = 0.0f;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -1387,15 +1369,7 @@ void csiMotionTask(void *pv) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
-                for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                    const CsiLink &l = g_links[i];
-                    if (!l.used || !csiLinkPaired(l)) continue;
-                    if (csiLinkUsable(l) && l.sc.settled()) pairedArmed++;
-                    if (l.motion) pairedMoving++;
-                }
             }
-            if (pairedArmed > 0) g_pairSeenMs = now;
-            if (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS) movingLinks = pairedMoving;
 
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
