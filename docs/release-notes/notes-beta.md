@@ -24,7 +24,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - **SD writes survive a busy card.** An SD card acknowledges writes quickly until its internal buffers fill, then stalls while its controller commits to flash. The SD library waits a fixed 500 ms and gives up, so every write after that point returned zero while the node carried on as if the data had landed. Writes now flush and retry with backoff, and every writer in the firmware routes through that path: baseline, config, event log, results snapshot, probes, device database, detect features, randomization. Measured on a C5: the same capture went from 27 short writes to none.
 - **A reset during a capture no longer costs the card.** FAT has no power-fail protection, so a reset mid-write left the card unmountable until a human wiped it. The filesystem is now synced after each write rather than on a timer, and the mount path retries with a full bus re-init. Measured on a C5: 1 of 4 resets survived before, 5 of 5 after. A node can also rebuild its own card with `SD_REPAIR:ON`, off by default because rebuilding erases it. A failed mount now reports its count and shows in Diagnostics instead of retrying silently forever.
 - **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
-- **CSI motion detection** (full + headless, **experimental**): device-free WiFi motion sensing on the lag-one autocorrelation of CSI power, averaged across subcarriers; per-area strength; `CSI_CFG` config, `CSI_MOTION:`/`CSI_CLEAR:` mesh debounced to two lines per episode. The trigger is per-install: measure the idle distribution on the surveyed channel and set it above that.
+- **CSI motion detection** (full + headless, **experimental**): detects people moving through a space using the WiFi already in the air — nothing worn, no network joined, no transmitter installed. Movement alerts go to serial, SD and mesh peers. Sensitivity is per-site: measure the room with nobody in it and set the trigger above what you see.
 - **Triangulation target MAC is read and written atomically.** It was a plain 6-byte array written memset-then-memcpy while the web task, the sniffer callback and the scan task read it unsynchronised; a reader landing in that window saw a partly-written MAC, and at the match gate that silently dropped the peer's RSSI report.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
 - **The SD card is never refused a write.** An earlier build put an internal-heap floor in front of every SD open, which turned a memory shortage into a node that silently stopped logging. The floor is gone. The memory it was covering for was found instead: resident task stacks moved to PSRAM, and the log file is held open across writes rather than reopened per line, so `fopen` is not on the hot path at all.
@@ -64,15 +64,10 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
 - Hidden AP toggle for full firmware.
 - C5 experimental channel carries the same CSI, Fleet and fixes for testing.
-- CSI gates on `psi`, the lag-one autocorrelation of CSI power over a 60-packet window, on every board. Area motion needs half the armed radios moving at the same instant, and presets are 0.080 / 0.065 / 0.045 from a single labelled capture on one S3; re-measure on site.
-  A C5 node is more sensitive than an S3: it opens episodes earlier, holds them longer
-  and catches weaker movement. See [docs/ESP32-C5.md](../ESP32-C5.md) for the numbers
-  and the open upstream CSI issues
-  ([esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982),
-  [#18493](https://github.com/espressif/esp-idf/issues/18493),
-  [#18118](https://github.com/espressif/esp-idf/issues/18118),
-  [#14271](https://github.com/espressif/esp-idf/issues/14271),
-  [esp-csi#258](https://github.com/espressif/esp-csi/issues/258)).
+- Motion detection works the same on both board types and uses the same default sensitivity;
+  a C5 needs no special tuning. An alert needs half the transmitters a node is tracking to
+  show disturbance at the same moment, so one noisy neighbour cannot hold an alert open.
+  See [docs/ESP32-C5.md](../ESP32-C5.md) for C5 detail and the open upstream issues.
 
 ### Hardware
 
