@@ -305,7 +305,7 @@ Device-free sensing on the channel state of WiFi frames already in the air. Noth
 - **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Presets `LOW` 0.080 / 20 s / 3 spots, `MEDIUM` 0.065 / 12 / 3, `HIGH` 0.045 / 6 / 1. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log). The preset values come from one labelled capture - one minute moving, three still - replayed through the alert rule: 0.065 held the alert for 86.8% of the moving window and 0% of the still one, while 0.120 managed 13.2% of the moving window
 - **Alert rule.** Half of the armed radios, capped at `SPOTS`, moving at the same instant; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger. Radios counted as having moved at any point in the window, rather than concurrently, let two neighbors blipping alternately hold an alert for hours
 - **Sampling rate is the structural limit.** Per link 5.3 (S3) / 6.0 (C5) pairs/s at the median, 2% under 50 ms apart. WiDetect used 30 Hz; Espressif's sender 100 Hz ([console_test](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/main/app_main.c)). Listen-only cannot raise it
-- **Blind.** A link too slow to fill a 60-packet window is useless however strong it is. `STATE` prints `BLIND` when no link clears that rate, shows `fast=` beside `armed=`, and names the rate it is missing. A node that stays blind re-surveys and changes channel itself, so a bad survey pick costs minutes, not the run.
+- **When it can't see, it says so and fixes itself.** The node needs a steady stream of packets from one nearby transmitter — a strong but quiet neighbour is no use. If nothing on the current channel is talking fast enough, the node reports that it is blind instead of reporting an empty room, then re-scans the channels and moves to a better one on its own.
 - **Range.** Fresnel zone around each node-transmitter link, not distance from the node. WiDetect: "whole-home coverage ... using a single link on commodity WiFi"; ESP32 through-wall work across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
 - **Listen-only by default.** `BROADCAST=ON` is the only scan in this firmware that transmits - see below
 
@@ -316,14 +316,16 @@ Device-free sensing on the channel state of WiFi frames already in the air. Noth
 
 The table below is kept for the raw distributions only. It was taken on the retired `sig` statistic, at a trigger the firmware no longer uses, before the alert rule required radios to move concurrently - so its alert percentages do not describe current behavior and should not be quoted as such.
 
-Empty building against moving, both boards ch1 at 0.065, `psi` on usable links. Zero area alerts on either board while empty.
+Two nodes in one room, same channel and sensitivity. The operator left the building, then
+came back. "Over the line" is how often a reading was high enough to count as movement.
 
-| window | S3 above gate / p50 | C5 above gate / p50 |
+| | occupant moving, 10 min | building empty, 7 min |
 |---|---|---|
-| empty, 7 min | 2.4% / -0.0090 | 0.3% / 0.0100 |
-| operator moving, 10 min | 22.6% / 0.0300 | 17.7% / 0.1270 |
+| S3 node | 22.6% over the line | 2.4% |
+| C5 node | 17.7% | 0.3% |
 
-One absence, one site, one channel.
+Neither node raised a single alert while the building was empty. One absence, one site, one
+channel — a real empty-building check, not a false-alarm rate.
 
 Older run below, `sig` on both, per-link samples 15 s apart, `above` = fraction over 0.080.
 
@@ -347,9 +349,8 @@ Asleep night 16:15-03:51 (41760 s), both ch1 at 0.080: area alert held 78.7% (S3
 
 - **Never hand-pick the channel.** Started with channel 0 the node surveys all 11 and ranks them by the best single transmitter's frame rate, since one fast link fills a window and many slow ones do not. Same room, four minutes apart: ch6 2.8 records/s, ch1 49.7.
 - **Per-link sampling sits below what the method assumes.** WiDetect states 30 Hz as its minimum. Measured on an S3 over one session, per-link arrivals ran p50 4.0/s, p90 8.5/s, and the aggregate across all links 40.4 records/s. Beacon-driven links arrive on a regular cadence - gap p50 102.5 ms, p90 102.6 ms - so the sampling is uniform but slow. Resampling onto that uniform grid and recomputing the statistic scored AUC 0.481 against 0.766 for the as-received series, so the firmware uses the as-received form.
-- **C5 legacy CSI needs 12-bit words.** `wifi_csi_acquire_config_t.lltf_bit_mode` defaults to 12-bit but only delivers 12-bit words under `acquire_csi_force_lltf`. At 8 bits a link one foot away peaked at 39.6 of 127 counts and its per-subcarrier variation sat under one count, which drove `psi` negative: median `-0.105`, floor `-0.255` over a 139 s capture. Forced 12-bit on the same link gives median `-0.026`, floor `-0.144`, against the `-0.017` null. The C5 still swings wider than the S3 on an idle link; Espressif compensates per-packet AGC and FFT gain with `esp_csi_gain_ctrl`, which is not vendored in this arduino-esp32 build and whose gain fields are not public in `wifi_pkt_rx_ctrl_t`.
 - **Board choice.** S3 is dual-core with more headroom for scanning, mesh and web UI. C5 ingests more: four paired surveys on ch1, same minute, S3 44.8 / 18.4 / 14.8 / 24.4 records/s against C5 74.8 / 36.0 / 41.2 / 43.2. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
-- **Measure the trigger where the node sits.** Both boards run 0.065 and read the same floor on one channel: S3 psi p50 0.0150, C5 -0.0040, against a null of `-1/T` = -0.017. A large gap between two boards in one room points at a decode or config fault, not the receiver.
+- **Set the sensitivity in the room it will live in.** Every room and every channel has its own background level. Both board types settle at the same background when they sit side by side, so if two nodes in one room disagree badly, something is misconfigured rather than the rooms differing.
 - **One room, one capture.** The preset values and the separation behind them come from a single labelled capture on one S3 in one room: one minute moving, three minutes still with a person seated and typing. Re-measure on site before trusting them elsewhere.
 
 `phy=b/g/ht/x` in the status line shows the frame mix when a site underperforms.

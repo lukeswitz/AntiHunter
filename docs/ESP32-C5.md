@@ -93,12 +93,14 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards gate on `psi` and run the same 0.065 trigger. On ch1 in one room: S3 p50
-0.0150, C5 -0.0040, against a no-motion null of -0.017.
+Both board types use the same detection maths and the same default sensitivity. Sitting side
+by side on one channel they settle at the same background level, so a C5 needs no special
+tuning.
 
-Set the trigger from the room. Watch `psi` empty, watch it again with someone moving, put
-the trigger between. If they overlap, move the node or its antenna. `CSI_CFG:SENSITIVITY=`
-persists in NVS, `CSI_RECAL` clears it.
+To set sensitivity: watch the readings with the room empty, watch them again with someone
+walking around, and put the setting between the two. If the two overlap, no setting will
+work — move the node or its antenna. The value is saved on the node; `CSI_RECAL` restores
+the default.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
