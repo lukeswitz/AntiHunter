@@ -293,28 +293,26 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ### Detection: CSI Motion (experimental)
 
-> **Experimental.** Input rate depends on the radio and on what traffic is in the air. Read [Limitations](#csi-limitations) before using it as a primary sensor.
+> **Experimental.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
-Device-free sensing on the channel state of WiFi frames already in the air. Nothing is worn, no network joined, no association with any access point: a node reads CSI out of frames it receives in promiscuous mode, and a lone node is illuminated by whatever access points and clients are already transmitting around it. It reads both movement and a still occupant: Espressif states CSI senses "large movements such as people or animals walking and running but also subtle actions in a static environment, such as breathing and chewing" ([esp-csi](https://github.com/espressif/esp-csi)); DeMan measured movement at up to 4 dB of envelope change against 1.5 dB for breathing ([Wu et al., IEEE JSAC vol. 33, 2015](https://doi.org/10.1109/JSAC.2015.2430294)). Movement drives the statistic hardest, a still person less, an empty building least. The trigger picks the level.
+Detects people moving through a space using the WiFi already in the air. Nobody wears anything, the node joins no network, and you install no transmitter — it listens to the access points and phones already around it and watches how a body passing through disturbs those signals.
+
+A moving person disturbs them most, someone sitting still far less, an empty room least. The sensitivity setting decides where you draw the line.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **Statistic.** `psi`, the mean lag-one autocorrelation of CSI power over a 60-packet window per link ([WiDetect, ACM IMWUT 3(3), 2019](https://doi.org/10.1145/3351280), Definition 1). Its null under no motion is `-1/T` for a window of `T` packets, `-0.017` at `T=60`
-- **Trigger.** Measure the gate statistic with the building empty, set the trigger above it. Presets `LOW` 0.080 / 20 s / 3 spots, `MEDIUM` 0.065 / 12 / 3, `HIGH` 0.045 / 6 / 1. Web menu and `CSI_CFG:SENSITIVITY=` write the same values. Re-measure after a channel change (`STARVED` / `taking ch<n>` in the log). The preset values come from one labelled capture - one minute moving, three still - replayed through the alert rule: 0.065 held the alert for 86.8% of the moving window and 0% of the still one, while 0.120 managed 13.2% of the moving window
-- **Alert rule.** Half of the armed radios, capped at `SPOTS`, moving at the same instant; `MIN_MOTION` seconds of that in a rolling 60 s window; 6 s debounce in and out. A link clears after `CLEAR_AFTER` seconds under the trigger. Radios counted as having moved at any point in the window, rather than concurrently, let two neighbors blipping alternately hold an alert for hours
-- **Sampling rate is the structural limit.** Per link 5.3 (S3) / 6.0 (C5) pairs/s at the median, 2% under 50 ms apart. WiDetect used 30 Hz; Espressif's sender 100 Hz ([console_test](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/main/app_main.c)). Listen-only cannot raise it
-- **When it can't see, it says so and fixes itself.** The node needs a steady stream of packets from one nearby transmitter — a strong but quiet neighbour is no use. If nothing on the current channel is talking fast enough, the node reports that it is blind instead of reporting an empty room, then re-scans the channels and moves to a better one on its own.
-- **Range.** Fresnel zone around each node-transmitter link, not distance from the node. WiDetect: "whole-home coverage ... using a single link on commodity WiFi"; ESP32 through-wall work across [18 m and five rooms](https://link.springer.com/chapter/10.1007/978-3-031-44137-0_4)
-- **Listen-only by default.** `BROADCAST=ON` is the only scan in this firmware that transmits - see below
+- **Sensitivity.** Three presets, Low, Medium and High, in the web menu or over mesh. Low needs more movement for longer before it alerts; High trips on less. Medium is the default. Set it from the room — see Limitations.
+- **What it takes to raise an alert.** One flickering signal is not enough. Half the transmitters the node is tracking have to show disturbance at the same moment, and it has to last several seconds before an alert opens, with the same delay before it closes. That is what stops a single busy neighbour holding an alert all night.
+- **When it can't see, it says so and fixes itself.** The node needs a steady stream of packets from a nearby transmitter — a strong but silent neighbour is no use. If nothing on its channel is talking fast enough, it reports that it is blind rather than reporting an empty room, then re-scans and moves channel by itself.
+- **Coverage.** Follows each path between the node and a transmitter, rather than a circle around the node. Published work has tracked movement through walls across roughly 18 m and five rooms.
+- **It listens, it does not transmit.** Off by default, and the only scan in this firmware that can transmit at all — see the warning below.
 
 > [!WARNING]
-> **Transmit is off unless you turn it on** (`BROADCAST=OFF` in every `CSI_CFG_ACK`, persists in NVS). With `BROADCAST=ON`, under 15 CSI frames/s the node sends one broadcast probe request per second, source `02:00:00:00:00:01`, the frame class a phone sends while scanning. Measured `tx=0` over a session on a busy channel, `tx=640` on a starved one. Anyone monitoring the channel can see it. Rules differ by country and site.
+> **Transmit is off unless you turn it on.** Left alone the node is silent and undetectable. Turn transmit on and, only when the air is too quiet to work with, it sends about one packet a second — the same kind a phone sends looking for networks. Anyone watching that channel can see it. Whether that is allowed depends on your country and site.
 
 #### Measured
-
-The table below is kept for the raw distributions only. It was taken on the retired `sig` statistic, at a trigger the firmware no longer uses, before the alert rule required radios to move concurrently - so its alert percentages do not describe current behavior and should not be quoted as such.
 
 Two nodes in one room, same channel and sensitivity. The operator left the building, then
 came back. "Over the line" is how often a reading was high enough to count as movement.
@@ -327,60 +325,43 @@ came back. "Over the line" is how often a reading was high enough to count as mo
 Neither node raised a single alert while the building was empty. One absence, one site, one
 channel — a real empty-building check, not a false-alarm rate.
 
-Older run below, `sig` on both, per-link samples 15 s apart, `above` = fraction over 0.080.
-
-| window | S3 n / median / above | C5 n / median / above |
-|---|---|---|
-| building empty, 57 min | 1678 / 0.0235 / 5% | 1702 / 0.0272 / 1% |
-| household asleep upstairs, 4.5 h | 1914 / 0.0652 / 36% | 2157 / 0.0243 / 13% |
-| operator seated in the node room, 1.5 h | 3482 / 0.0632 / 36% | 3871 / 0.0899 / 57% |
-| operator moving in the node room, 2.2 h | 3680 / 0.0908 / 61% | 4174 / 0.0455 / 14% (ch6; rest ch1) |
-
-Asleep night 16:15-03:51 (41760 s), both ch1 at 0.080: area alert held 78.7% (S3), 46.9% (C5). Empty row = false alarms; asleep and seated rows = a still occupant registering. Single site, single run.
+An earlier, longer run in the same home showed the harder case. With the house empty both
+nodes were near silent. With someone asleep upstairs or sitting still in the room, both
+registered a good deal of the time — a still person is not nothing to this sensor, and at a
+sensitivity low enough to catch someone walking, a sleeping household will also show up.
 
 > [!IMPORTANT]
-> One trigger cannot fully separate a still occupant from movement. Espressif's detector keeps two features - `waveform_wander` (someone/noneone) and `waveform_jitter` (move/static) - each thresholded by an empty-room calibration ([console_test README](https://github.com/espressif/esp-csi/blob/master/examples/esp-radar/console_test/README.md)); DeMan adds a 0.15-0.70 Hz breathing band. This firmware has one statistic and one trigger per board.
+> One setting cannot cleanly separate "someone is here but still" from "someone is moving".
+> Detectors that manage it track two separate measures and calibrate both against an empty
+> room. This firmware has one. Expect a still occupant to register somewhere between an empty
+> room and a moving one, and set the sensitivity for the question you actually care about.
 
 > [!NOTE]
-> **Indoor only.** Outdoors the sensitive region collapses to the line between node and transmitter. Outdoor detection needs RadarNode (in development).
+> **Indoor only.** Outdoors there are no walls or ceilings to bounce signals around, so the area it can sense shrinks to the straight line between the node and the transmitter. Outdoor detection needs RadarNode (in development).
 
 <a id="csi-limitations"></a>
 #### Limitations
 
-- **Never hand-pick the channel.** Started with channel 0 the node surveys all 11 and ranks them by the best single transmitter's frame rate, since one fast link fills a window and many slow ones do not. Same room, four minutes apart: ch6 2.8 records/s, ch1 49.7.
-- **Per-link sampling sits below what the method assumes.** WiDetect states 30 Hz as its minimum. Measured on an S3 over one session, per-link arrivals ran p50 4.0/s, p90 8.5/s, and the aggregate across all links 40.4 records/s. Beacon-driven links arrive on a regular cadence - gap p50 102.5 ms, p90 102.6 ms - so the sampling is uniform but slow. Resampling onto that uniform grid and recomputing the statistic scored AUC 0.481 against 0.766 for the as-received series, so the firmware uses the as-received form.
-- **Board choice.** S3 is dual-core with more headroom for scanning, mesh and web UI. C5 ingests more: four paired surveys on ch1, same minute, S3 44.8 / 18.4 / 14.8 / 24.4 records/s against C5 74.8 / 36.0 / 41.2 / 43.2. Detail in [docs/ESP32-C5.md](docs/ESP32-C5.md).
-- **Set the sensitivity in the room it will live in.** Every room and every channel has its own background level. Both board types settle at the same background when they sit side by side, so if two nodes in one room disagree badly, something is misconfigured rather than the rooms differing.
-- **One room, one capture.** The preset values and the separation behind them come from a single labelled capture on one S3 in one room: one minute moving, three minutes still with a person seated and typing. Re-measure on site before trusting them elsewhere.
-
-`phy=b/g/ht/x` in the status line shows the frame mix when a site underperforms.
+- **Let it choose the channel.** Traffic varies enormously between WiFi channels — in one room, minutes apart, one channel carried under three usable readings a second and another carried fifty. Start it without naming a channel and it picks, then moves if the one it picked goes quiet.
+- **It depends on other people's WiFi.** The node transmits nothing, so it can only work with whatever traffic is already around it. A quiet site gives it little to work with, and nothing you set on the node changes that.
+- **Set the sensitivity in the room it will live in.** Every room and channel has its own background level. Two nodes side by side settle at the same level, so if two in one room disagree badly, something is misconfigured.
+- **The defaults come from one room.** They were measured in a single home over short windows. Re-check them on site before you rely on them anywhere else.
+- **It is experimental.** No long-run false-alarm rate has been established on either board. Do not use it as your only sensor.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
 > **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
 >
 > **Settings**
-> - `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number (values above)
-> - Add any of `MIN_MOTION=<s>`, `CLEAR_AFTER=<s>`, `SPOTS=<n>`, `BROADCAST=ON`
-> - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.25:5000:3:0`
-> - `@ALL CSI_MOTION_START:0:FOREVER:ALLOW_TRANSMIT` - `LISTEN_ONLY` is the default
-> - `@ALL CSI_RECAL` resets the trigger to the compiled default
+> - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
+> - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
+> - How many transmitters must agree: add `SPOTS=<n>`
+> - Allow transmitting when the air is too quiet: add `BROADCAST=ON`
+> - Back to defaults `@ALL CSI_RECAL`
 >
-> Trigger range 0.005-20.0. A node moves channel on its own after 3 minutes with no usable access point.
+> A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
 
 ---
-
-## Sentinel - Counterintel Engine
-
-<p align="center">
-  <img width="1200" alt="Sentinel" src="docs/img/c5-sentinel.jpg" />
-</p>
-
-Passive WiFi monitoring that flags attacker-tool activity from frame signatures, with behavioral fallbacks that survive a tool changing its templates. Runs from its own tab, independent of the Scan tab modes.
-
-**Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
-
-Every detection logs to serial and SD and broadcasts to mesh peers.
 
 ### Detector groups
 
