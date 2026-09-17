@@ -982,6 +982,10 @@ static void handleCsiCfg(const String &command)
         const String v = tok.substring(10);
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
       }
+      else if (tok.startsWith("REQUIRE_CE=")) {
+        const String v = tok.substring(11);
+        csiRequireCeVld.store(v == "ON" || v == "YES" || v == "1");
+      }
       else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();
@@ -1005,7 +1009,8 @@ static void handleCsiCfg(const String &command)
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +
-                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
+                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON") +
+                " REQUIRE_CE=" + String(csiRequireCeVld.load() ? "ON" : "OFF"), true);
 }
 
 static void handleDeauthStart(const String &command)

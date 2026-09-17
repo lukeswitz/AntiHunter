@@ -30,6 +30,7 @@ extern std::atomic<uint8_t> csiPinnedChannel;
 extern std::atomic<uint32_t> csiThresholdMilli;
 extern std::atomic<uint64_t> csiExcludeMac;
 extern std::atomic<uint8_t> csiMgmtOnly;
+extern std::atomic<bool> csiRequireCeVld;
 extern std::atomic<uint32_t> csiHoldMs;
 extern std::atomic<uint32_t> csiAreaDutyMinS;
 extern std::atomic<uint32_t> csiAreaRadiosNeeded;
