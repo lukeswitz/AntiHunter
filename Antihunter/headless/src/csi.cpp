@@ -49,6 +49,7 @@ static std::atomic<uint32_t> g_surveyStrong{0};
 static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
+static uint32_t g_surveyMacHits[16];
 static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
@@ -291,10 +292,11 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         }
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
+            if (memcmp(g_surveyMacs[i], m, 6) == 0) { g_surveyMacHits[i]++; known = true; break; }
         }
         if (!known && g_surveyMacCount < 16) {
             memcpy(g_surveyMacs[g_surveyMacCount], m, 6);
+            g_surveyMacHits[g_surveyMacCount] = 1;
             g_surveyMacCount++;
             g_surveyTx.fetch_add(1);
         }
@@ -339,7 +341,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         sc.show_hidden = true;
         sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
         sc.scan_time.passive = dwellMs;
-        sc.home_chan_dwell_time = 30;
+        sc.home_chan_dwell_time = 1;
 
         g_surveyMode.store(true);
         const esp_err_t sr = esp_wifi_scan_start(&sc, true);
@@ -355,11 +357,16 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t tx = g_surveyTx.load();
         const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  peak %ddBm\n",
-                      ch, hits, rate, tx, strong, peak);
+        uint32_t topLink = 0;
+        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+            if (g_surveyMacHits[i] > topLink) topLink = g_surveyMacHits[i];
+        }
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  peak %ddBm  best link %.1f/s\n",
+                      ch, hits, rate, tx, strong, peak,
+                      (float)topLink * 1000.0f / (float)dwellMs);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        const uint32_t chScore = hits * strong;
+        const uint32_t chScore = topLink * (strong ? 1u : 0u);
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
             bestStrongTx = tx; bestStrongCh = ch;
