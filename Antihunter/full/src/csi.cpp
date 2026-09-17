@@ -241,6 +241,9 @@ static std::atomic<uint32_t> g_fwSkip{0};
 static std::atomic<uint32_t> g_solicitOk{0};
 static std::atomic<uint32_t> g_solicitErr{0};
 static std::atomic<int32_t> g_solicitLastErr{0};
+static std::atomic<uint32_t> g_pollOk{0};
+static std::atomic<uint32_t> g_pollErr{0};
+static std::atomic<int32_t> g_pollLastErr{0};
 static bool g_txRateSet = false;
 static std::atomic<uint32_t> g_ceVld{0};
 static std::atomic<uint32_t> g_ceInvld{0};
@@ -498,6 +501,59 @@ static void csiSolicit() {
     else { g_solicitErr.fetch_add(1); g_solicitLastErr.store((int32_t)err); }
 }
 
+static wifi_sta_list_t g_apStas;
+static uint32_t g_apStaMs = 0;
+
+static void csiPollClients() {
+    if (csiNoTx.load()) return;
+    const uint32_t now = millis();
+    if (g_apStaMs == 0 || (now - g_apStaMs) >= 5000) {
+        g_apStaMs = now;
+        if (esp_wifi_ap_get_sta_list(&g_apStas) != ESP_OK) g_apStas.num = 0;
+    }
+    uint8_t frame[24];
+    memset(frame, 0, sizeof(frame));
+    frame[0] = 0x48;
+
+    if (g_apStas.num > 0) {
+        uint8_t ap[6] = {0};
+        if (esp_wifi_get_mac(WIFI_IF_AP, ap) != ESP_OK) return;
+        frame[1] = 0x02;
+        for (int i = 0; i < g_apStas.num && i < ESP_WIFI_MAX_CONN_NUM; i++) {
+            memcpy(frame + 4, g_apStas.sta[i].mac, 6);
+            memcpy(frame + 10, ap, 6);
+            memcpy(frame + 16, ap, 6);
+            const esp_err_t e = esp_wifi_80211_tx(WIFI_IF_AP, frame, sizeof(frame), true);
+            if (e == ESP_OK) g_pollOk.fetch_add(1);
+            else { g_pollErr.fetch_add(1); g_pollLastErr.store((int32_t)e); }
+        }
+        return;
+    }
+
+    uint8_t sta[6] = {0};
+    if (esp_wifi_get_mac(WIFI_IF_STA, sta) != ESP_OK) return;
+    frame[1] = 0x01;
+    memcpy(frame + 10, sta, 6);
+
+    uint8_t targets[CSI_MAX_LINKS][6];
+    uint8_t n = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_csiMutex);
+        for (int i = 0; i < CSI_MAX_LINKS && n < CSI_MAX_LINKS; i++) {
+            const CsiLink &l = g_links[i];
+            if (!l.used || l.packets < 8) continue;
+            memcpy(targets[n++], l.mac, 6);
+        }
+    }
+    for (uint8_t i = 0; i < n; i++) {
+        memcpy(frame + 4, targets[i], 6);
+        memcpy(frame + 16, targets[i], 6);
+        const esp_err_t e = esp_wifi_80211_tx(WIFI_IF_STA, frame, sizeof(frame), true);
+        if (e == ESP_OK) g_pollOk.fetch_add(1);
+        else { g_pollErr.fetch_add(1); g_pollLastErr.store((int32_t)e); }
+    }
+}
+
 static void csiLinkReset(CsiLink &l) {
     memset(l.mac, 0, sizeof(l.mac));
     l.used = false;
@@ -589,6 +645,16 @@ static uint8_t csiArmedCount() {
     uint8_t n = 0;
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
         if (csiLinkUsable(g_links[i]) && g_links[i].sc.settled()) n++;
+    }
+    return n;
+}
+
+static uint8_t csiWindowCapableCount() {
+    uint8_t n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        const CsiLink &l = g_links[i];
+        if (!csiLinkUsable(l) || !l.sc.settled()) continue;
+        if (l.pairRate >= CSI_LINK_MIN_PAIR_RATE) n++;
     }
     return n;
 }
@@ -1479,6 +1545,7 @@ void csiMotionTask(void *pv) {
 
         if (solicitMs) {
             if (now - lastSolicitMs >= solicitMs) {
+                csiPollClients();
                 csiSolicit();
                 lastSolicitMs = now;
             }
@@ -1511,19 +1578,21 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
+            uint8_t windowRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
                 armedRoll = csiArmedCount();
+                windowRoll = csiWindowCapableCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u need=%u events=%u up=%us\n",
-                          armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
-                          peakRoll, movingRoll, usableRoll, armedRoll,
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u fast=%u need=%u events=%u up=%us\n",
+                          windowRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
+                          peakRoll, movingRoll, usableRoll, armedRoll, windowRoll,
                           (unsigned)csiNeedLinks(armedRoll),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {

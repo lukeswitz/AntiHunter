@@ -465,6 +465,7 @@ static wifi_sta_list_t g_apStas;
 static uint32_t g_apStaMs = 0;
 
 static void csiPollClients() {
+    if (csiNoTx.load()) return;
     const uint32_t now = millis();
     if (g_apStaMs == 0 || (now - g_apStaMs) >= 5000) {
         g_apStaMs = now;
