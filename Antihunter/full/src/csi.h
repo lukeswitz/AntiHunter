@@ -38,6 +38,7 @@ extern std::atomic<uint32_t> csiSolicitMs;
 extern std::atomic<uint8_t> csiNoTx;
 void setCsiNoTx(bool noTx);
 extern std::atomic<uint8_t> csiMgmtOnly;
+extern std::atomic<bool> csiRequireCeVld;
 
 void csiMotionTask(void *pv);
 String getCsiResults();

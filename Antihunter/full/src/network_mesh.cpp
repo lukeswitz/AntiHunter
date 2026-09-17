@@ -949,6 +949,26 @@ static void handleCsiRecal()
   sendToSerial1(nodeId + ": CSI_RECAL_ACK:OK", true);
 }
 
+static void handleCsiExclude(const String &command)
+{
+  String p = command.substring(12);
+  p.trim();
+  if (p.equalsIgnoreCase("NONE") || p.length() == 0) {
+    csiExcludeMac.store(0);
+    sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:NONE", true);
+    return;
+  }
+  uint8_t m[6];
+  if (!parseMac6(p, m)) {
+    sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:INVALID", true);
+    return;
+  }
+  uint64_t v = 0;
+  for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
+  csiExcludeMac.store(v);
+  sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:" + p, true);
+}
+
 static void handleCsiCfg(const String &command)
 {
   String params = command.substring(8);
@@ -978,6 +998,10 @@ static void handleCsiCfg(const String &command)
       else if (tok.startsWith("BROADCAST=")) {
         const String v = tok.substring(10);
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
+      }
+      else if (tok.startsWith("REQUIRE_CE=")) {
+        const String v = tok.substring(11);
+        csiRequireCeVld.store(v == "ON" || v == "YES" || v == "1");
       }
       else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
@@ -2176,6 +2200,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
   else if (command.startsWith("CSI_MOTION_START:"))     handleCsiMotionStart(command);
+  else if (command.startsWith("CSI_EXCLUDE:"))          handleCsiExclude(command);
   else if (command.startsWith("CSI_CFG:"))              handleCsiCfg(command);
   else if (command == "CSI_STATUS")                     handleCsiStatus();
   else if (command == "CSI_JSON")                       handleCsiJson();

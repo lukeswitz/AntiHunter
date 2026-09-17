@@ -847,7 +847,7 @@ static void handleCsiMotionStart(const String &command)
 {
   String params = command.substring(17);
   int secs = 0;
-  bool forever = false, telem = false, raw = false, train = false;
+  bool forever = false, telem = false, raw = false;
   uint8_t ch = 0;
   uint32_t solicitMs = 0;
   int idx = 0;
