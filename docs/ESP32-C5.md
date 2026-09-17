@@ -78,20 +78,12 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### Motion detection on a C5
 
-The S3 has two processor cores, the C5 one, so the S3 has more room to run scanning, mesh
-and the web interface at once. The C5 takes in noticeably more raw signal data per second
-and sees far more modern WiFi traffic, which suits motion sensing.
+Same detection and same default sensitivity as an S3. The C5 takes in more signal data per
+second; the S3 has a spare core for scanning and the web UI. Put S3s where you scan, a C5
+where you sense.
 
-Put S3 nodes where you want heavy scanning, and a C5 where sensing matters most.
-
-Both board types use the same detection maths and the same default sensitivity. Sitting side
-by side on one channel they settle at the same background level, so a C5 needs no special
-tuning.
-
-To set sensitivity: watch the readings with the room empty, watch them again with someone
-walking around, and put the setting between the two. If the two overlap, no setting will
-work — move the node or its antenna. The value is saved on the node; `CSI_RECAL` restores
-the default.
+Set sensitivity from the room: read it empty, read it with someone walking, set between the
+two. If they overlap, move the node. `CSI_RECAL` restores the default.
 
 ---
 
@@ -158,14 +150,10 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
   valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
   in the status line; `csiRequireCeVld` gates on it.
-- `val_scale_cfg`, `esp_wifi_he_types.h:61`: documented only as "value 0-8", set to 0 here.
-  **Open, needs testing.** With the decode corrected, a C5 reads markedly quieter than an S3
-  on the same channel at the same trigger — measured over 30 minutes, 1.6% of its readings
-  crossed the line against the S3's 21.7%, and its highest readings sat below the S3's
-  typical ones. That is the signature of a signal squeezed into too few steps before it is
-  digitised, which is what this field should widen. No semantics are published and no
-  Espressif code on disk sets it, so the value has to be found by trying one and measuring.
-  Not guessed.
+- `val_scale_cfg`, `esp_wifi_he_types.h:61`: "value 0-8", set to 0. **Open.** C5 reads far
+  quieter than S3, same channel and trigger, 30 min: 1.6% over the line against 21.7%. Looks
+  like too few quantisation steps, which this field should widen. No documented semantics —
+  needs testing, not guessing.
 - `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
   `csiArmCsi` sets 0 but the decode reads int8 pairs. Harmless so far — the payload is 106
   bytes either way, too small for 12-bit across 53 subcarriers — but the request should be 1.
