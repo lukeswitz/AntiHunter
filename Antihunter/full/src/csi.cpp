@@ -40,7 +40,6 @@ std::atomic<uint8_t> csiMgmtOnly{0};
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
-static const uint32_t CSI_SURVEY_MIN_HT = 8;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
@@ -390,8 +389,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
-    uint8_t bestHtCh = 0;
-    uint32_t bestHt = 0, bestHtStrong = 0, bestHtScore = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -423,14 +420,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t strong = g_surveyStrong.load();
         const uint32_t ht = g_surveyHt.load();
         const uint32_t tx = g_surveyTx.load();
-        if (ht > bestHt) {
-            bestHt = ht; bestHtCh = ch; bestHtStrong = strong;
-            uint32_t htLink = 0;
-            for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-                if (g_surveyMacHits[i] > htLink) htLink = g_surveyMacHits[i];
-            }
-            bestHtScore = htLink * (strong ? 1u : 0u);
-        }
         const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
         uint32_t topLink = 0;
@@ -456,18 +445,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
-    }
-
-    if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
-        Serial.printf("[CSI] Selected ch%u for HT traffic (%u HT-LTF frames, %u strong) - "
-                      "HT-LTF is a cleaner channel estimate than L-LTF\n",
-                      bestHtCh, bestHt, bestHtStrong);
-        return bestHtCh;
-    }
-    if (bestHt > 0 && bestHt < CSI_SURVEY_MIN_HT) {
-        Serial.printf("[CSI] ch%u had %u HT-LTF frames, under the %u needed to prefer it - "
-                      "ranking on link yield instead\n",
-                      bestHtCh, bestHt, (unsigned)CSI_SURVEY_MIN_HT);
     }
 
     if (bestStrong == 0) {

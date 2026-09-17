@@ -36,7 +36,6 @@ std::atomic<uint8_t> csiNoTx{1};
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
-static const uint32_t CSI_SURVEY_MIN_HT = 8;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
@@ -48,6 +47,7 @@ static std::atomic<uint32_t> g_surveyHt{0};
 static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
+static uint32_t g_surveyMacHits[16];
 static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
@@ -318,10 +318,11 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         }
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
+            if (memcmp(g_surveyMacs[i], m, 6) == 0) { g_surveyMacHits[i]++; known = true; break; }
         }
         if (!known && g_surveyMacCount < 16) {
             memcpy(g_surveyMacs[g_surveyMacCount], m, 6);
+            g_surveyMacHits[g_surveyMacCount] = 1;
             g_surveyMacCount++;
             g_surveyTx.fetch_add(1);
         }
@@ -353,8 +354,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
-    uint8_t bestHtCh = 0;
-    uint32_t bestHt = 0, bestHtStrong = 0, bestHtScore = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -371,7 +370,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         sc.show_hidden = true;
         sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
         sc.scan_time.passive = dwellMs;
-        sc.home_chan_dwell_time = 30;
+        sc.home_chan_dwell_time = 1;
 
         g_surveyMode.store(true);
         const esp_err_t sr = esp_wifi_scan_start(&sc, true);
@@ -386,14 +385,18 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t strong = g_surveyStrong.load();
         const uint32_t ht = g_surveyHt.load();
         const uint32_t tx = g_surveyTx.load();
-        if (ht > bestHt) { bestHt = ht; bestHtCh = ch; bestHtStrong = strong; bestHtScore = hits * strong; }
         const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht  peak %ddBm\n",
-                      ch, hits, rate, tx, strong, ht, peak);
+        uint32_t topLink = 0;
+        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+            if (g_surveyMacHits[i] > topLink) topLink = g_surveyMacHits[i];
+        }
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht  peak %ddBm  best link %.1f/s\n",
+                      ch, hits, rate, tx, strong, ht, peak,
+                      (float)topLink * 1000.0f / (float)dwellMs);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        const uint32_t chScore = hits * strong;
+        const uint32_t chScore = topLink * (strong ? 1u : 0u);
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
             bestStrongTx = tx; bestStrongCh = ch;
@@ -403,18 +406,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
-    }
-
-    if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
-        Serial.printf("[CSI] Selected ch%u for HT traffic (%u HT-LTF frames, %u strong) - "
-                      "HT-LTF is a cleaner channel estimate than L-LTF\n",
-                      bestHtCh, bestHt, bestHtStrong);
-        return bestHtCh;
-    }
-    if (bestHt > 0 && bestHt < CSI_SURVEY_MIN_HT) {
-        Serial.printf("[CSI] ch%u had %u HT-LTF frames, under the %u needed to prefer it - "
-                      "ranking on link yield instead\n",
-                      bestHtCh, bestHt, (unsigned)CSI_SURVEY_MIN_HT);
     }
 
     if (bestStrong == 0) {
