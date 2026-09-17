@@ -53,6 +53,7 @@ static std::atomic<uint32_t> g_surveyStrong{0};
 static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
+static uint32_t g_surveyMacHits[16];
 static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
@@ -299,10 +300,11 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         }
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
+            if (memcmp(g_surveyMacs[i], m, 6) == 0) { g_surveyMacHits[i]++; known = true; break; }
         }
         if (!known && g_surveyMacCount < 16) {
             memcpy(g_surveyMacs[g_surveyMacCount], m, 6);
+            g_surveyMacHits[g_surveyMacCount] = 1;
             g_surveyMacCount++;
             g_surveyTx.fetch_add(1);
         }
@@ -347,7 +349,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         sc.show_hidden = true;
         sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
         sc.scan_time.passive = dwellMs;
-        sc.home_chan_dwell_time = 30;
+        sc.home_chan_dwell_time = 1;
 
         g_surveyMode.store(true);
         const esp_err_t sr = esp_wifi_scan_start(&sc, true);
@@ -363,11 +365,16 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         const uint32_t tx = g_surveyTx.load();
         const int peak = g_surveyPeak.load();
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  peak %ddBm\n",
-                      ch, hits, rate, tx, strong, peak);
+        uint32_t topLink = 0;
+        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
+            if (g_surveyMacHits[i] > topLink) topLink = g_surveyMacHits[i];
+        }
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  peak %ddBm  best link %.1f/s\n",
+                      ch, hits, rate, tx, strong, peak,
+                      (float)topLink * 1000.0f / (float)dwellMs);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        const uint32_t chScore = hits * strong;
+        const uint32_t chScore = topLink * (strong ? 1u : 0u);
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
             bestStrongTx = tx; bestStrongCh = ch;
@@ -519,6 +526,16 @@ static uint8_t csiArmedCount() {
     uint8_t n = 0;
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
         if (csiLinkUsable(g_links[i]) && g_links[i].sc.settled()) n++;
+    }
+    return n;
+}
+
+static uint8_t csiWindowCapableCount() {
+    uint8_t n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        const CsiLink &l = g_links[i];
+        if (!csiLinkUsable(l) || !l.sc.settled()) continue;
+        if (l.pairRate >= CSI_LINK_MIN_PAIR_RATE) n++;
     }
     return n;
 }
@@ -1400,19 +1417,21 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
+            uint8_t windowRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
                 armedRoll = csiArmedCount();
+                windowRoll = csiWindowCapableCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u need=%u events=%u up=%us\n",
-                          armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
-                          peakRoll, movingRoll, usableRoll, armedRoll,
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u fast=%u need=%u events=%u up=%us\n",
+                          windowRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
+                          peakRoll, movingRoll, usableRoll, armedRoll, windowRoll,
                           (unsigned)csiAreaRadiosNeeded.load(),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
