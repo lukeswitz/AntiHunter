@@ -410,10 +410,10 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
     }
-    if (bestPeak >= CSI_PAIR_RSSI) {
-        Serial.printf("[CSI] Paired node heard at %ddBm on ch%u (%.1f/s) - holding the SoftAP channel ch%u so both nodes meet there\n",
-                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs, (unsigned)AP_CHANNEL);
-        return (uint8_t)AP_CHANNEL;
+    if (bestPeak >= CSI_PAIR_RSSI && bestPeakHits >= CSI_SOLICIT_FLOOR * dwellMs / 1000u) {
+        Serial.printf("[CSI] Anchor transmitter at %ddBm on ch%u (%.1f/s) - taking that channel\n",
+                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs);
+        return bestPeakCh;
     }
 
     if (bestHt >= CSI_SURVEY_MIN_HT && bestHtStrong > 0 && bestHtScore * 2 >= bestChScore) {
