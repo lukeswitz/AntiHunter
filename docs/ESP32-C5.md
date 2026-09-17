@@ -120,10 +120,15 @@ step.
 
 Each board needs its own trigger. What counts as a quiet room depends on the channel
 the node picked and which access points it can hear, and those differ between two
-nodes sitting in the same house. Size it against a window with nobody in the room. Default is
-0.600.
+nodes sitting in the same house. Size it against a window with nobody in the room. The
+compiled default is 0.065, taken from an S3 capture and carried to both boards; no
+equivalent labelled capture has been taken on a C5, so on a C5 it is a starting point
+rather than a measured value.
 
-Measured over one 11.6-hour night, room empty, both boards on ch1, 57 twelve-minute windows each:
+The table below was taken on the retired `sig` statistic at a trigger the firmware no
+longer uses. It is kept for the distributions; its pass/clear counts do not describe
+current behavior. Measured over one 11.6-hour night, room empty, both boards on ch1,
+57 twelve-minute windows each:
 
 | | movement window p50 | night p90 | night p95 | night max |
 |---|---|---|---|---|
@@ -158,7 +163,10 @@ hours (C5 0.0176, S3 0.0203), which is what rules out a noise difference as the 
 Occupants were present and still, not absent, so this is a quiet floor rather than a
 true empty-building control.
 
-Expect from a C5 node, relative to an S3 in the same room:
+Expect from a C5 node, relative to an S3 in the same room. Every row below was measured
+on the retired `sig` statistic, before both boards moved to `psi` and before the alert
+rule required radios to move concurrently, so treat it as history rather than a
+specification for current firmware:
 
 | | S3 | C5 |
 |---|---|---|
