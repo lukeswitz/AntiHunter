@@ -318,9 +318,7 @@ static void baselineHarvestWifiPassive() {
         wh.name[sizeof(wh.name) - 1] = '\0';
         wh.isBLE = false;
 
-        if (macQueue) {
-            xQueueSend(macQueue, &wh, 0);
-        }
+        safeMacQueueSend(&wh, 0);
         framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
 }
@@ -527,9 +525,7 @@ void baselineDetectionTask(void *pv) {
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
                     
-                    if (macQueue) {
-                        xQueueSend(macQueue, &bh, 0);
-                    }
+                    safeMacQueueSend(&bh, 0);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 }  else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
@@ -678,9 +674,7 @@ void baselineDetectionTask(void *pv) {
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
                     
-                    if (macQueue) {
-                        xQueueSend(macQueue, &bh, 0);
-                    }
+                    safeMacQueueSend(&bh, 0);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 } else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
