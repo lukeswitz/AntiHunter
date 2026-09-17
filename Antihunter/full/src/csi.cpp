@@ -593,6 +593,15 @@ static uint8_t csiArmedCount() {
     return n;
 }
 
+static int csiNeedLinks(int armedLinks) {
+    int need = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
+    if (need < 1) need = 1;
+    const int cap = (int)csiAreaRadiosNeeded.load();
+    if (cap > 0 && need > cap) need = cap;
+    if (cap >= 2 && need < 2) need = 2;
+    return need;
+}
+
 static bool csiSameRadio(const uint8_t *a, const uint8_t *b) {
     return memcmp(a + 1, b + 1, 4) == 0;
 }
@@ -1407,13 +1416,7 @@ void csiMotionTask(void *pv) {
                 radiosRecent = movingLinks;
             }
 
-            int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
-            if (needLinks < 1) needLinks = 1;
-            {
-                const int cap = (int)csiAreaRadiosNeeded.load();
-                if (cap > 0 && needLinks > cap) needLinks = cap;
-                if (cap >= 2 && needLinks < 2) needLinks = 2;
-            }
+            const int needLinks = csiNeedLinks(armedLinks);
 
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
@@ -1521,7 +1524,7 @@ void csiMotionTask(void *pv) {
             Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u need=%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll,
-                          (unsigned)csiAreaRadiosNeeded.load(),
+                          (unsigned)csiNeedLinks(armedRoll),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
