@@ -34,6 +34,8 @@ std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
 std::atomic<uint32_t> csiAreaDutyMinS{12};
 std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
+std::atomic<uint64_t> csiExcludeMac{0};
+std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
@@ -455,6 +457,12 @@ static void csiLinkReset(CsiLink &l) {
 static bool csiLinkUsable(const CsiLink &l) {
     if (!l.used || l.packets < CSI_LINK_MIN_PKTS) return false;
     if ((millis() - l.lastMs) >= CSI_LINK_STALE_MS) return false;
+    const uint64_t ex = csiExcludeMac.load();
+    if (ex != 0) {
+        uint64_t m = 0;
+        for (int i = 0; i < 6; i++) m = (m << 8) | l.mac[i];
+        if ((m >> 8) == (ex >> 8)) return false;
+    }
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
@@ -1011,8 +1019,11 @@ static bool csiRadioStart(uint8_t ch) {
     esp_wifi_set_country(&ctry);
 
     wifi_promiscuous_filter_t filter = {};
-    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
+    filter.filter_mask = csiMgmtOnly.load()
+                             ? WIFI_PROMIS_FILTER_MASK_MGMT
+                             : (WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA);
     esp_wifi_set_promiscuous_filter(&filter);
+    Serial.printf("[CSI] promisc filter=%s\n", csiMgmtOnly.load() ? "MGMT" : "MGMT|DATA");
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
     esp_wifi_set_ps(WIFI_PS_NONE);
 

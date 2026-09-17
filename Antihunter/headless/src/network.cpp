@@ -847,6 +847,8 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
     else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
+    else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
+    else if (tok == "MGMTDATA") csiMgmtOnly.store(0);
     else if (tok == "LISTEN_ONLY") setCsiNoTx(true);
     else if (tok == "ALLOW_TRANSMIT") setCsiNoTx(false);
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
@@ -916,6 +918,26 @@ static void handleCsiJson()
   String j = getCsiJson();
   Serial.println(j);
   sendToSerial1(getNodeId() + ": CSI_JSON_LEN:" + String(j.length()), true);
+}
+
+static void handleCsiExclude(const String &command)
+{
+  String p = command.substring(12);
+  p.trim();
+  if (p.equalsIgnoreCase("NONE") || p.length() == 0) {
+    csiExcludeMac.store(0);
+    sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:NONE", true);
+    return;
+  }
+  uint8_t m[6];
+  if (!parseMac6(p, m)) {
+    sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:INVALID", true);
+    return;
+  }
+  uint64_t v = 0;
+  for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
+  csiExcludeMac.store(v);
+  sendToSerial1(getNodeId() + ": CSI_EXCLUDE_ACK:" + p, true);
 }
 
 static void handleCsiCfg(const String &command)
@@ -2179,6 +2201,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
   else if (command.startsWith("CSI_MOTION_START:"))   handleCsiMotionStart(command);
+  else if (command.startsWith("CSI_EXCLUDE:"))        handleCsiExclude(command);
   else if (command.startsWith("CSI_CFG:"))            handleCsiCfg(command);
   else if (command == "CSI_STATUS")                   handleCsiStatus();
   else if (command == "CSI_JSON")                     handleCsiJson();
