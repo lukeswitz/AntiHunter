@@ -384,10 +384,10 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
     }
-    if (bestPeak >= CSI_PAIR_RSSI) {
-        Serial.printf("[CSI] Paired node heard at %ddBm on ch%u (%.1f/s) - holding the SoftAP channel ch%u so both nodes meet there\n",
-                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs, (unsigned)AP_CHANNEL);
-        return (uint8_t)AP_CHANNEL;
+    if (bestPeak >= CSI_PAIR_RSSI && bestPeakHits >= CSI_SOLICIT_FLOOR * dwellMs / 1000u) {
+        Serial.printf("[CSI] Anchor transmitter at %ddBm on ch%u (%.1f/s) - taking that channel\n",
+                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs);
+        return bestPeakCh;
     }
 
     if (bestStrong == 0) {
@@ -561,34 +561,6 @@ static int csiCountRadios(bool movingOnly) {
         if (dup) continue;
         memcpy(reps[n], l.mac, 6);
         n++;
-    }
-    return n;
-}
-
-static int csiRadiosRecent(uint32_t now, uint32_t windowMs) {
-    for (int i = 0; i < CSI_MAX_LINKS; i++) {
-        const CsiLink &l = g_links[i];
-        if (!l.used || !l.motion) continue;
-        int slot = -1;
-        for (uint8_t j = 0; j < g_radioN; j++) {
-            if (csiSameRadio(g_radioKey[j], l.mac)) { slot = j; break; }
-        }
-        if (slot < 0) {
-            if (g_radioN < CSI_MAX_LINKS) {
-                slot = g_radioN++;
-            } else {
-                slot = 0;
-                for (uint8_t j = 1; j < g_radioN; j++) {
-                    if ((int32_t)(g_radioLastMs[j] - g_radioLastMs[slot]) < 0) slot = j;
-                }
-            }
-            memcpy(g_radioKey[slot], l.mac, 6);
-        }
-        g_radioLastMs[slot] = now;
-    }
-    int n = 0;
-    for (uint8_t j = 0; j < g_radioN; j++) {
-        if (now - g_radioLastMs[j] <= windowMs) n++;
     }
     return n;
 }
@@ -1338,7 +1310,7 @@ void csiMotionTask(void *pv) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
-                radiosRecent = csiRadiosRecent(now, CSI_AREA_DUTY_SLOTS * 2000u);
+                radiosRecent = movingLinks;
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used || !csiLinkPaired(l)) continue;
