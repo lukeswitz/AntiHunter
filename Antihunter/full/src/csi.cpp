@@ -39,8 +39,6 @@ std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
-static const uint32_t CSI_PAIR_HOLD_MS = 900000;
-static uint32_t g_pairSeenMs = 0;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
@@ -334,9 +332,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
-    int bestPeak = -128;
-    uint8_t bestPeakCh = 0;
-    uint32_t bestPeakHits = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -372,7 +367,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                       ch, hits, rate, tx, strong, peak);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (peak > bestPeak) { bestPeak = peak; bestPeakCh = ch; bestPeakHits = hits; }
         const uint32_t chScore = hits * strong;
         if (chScore > bestChScore) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
@@ -383,11 +377,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
-    }
-    if (bestPeak >= CSI_PAIR_RSSI && bestPeakHits >= CSI_SOLICIT_FLOOR * dwellMs / 1000u) {
-        Serial.printf("[CSI] Anchor transmitter at %ddBm on ch%u (%.1f/s) - taking that channel\n",
-                      bestPeak, bestPeakCh, (float)bestPeakHits * 1000.0f / (float)dwellMs);
-        return bestPeakCh;
     }
 
     if (bestStrong == 0) {
@@ -481,7 +470,6 @@ bool csiClearResults() {
         memset(g_areaDuty, 0, sizeof(g_areaDuty));
         g_areaDutyPos = 0;
         g_areaLastMotionMs = 0;
-        g_pairSeenMs = 0;
         g_radioN = 0;
         csiEpisodesReset();
     }
@@ -508,10 +496,6 @@ static bool csiLinkUsable(const CsiLink &l) {
         if ((m >> 8) == (ex >> 8)) return false;
     }
     return l.rssi >= CSI_LINK_MIN_RSSI;
-}
-
-static bool csiLinkPaired(const CsiLink &l) {
-    return l.rssi >= CSI_PAIR_RSSI;
 }
 
 static float csiPsiEta(uint32_t thrMilli) {
@@ -681,7 +665,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float psiEta = csiLinkPaired(l) ? csiAnalyticEta() : csiPsiEta(csiThresholdMilli.load());
+        const float psiEta = csiPsiEta(csiThresholdMilli.load());
         if (l.sc.psiValid && l.sc.psi >= psiEta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
@@ -1298,8 +1282,6 @@ void csiMotionTask(void *pv) {
 
             int movingLinks = 0;
             int armedLinks = 0;
-            int pairedArmed = 0;
-            int pairedMoving = 0;
             float peak = 0.0f;
             int radiosRecent = 0;
             {
@@ -1311,12 +1293,6 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
                 }
                 radiosRecent = movingLinks;
-                for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                    const CsiLink &l = g_links[i];
-                    if (!l.used || !csiLinkPaired(l)) continue;
-                    if (csiLinkUsable(l) && l.sc.settled()) pairedArmed++;
-                    if (l.motion) pairedMoving++;
-                }
             }
 
             int needLinks = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
@@ -1325,12 +1301,6 @@ void csiMotionTask(void *pv) {
                 const int cap = (int)csiAreaRadiosNeeded.load();
                 if (cap > 0 && needLinks > cap) needLinks = cap;
                 if (cap >= 2 && needLinks < 2) needLinks = 2;
-            }
-            if (pairedArmed > 0) g_pairSeenMs = now;
-            if (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS) {
-                movingLinks = pairedMoving;
-                radiosRecent = pairedMoving > 0 ? 1 : 0;
-                needLinks = 1;
             }
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
@@ -1430,8 +1400,6 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
-            uint8_t pairArmRoll = 0;
-            uint8_t pairMovRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
@@ -1441,18 +1409,11 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
-                for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                    const CsiLink &l = g_links[i];
-                    if (!l.used || !csiLinkPaired(l)) continue;
-                    if (csiLinkUsable(l) && l.sc.settled()) pairArmRoll++;
-                    if (l.motion) pairMovRoll++;
-                }
             }
-            const bool pairHold = (g_pairSeenMs != 0 && (now - g_pairSeenMs) < CSI_PAIR_HOLD_MS);
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u paired=%u/%u hold=%u events=%u up=%us\n",
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u need=%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll,
-                          pairMovRoll, pairArmRoll, pairHold ? 1u : 0u,
+                          (unsigned)csiAreaRadiosNeeded.load(),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",

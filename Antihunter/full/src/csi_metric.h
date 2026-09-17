@@ -58,7 +58,6 @@ static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
 static const int8_t CSI_SURVEY_MIN_RSSI = -85;
-static const int8_t CSI_PAIR_RSSI = -40;
 
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;
