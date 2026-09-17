@@ -32,6 +32,8 @@ std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint32_t> csiAreaDutyMinS{12};
+std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_LINK_FORGET_MS = 600000;
@@ -565,6 +567,25 @@ static uint8_t csiArmedCount() {
     return n;
 }
 
+static uint8_t csiWindowCapableCount() {
+    uint8_t n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        const CsiLink &l = g_links[i];
+        if (!csiLinkUsable(l) || !l.sc.settled()) continue;
+        if (l.pairRate >= CSI_LINK_MIN_PAIR_RATE) n++;
+    }
+    return n;
+}
+
+static int csiNeedLinks(int armedLinks) {
+    int need = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
+    if (need < 1) need = 1;
+    const int cap = (int)csiAreaRadiosNeeded.load();
+    if (cap > 0 && need > cap) need = cap;
+    if (cap >= 2 && need < 2) need = 2;
+    return need;
+}
+
 static bool csiSameRadio(const uint8_t *a, const uint8_t *b) {
     return memcmp(a + 1, b + 1, 4) == 0;
 }
@@ -993,6 +1014,13 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     prefs.putUInt("csiCons", csiConsecNeeded.load());
 }
 
+void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded) {
+    if (dutyMinS >= 2 && dutyMinS <= 60) csiAreaDutyMinS.store(dutyMinS);
+    if (radiosNeeded >= 1 && radiosNeeded <= 12) csiAreaRadiosNeeded.store(radiosNeeded);
+    prefs.putUInt("csiDuty", csiAreaDutyMinS.load());
+    prefs.putUInt("csiRad", csiAreaRadiosNeeded.load());
+}
+
 void loadCsiConfigFromPrefs() {
     if (prefs.isKey("csiThr2")) {
         prefs.remove("csiThr2");
@@ -1004,6 +1032,8 @@ void loadCsiConfigFromPrefs() {
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
+    csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
+    csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
     csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
 }
 
@@ -1352,9 +1382,11 @@ void csiMotionTask(void *pv) {
             csiExpireLinks();
 
             int movingLinks = 0;
+            int armedLinks = 0;
             float peak = 0.0f;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
+                armedLinks = csiCountRadios(false);
                 movingLinks = csiCountRadios(true);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
@@ -1362,11 +1394,13 @@ void csiMotionTask(void *pv) {
                 }
             }
 
+            const int needLinks = csiNeedLinks(armedLinks);
+
             g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= CSI_AREA_DUTY_MIN_S);
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (movingLinks >= needLinks);
             if (areaNow) g_areaLastMotionMs = now;
 
             if (areaNow != g_areaCand) {
@@ -1456,19 +1490,22 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
+            uint8_t windowRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
                 armedRoll = csiArmedCount();
+                windowRoll = csiWindowCapableCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u events=%u up=%us\n",
-                          armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
-                          peakRoll, movingRoll, usableRoll, armedRoll,
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u fast=%u need=%u events=%u up=%us\n",
+                          windowRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
+                          peakRoll, movingRoll, usableRoll, armedRoll, windowRoll,
+                          (unsigned)csiNeedLinks(armedRoll),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
