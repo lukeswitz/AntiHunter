@@ -158,6 +158,14 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
   valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
   in the status line; `csiRequireCeVld` gates on it.
+- `val_scale_cfg`, `esp_wifi_he_types.h:61`: documented only as "value 0-8", set to 0 here.
+  **Open, needs testing.** With the decode corrected, a C5 reads markedly quieter than an S3
+  on the same channel at the same trigger — measured over 30 minutes, 1.6% of its readings
+  crossed the line against the S3's 21.7%, and its highest readings sat below the S3's
+  typical ones. That is the signature of a signal squeezed into too few steps before it is
+  digitised, which is what this field should widen. No semantics are published and no
+  Espressif code on disk sets it, so the value has to be found by trying one and measuring.
+  Not guessed.
 - `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
   `csiArmCsi` sets 0 but the decode reads int8 pairs. Harmless so far — the payload is 106
   bytes either way, too small for 12-bit across 53 subcarriers — but the request should be 1.
