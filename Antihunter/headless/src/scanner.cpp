@@ -1761,6 +1761,10 @@ void snifferScanTask(void *pv)
             Serial.printf("[SNIFFER] Stop requested: %u device rows not enqueued\n", abandonedDevices);
         }
 
+        for (const auto &h : hitsLog) mergeHitToDeviceDB(h);
+        saveDeviceDB();
+        Serial.printf("[SNIFFER] Device database now holds %u devices\n", getDeviceDBSize());
+
         if (!stopRequested) {
             const uint32_t totalTx = transmittedDevices.size();
             const uint32_t enqueuedDevices = totalTx - static_cast<uint32_t>(txBefore);
@@ -2891,6 +2895,9 @@ void initializeScanner()
     loadProbeDB();
     Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
 
+    loadDeviceDB();
+    Serial.printf("Loaded %u discovered devices from DB\n", getDeviceDBSize());
+
     // probe/auth queues (~32KB ISR-internal on C5) now lazy: allocated at scan start, freed at stop.
     if (!bleAdvQueue) {
         bleAdvQueue = xQueueCreateWithCaps(128, sizeof(BleAdvEvent), AH_ALLOC_CAPS);
@@ -3753,6 +3760,20 @@ void listScanTask(void *pv) {
         if (static_cast<int>(sortedHits.size()) > show) {
             results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
         }
+    }
+
+    {
+        std::map<std::string, Hit> bestForDb;
+        for (const auto &sh : hitsLog) {
+            char mb[18];
+            snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
+            std::string key(mb);
+            auto it = bestForDb.find(key);
+            if (it == bestForDb.end() || sh.rssi > it->second.rssi) bestForDb[key] = sh;
+        }
+        for (const auto &p : bestForDb) mergeHitToDeviceDB(p.second);
+        if (!bestForDb.empty()) saveDeviceDB();
     }
 
     // Write final results while still scanning so tick() picks them up
