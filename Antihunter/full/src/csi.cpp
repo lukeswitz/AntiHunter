@@ -1567,6 +1567,8 @@ void csiMotionTask(void *pv) {
             int movingRoll = 0;
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
+            uint8_t pairArmRoll = 0;
+            uint8_t pairMovRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
@@ -1576,10 +1578,17 @@ void csiMotionTask(void *pv) {
                     if (g_links[i].motion) movingRoll++;
                     if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
                 }
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    const CsiLink &l = g_links[i];
+                    if (!l.used || !csiLinkPaired(l)) continue;
+                    if (csiLinkUsable(l) && l.sc.settled()) pairArmRoll++;
+                    if (l.motion) pairMovRoll++;
+                }
             }
-            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u events=%u up=%us\n",
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u paired=%u/%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll,
+                          pairMovRoll, pairArmRoll,
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
             if (armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
