@@ -295,58 +295,52 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 > **Experimental.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
-Detects people moving through a space using the WiFi already in the air. Nobody wears anything, the node joins no network, and you install no transmitter — it listens to the access points and phones already around it and watches how a body passing through disturbs those signals.
+Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it listens to the access points and phones already around it and watches how a body disturbs those signals.
 
-A moving person disturbs them most, someone sitting still far less, an empty room least. The sensitivity setting decides where you draw the line.
+Movement disturbs them most, a still person less, an empty room least. Sensitivity draws the line.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
 </p>
 
-- **Sensitivity.** Three presets, Low, Medium and High, in the web menu or over mesh. Low needs more movement for longer before it alerts; High trips on less. Medium is the default. Set it from the room — see Limitations.
-- **What it takes to raise an alert.** One flickering signal is not enough. Half the transmitters the node is tracking have to show disturbance at the same moment, and it has to last several seconds before an alert opens, with the same delay before it closes. That is what stops a single busy neighbour holding an alert all night.
-- **When it can't see, it says so and fixes itself.** The node needs a steady stream of packets from a nearby transmitter — a strong but silent neighbour is no use. If nothing on its channel is talking fast enough, it reports that it is blind rather than reporting an empty room, then re-scans and moves channel by itself.
-- **Coverage.** Follows each path between the node and a transmitter, rather than a circle around the node. Published work has tracked movement through walls across roughly 18 m and five rooms.
-- **It listens, it does not transmit.** Off by default, and the only scan in this firmware that can transmit at all — see the warning below.
+- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
+- **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbour cannot hold an alert.
+- **Blind means blind.** If nothing on the channel is transmitting fast enough, the node says so instead of reporting an empty room, then moves channel itself.
+- **Coverage.** Follows each node-to-transmitter path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
+- **Listens, does not transmit.** Off by default. The only scan here that can transmit at all.
 
 > [!WARNING]
-> **Transmit is off unless you turn it on.** Left alone the node is silent and undetectable. Turn transmit on and, only when the air is too quiet to work with, it sends about one packet a second — the same kind a phone sends looking for networks. Anyone watching that channel can see it. Whether that is allowed depends on your country and site.
+> **Transmit is off unless you turn it on.** Left alone the node is silent. Turned on, it sends about one packet a second only when the air is too quiet to work with — the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site.
 
 #### Measured
 
-Two nodes in one room, same channel and sensitivity. The operator left the building, then
-came back. "Over the line" is how often a reading was high enough to count as movement.
+Two nodes, one room, same channel and sensitivity. "Over the line" = readings high enough to count as movement.
 
-| | occupant moving, 10 min | building empty, 7 min |
+| | occupant moving | building empty |
 |---|---|---|
-| S3 node | 22.6% over the line | 2.4% |
+| S3 node | 22.6% | 2.4% |
 | C5 node | 17.7% | 0.3% |
 
-Neither node raised a single alert while the building was empty. One absence, one site, one
-channel — a real empty-building check, not a false-alarm rate.
+No alerts on either node while empty. One site, one channel.
 
-An earlier, longer run in the same home showed the harder case. With the house empty both
-nodes were near silent. With someone asleep upstairs or sitting still in the room, both
-registered a good deal of the time — a still person is not nothing to this sensor, and at a
-sensitivity low enough to catch someone walking, a sleeping household will also show up.
+A longer run showed the harder case: empty, both near silent; someone asleep upstairs or
+sitting still, both registered often.
 
 > [!IMPORTANT]
-> One setting cannot cleanly separate "someone is here but still" from "someone is moving".
-> Detectors that manage it track two separate measures and calibrate both against an empty
-> room. This firmware has one. Expect a still occupant to register somewhere between an empty
-> room and a moving one, and set the sensitivity for the question you actually care about.
+> One setting cannot separate "here but still" from "moving". Expect a still occupant to land
+> between empty and moving, and set sensitivity for the question you care about.
 
 > [!NOTE]
-> **Indoor only.** Outdoors there are no walls or ceilings to bounce signals around, so the area it can sense shrinks to the straight line between the node and the transmitter. Outdoor detection needs RadarNode (in development).
+> **Indoor only.** Outdoors nothing bounces the signal, so coverage shrinks to the line between node and transmitter. Outdoors needs RadarNode (in development).
 
 <a id="csi-limitations"></a>
 #### Limitations
 
-- **Let it choose the channel.** Traffic varies enormously between WiFi channels — in one room, minutes apart, one channel carried under three usable readings a second and another carried fifty. Start it without naming a channel and it picks, then moves if the one it picked goes quiet.
-- **It depends on other people's WiFi.** The node transmits nothing, so it can only work with whatever traffic is already around it. A quiet site gives it little to work with, and nothing you set on the node changes that.
-- **Set the sensitivity in the room it will live in.** Every room and channel has its own background level. Two nodes side by side settle at the same level, so if two in one room disagree badly, something is misconfigured.
-- **The defaults come from one room.** They were measured in a single home over short windows. Re-check them on site before you rely on them anywhere else.
-- **It is experimental.** No long-run false-alarm rate has been established on either board. Do not use it as your only sensor.
+- **Let it choose the channel.** In one room, minutes apart, one channel gave under three usable readings a second and another gave fifty. Start it without a channel; it picks, and moves if that one goes quiet.
+- **It runs on other people's WiFi.** The node transmits nothing, so a quiet site gives it little to work with. No setting changes that.
+- **Set sensitivity in the room it will live in.** Two nodes side by side settle at the same level; if they disagree badly, something is misconfigured.
+- **Defaults come from one room.** Re-check on site.
+- **Experimental.** No long-run false-alarm rate yet. Not your only sensor.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
