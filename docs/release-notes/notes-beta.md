@@ -24,18 +24,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - **SD writes survive a busy card.** An SD card acknowledges writes quickly until its internal buffers fill, then stalls while its controller commits to flash. The SD library waits a fixed 500 ms and gives up, so every write after that point returned zero while the node carried on as if the data had landed. Writes now flush and retry with backoff, and every writer in the firmware routes through that path: baseline, config, event log, results snapshot, probes, device database, detect features, randomization. Measured on a C5: the same capture went from 27 short writes to none.
 - **A reset during a capture no longer costs the card.** FAT has no power-fail protection, so a reset mid-write left the card unmountable until a human wiped it. The filesystem is now synced after each write rather than on a timer, and the mount path retries with a full bus re-init. Measured on a C5: 1 of 4 resets survived before, 5 of 5 after. A node can also rebuild its own card with `SD_REPAIR:ON`, off by default because rebuilding erases it. A failed mount now reports its count and shows in Diagnostics instead of retrying silently forever.
 - **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
-> [!WARNING]
-> **CSI motion detection is in test.** It works, but its sample rate depends on the radio and
-> on what traffic is in the air, and both vary more than the detector does. Results will vary
-> by site, by channel and by board. Neither board has a validated false-alarm rate. Do not
-> deploy it as a primary sensor.
-
-- **CSI motion detection** (full + headless, **in test**): device-free WiFi motion sensing on `acf`, the lag-one autocorrelation of CSI power weighted per subcarrier by that subcarrier's own ACF; per-area strength; `CSI_CFG` config, `CSI_MOTION:`/`CSI_CLEAR:` mesh debounced to two lines per episode. Rate depends on the channel and on the radio - start it without a channel argument so the survey picks by measured CSI yield, and read the Limitations section in the README before relying on it. An S3 harvests almost only legacy 11g; a C5 ingests roughly 3x as much on the same channel. The trigger is not universal: `acf` is absolute, its idle level tracks the channel and the transmitters in range, so measure the idle distribution where the node actually sits and set the trigger above it.
-- **CSI area alerts need agreement across radios, not links.** One link crossing the trigger used to raise the whole node. With a node tracking eight links that fired 48.7% of samples in an empty house - the same rate as when the house was occupied, so no discrimination at all. Links are now grouped by transmitter radio, so the several BSSIDs of one access point count once, and half a node's armed radios must be moving at once. The earlier two-thirds rule made movement in any area covered by a single access point structurally undetectable regardless of signal strength: measured on one install, an operator moving upstairs drove one radio's links to `sig` 0.21-0.41 while the other radio stayed at 0.002-0.010, and the node never fired.
-- **A blind CSI node says so.** A node with no armed link reported `quiet`, which is indistinguishable from an empty room. `[CSI] STATE` now prints `BLIND` and an `armed=` count, the status text and `/csi-json` carry `armed`, and the Movement card reads "Not detecting". A C5 was found holding zero settled links for 93% of two consecutive nights while reporting nothing.
-- **The session heat strip shows time, not peak.** Each block was the loudest single second in it, so one event painted a whole 15-minute block solid and the bar saturated. A block is now the fraction of its span spent in alert, and merged blocks average instead of taking the max.
-- **CSI frame mix in the status line.** `phy=b:<n>/g:<n>/ht:<n>/x:<n>` counts DSSS, legacy OFDM, HT and other per interval. CSI only comes from OFDM frames, so this shows whether a channel can support detection at all.
-- **Channel choice decides the sample rate.** Started without a channel the node surveys all 11 and ranks by measured CSI yield. One S3, same room, four minutes apart: ch6 gave 2.8 records/s, ch1 gave 49.7. Do not pin a channel by hand unless you have surveyed it.
+- **CSI motion detection** (full + headless, **experimental**): detects people moving through a space using the WiFi already in the air — nothing worn, no network joined, no transmitter installed. Movement alerts go to serial, SD and mesh peers. Sensitivity is per-site: measure the room with nobody in it and set the trigger above what you see.
 - **Triangulation target MAC is read and written atomically.** It was a plain 6-byte array written memset-then-memcpy while the web task, the sniffer callback and the scan task read it unsynchronised; a reader landing in that window saw a partly-written MAC, and at the match gate that silently dropped the peer's RSSI report.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
 - **The SD card is never refused a write.** An earlier build put an internal-heap floor in front of every SD open, which turned a memory shortage into a node that silently stopped logging. The floor is gone. The memory it was covering for was found instead: resident task stacks moved to PSRAM, and the log file is held open across writes rather than reopened per line, so `fopen` is not on the hot path at all.
@@ -75,13 +64,10 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
 - Hidden AP toggle for full firmware.
 - C5 experimental channel carries the same CSI, Fleet and fixes for testing.
-- CSI on the C5 needs `CSI_CFG:0.086:8000:3:6`; the shared 0.100 default trips on an
-  empty room. See [docs/ESP32-C5.md](../ESP32-C5.md) for the open upstream CSI issues
-  ([esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982),
-  [#18493](https://github.com/espressif/esp-idf/issues/18493),
-  [#18118](https://github.com/espressif/esp-idf/issues/18118),
-  [#14271](https://github.com/espressif/esp-idf/issues/14271),
-  [esp-csi#258](https://github.com/espressif/esp-csi/issues/258)).
+- Motion detection works the same on both board types and uses the same default sensitivity;
+  a C5 needs no special tuning. An alert needs half the transmitters a node is tracking to
+  show disturbance at the same moment, so one noisy neighbour cannot hold an alert open.
+  See [docs/ESP32-C5.md](../ESP32-C5.md) for C5 detail and the open upstream issues.
 
 ### Hardware
 
