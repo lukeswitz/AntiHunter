@@ -16,23 +16,20 @@ Everything the S3 node does — target scan, device scanner, probe scanner, base
 
 ## Bands and channels
 
-One radio, one band at a time. The band setting filters the configured channel list into the hop list.
+The node has one radio, so it works on one band at a time. Pick the band and it scans only the channels in that band.
 
-| Mode | Value | Hop list |
+| Band | Setting | Scans |
 |---|---|---|
-| 2.4 GHz | `0` | configured channels 1–14 only |
-| 5 GHz | `1` | configured channels above 14 only |
-| 2.4 + 5 GHz | `2` | the whole configured list |
+| 2.4 GHz | `0` | channels 1–14 |
+| 5 GHz | `1` | channels above 14 |
+| both | `2` | everything on your channel list |
 
-Selecting a 5 GHz mode appends `36, 40, 44, 48, 149, 153, 157, 161, 165` to the saved channel list if it holds no 5 GHz channel; mode `2` likewise adds `1, 6, 11` if it holds no 2.4 GHz channel. Set the list itself in RF Settings (default `1..11`).
+If your channel list has nothing in the band you pick, the node adds the usual channels for
+that band itself. Edit the list under RF Settings.
 
-Set it three ways:
-
-- **Web UI** — RF Settings, *Band* selector. The row only appears on C5 hardware.
-- **Mesh** — `@<NODE> CONFIG_BAND:<0|1|2>`, replies `CONFIG_ACK:BAND:<mode>` or `CONFIG_ACK:BAND:INVALID`.
-- **API** — `POST /rf-config` with `bandMode=<0|1|2>`. `POST /config` also accepts `bandMode`, but requires `channels` and `targets` in the same request. Both return `409` while a scan is running — stop it first.
-
-The value persists to NVS. On the full build the 5 GHz channels are scanned in short dwells between AP beacons so the web UI client stays associated.
+Change it in the web interface under RF Settings (the Band row appears only on C5 hardware),
+or over mesh with `@<NODE> CONFIG_BAND:<0|1|2>`. Stop any running scan first. The setting is
+remembered across reboots.
 
 ---
 
@@ -75,23 +72,19 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ## Known limits
 
-- Experimental channel only — not covered by the stable release cadence.
-- 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
-- Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
+- Experimental build — it does not follow the stable release schedule.
+- **Motion sensing can stall after hours of continuous running** and only a power cycle clears it. The chip's radio stops producing fresh signal data while everything else looks normal, so the node reports no movement rather than reporting a fault. Nothing in firmware recovers it.
+- 5 GHz is for scanning only. The node's own WiFi access point stays on 2.4 GHz.
+- Changing band briefly restarts that access point, so a browser connected to the node reconnects.
+- **Rarely, a reboot leaves the SD card unreadable until the node is unplugged.** Seen occasionally after a reset that keeps the card powered. The node then runs with no storage for the rest of the session — no logging, no capture, no baseline — and pulling the power clears it. Three reflashes on 2026-09-17 all remounted normally, so it is uncommon rather than expected.
 
-### CSI motion detection: the C5 ingests more than the S3
+### Motion detection on a C5
 
-The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other way from CSI:
+The S3 has two processor cores, the C5 one, so the S3 has more room to run scanning, mesh
+and the web interface at once. The C5 takes in noticeably more raw signal data per second
+and sees far more modern WiFi traffic, which suits motion sensing.
 
-| | ESP32-S3 | ESP32-C5 |
-|---|---|---|
-| cores | 2 | 1 |
-| WiFi and BLE scanning, mesh, web UI | more headroom - scan callbacks and the server do not share a core | everything shares one core |
-| CSI ingest rate | reference | 1.7-2.8x the S3, four paired surveys on ch1 (S3 44.8 / 18.4 / 14.8 / 24.4 records/s, C5 74.8 / 36.0 / 41.2 / 43.2) |
-| 802.11n frames seen | almost none | hundreds per 15s |
-| release channel | stable | experimental |
-
-Run scanning on S3 nodes, put a C5 where sensing matters most.
+Put S3 nodes where you want heavy scanning, and a C5 where sensing matters most.
 
 Both board types use the same detection maths and the same default sensitivity. Sitting side
 by side on one channel they settle at the same background level, so a C5 needs no special
@@ -102,7 +95,16 @@ walking around, and put the setting between the two. If the two overlap, no sett
 work — move the node or its antenna. The value is saved on the node; `CSI_RECAL` restores
 the default.
 
-Open upstream issues on C5/C61 CSI, none of which currently has a fix:
+---
+
+## Firmware notes
+
+Developer reference. Chip-level detail, open bugs in Espressif's own code, and the exact
+fields the firmware reads. Nothing below is needed to set up or run a node.
+
+### Open upstream issues
+
+Open bugs in Espressif's CSI support on C5/C61, none with a fix:
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
@@ -145,7 +147,7 @@ Channel-specific, not a chip verdict: on ch1 the same S3 decoded 10120 HT frames
 its OFDM against the C5's 33.6% on ch6. Why ch6 starved it is unexplained. Let the survey
 pick the channel.
 
-### SD card does not survive a reset without power removal
+### SD card sometimes needs a power cycle after a reset
 
 > [!WARNING]
 > Stop a capture before cutting power or resetting the node. FAT has no power-fail
@@ -153,7 +155,7 @@ pick the channel.
 > reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
 > rebuild its own card, which recovers most cases but not all, and erases the card.
 
-A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Seen after flashing and after USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset.
+A reset that leaves the SD card powered can occasionally leave the card unmountable until power is physically removed. Seen after flashing and after USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It is uncommon: three reflashes across both boards on 2026-09-17 all remounted normally.
 
 ```
 Initializing SD card...
