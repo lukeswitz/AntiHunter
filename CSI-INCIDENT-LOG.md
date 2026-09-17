@@ -95,12 +95,34 @@ events, at least three overnight windows you staged that were spent on configura
 later abandoned (09-13 threshold churn, 09-16 SPOTS removal, 09-16 pairing), and one
 2.5-hour C5 outage caused by my command race.
 
+### 11. The C5 12-bit L-LTF reader — asserted, shipped, withdrawn 2026-09-17
+
+`c0dea8d8` changed the C5 to read the 106-byte L-LTF buffer as 26 complex pairs at stride 4
+and I recorded it as a survivor with evidence. The arithmetic contradicts it: Espressif
+documents one item per subcarrier, two bytes, imaginary then real, so 106 bytes is 53
+subcarriers; 12-bit I/Q for 53 subcarriers needs 159 bytes, and the device only ever reports
+106. The reader was fusing two subcarriers into one value, which smooths the series.
+
+**Damage:** it set the C5's configuration for the period, and it produced the "CSI
+measurement noise 7-57x lower" figure that reached `docs/ESP32-C5.md` and the summary
+bullets — smoothing lowers apparent noise by construction, so that figure was likely
+measuring the defect. Both copies are now marked unverified. The field symptom it caused was
+the C5 scoring psi p50 0.0780 against the S3's 0.0170 on the same channel at the same gate,
+which cost this morning chasing a receiver difference that is partly of my own making.
+
+Corrected in `408700c8`; not yet flashed, so the corrected parse is unverified on hardware.
+
+**What should have caught it:** the byte arithmetic, before writing the reader. The
+supporting evidence I did have — a link peaking at 39.6 of 127 counts with per-subcarrier
+variation under one count — is a scaling symptom, and `cfg.val_scale_cfg` was set to 0 with a
+documented range of 0-8. I read that as a bit-width problem without checking whether the
+buffer could physically hold 12-bit data.
+
 ## What survives, and why
 
 | change | commit | evidence |
 |---|---|---|
 | stale links keep scorer state | `3abf91d1` | S3 radio-2 lost its settle mid-episode; fixed and rebuilt |
-| C5 L-LTF forced to 12-bit words | `c0dea8d8` | 8-bit peaked 39.6/127, per-bin variation under 1 LSB; psi median moved -0.105 to -0.026 against a -0.017 null |
 | area needs radios moving concurrently | `3077a431` | replay of your own logged events: a 1992 s hold becomes 170 s; empty-house control 26 s of 4100 s |
 | gate 0.065 from measured distributions | `20bfebc9` | labelled capture, area-rule replay: 86.8% of the moving window, 0.0% of the still window; 0.120 gave 13.2% |
 
