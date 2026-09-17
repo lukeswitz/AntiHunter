@@ -926,13 +926,29 @@ static void handleCsiCfg(const String &command)
   uint32_t consec = csiConsecNeeded.load();
   uint8_t ch = csiPinnedChannel.load();
   bool telemetry = csiTelemetry.load();
+  uint32_t dwell = csiAreaDutyMinS.load();
+  uint32_t radios = csiAreaRadiosNeeded.load();
   int idx = 0;
 
   while (params.length() > 0) {
     int colon = params.indexOf(':');
     String tok = (colon < 0) ? params : params.substring(0, colon);
     if (tok.length() > 0) {
-      if (idx == 0) thr = tok.toFloat();
+      if (tok.startsWith("SENSITIVITY=")) {
+        const String v = tok.substring(12);
+        if (v == "LOW") { thr = 0.080f; dwell = 20; radios = 3; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.065f; dwell = 12; radios = 3; }
+        else if (v == "HIGH") { thr = 0.045f; dwell = 6; radios = 1; }
+        else thr = v.toFloat();
+      }
+      else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
+      else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
+      else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
+      else if (tok.startsWith("BROADCAST=")) {
+        const String v = tok.substring(10);
+        setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
+      }
+      else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();
       else if (idx == 3) ch = (uint8_t)tok.toInt();
@@ -944,15 +960,18 @@ static void handleCsiCfg(const String &command)
   }
 
   if ((thr != 0.0f && (thr < 0.005f || thr > 20.0f)) || hold < 500 || hold > 120000 ||
-      consec < 1 || consec > 50 || ch > 14) {
+      consec < 1 || consec > 50 || ch > 14 ||
+      dwell < 2 || dwell > 60 || radios < 1 || radios > 12) {
     sendToSerial1(getNodeId() + ": CSI_CFG_ACK:INVALID", true);
     return;
   }
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
-  sendToSerial1(getNodeId() + ": CSI_CFG_ACK:T=" + String(thr, 3) +
-                " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
-                " CH=" + String(ch), true);
+  setCsiAreaConfig(dwell, radios);
+  sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
+                " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
+                "s SPOTS=" + String(radios) + " CH=" + String(ch) +
+                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
 }
 
 static void handleDeauthStart(const String &command)
