@@ -93,26 +93,18 @@ The S3 is dual-core Xtensa LX7, the C5 single-core RISC-V. That cuts the other w
 
 Run scanning on S3 nodes, put a C5 where sensing matters most.
 
-Both boards gate on `psi`, the WiDetect lag-one autocorrelation over a 60-packet window,
-and run the same 0.065 trigger. Measured with both on ch1 in the same room: S3 psi p50
-0.0150, C5 -0.0040, against a no-motion null of `-1/T` = -0.017.
+Both boards gate on `psi` and run the same 0.065 trigger. On ch1 in one room: S3 p50
+0.0150, C5 -0.0040, against a no-motion null of -0.017.
 
-An earlier build read the 106-byte L-LTF buffer as 26 pairs at stride 4, which fused
-adjacent subcarriers and inflated the C5's `psi` to p50 0.0750. Reading it as the
-documented one-item-per-subcarrier layout dropped it to -0.0040 on the same channel at
-the same trigger. Anything claiming the C5 needs its own trigger, resolves weaker
-movement, or carries less measurement noise came from that fault.
-
-Set the trigger from the room: watch `psi` with nobody in the space, watch it again with
-someone moving, put the trigger between the two. If they overlap, move the node or its
-antenna. `CSI_CFG:SENSITIVITY=<value>` persists in NVS, `CSI_RECAL` clears it.
+Set the trigger from the room. Watch `psi` empty, watch it again with someone moving, put
+the trigger between. If they overlap, move the node or its antenna. `CSI_CFG:SENSITIVITY=`
+persists in NVS, `CSI_RECAL` clears it.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
-  This firmware sets `lltf_bit_mode = 0` and reads the documented layout: 53 subcarriers,
-  one signed byte each for imaginary and real.
+  This firmware reads the documented layout: 53 subcarriers, one signed byte per component.
 - [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
   static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
 - [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
@@ -220,13 +212,10 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
   valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
   in the status line; `csiRequireCeVld` gates on it.
-- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "LLTF bit width mode for I/Q components,
-  0 : 12-bit, 1 : 8-bit, default : 12-bit". `csiArmCsi` sets 0, which asks for 12-bit, while
-  the decode reads int8 pairs. That mismatch is unresolved: the payload is 106 bytes either
-  way, which is 53 subcarriers at one signed byte per component and cannot hold 12-bit data
-  for a full L-LTF, so the mode bit appears not to change what arrives. Setting it to 1 would
-  make the request match the decode. `csiWord12` in `csi_metric.h` is the 12-bit decoder,
-  retained and unused.
+- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
+  `csiArmCsi` sets 0 but the decode reads int8 pairs. Harmless so far — the payload is 106
+  bytes either way, too small for 12-bit across 53 subcarriers — but the request should be 1.
+  `csiWord12` is the 12-bit decoder, retained and unused.
 
 `CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
 Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
