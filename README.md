@@ -333,8 +333,7 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 > **CSI motion transmits. Every other scan in this firmware is receive-only; this one is not.**
 > When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to
 > pull traffic out of the air, at most once per second. On a channel with normal traffic it never
-> needs to: one node measured `tx=0` across a whole session on a busy channel, against `tx=640` on
-> a starved one. The frame is a standard 802.11 probe request with a locally-administered source
+> needs to. The frame is a standard 802.11 probe request with a locally-administered source
 > address (`02:00:00:00:00:01`), not the node's own MAC - the same class of frame a phone sends
 > while scanning. It is still RF on the air, so a node running CSI can be seen by anyone monitoring
 > the channel. `tx=` in the serial status line is the running count of frames sent.
