@@ -75,7 +75,7 @@
 | **Drone RID** | Drones broadcasting Remote ID over WiFi and BLE, with operator position | Recon |
 | **Baseline Anomaly** | Devices that are new, gone, returned, or that moved | Detection |
 | **Deauth Detection** | Deauth and disassoc attacks, fingerprinted to the tool behind them | Detection |
-| **CSI Motion** (experimental) | Movement or a still occupant in the room, from how bodies disturb nearby WiFi | Detection |
+| **CSI Motion** (upcoming) | Not released. Movement in the room, from how bodies disturb nearby WiFi | Detection |
 | **Sentinel** | Attacker-tool activity: floods, evil twins, karma, handshake capture, PMKID harvesting | Sentinel tab |
 | **Packet Capture** | Raw WiFi or BLE traffic to SD as a standard pcap | Capture |
 | **Triangulation** | Multi-node RSSI location estimate for one target | Scan tab |
@@ -291,13 +291,12 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ---
 
-### Detection: CSI Motion (experimental)
+### Detection: CSI Motion (upcoming)
 
-> **Experimental.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
+> **Upcoming. Not released and not working.** Do not rely on it. The commands below are
+> documented because they exist in the tree, not because the feature is finished.
 
 Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it listens to the access points and phones already around it and watches how a body disturbs those signals.
-
-Movement disturbs them most, a still person less, an empty room least. Sensitivity draws the line.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
@@ -457,7 +456,8 @@ Mesh: `AUTOERASE_ENABLE:<setup>:<erase>:<vibrations>:<window>:<cooldown>` in sec
 >   contract for `esp_wifi_set_channel`, not a fault. Scans and captures visit channels through
 >   `esp_wifi_scan_start`, which returns the radio to the AP channel between hops, so the link survives
 >   and the AP channel takes a larger share of the airtime while a browser is connected.
-> - **CSI measures far cleaner than the S3** on the same channel, with a higher record rate. A trigger
+> - **CSI reads differently than the S3** on the same channel, and the two boards' numbers are not
+>   comparable. A trigger
 >   tuned on an S3 will not behave the same here. Measure each board's own idle distribution on the
 >   channel it surveyed onto and set its trigger from that.
 

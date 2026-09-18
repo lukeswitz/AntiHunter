@@ -1396,6 +1396,7 @@ void csiMotionTask(void *pv) {
     uint32_t lastResultsMs = 0;
     uint32_t lastExpireMs = millis();
     uint32_t lastStatMs = millis();
+    uint32_t statSeenSnap = 0;
     uint32_t lastRollMs = millis();
     uint32_t lastStallMs = millis();
     uint32_t lastSeenSnap = 0;
@@ -1463,7 +1464,9 @@ void csiMotionTask(void *pv) {
                                         " N=" + String(movingLinks) +
                                         " S=" + String(peak, 2), PRIO_EVENT);
                     }
-                    Serial.printf("[CSI] AREA MOTION (held %us)\n", CSI_AREA_DEBOUNCE_MS / 1000);
+                    Serial.printf("[CSI] AREA MOTION (held %us) links=%u/%u peak=%.2f\n",
+                                  CSI_AREA_DEBOUNCE_MS / 1000, (unsigned)movingLinks,
+                                  (unsigned)csiNeedLinks(armedLinks), peak);
                 } else {
                     const uint32_t dwell = (g_areaCandSince - g_areaSinceMs) / 1000;
                     csiEpisodeClose(dwell);
@@ -1606,7 +1609,12 @@ void csiMotionTask(void *pv) {
         }
 
         if (now - lastStatMs >= 15000) {
+            const uint32_t statMs = now - lastStatMs;
             lastStatMs = now;
+            const uint32_t statSeenNow = g_csiSeen.load();
+            const float statRateNow = (float)(statSeenNow - statSeenSnap) * 1000.0f /
+                                      (float)(statMs ? statMs : 1);
+            statSeenSnap = statSeenNow;
             const uint32_t span = now - startMs;
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
             float statZMax = 0.0f, statFloorMax = 0.0f, statSigMax = 0.0f;
@@ -1637,7 +1645,7 @@ void csiMotionTask(void *pv) {
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u fmtdrop=%u fw=%u frames=%u tx=%u/%u err=%d poll=%u/%u perr=%d sta=%u "
                           "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u "
-                          "phy=b:%u/g:%u/ht:%u/x:%u\n",
+                          "phy=b:%u/g:%u/ht:%u/x:%u now=%.1f/s\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
@@ -1650,7 +1658,12 @@ void csiMotionTask(void *pv) {
                           (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
                           (unsigned)g_lenVal[1], (unsigned)g_lenFmt[1], (unsigned)g_lenCnt[1],
                           g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load(),
-                          g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load());
+                          g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load(),
+                          statRateNow);
+            if (g_areaMotion) {
+                Serial.printf("[CSI] AREA HELD %us on ch%u\n",
+                              (unsigned)((now - g_areaSinceMs) / 1000), g_csiActiveChannel);
+            }
             if (csiTelemetry.load()) {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {

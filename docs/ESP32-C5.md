@@ -78,6 +78,8 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### Motion detection on a C5
 
+**Upcoming. Not released and not working.**
+
 Same detection and same default sensitivity as an S3. The C5 takes in more signal data per
 second; the S3 has a spare core for scanning and the web UI. Put S3s where you scan, a C5
 where you sense.
