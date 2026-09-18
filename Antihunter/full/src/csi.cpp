@@ -1020,7 +1020,7 @@ String getCsiJson() {
         const CsiEpisode &e = g_eps[(uint8_t)((g_epHead + CSI_EPISODES - 1 - i) % CSI_EPISODES)];
         if (i) j += ",";
         j += "{\"at\":\"" + String(e.at) + "\",\"dwell\":" + String(e.dwellSec) +
-             ",\"peak\":" + String(e.peak, 2) +
+             ",\"peak\":" + String(e.open ? g_epPeak : e.peak, 2) +
              ",\"open\":" + String(e.open ? "true" : "false") + "}";
     }
     j += "]";
