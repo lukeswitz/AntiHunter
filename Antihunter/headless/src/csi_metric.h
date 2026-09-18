@@ -22,7 +22,7 @@ static const float CSI_FLOOR_QUANT = 100000.0f;
 static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.0167f;
-static const uint16_t CSI_ACF_T = 240;
+static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 8000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_ACF_ETA = 0.10f;
@@ -36,7 +36,7 @@ static inline float csiAnalyticEta() {
 }
 static const int CSI_AREA_LINK_NUM = 1;
 static const int CSI_AREA_LINK_DEN = 2;
-static const int CSI_AREA_LINK_CAP = 3;
+static const int CSI_AREA_LINK_CAP = 2;
 static const float CSI_ACF_ETA_SUB = 0.10f;
 static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
@@ -54,7 +54,7 @@ static const uint16_t CSI_ACF_SETTLE_PAIRS = 450;
 static const float CSI_SPREAD_ALPHA = 0.02f;
 static const float CSI_LINK_MIN_SPREAD = 0.03f;
 static const uint32_t CSI_LINK_MIN_PKTS = 60;
-static const float CSI_LINK_ARM_SEC = 240.0f;
+static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
 static const int8_t CSI_SURVEY_MIN_RSSI = -85;

@@ -31,7 +31,7 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
-std::atomic<uint32_t> csiAreaDutyMinS{12};
+std::atomic<uint32_t> csiAreaDutyMinS{4};
 std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
@@ -132,7 +132,7 @@ static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_MOTION_MAX_DWELL_MS = 300000;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 6000;
 static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
-static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
+static const uint16_t CSI_AREA_DUTY_MIN_S = 4;
 static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
 static uint8_t g_areaDutyPos = 0;
 static uint8_t g_radioKey[CSI_MAX_LINKS][6];
@@ -544,7 +544,10 @@ static int csiNeedLinks(int armedLinks) {
     int need = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
     if (need < 1) need = 1;
     const int cap = (int)csiAreaRadiosNeeded.load();
-    if (cap > 0 && need > cap) need = cap;
+    if (cap > 0) {
+        need = (armedLinks < cap) ? armedLinks : cap;
+        if (need < 1) need = 1;
+    }
     if (cap >= 2 && need < 2) need = 2;
     return need;
 }
