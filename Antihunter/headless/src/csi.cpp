@@ -794,7 +794,7 @@ String getCsiResults() {
     r += "Rejected (FCS/40MHz/short): " + String(g_csiRejected.load()) + "\n";
     r += "Queue drops: " + String(g_csiDropped.load()) + "\n";
     r += "Motion events: " + String(g_csiMotionEvents.load()) + "\n";
-    r += "Threshold: " + String((float)csiThresholdMilli.load() / 1000.0f, 2) +
+    r += "Threshold: " + String(csiPsiEta(csiThresholdMilli.load()), 3) +
          "x  Hold: " + String(csiHoldMs.load()) + "ms\n\n";
 
     if (n == 0) {
@@ -852,7 +852,7 @@ String getCsiJson() {
     j += ",\"drops\":" + String(g_csiDropped.load());
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
-    j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
+    j += ",\"threshold\":" + String(csiPsiEta(csiThresholdMilli.load()), 3);
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);

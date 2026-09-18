@@ -990,7 +990,8 @@ static void handleCsiCfg(const String &command)
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
   setCsiAreaConfig(dwell, radios);
-  sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(thr, 3) +
+  const float shownThr = (thr > 0.0f) ? thr : CSI_PSI_ETA;
+  sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +
                 " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
