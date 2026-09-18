@@ -80,7 +80,7 @@ static void csiHeatPush(bool alerting) {
     if (g_heatCurSec < g_heatSec) return;
 
     const uint32_t evNow = g_epTotal;
-    const uint8_t hot = (evNow != g_heatEvSnap) ? 1 : 0;
+    const uint8_t hot = (g_heatHotCur || evNow != g_heatEvSnap) ? 1 : 0;
     g_heatEvSnap = evNow;
 
     float lvl = (float)g_heatSum / (float)(g_heatSec ? g_heatSec : 1);
