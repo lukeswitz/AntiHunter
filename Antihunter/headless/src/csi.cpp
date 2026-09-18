@@ -774,7 +774,11 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        if (l.sc.psiValid && l.sc.psi >= psiEta) {
+        const bool zReady = l.sc.psiHistReady();
+        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta &&
+                              (!zReady || l.sc.psiZ >= CSI_PSI_Z);
+
+        if (psiAbove) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -798,7 +802,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.psi < psiEta &&
+        } else if (l.motion && !psiAbove &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;

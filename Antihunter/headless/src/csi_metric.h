@@ -196,6 +196,7 @@ struct CsiScorer {
     uint8_t gcnt;
 
     bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
+    bool psiHistReady() const { return phlen >= CSI_ACF_MIN_HIST; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
