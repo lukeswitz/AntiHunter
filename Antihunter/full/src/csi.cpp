@@ -125,7 +125,7 @@ static void csiHeatPush(float act, bool alerting) {
 }
 
 static const uint16_t CSI_DRAIN_BURST = 64;
-static const uint32_t CSI_MOTION_MIN_MS = 300;
+static const uint32_t CSI_MOTION_MIN_MS = 0;
 static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
@@ -695,9 +695,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float psiEta = csiPsiEta(csiThresholdMilli.load());
-        const bool zReady = l.sc.psiHistReady();
-        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta &&
-                              (!zReady || l.sc.psiZ >= CSI_PSI_Z);
+        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta;
 
         if (psiAbove) {
             l.lastAboveMs = now;
