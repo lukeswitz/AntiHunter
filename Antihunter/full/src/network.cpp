@@ -203,13 +203,12 @@ void initializeNetwork()
   initializeMesh();
 
   Serial.println("Starting AP...");
-  randomizeMacAddress();
-  delay(50);
 
   WiFi.mode(WIFI_AP_STA);
   delay(100);
   {
     const esp_err_t stopErr = esp_wifi_stop();
+    randomizeMacAddress();
     const esp_err_t rateErr = esp_wifi_config_11b_rate(WIFI_IF_AP, true);
     const esp_err_t startErr = esp_wifi_start();
     Serial.printf("[WIFI] AP 11b rates disabled (OFDM beacons): stop=%s cfg=%s start=%s\n",
