@@ -120,7 +120,7 @@ static void csiHeatPush(bool alerting) {
 }
 
 static const uint16_t CSI_DRAIN_BURST = 64;
-static const uint32_t CSI_MOTION_MIN_MS = 0;
+static const uint32_t CSI_MOTION_MIN_MS = 300;
 static const uint8_t CSI_RADIO_KEY_LEN = 6;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
