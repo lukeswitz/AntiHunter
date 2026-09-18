@@ -199,11 +199,12 @@ void initializeNetwork()
   initializeMesh();
 
   Serial.println("Starting AP...");
-  randomizeMacAddress();
-  delay(50);
 
   WiFi.mode(WIFI_AP_STA);
   delay(100);
+  esp_wifi_stop();
+  randomizeMacAddress();
+  esp_wifi_start();
   
   customApSsid = prefsGetString("apSsid", AP_SSID);
   customApPass = prefsGetString("apPass", AP_PASS);
