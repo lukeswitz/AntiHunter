@@ -291,7 +291,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 70%,transparent)}
       .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 85%,transparent)}
       .csi-heat i.h7{background:var(--csi-hit)}
-      .csi-heat i.ev{box-shadow:inset 0 -3px 0 var(--txt)}
       .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
       .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
@@ -4567,13 +4566,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!heat.length) return '';
         let cells = '', pick = '';
         const hotArr = d.hot || [];
+        const evArr = d.ev || [];
         const sec = d.heatSec || 5;
         for (let i = 0; i < heat.length; i++) {
           const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
           const hot = hotArr.length > i && !!hotArr[i];
-          const shade = lvl <= 0 ? 0 : Math.max(1, Math.min(7, Math.round(lvl * 7)));
-          const tip = 'in motion ' + Math.round(lvl * 100) + '% of this block' + (hot ? ', event started here' : '');
-          cells += '<i data-i="' + i + '" class="h' + shade + (hot ? ' ev' : '') + '" title="' + tip + '"' +
+          const ev = evArr.length > i ? (evArr[i] || 0) : (hot ? 1 : 0);
+          const shade = Math.min(7, ev);
+          const tip = (ev ? ev + (ev === 1 ? ' movement event' : ' movement events') : 'no movement events') +
+                      ', in motion ' + Math.round(lvl * 100) + '% of this block';
+          cells += '<i data-i="' + i + '" class="h' + shade + '" title="' + tip + '"' +
                    (i === csiPick ? ' style="outline:2px solid var(--txt);outline-offset:-2px"' : '') + '></i>';
           if (i === csiPick) {
             const t = new Date(Date.now() - (heat.length - i - 0.5) * sec * 1000);
