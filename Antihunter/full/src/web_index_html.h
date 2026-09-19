@@ -718,13 +718,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
                 <label style="font-size:11px;">Sensitivity</label>
                 <select id="csiPreset" name="csiPreset" onchange="csiApplyPreset(this.value)">
-                  <option value="low">Low — only obvious movement, fewest false alarms</option>
-                  <option value="medium" selected>Medium — someone walking in the room</option>
-                  <option value="high">High — small movement, more false alarms</option>
+                  <option value="low">Low — strong movement only, fewest false alarms</option>
+                  <option value="medium" selected>Medium — someone walking, this room or the next</option>
+                  <option value="high">High — faint or distant movement, more false alarms</option>
                   <option value="custom">Custom</option>
                 </select>
                 <div style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">
-                  Higher sensitivity catches brief or distant movement but reports more when nothing is there.
+                  Coverage is not confined to this room. Movement through a wall reports too.
                   If a room reads wrong, change this before touching Advanced.
                 </div>
                 <details style="margin-top:4px;">
