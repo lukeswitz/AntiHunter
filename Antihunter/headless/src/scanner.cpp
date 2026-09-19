@@ -83,7 +83,6 @@ void stopAllScans(bool cancelMeshDrain) {
     scanSetCountdown(0, false);
 
     esp_wifi_scan_stop();
-    WiFi.scanDelete();
     if (pBLEScan) pBLEScan->stop();
 
     if (cancelMeshDrain && (meshTxDraining.load() || meshTxQueueDepth() > 0)) {
