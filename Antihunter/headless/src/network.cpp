@@ -742,19 +742,29 @@ static void handlePcapStop(const String &command)
 static void handleDeviceScanStart(const String &command)
 {
   String params = command.substring(18);
-  int modeDelim = params.indexOf(':');
-  int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+  int mode = -1;
   int secs = 60;
   bool forever = false;
+  bool captureProbes = false;
 
-  if (modeDelim > 0)
-  {
-    int secsDelim = params.indexOf(':', modeDelim + 1);
-    secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-    if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
-    {
+  int field = 0;
+  int start = 0;
+  while (start <= (int)params.length()) {
+    int delim = params.indexOf(':', start);
+    String tok = params.substring(start, delim > 0 ? delim : params.length());
+    tok.trim();
+    if (tok == "FOREVER") {
       forever = true;
+    } else if (tok == "+PROBE") {
+      captureProbes = true;
+    } else if (tok.length()) {
+      int v = tok.toInt();
+      if (field == 0) mode = v;
+      else if (field == 1) secs = v;
     }
+    field++;
+    if (delim < 0) break;
+    start = delim + 1;
   }
 
   if (secs < 0) secs = 0;
@@ -769,7 +779,6 @@ static void handleDeviceScanStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
-      bool captureProbes = (params.indexOf("+PROBE") >= 0);
       if (captureProbes) {
           probeDetectionEnabled = true;
           if (probeRequestQueue == nullptr) {
