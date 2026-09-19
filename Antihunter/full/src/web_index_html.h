@@ -283,6 +283,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
       .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
       .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block;cursor:pointer}
+      .csi-heat i.h0{background:rgba(128,128,128,0.12)}
+      .csi-heat i.h1{background:#3b82f6}
+      .csi-heat i.h2{background:#06b6d4}
+      .csi-heat i.h3{background:#10b981}
+      .csi-heat i.h4{background:#84cc16}
+      .csi-heat i.h5{background:#eab308}
+      .csi-heat i.h6{background:#f97316}
+      .csi-heat i.h7{background:#ef4444}
       .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
       .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
@@ -4562,11 +4570,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         for (let i = 0; i < heat.length; i++) {
           const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
           const hot = hotArr.length > i && !!hotArr[i];
-          const f = hot ? 1 : (0.06 + 0.54 * lvl);
+          const shade = hot ? 7 : (lvl <= 0 ? 0 : Math.max(1, Math.min(7, Math.round(lvl * 7))));
           const tip = hot ? 'movement event started here'
                           : 'movement ' + Math.round(lvl * 200) + '% of the alert line';
-          cells += '<i data-i="' + i + '" title="' + tip + '" style="opacity:' + f.toFixed(2) +
-                   (hot ? ';background:var(--csi-hit)' : '') + (i === csiPick ? ';outline:2px solid var(--txt);outline-offset:-2px' : '') + '"></i>';
+          cells += '<i data-i="' + i + '" class="h' + shade + '" title="' + tip + '"' +
+                   (i === csiPick ? ' style="outline:2px solid var(--txt);outline-offset:-2px"' : '') + '></i>';
           if (i === csiPick) {
             const t = new Date(Date.now() - (heat.length - i - 0.5) * sec * 1000);
             pick = '<div class="csi-pick"><b>~' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</b>' + tip + '</div>';
