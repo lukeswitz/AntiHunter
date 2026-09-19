@@ -46,8 +46,6 @@ static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
-static const uint32_t CSI_ACF_LAG_MIN_US = 8000;
-static const uint32_t CSI_ACF_LAG_MAX_US = 1000000;
 static const float CSI_PSI_ETA = 0.200f;
 static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 1.5f;
@@ -184,10 +182,8 @@ struct CsiScorer {
     uint8_t hpos;
     uint16_t sampCount;
     uint32_t acfPairs;
-    uint32_t lagSkips;
     uint32_t lagBkt[5];
     uint8_t prevValid;
-    uint32_t lagAccum;
     float *gring;
     float *gS1;
     float *gS2;
@@ -240,10 +236,8 @@ struct CsiScorer {
         hpos = 0;
         sampCount = 0;
         acfPairs = 0;
-        lagSkips = 0;
         for (int i = 0; i < 5; i++) lagBkt[i] = 0;
         prevValid = 0;
-        lagAccum = 0;
         gpos = 0;
         gcnt = 0;
         if (gS1 && gS2 && gP) {
@@ -408,8 +402,6 @@ struct CsiScorer {
         int nsig = 0;
         int nf = 0;
         int nvote = 0;
-        const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
-        if (!lagOk && lagSkips < 0xFFFFFFFFu) lagSkips++;
         if (dtUs != 0xFFFFFFFFu) {
             const int bi = (dtUs < 50000) ? 0 : (dtUs < 200000) ? 1 : (dtUs < 1000000) ? 2 : (dtUs < 3000000) ? 3 : 4;
             if (lagBkt[bi] < 0xFFFFFFFFu) lagBkt[bi]++;

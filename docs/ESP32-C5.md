@@ -78,11 +78,13 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### Motion detection on a C5
 
-**Upcoming. Not released and not working.**
+**In testing.** It runs and it detects, but against the same labelled walk-ins in the same
+room a C5 separates movement from background less cleanly than an S3. The cause is still
+open. Prefer an S3 where detection matters.
 
-Same detection and same default sensitivity as an S3. The C5 takes in more signal data per
-second; the S3 has a spare core for scanning and the web UI. Put S3s where you scan, a C5
-where you sense.
+The default sensitivity differs from the S3's and is not interchangeable with it: the C5
+reads a higher idle level, so an S3 value silences it and a C5 value floods an S3. Each chip
+carries its own default.
 
 Set sensitivity from the room: read it empty, read it with someone walking, set between the
 two. If they overlap, move the node. `CSI_RECAL` restores the default.

@@ -75,7 +75,7 @@
 | **Drone RID** | Drones broadcasting Remote ID over WiFi and BLE, with operator position | Recon |
 | **Baseline Anomaly** | Devices that are new, gone, returned, or that moved | Detection |
 | **Deauth Detection** | Deauth and disassoc attacks, fingerprinted to the tool behind them | Detection |
-| **CSI Motion** (upcoming) | Not released. Movement in the room, from how bodies disturb nearby WiFi | Detection |
+| **CSI Motion** (experimental beta, S3) | Movement in the room, from how bodies disturb nearby WiFi | Detection |
 | **Sentinel** | Attacker-tool activity: floods, evil twins, karma, handshake capture, PMKID harvesting | Sentinel tab |
 | **Packet Capture** | Raw WiFi or BLE traffic to SD as a standard pcap | Capture |
 | **Triangulation** | Multi-node RSSI location estimate for one target | Scan tab |
@@ -291,10 +291,9 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ---
 
-### Detection: CSI Motion (upcoming)
+### Detection: CSI Motion (experimental beta, S3 only)
 
-> **Upcoming. Not released and not working.** Do not rely on it. The commands below are
-> documented because they exist in the tree, not because the feature is finished.
+> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
 Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it listens to the access points and phones already around it and watches how a body disturbs those signals.
 
@@ -337,9 +336,10 @@ sitting still, both registered often.
 
 - **Let it choose the channel.** In one room, minutes apart, one channel gave under three usable readings a second and another gave fifty. Start it without a channel; it picks, and moves if that one goes quiet.
 - **It runs on other people's WiFi.** The node transmits nothing, so a quiet site gives it little to work with. No setting changes that.
-- **Set sensitivity in the room it will live in.** Two nodes side by side settle at the same level; if they disagree badly, something is misconfigured.
+- **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
-- **Experimental.** No long-run false-alarm rate yet. Not your only sensor.
+- **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
+- **In testing on the ESP32-C5.** It runs, but separates movement from background less cleanly than an S3 in the same room. Prefer an S3 where detection matters.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
