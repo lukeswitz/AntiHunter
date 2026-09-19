@@ -723,19 +723,29 @@ static void handlePcapStop(const String &command)
 static void handleDeviceScanStart(const String &command)
 {
   String params = command.substring(18);
-  int modeDelim = params.indexOf(':');
-  int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+  int mode = -1;
   int secs = 60;
   bool forever = false;
+  bool captureProbes = false;
 
-  if (modeDelim > 0)
-  {
-    int secsDelim = params.indexOf(':', modeDelim + 1);
-    secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-    if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
-    {
+  int field = 0;
+  int start = 0;
+  while (start <= (int)params.length()) {
+    int delim = params.indexOf(':', start);
+    String tok = params.substring(start, delim > 0 ? delim : params.length());
+    tok.trim();
+    if (tok == "FOREVER") {
       forever = true;
+    } else if (tok == "+PROBE") {
+      captureProbes = true;
+    } else if (tok.length()) {
+      int v = tok.toInt();
+      if (field == 0) mode = v;
+      else if (field == 1) secs = v;
     }
+    field++;
+    if (delim < 0) break;
+    start = delim + 1;
   }
 
   if (secs < 0) secs = 0;
@@ -749,6 +759,16 @@ static void handleDeviceScanStart(const String &command)
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
+
+      if (captureProbes) {
+        probeDetectionEnabled = true;
+        if (probeRequestQueue == nullptr) {
+          probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        } else {
+          xQueueReset(probeRequestQueue);
+        }
+      }
+
       scanning = true;
       if (ahCreateTask(snifferScanTask, "sniffer", 12288,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
@@ -759,7 +779,9 @@ static void handleDeviceScanStart(const String &command)
           sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
           return;
       }
-      Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+      Serial.printf("[MESH] Started device scan via mesh command (%s%s)\n",
+                    forever ? "forever" : (String(secs) + "s").c_str(),
+                    captureProbes ? ", +probe" : "");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
   }
