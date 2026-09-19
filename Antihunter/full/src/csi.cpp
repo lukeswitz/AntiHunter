@@ -815,7 +815,9 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta;
+        const bool zReady = l.sc.psiHistReady();
+        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta &&
+                              (!zReady || l.sc.psiZ >= CSI_PSI_Z);
 
         if (psiAbove) {
             l.lastAboveMs = now;
