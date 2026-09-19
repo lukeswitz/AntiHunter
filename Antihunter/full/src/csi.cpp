@@ -62,6 +62,7 @@ static const uint8_t CSI_HEAT_NSTEPS = sizeof(CSI_HEAT_STEPS) / sizeof(CSI_HEAT_
 static uint8_t g_heatStep = 0;
 static uint8_t g_heat[CSI_HEAT_CELLS];
 static uint8_t g_heatHot[CSI_HEAT_CELLS];
+static uint8_t g_heatEv[CSI_HEAT_CELLS];
 static uint8_t g_heatHotCur = 0;
 static uint8_t g_heatLen = 0;
 static uint16_t g_heatSec = 60;
@@ -79,6 +80,8 @@ static void csiHeatPush(bool alerting) {
 
     const uint32_t evNow = g_epTotal;
     const uint8_t hot = (g_heatHotCur || evNow != g_heatEvSnap) ? 1 : 0;
+    const uint32_t dEv = evNow - g_heatEvSnap;
+    const uint8_t evc = (dEv > 255u) ? 255u : (uint8_t)dEv;
     g_heatEvSnap = evNow;
 
     float lvl = (float)g_heatSum / (float)(g_heatSec ? g_heatSec : 1);
@@ -90,6 +93,7 @@ static void csiHeatPush(bool alerting) {
 
     if (g_heatLen < CSI_HEAT_CELLS) {
         g_heatHot[g_heatLen] = hot;
+        g_heatEv[g_heatLen] = evc;
         g_heat[g_heatLen++] = cell;
     } else {
         uint16_t factor = 2;
@@ -103,18 +107,22 @@ static void csiHeatPush(bool alerting) {
         uint8_t out = 0;
         for (uint8_t i = 0; i < CSI_HEAT_CELLS; i += factor) {
             uint16_t acc = 0;
+            uint16_t evacc = 0;
             uint8_t n = 0, mhot = 0;
             for (uint8_t k = i; k < i + factor && k < CSI_HEAT_CELLS; k++) {
                 acc = (uint16_t)(acc + g_heat[k]);
+                evacc = (uint16_t)(evacc + g_heatEv[k]);
                 n++;
                 mhot |= g_heatHot[k];
             }
             g_heat[out] = (uint8_t)(acc / (n ? n : 1));
             g_heatHot[out] = mhot;
+            g_heatEv[out] = (evacc > 255u) ? 255u : (uint8_t)evacc;
             out++;
         }
         g_heatLen = out;
         g_heatHot[g_heatLen] = hot;
+        g_heatEv[g_heatLen] = evc;
         g_heat[g_heatLen++] = cell;
     }
 }
@@ -1047,6 +1055,17 @@ String getCsiJson() {
     if (g_heatCurSec > 0) {
         if (g_heatLen) j += ",";
         j += String(g_epTotal != g_heatEvSnap ? 1 : 0);
+    }
+    j += "]";
+    j += ",\"ev\":[";
+    for (uint8_t i = 0; i < g_heatLen; i++) {
+        if (i) j += ",";
+        j += String(g_heatEv[i]);
+    }
+    if (g_heatCurSec > 0) {
+        if (g_heatLen) j += ",";
+        const uint32_t liveEv = g_epTotal - g_heatEvSnap;
+        j += String(liveEv > 255u ? 255u : liveEv);
     }
     j += "]";
     j += ",\"links\":[";
