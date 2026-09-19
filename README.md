@@ -341,7 +341,7 @@ sitting still, both registered often.
 - **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
 - **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
-- **In testing on the ESP32-C5.** It separates movement from background less than half as well as an S3 in the same room. Do not deploy a C5 for motion.
+- **In testing on the ESP32-C5.** It runs, but separates movement from background less cleanly than an S3 in the same room. Prefer an S3 where detection matters.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >

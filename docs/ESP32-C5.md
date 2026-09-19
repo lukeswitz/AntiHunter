@@ -78,8 +78,9 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### Motion detection on a C5
 
-In testing. Scored against the same labelled walk-ins in the same room, a C5 separates
-movement from background less than half as well as an S3. Use an S3 for motion.
+In testing. It runs and it detects, but against the same labelled walk-ins in the same room
+a C5 separates movement from background less cleanly than an S3. The cause is still open.
+Prefer an S3 where detection matters.
 
 The default sensitivity differs from the S3's and is not interchangeable with it: the C5
 reads a higher idle level, so an S3 value silences it and a C5 value floods an S3. Each chip
