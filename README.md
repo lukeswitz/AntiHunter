@@ -358,7 +358,7 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 > **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
 >
 > **Settings**
-> - Plain-language form `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
+> - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
 > - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree), `BROADCAST=OFF` (never transmit)
 > - Trigger, hold, consecutive hits and channel `@ALL CSI_CFG:0.10:5000:3:0`
 > - Start silent `@ALL CSI_MOTION_START:0:FOREVER:LISTEN_ONLY` - `ALLOW_TRANSMIT` undoes it
@@ -486,7 +486,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### The System tab
 
-Everything that configures the node lives on one page, in cards.
+Everything that configures the node is on one page, in cards.
 
 <p align="center">
   <img width="880" alt="System tab" src="docs/img/system-tab.jpg" />
