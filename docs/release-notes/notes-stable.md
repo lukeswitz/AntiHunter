@@ -17,6 +17,7 @@ Packet capture to SD, a Sentinel that fights back, local-time logs, and the memo
 - Captures list on the Scan tab: download, delete, delete-all behind a confirmation.
 - Data Explorer privacy toggle.
 - Method dropdown regrouped: Recon, Detection, Capture.
+- `MESH_TX_CANCEL` (and the UI cancel) clears the mesh queue without stopping the scan; a queued backlog no longer blocks starting one.
 - Mesh on/off is saved across reboots.
 - SD bus runs at 16 MHz (was 400 kHz), with 4 MHz and 400 kHz fallbacks.
 - Boot prints a `[MEM]` ladder and a `[HEAP]` line every 30 s, so a memory report can be read off the serial log.
