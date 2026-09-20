@@ -2,92 +2,49 @@
 
 Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
+Motion detection from the WiFi already in the air, packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
+
 ## New
 
-### Both FW
-
-- **CSI motion detection** (experimental beta, ESP32-S3): movement in a room from ambient WiFi; nothing worn or joined.
-  - Reports through walls.
-  - Scan tab → CSI Motion; presets Low / Medium / High.
-  - Mesh: `CSI_MOTION_START:secs[:CH<n>][:FOREVER]`, `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`.
-  - Listen-only by default; `ALLOW_TRANSMIT` lets the node send probe requests for more traffic.
-  - Alerts: `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD.
-  - Sensitivity is per receiver; a value tuned on one board does not transfer.
-  - ESP32-C5: in testing; separates movement from background less cleanly.
-  - No long-run false-alarm rate measured yet.
-- **Packet capture to SD**: Wireshark pcap, WiFi radiotap, BLE PDUs.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, Scan tab, or on vibration (Sensor Alerts).
-  - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
-  - Size cap: Scan tab, Sentinel panel, or `PCAP_LIMITS:<MB>`.
-  - Stop line reports channels visited.
-- **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
-- `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
-- `MESH_TX_CANCEL` and the UI cancel clear the mesh queue without stopping the scan.
+- **CSI motion detection** (experimental beta, ESP32-S3). A node senses people moving through a space by how their bodies disturb the WiFi signals already around it — nothing worn, no network joined, and it reports through walls. Scan tab → CSI Motion with Low / Medium / High presets, or `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` over mesh with `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`. Alerts go out as `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD. Listen-only by default; `ALLOW_TRANSMIT` lets the node send probe requests when the air is too quiet. Sensitivity is per receiver, so set it in the room it will live in. On the ESP32-C5 it is in testing: it runs, but separates movement from background less cleanly than an S3. No long-run false-alarm rate is measured yet.
+- **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by how many movement events landed in them — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
+- **Packet capture to SD.** Wireshark-ready pcap: WiFi with radiotap, BLE advertisements as link-layer PDUs. Start it from the Scan tab, on vibration, or with `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it. A capture stops on its own at the size cap (8–300 MB, default 100, `PCAP_LIMITS:<MB>` or the Sentinel panel), at the free-space floor, or after repeated write failures, and the stop line lists the channels it visited.
+- **Sentinel attack response.** On a confirmed attack with a source MAC, run what you pick — triangulate, capture, device discovery, probe sweep, drone RID — each for its own duration, one after another.
 - **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
-- SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
-- Mesh on/off saved across reboots.
-- Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
-- Task-creation failures logged with free and largest internal block.
-- Headless: discovered devices persist across scans (device DB).
-
-### Full FW
-
-- **CSI movement view**: quiet / moving / can't measure, movement log, whole-session heat strip.
-  - Heat blocks shaded by movement events, eight accent-color steps; tap for time.
-  - Blocks widen from 1 to 5, 15, 30 min and up as the session ages.
-- **Fleet roster** (System tab): mesh nodes and radios, per-node mode/uptime/temp, privacy toggle.
-- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off. Stops the beacon only.
-- **Accent Colors** (System tab): five choices; destructive controls, Sentinel, movement hits.
-  - Sentinel and movement default to copper; dark-theme danger defaults to acid lime.
+- **SD self-repair.** `SD_REPAIR:ON` lets a node rebuild an unmountable card on its own. Off by default — rebuilding erases it.
+- **Fleet roster** (web UI, System tab): every mesh node and radio, with mode, uptime and temperature; privacy toggle.
+- **Hidden SoftAP** (web UI, RF Settings): stops the beacon. Not access control.
+- **Accent colors** (web UI, System tab): five schemes for the Stop and Clear buttons, and five for the Sentinel banners and movement hits. Buttons default to electric cyan, Sentinel and movement to ice blue.
+- `MESH_TX_CANCEL` (and the UI cancel) clears the mesh queue without stopping the scan; a queued backlog no longer blocks starting one.
+- Headless: discovered devices persist across scans.
+- Captures list on the Scan tab: download, delete, delete-all behind a confirmation.
 - Data Explorer privacy toggle.
-- Captures list on the Scan tab: download, delete, delete-all with confirm.
 - Method dropdown regrouped: Recon, Detection, Capture.
-- Results clear when a new scan starts; clearing results clears the CSI history.
-- Page reloads when the browser lands on a different node.
-- Web UI polls only the open tab.
+- Mesh on/off is saved across reboots.
+- SD bus runs at 16 MHz (was 400 kHz), with 4 MHz and 400 kHz fallbacks.
+- Boot prints a `[MEM]` ladder and a `[HEAP]` line every 30 s; task-creation failures are logged with the free and largest internal block.
 
 ## Fixed
 
-### Both FW
-
-- Long BLE device scans no longer abort in `fopen` (field report on v1.0.2).
-  - NimBLE pools and small allocations now come from PSRAM.
-  - Pre-fix beta: abort at 123 injected devices, 11,676 B free. Now 64,404 B at 200.
-- Baseline no longer reboots under dense RF.
-  - Device history keyed by MAC, in PSRAM, bounded by free heap.
-  - Task locals freed before task exit (leaked ~96 B per device per scan).
-  - Resident task stacks in PSRAM (18,432 B internal freed).
-  - NimBLE per-window scan cache capped at 200 (150 baseline); total devices seen is not capped.
-  - Two use-after-free windows closed (baseline BLE task, WiFi scan buffer).
-  - Baseline exit stops promiscuous mode and the hop timer; no competing scans mid-run.
-- A queued mesh backlog no longer blocks starting a scan.
-- Log file held open across writes; reopened only after a failed write.
-- Results snapshot written to a temp file, then renamed.
-- SD writes retry with backoff on a busy card.
-- SD mount retries with a bus re-init; failures logged once a minute, counted in Diagnostics.
-- SD chip-select driven high before the SPI bus starts.
+- **Long BLE device scans no longer abort in `fopen`** (field report on v1.0.2). NimBLE's pools and small allocations moved to PSRAM. The previous beta aborted at 123 injected devices with 11,676 B of internal RAM left; this build held 64,404 B at 200.
+- **Baseline no longer reboots under dense RF.** Device history keyed by MAC and held in PSRAM, task locals freed on exit (leaked ~96 B per device per scan), resident task stacks in PSRAM (18,432 B freed), NimBLE's per-window scan cache capped at 200 (150 in baseline; the number of devices seen is not capped), two use-after-free windows closed, and baseline's exit now stops promiscuous mode and the hop timer.
+- `STOP` no longer waits on a scan that can't finish.
+- `DEVICE_SCAN_START` honors `+PROBE` in any position; `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- Baseline no longer runs forever when only another panel's Forever box was ticked (web UI).
 - Peer node reports are never run as commands.
 - Emoji-only Meshtastic sender names no longer drop commands (#31).
-- Triangulation target MAC is atomic; torn reads dropped peer RSSI reports.
-- Diagnostics `Mesh TX` line no longer sticks at draining.
-- `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position.
-- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report. Headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
+- Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
+- SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
+- Log file is held open across writes and reopened only after a failed write.
+- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM. Results clear when a new scan starts; the UI polls only the open tab; the page reloads itself when the browser lands on a different node.
+- Baseline results rebuild every 2 s and only on change; theme toggle stays in the mobile scan header; Diagnostics `Mesh TX` line no longer sticks at draining.
 - AP MAC randomization fix.
 - `memcpy` length guard against a WiFi driver underflow.
-- Headless: triangulation stop is honored during the ACK and report waits.
-- Headless: baseline MAC queue sends go through the guarded path.
-
-### Full FW
-
-- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM.
-- Baseline no longer runs forever when only the other panel's Forever box was ticked; a hidden Forever box no longer submits.
-- Theme toggle stays in the mobile scan header during a scan.
-- Baseline results rebuild every 2 s, only on change.
 
 ## Hardware
 
-- DIGINODE v2 side-charge enclosure single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
+- DIGINODE v2 side-charge enclosure, single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
 - Revised full side-charge housing: `FullSideChargeHousing.stl`.
 - Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
 - Assembly manual, BOM links and welcome note updated.
