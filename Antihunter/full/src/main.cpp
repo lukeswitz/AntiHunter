@@ -253,6 +253,14 @@ static void heapMark(const char *) {}
 static void dumpTaskStacks(const char *) {}
 #endif
 
+void memMark(const char *what) {
+    Serial.printf("[MEM] %-16s internal=%u largest=%u psram=%u tasks=%u\n", what,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                  (unsigned)uxTaskGetNumberOfTasks());
+}
+
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
