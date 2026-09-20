@@ -284,12 +284,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
       .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block;cursor:pointer}
       .csi-heat i.h0{background:color-mix(in srgb,var(--csi-hit) 8%,transparent)}
-      .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 20%,transparent)}
-      .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 32%,transparent)}
-      .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 44%,transparent)}
-      .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 56%,transparent)}
-      .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 70%,transparent)}
-      .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 85%,transparent)}
+      .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 30%,#fff)}
+      .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 42%,#fff)}
+      .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 54%,#fff)}
+      .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 66%,#fff)}
+      .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 78%,#fff)}
+      .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 90%,#fff)}
       .csi-heat i.h7{background:var(--csi-hit)}
       .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
       .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
@@ -412,13 +412,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <script>
       const AH_SCHEMES={
         dang:{
+          default:{light:['#0b6f88','#2b7a90'],dark:['#2fd8e8','#5fc4d0'],cyber:['#00e5ff','#5cf0ff']},
           magenta:{light:['#b01f6e','#9c2e6d'],dark:['#e64fa6','#cc5f9c'],cyber:['#ff2fbf','#ff6fd0']},
           orange:{light:['#b04a08','#a05a20'],dark:['#f08a3c','#d4813f'],cyber:['#ff9410','#ffb04a']},
           cyan:{light:['#0b6f88','#2b7a90'],dark:['#2fd8e8','#5fc4d0'],cyber:['#00e5ff','#5cf0ff']},
           lime:{light:['#5a7a08','#5f7a24'],dark:['#b9e83c','#a2c95a'],cyber:['#d9ff2e','#e6ff70']}
         },
         sent:{
-          default:['#e08a44','#c9903f'],
+          default:['#5fb0f0','#3d8fd6'],
           violet:['#8b5cf6','#a855f7'],
           teal:['#2dd4bf','#14b8a6'],
           copper:['#e08a44','#c9903f'],
@@ -1410,10 +1411,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </p>
 
           <div style="margin-bottom:16px;">
-            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Destructive Controls</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is acid lime on dark, brick red on light and cyber.</label>
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Stop and Clear Buttons</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is electric cyan.</label>
             <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
-              <option value="default">Default</option>
+              <option value="default">Default (electric cyan)</option>
               <option value="magenta">Magenta</option>
               <option value="orange">Signal orange</option>
               <option value="cyan">Electric cyan</option>
@@ -1423,9 +1424,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           <div style="margin-bottom:16px;">
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel and Movement</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header, the active-alert strip, and the movement hit color. Default is copper.</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header, the active-alert strip, and the movement hit color. Default is ice blue.</label>
             <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-              <option value="default">Default (copper)</option>
+              <option value="default">Default (ice blue)</option>
               <option value="violet">Violet</option>
               <option value="teal">Teal</option>
               <option value="copper">Copper</option>
