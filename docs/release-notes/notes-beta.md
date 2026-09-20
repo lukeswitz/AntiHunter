@@ -16,14 +16,14 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
   - ESP32-C5: in testing; separates movement from background less cleanly.
   - No long-run false-alarm rate measured yet.
 - **Packet capture to SD**: Wireshark pcap, WiFi radiotap, BLE PDUs.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, vibration mode 8, Scan tab.
+  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, Scan tab, or on vibration (Sensor Alerts).
   - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
   - Size cap: Scan tab, Sentinel panel, or `PCAP_LIMITS:<MB>`.
   - Stop line reports channels visited.
 - **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
 - `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
 - `MESH_TX_CANCEL` and the UI cancel clear the mesh queue without stopping the scan.
-- **Local time, at last.** Logs and capture names use your timezone, DST included, worked out from the GPS fix. UTC until it locks.
+- **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
 - SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
 - Mesh on/off saved across reboots.
 - Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.

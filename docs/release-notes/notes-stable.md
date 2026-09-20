@@ -11,10 +11,10 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
   - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
   - Size cap: Scan tab or `PCAP_LIMITS:<MB>`.
   - Stop line reports channels visited.
-- **Vibration auto-scan**: `VIBSCAN_SET`, `VIBSCAN_STATUS`, Sensor Alerts card; mode 8 starts a capture.
+- **Vibration auto-scan** (System tab → Sensor Alerts): pick the scan that runs when the node is bumped, packet capture included. Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
 - **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
 - `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
-- **Local time, at last.** Logs and capture names use your timezone, DST included, worked out from the GPS fix. UTC until it locks.
+- **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
 - SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
 - Mesh on/off saved across reboots.
 - Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
