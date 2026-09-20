@@ -2234,6 +2234,14 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       extern void selftestInjectDevices(uint32_t);
       selftestInjectDevices((uint32_t)command.substring(16).toInt());
   }
+  else if (command.startsWith("SELFTEST_BLEADV:")) {
+      extern void selftestBleAdvertise(uint32_t, uint32_t);
+      String p = command.substring(16);
+      int c = p.indexOf(':');
+      uint32_t n = (uint32_t)(c > 0 ? p.substring(0, c) : p).toInt();
+      uint32_t ms = (uint32_t)(c > 0 ? p.substring(c + 1).toInt() : 200);
+      selftestBleAdvertise(n, ms);
+  }
 #endif
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);

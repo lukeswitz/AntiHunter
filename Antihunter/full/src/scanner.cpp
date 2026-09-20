@@ -847,6 +847,46 @@ void selftestInjectDevices(uint32_t count) {
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
                   heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
 }
+
+static void selftestBleAdvTask(void *pv) {
+    const uint32_t packed = (uint32_t)reinterpret_cast<uintptr_t>(pv);
+    const uint32_t count = packed >> 12;
+    const uint32_t periodMs = packed & 0xFFF;
+    if (!BLEDevice::isInitialized() && !BLEDevice::init("")) {
+        Serial.println("[SELFTEST] bleadv: BLE init failed");
+        vTaskDelete(NULL);
+        return;
+    }
+    NimBLEAdvertising *adv = BLEDevice::getAdvertising();
+    BLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
+    adv->setMinInterval(32);
+    adv->setMaxInterval(48);
+    uint32_t sent = 0;
+    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums\n", (unsigned)count, (unsigned)periodMs);
+    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+        adv->stop();
+        uint8_t a[6];
+        a[0] = (uint8_t)i; a[1] = (uint8_t)(i >> 8); a[2] = (uint8_t)(i >> 16);
+        a[3] = 0x5E; a[4] = 0x1F; a[5] = 0xC0 | (uint8_t)((i >> 24) & 0x3F);
+        if (!BLEDevice::setOwnAddr(a)) { Serial.printf("[SELFTEST] bleadv setOwnAddr failed at %u\n", (unsigned)i); break; }
+        char nm[20];
+        snprintf(nm, sizeof(nm), "AHTEST_%lu", (unsigned long)i);
+        adv->setName(nm);
+        if (adv->start()) sent++;
+        vTaskDelay(pdMS_TO_TICKS(periodMs ? periodMs : 200));
+    }
+    adv->stop();
+    Serial.printf("[SELFTEST] bleadv done advertised=%u internal=%u\n", (unsigned)sent,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    vTaskDelete(NULL);
+}
+
+void selftestBleAdvertise(uint32_t count, uint32_t periodMs) {
+    if (count > 0xFFFFF) count = 0xFFFFF;
+    if (periodMs > 0xFFF) periodMs = 0xFFF;
+    const uint32_t packed = (count << 12) | periodMs;
+    ahCreateTask(selftestBleAdvTask, "bleadv", 6144, reinterpret_cast<void *>(static_cast<uintptr_t>(packed)), 1, NULL, 0);
+}
 #endif
 
 #ifndef AH_C5_RF_TRACE
