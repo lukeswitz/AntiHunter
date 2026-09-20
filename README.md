@@ -102,7 +102,7 @@ Supporting features: **Allowlist** (used by Target Scan and Baseline) · **Mesh 
 
 One radio, one mode at a time. Starting a mode while another runs is rejected; `/stop` or `@ALL STOP` ends whatever is running. Every mode logs to SD and can broadcast over mesh.
 
-**Target Scan** lives on its own form at the top of the Scan tab. Everything else is picked from the **Method** dropdown under *Recon & Detection*, grouped exactly as below. Sentinel runs from its own tab.
+**Target Scan** has its own form at the top of the Scan tab. Everything else is picked from the **Method** dropdown under *Recon & Detection*, grouped exactly as below. Sentinel runs from its own tab.
 
 Sentinel is the exception to the one-at-a-time rule: starting any scan mode makes it hand the radio over, and it restarts on its own once the scan ends. Its enable setting is not lost in the meantime, so nothing needs restarting by hand.
 
@@ -1118,7 +1118,7 @@ The **Privacy** button, on the Results, Fleet, Data and Sentinel toolbars, redac
 | `/deauth-results` | GET | Deauth attack results |
 | `/randomization-results` | GET | Randomization correlation results |
 | `/drone-results` · `/drone-log` · `/drone/status` | GET | Drone results, event log, live status |
-| `/csi-results` · `/csi-json` | GET | CSI motion state, human-readable and JSON |
+| `/csi-results` · `/csi-json` | GET | CSI motion state, text and JSON |
 
 `detection` values: `device-scan`, `probe-scan`, `randomization-detection`, `drone-detection`, `baseline`, `deauth`, `csi-motion`, `pcap`.
 
