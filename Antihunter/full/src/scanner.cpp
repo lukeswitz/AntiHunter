@@ -802,6 +802,51 @@ void selftestRelease() {
     Serial.printf("[SELFTEST] released, internal=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
+void selftestInjectDevices(uint32_t count) {
+    uint32_t sentAp = 0, dropAp = 0, sentProbe = 0, dropProbe = 0;
+    Serial.printf("[SELFTEST] inject start count=%u apQ=%d probeQ=%d\n",
+                  (unsigned)count, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
+    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+        if (apInfoQueue) {
+            ApInfoEvent ae = {};
+            ae.bssid[0] = 0x02; ae.bssid[1] = 0xAB;
+            ae.bssid[2] = (uint8_t)(i >> 24); ae.bssid[3] = (uint8_t)(i >> 16);
+            ae.bssid[4] = (uint8_t)(i >> 8);  ae.bssid[5] = (uint8_t)i;
+            ae.rssi = (int8_t)(-30 - (i % 60));
+            ae.channel = (uint8_t)(1 + (i % 11));
+            snprintf(ae.ssid, sizeof(ae.ssid), "AHTEST_%lu", (unsigned long)(i % 4096));
+            if (xQueueSend(apInfoQueue, &ae, 0) == pdTRUE) sentAp++; else dropAp++;
+        }
+        if (probeRequestQueue) {
+            ProbeRequestEvent pe = {};
+            bool randomized = (i & 1);
+            pe.mac[0] = randomized ? 0x06 : 0x04; pe.mac[1] = 0xCD;
+            pe.mac[2] = (uint8_t)(i >> 24); pe.mac[3] = (uint8_t)(i >> 16);
+            pe.mac[4] = (uint8_t)(i >> 8);  pe.mac[5] = (uint8_t)i;
+            pe.rssi = (int8_t)(-35 - (i % 55));
+            pe.channel = (uint8_t)(1 + (i % 11));
+            pe.dstMatch = false;
+            pe.isProbeResponse = false;
+            char nm[24];
+            int nl = snprintf(nm, sizeof(nm), "net_%lu", (unsigned long)(i % 2048));
+            if (nl > 20) nl = 20;
+            bool wildcard = (i % 8 == 0);
+            uint8_t ssidLen = wildcard ? 0 : (uint8_t)nl;
+            pe.payload[24] = 0x00;
+            pe.payload[25] = ssidLen;
+            for (uint8_t k = 0; k < ssidLen; k++) pe.payload[26 + k] = (uint8_t)nm[k];
+            pe.payloadLen = (uint16_t)(26 + ssidLen);
+            if (xQueueSend(probeRequestQueue, &pe, 0) == pdTRUE) sentProbe++; else dropProbe++;
+        }
+        if ((i & 0x1F) == 0x1F) vTaskDelay(1);
+    }
+    Serial.printf("[SELFTEST] inject done ap=%u/%u probe=%u/%u internal=%u psram=%u integrity=%s\n",
+                  (unsigned)sentAp, (unsigned)(sentAp + dropAp),
+                  (unsigned)sentProbe, (unsigned)(sentProbe + dropProbe),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                  heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
+}
 #endif
 
 #ifndef AH_C5_RF_TRACE

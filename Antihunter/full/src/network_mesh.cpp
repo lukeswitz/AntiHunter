@@ -756,19 +756,29 @@ static void handlePcapStop(const String &command)
 static void handleDeviceScanStart(const String &command)
 {
   String params = command.substring(18);
-  int modeDelim = params.indexOf(':');
-  int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+  int mode = -1;
   int secs = 60;
   bool forever = false;
+  bool captureProbes = false;
 
-  if (modeDelim > 0)
-  {
-    int secsDelim = params.indexOf(':', modeDelim + 1);
-    secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-    if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
-    {
+  int field = 0;
+  int start = 0;
+  while (start <= (int)params.length()) {
+    int delim = params.indexOf(':', start);
+    String tok = params.substring(start, delim > 0 ? delim : params.length());
+    tok.trim();
+    if (tok == "FOREVER") {
       forever = true;
+    } else if (tok == "+PROBE") {
+      captureProbes = true;
+    } else if (tok.length()) {
+      int v = tok.toInt();
+      if (field == 0) mode = v;
+      else if (field == 1) secs = v;
     }
+    field++;
+    if (delim < 0) break;
+    start = delim + 1;
   }
 
   if (secs < 0) secs = 0;
@@ -782,15 +792,31 @@ static void handleDeviceScanStart(const String &command)
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
+
+      if (captureProbes) {
+        probeDetectionEnabled = true;
+        if (probeRequestQueue == nullptr) {
+          for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
+            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+          if (!probeRequestQueue)
+            Serial.println("[PROBE] queue alloc failed - probe capture inert");
+        } else {
+          xQueueReset(probeRequestQueue);
+        }
+      }
+
       scanning = true;
       if (ahCreateTask(snifferScanTask, "sniffer", 12288,
                        reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
         workerTaskHandle = nullptr;
         scanning = false;
+        if (captureProbes) { probeDetectionEnabled = false; releaseProbeQueue(); }
         Serial.println("[MESH] Device scan task create FAILED (low heap) - not started");
         sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
       } else {
-        Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+        Serial.printf("[MESH] Started device scan via mesh command (%s%s)\n",
+                      forever ? "forever" : (String(secs) + "s").c_str(),
+                      captureProbes ? ", +probe" : "");
         sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
       }
     }
@@ -2203,6 +2229,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SELFTEST_RELEASE")) {
       extern void selftestRelease();
       selftestRelease();
+  }
+  else if (command.startsWith("SELFTEST_INJECT:")) {
+      extern void selftestInjectDevices(uint32_t);
+      selftestInjectDevices((uint32_t)command.substring(16).toInt());
   }
 #endif
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
