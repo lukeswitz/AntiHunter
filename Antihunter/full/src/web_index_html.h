@@ -5938,6 +5938,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
         }
+        document.getElementById('forever3').disabled = document.getElementById('detectionDuration').disabled;
+        document.getElementById('foreverBaseline').disabled = document.getElementById('baselineMonitorDuration').disabled;
       });
 
       document.getElementById('sniffer').addEventListener('submit', async e => {
