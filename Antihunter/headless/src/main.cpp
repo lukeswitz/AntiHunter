@@ -190,8 +190,8 @@ void setup() {
     recordBootReason();
 
     if (psramFound()) {
-        heap_caps_malloc_extmem_enable(64);
-        Serial.printf("[MEM] PSRAM heap routing on (>=64B -> PSRAM). psram_free=%u internal_free=%u\n",
+        heap_caps_malloc_extmem_enable(16);
+        Serial.printf("[MEM] PSRAM heap routing on (>16B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
 
