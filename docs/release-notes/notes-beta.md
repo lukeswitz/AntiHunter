@@ -81,6 +81,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 ### Full FW
 
 - Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM.
+- Baseline no longer runs forever when only the other panel's Forever box was ticked; a hidden Forever box no longer submits.
 - Theme toggle stays in the mobile scan header during a scan.
 - Baseline results rebuild every 2 s, only on change.
 
