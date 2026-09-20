@@ -146,6 +146,7 @@ void logToSD(const String &data);
 void logEventToSD(const char* path, const String& jsonLine);
 
 #define RESULTS_SNAPSHOT_FILE "/last_results.txt"
+#define RESULTS_SNAPSHOT_TMP "/last_results.tmp"
 #define RESULTS_SNAPSHOT_INTERVAL_MS 60000
 #define RESULTS_SNAPSHOT_MAX_BYTES 16384
 

@@ -1463,11 +1463,16 @@ void saveResultsSnapshot(bool force) {
     uint32_t h = resultsHash(copy);
     if (h == lastHash) return;
 
-    File f = SafeSD::open(RESULTS_SNAPSHOT_FILE, FILE_WRITE);
+    File f = SafeSD::open(RESULTS_SNAPSHOT_TMP, FILE_WRITE);
     if (!f) return;
-    SdWriter f_w(f);
-    f_w.write(reinterpret_cast<const uint8_t *>(copy.data()), copy.size());
+    const size_t wrote = SafeSD::write(f, reinterpret_cast<const uint8_t *>(copy.data()), copy.size());
     f.close();
+    if (wrote != copy.size()) {
+        SafeSD::remove(RESULTS_SNAPSHOT_TMP);
+        return;
+    }
+    SafeSD::remove(RESULTS_SNAPSHOT_FILE);
+    if (!SafeSD::rename(RESULTS_SNAPSHOT_TMP, RESULTS_SNAPSHOT_FILE)) return;
     lastHash = h;
 }
 
