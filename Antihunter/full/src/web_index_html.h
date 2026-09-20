@@ -364,13 +364,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <script>
       const AH_SCHEMES={
         dang:{
+          default:{light:['#0b6f88','#2b7a90'],dark:['#2fd8e8','#5fc4d0'],cyber:['#00e5ff','#5cf0ff']},
           magenta:{light:['#b01f6e','#9c2e6d'],dark:['#e64fa6','#cc5f9c'],cyber:['#ff2fbf','#ff6fd0']},
           orange:{light:['#b04a08','#a05a20'],dark:['#f08a3c','#d4813f'],cyber:['#ff9410','#ffb04a']},
           cyan:{light:['#0b6f88','#2b7a90'],dark:['#2fd8e8','#5fc4d0'],cyber:['#00e5ff','#5cf0ff']},
           lime:{light:['#5a7a08','#5f7a24'],dark:['#b9e83c','#a2c95a'],cyber:['#d9ff2e','#e6ff70']}
         },
         sent:{
-          default:['#e08a44','#c9903f'],
+          default:['#5fb0f0','#3d8fd6'],
           violet:['#8b5cf6','#a855f7'],
           teal:['#2dd4bf','#14b8a6'],
           copper:['#e08a44','#c9903f'],
@@ -1325,10 +1326,10 @@ R"HTML(
           </p>
 
           <div style="margin-bottom:16px;">
-            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Destructive Controls</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is acid lime on dark, brick red on light and cyber.</label>
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Stop and Clear Buttons</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is electric cyan.</label>
             <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
-              <option value="default">Default</option>
+              <option value="default">Default (electric cyan)</option>
               <option value="magenta">Magenta</option>
               <option value="orange">Signal orange</option>
               <option value="cyan">Electric cyan</option>
@@ -1338,9 +1339,9 @@ R"HTML(
 
           <div style="margin-bottom:16px;">
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel Banners</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is copper.</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is ice blue.</label>
             <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-              <option value="default">Default (copper)</option>
+              <option value="default">Default (ice blue)</option>
               <option value="violet">Violet</option>
               <option value="teal">Teal</option>
               <option value="copper">Copper</option>
