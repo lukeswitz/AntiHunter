@@ -2,111 +2,120 @@
 
 Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
-**Headline:** Packet capture to SD, CSI motion detection, and Baseline no longer reboots under dense RF or long runs.
-
-## What's Changed
+## New
 
 ### Both FW
 
+- **CSI motion detection** (experimental beta, ESP32-S3): movement in a room from ambient WiFi; nothing worn or joined.
+  - Reports through walls.
+  - Scan tab → CSI Motion; presets Low / Medium / High.
+  - Mesh: `CSI_MOTION_START:secs[:CH<n>][:FOREVER]`, `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`.
+  - Listen-only by default; `ALLOW_TRANSMIT` lets the node send probe requests for more traffic.
+  - Alerts: `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD.
+  - Sensitivity is per receiver; a value tuned on one board does not transfer.
+  - ESP32-C5: in testing; separates movement from background less cleanly.
+  - No long-run false-alarm rate measured yet.
 - **Packet capture to SD**: Wireshark pcap, WiFi radiotap, BLE PDUs.
   - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, vibration mode 8, Scan tab.
-  - C5 band select: 2.4 GHz, 5 GHz, or both.
-  - Capture keeps hopping with the web UI connected.
+  - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
+  - Size cap: Scan tab, Sentinel panel, or `PCAP_LIMITS:<MB>`.
   - Stop line reports channels visited.
-  - C5 5 GHz capture recorded 2.4 GHz; fixed.
-  - Captures list sorts newest first.
-  - Capture stops at size cap, free-space floor, or write failures.
-  - Cap 8–300 MB, default 100: Scan tab, Sentinel panel, `PCAP_LIMITS`.
-  - Mesh reply says `R=SIZECAP` or `R=WRITEFAIL`.
-
-> [!WARNING]
-> Stop a capture before cutting power or resetting. FAT has no power-fail protection; an
-> interrupted write can leave the card unreadable until reformatted. `SD_REPAIR:ON` lets the
-> node rebuild its own card (erases it).
-
-- Peer status lines no longer run as commands.
-- Local time on all boards; UTC without GPS.
-- All SD writers retry on a busy card.
-- Reset mid-capture no longer corrupts the card.
-- Sync after each write; mount retries with bus re-init.
-- `SD_REPAIR:ON` rebuilds a bad card (erases it, off by default).
-- Failed mounts counted and shown in Diagnostics.
-- **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID.
-  - Run in turn, each with its own duration.
-  - Auto captures pruned to a size budget.
-- **CSI motion detection**: experimental beta on S3, in testing on C5.
-  - Detects movement from ambient WiFi; nothing worn or joined.
-  - Reports through walls.
-  - Alerts to serial, SD and mesh.
-  - Alerts need several transmitters disturbed, held over time.
-  - Sensitivity is per receiver; S3 and C5 values differ.
-  - C5 separates movement less cleanly than S3; cause open.
-  - No long-run false-alarm rate yet.
-- Triangulation target MAC read and written atomically.
-- Baseline no longer panics under dense RF.
-- Internal-heap floor before SD opens removed.
-- Task stacks in PSRAM; log file held open.
-- NimBLE per-window scan cache capped at 200 (150 baseline).
-  - Cleared every window; total devices seen is unbounded.
-- Device-history table in PSRAM, bounded by free heap.
-- Two use-after-free windows closed (BLE task, scan buffer).
-- Baseline teardown clears promiscuous mode and hop timer.
-- Task-creation failures reported, not wedged.
-- Mesh TX cancel no longer kills the scan.
-- Emoji sender names no longer drop mesh commands.
-- Long BLE scans no longer abort in `fopen` (field report).
-  - NimBLE pools in PSRAM; small mallocs PSRAM-first.
-  - Aborted at 53 devices before; flat at 200 now.
-- AP MAC randomization fix.
-- `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position.
-- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
-- Results snapshot written to temp file, then renamed.
-- Boot logs a `[MEM]` ladder of free internal RAM.
-
-| Build | Rebooted at | Lowest free internal heap |
-|---|---|---|
-| Unfixed | ~700 devices (`ESP_RST_PANIC`) | 508 B |
-| Fixed — ESP32-S3 | 9,200+, no reboot (test stopped) | 33,528 B |
-| Fixed — ESP32-C5 | 11,375, no reboot (test stopped) | 19,884 B |
+- **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
+- `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
+- `MESH_TX_CANCEL` and the UI cancel clear the mesh queue without stopping the scan.
+- Filenames and log lines in GPS-derived local time; UTC without a fix.
+- SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
+- Mesh on/off saved across reboots.
+- Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
+- Task-creation failures logged with free and largest internal block.
+- Headless: discovered devices persist across scans (device DB).
 
 ### Full FW
 
-- Scan Results no longer stalls; `/results` streams from PSRAM.
-- Web UI polls only the visible tab; taps land.
-- Baseline results rebuild every 2 s, only on change.
-- **CSI movement view**: quiet/moving/can't-measure state, movement log, heat strip.
-  - Heat blocks shaded by movement events, eight accent-color steps.
-  - Blocks widen (1, 5, 15 min) as sessions age.
-- **Fleet roster** (System tab): mesh nodes, mode/uptime/temp/hits/GPS, privacy redaction.
-- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off.
-  - Stops the beacon, not access control.
+- **CSI movement view**: quiet / moving / can't measure, movement log, whole-session heat strip.
+  - Heat blocks shaded by movement events, eight accent-color steps; tap for time.
+  - Blocks widen from 1 to 5, 15, 30 min and up as the session ages.
+- **Fleet roster** (System tab): mesh nodes and radios, per-node mode/uptime/temp, privacy toggle.
+- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off. Stops the beacon only.
+- **Accent Colors** (System tab): five choices; destructive controls, Sentinel, movement hits.
+  - Sentinel and movement default to copper; dark-theme danger defaults to acid lime.
 - Data Explorer privacy toggle.
-- **Accent Colors** (System tab): five choices; destructive controls, Sentinel, movement.
-  - Sentinel and movement default to copper.
-- Dark theme destructive controls: acid lime, was brick red.
-- **Captures list** (Scan tab): size, download, delete, delete-all with confirm.
-  - The file being recorded cannot be deleted.
-- Recon & Detection method list regrouped: Recon, Detection, Capture.
-- Clearing results clears the CSI history.
-- Theme toggle stays in the mobile scan header.
-- Unclosed container element in web UI markup fixed.
+- Captures list on the Scan tab: download, delete, delete-all with confirm.
+- Method dropdown regrouped: Recon, Detection, Capture.
+- Results clear when a new scan starts; clearing results clears the CSI history.
+- Page reloads when the browser lands on a different node.
+- Web UI polls only the open tab.
 
-### Flasher
+## Fixed
 
-- Hidden AP toggle for full firmware.
-- C5 experimental channel carries the same CSI, Fleet, fixes.
-- C5 motion detection is in testing; prefer an S3.
-  - C5 sensitivity is its own; S3 values don't transfer.
-  - See [docs/ESP32-C5.md](../ESP32-C5.md) for C5 detail.
+### Both FW
 
-### Hardware
+- Long BLE device scans no longer abort in `fopen` (field report on v1.0.2).
+  - NimBLE pools and small allocations now come from PSRAM.
+  - Pre-fix beta: abort at 123 injected devices, 11,676 B free. Now 64,404 B at 200.
+- Baseline no longer reboots under dense RF.
+  - Device history keyed by MAC, in PSRAM, bounded by free heap.
+  - Task locals freed before task exit (leaked ~96 B per device per scan).
+  - Resident task stacks in PSRAM (18,432 B internal freed).
+  - NimBLE per-window scan cache capped at 200 (150 baseline); total devices seen is not capped.
+  - Two use-after-free windows closed (baseline BLE task, WiFi scan buffer).
+  - Baseline exit stops promiscuous mode and the hop timer; no competing scans mid-run.
+- A queued mesh backlog no longer blocks starting a scan.
+- Log file held open across writes; reopened only after a failed write.
+- Results snapshot written to a temp file, then renamed.
+- SD writes retry with backoff on a busy card.
+- SD mount retries with a bus re-init; failures logged once a minute, counted in Diagnostics.
+- SD chip-select driven high before the SPI bus starts.
+- Peer node reports are never run as commands.
+- Emoji-only Meshtastic sender names no longer drop commands (#31).
+- Triangulation target MAC is atomic; torn reads dropped peer RSSI reports.
+- Diagnostics `Mesh TX` line no longer sticks at draining.
+- `STOP` no longer waits on a scan that can't finish.
+- `DEVICE_SCAN_START` honors `+PROBE` in any position.
+- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- AP MAC randomization fix.
+- `memcpy` length guard against a WiFi driver underflow.
+- Headless: triangulation stop is honored during the ACK and report waits.
+- Headless: baseline MAC queue sends go through the guarded path.
 
-- DIGINODE v2 side-charge enclosure prints as one body: `SinglePrintSideChargeHousing.stl`.
+### Full FW
 
-## Upgrade notes
+- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM.
+- Theme toggle stays in the mobile scan header during a scan.
+- Baseline results rebuild every 2 s, only on change.
 
-- Flash via web flasher. No config changes; baselines read as-is.
+## Hardware
+
+- DIGINODE v2 side-charge enclosure single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
+- Revised full side-charge housing: `FullSideChargeHousing.stl`.
+- Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
+- Assembly manual, BOM links and welcome note updated.
+
+## Upgrade
+
+Settings in NVS and files on the SD card survive a flash without erase.
+
+**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Channel Beta, then Full or Headless.
+
+**Flasher script** (needs Python 3, esptool and pyserial):
+
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh
+```
+
+Pick channel 2 (Beta). `-e` erases first, `-c` sets device parameters during the flash, `-l` lists the firmware.
+
+**PlatformIO**:
+
+```bash
+git clone -b beta https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio run -e AntiHunter-full -t upload
+```
+
+`AntiHunter-headless` for the mesh-only build. `-t erase` wipes the chip first.
 
 ## Thanks
 
