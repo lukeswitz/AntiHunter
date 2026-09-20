@@ -2,75 +2,46 @@
 
 Stable channel · Previous release v1.0.2 (2026-08-13)
 
+Packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
+
 ## New
 
-### Both FW
-
-- **Packet capture to SD**: Wireshark pcap, WiFi radiotap, BLE PDUs.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, Scan tab.
-  - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
-  - Size cap: Scan tab or `PCAP_LIMITS:<MB>`.
-  - Stop line reports channels visited.
-- **Vibration auto-scan** (System tab → Sensor Alerts): pick the scan that runs when the node is bumped, packet capture included. Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
-- **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
-- `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
+- **Packet capture to SD.** Wireshark-ready pcap: WiFi with radiotap, BLE advertisements as link-layer PDUs. Start it from the Scan tab or with `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it. A capture stops on its own at the size cap (8–300 MB, default 100, `PCAP_LIMITS:<MB>`), at the free-space floor, or after repeated write failures, and the stop line lists the channels it visited.
+- **Sentinel attack response.** On a confirmed attack with a source MAC, run what you pick — triangulate, capture, device discovery, probe sweep, drone RID — each for its own duration, one after another.
+- **Vibration auto-scan.** System tab → Sensor Alerts: choose the scan that runs when the node is bumped, packet capture included. Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
 - **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
-- SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
-- Mesh on/off saved across reboots.
-- Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
-
-### Full FW
-
-- **Fleet roster** (System tab): mesh nodes and radios, per-node mode/uptime/temp, privacy toggle.
-- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off. Stops the beacon only.
-- **Accent Colors** (System tab): five choices for destructive controls and Sentinel banners.
-  - Sentinel defaults to copper; dark-theme danger defaults to acid lime.
+- **SD self-repair.** `SD_REPAIR:ON` lets a node rebuild an unmountable card on its own. Off by default — rebuilding erases it.
+- **Fleet roster** (web UI, System tab): every mesh node and radio, with mode, uptime and temperature; privacy toggle.
+- **Hidden SoftAP** (web UI, RF Settings): stops the beacon. Not access control.
+- **Accent colors** (web UI, System tab): five schemes for the Stop and Clear buttons and the Sentinel banners. Buttons default to electric cyan, Sentinel to ice blue.
+- Captures list on the Scan tab: download, delete, delete-all behind a confirmation.
 - Data Explorer privacy toggle.
-- Captures list on the Scan tab: download, delete, delete-all with confirm.
 - Method dropdown regrouped: Recon, Detection, Capture.
-- Results clear when a new scan starts.
-- Page reloads when the browser lands on a different node.
-- Web UI polls only the open tab.
+- Mesh on/off is saved across reboots.
+- SD bus runs at 16 MHz (was 400 kHz), with 4 MHz and 400 kHz fallbacks.
+- Boot prints a `[MEM]` ladder and a `[HEAP]` line every 30 s, so a memory report can be read off the serial log.
 
 ## Fixed
 
-### Both FW
-
-- Long BLE device scans no longer abort in `fopen` (field report).
-  - NimBLE pools and small allocations now come from PSRAM.
-  - v1.0.2: abort at 194 injected devices, 1,672 B free. Now 98,376 B at 200.
-- Baseline no longer reboots under dense RF.
-  - Device history keyed by MAC, in PSRAM, bounded by free heap.
-  - Task locals freed before task exit (leaked ~96 B per device per scan).
-  - Resident task stacks in PSRAM (18,432 B internal freed).
-  - NimBLE per-window scan cache capped at 200 (150 baseline); total devices seen is not capped.
-  - Two use-after-free windows closed (baseline BLE task, WiFi scan buffer).
-  - Baseline exit stops promiscuous mode and the hop timer; no competing scans mid-run.
-- Log file held open across writes; reopened only after a failed write.
-- Results snapshot written to a temp file, then renamed.
-- SD writes retry with backoff on a busy card.
-- SD mount retries with a bus re-init; failures logged once a minute, counted in Diagnostics.
-- SD chip-select driven high before the SPI bus starts.
+- **Long BLE device scans no longer abort in `fopen`** (field report). NimBLE's pools and small allocations moved to PSRAM. v1.0.2 aborted at 194 injected devices with 1,672 B of internal RAM left; this build held 98,376 B at 200.
+- **Baseline no longer reboots under dense RF.** Device history keyed by MAC and held in PSRAM, task locals freed on exit (leaked ~96 B per device per scan), resident task stacks in PSRAM (18,432 B freed), NimBLE's per-window scan cache capped at 200 (150 in baseline; the number of devices seen is not capped), two use-after-free windows closed, and baseline's exit now stops promiscuous mode and the hop timer.
+- `STOP` no longer waits on a scan that can't finish.
+- `DEVICE_SCAN_START` honors `+PROBE` in any position; `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- Baseline no longer runs forever when only another panel's Forever box was ticked (web UI).
 - Peer node reports are never run as commands.
 - Emoji-only Meshtastic sender names no longer drop commands (#31).
-- Triangulation target MAC is atomic; torn reads dropped peer RSSI reports.
-- Diagnostics `Mesh TX` line no longer sticks at draining.
-- `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position.
-- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report.
+- Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
+- SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
+- Log file is held open across writes and reopened only after a failed write.
+- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM. Results clear when a new scan starts; the UI polls only the open tab; the page reloads itself when the browser lands on a different node.
+- Baseline results rebuild every 2 s and only on change; theme toggle stays in the mobile scan header; Diagnostics `Mesh TX` line no longer sticks at draining.
 - AP MAC randomization fix.
 - `memcpy` length guard against a WiFi driver underflow.
 
-### Full FW
-
-- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM.
-- Baseline no longer runs forever when only the other panel's Forever box was ticked; a hidden Forever box no longer submits.
-- Theme toggle stays in the mobile scan header during a scan.
-- Baseline results rebuild every 2 s, only on change.
-
 ## Hardware
 
-- DIGINODE v2 side-charge enclosure single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
+- DIGINODE v2 side-charge enclosure, single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
 - Revised full side-charge housing: `FullSideChargeHousing.stl`.
 - Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
 - Assembly manual, BOM links and welcome note updated.
