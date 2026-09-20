@@ -284,13 +284,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
       .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block;cursor:pointer}
       .csi-heat i.h0{background:color-mix(in srgb,var(--csi-hit) 8%,transparent)}
-      .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 30%,#fff)}
-      .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 42%,#fff)}
-      .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 54%,#fff)}
-      .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 66%,#fff)}
-      .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 78%,#fff)}
-      .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 90%,#fff)}
+      .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 50%,#fff)}
+      .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 58%,#fff)}
+      .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 66%,#fff)}
+      .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 75%,#fff)}
+      .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 83%,#fff)}
+      .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 92%,#fff)}
       .csi-heat i.h7{background:var(--csi-hit)}
+      [data-theme="dark"] .csi-heat i.h1,[data-theme="cyber"] .csi-heat i.h1{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 55%,#fff) 72%,transparent)}
+      [data-theme="dark"] .csi-heat i.h2,[data-theme="cyber"] .csi-heat i.h2{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 62%,#fff) 76%,transparent)}
+      [data-theme="dark"] .csi-heat i.h3,[data-theme="cyber"] .csi-heat i.h3{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 70%,#fff) 80%,transparent)}
+      [data-theme="dark"] .csi-heat i.h4,[data-theme="cyber"] .csi-heat i.h4{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 78%,#fff) 84%,transparent)}
+      [data-theme="dark"] .csi-heat i.h5,[data-theme="cyber"] .csi-heat i.h5{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 86%,#fff) 90%,transparent)}
+      [data-theme="dark"] .csi-heat i.h6,[data-theme="cyber"] .csi-heat i.h6{background:color-mix(in srgb,color-mix(in srgb,var(--csi-hit) 94%,#fff) 95%,transparent)}
       .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
       .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
