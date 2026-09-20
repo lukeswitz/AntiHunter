@@ -133,7 +133,7 @@ Flash it from your browser.
 | **MAC Randomization Correlation** (beta) | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** (beta) | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **CSI Motion Detection** (beta branch only) | Device-free motion sensing -- no device on the person, per-area strength; trigger measured per install. Not built on `main` | WiFi, one channel |
+| **CSI Motion Detection** (upcoming) | Device-free motion sensing -- no device on the person, per-area strength; trigger measured per install. On`beta` only | WiFi |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Packet Capture** | Writes a standard pcap to SD that Wireshark opens -- WiFi frames with a radiotap header, BLE as Bluetooth HCI. One radio per capture, channel list selectable, bounded by a file size cap | WiFi or BLE |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
@@ -313,7 +313,7 @@ Watches for deauthentication and disassociation frames in real time.
 
 ---
 
-### Detection: CSI Motion (beta)
+### Detection: CSI Motion (upcoming)
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Uses no baseline, **for indoor use**.
 
@@ -330,13 +330,11 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 - The Movement view shows live strength, the links tracked, and a session heat strip. Cells start at one minute and widen as the session runs - 5, 15, 30 minutes, then hours - so the strip always covers the whole session
 
 > [!WARNING]
-> **CSI motion transmits. Every other scan in this firmware is receive-only; this one is not.**
+> **CSI motion transmits. Every other scan is receive-only; this one can TX if set to.**
 > When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to
 > pull traffic out of the air, at most once per second. On a channel with normal traffic it never
 > needs to. The frame is a standard 802.11 probe request with a locally-administered source
-> address (`02:00:00:00:00:01`), not the node's own MAC - the same class of frame a phone sends
-> while scanning. It is still RF on the air, so a node running CSI can be seen by anyone monitoring
-> the channel. `tx=` in the serial status line is the running count of frames sent.
+> address (`02:00:00:00:00:01`), not the node's own MAC. `tx=` in the serial status line is the running count of frames sent.
 >
 > **To keep it silent:** tick **Listen only, never transmit** under Advanced, or send
 > `CSI_CFG:BROADCAST=OFF` over mesh (`BROADCAST=ON` allows it again, and the current state comes
@@ -348,7 +346,7 @@ Device-free motion sensing. The node reads the channel state of WiFi frames alre
 > transmitting is restricted.
 
 > [!IMPORTANT]
-> It detects **movement**, not presence. Someone who stops moving reads as quiet.
+> It detects **movement**, not presence by design and is highly sensitive.
 
 > [!NOTE]
 > **Indoor only.** Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors and the sensitive region collapses to a narrow zone on the line between node and transmitter - a tripwire, not area cover. Outdoor detection needs RadarNode (in development).
