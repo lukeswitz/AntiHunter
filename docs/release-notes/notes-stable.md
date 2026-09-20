@@ -31,17 +31,17 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 - Baseline no longer panics under dense RF.
 - Internal-heap floor before SD opens removed.
 - Task stacks in PSRAM; log file held open.
-- BLE results bounded: 150 baseline, 200 elsewhere.
+- NimBLE per-window scan cache capped at 200 (150 baseline).
+  - Cleared every window; total devices seen is unbounded.
 - Device-history table in PSRAM, bounded by free heap.
 - Two use-after-free windows closed (BLE task, scan buffer).
 - Baseline teardown clears promiscuous mode and hop timer.
-- Mesh enable persists across reboot.
 - Emoji sender names no longer drop mesh commands.
 - Long BLE scans no longer abort in `fopen` (field report).
   - NimBLE pools in PSRAM; small mallocs PSRAM-first.
   - v1.0.2 aborted at 194 devices; flat at 200 now.
 - AP MAC randomization fix.
-- `STOP` ends scans immediately, not after 60 s.
+- `STOP` no longer waits on a scan that can't finish.
 - `DEVICE_SCAN_START` honors `+PROBE` in any position.
 - `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
 - Results snapshot written to temp file, then renamed.
