@@ -41,7 +41,7 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
   - NimBLE pools in PSRAM; small mallocs PSRAM-first.
   - v1.0.2 aborted at 194 devices; flat at 200 now.
 - AP MAC randomization fix.
-- `STOP` ends scans immediately, not after 60 s.
+- `STOP` no longer waits on a scan that can't finish.
 - `DEVICE_SCAN_START` honors `+PROBE` in any position.
 - `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
 - Results snapshot written to temp file, then renamed.
