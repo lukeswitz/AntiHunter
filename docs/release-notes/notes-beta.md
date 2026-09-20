@@ -107,3 +107,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 ## Upgrade notes
 
 - Flash via web flasher. No config changes; baselines read as-is.
+
+## Thanks
+
+- rcbm. and d3mo for the bug reports.

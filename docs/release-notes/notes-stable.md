@@ -84,3 +84,7 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 
 - Flash via web flasher. S3 stable on `main`; C5 on the Experimental channel.
 - No config changes; baselines read as-is.
+
+## Thanks
+
+- rcbm. and d3mo for the bug reports.
