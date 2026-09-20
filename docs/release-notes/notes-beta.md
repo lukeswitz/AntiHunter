@@ -23,7 +23,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
 - `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
 - `MESH_TX_CANCEL` and the UI cancel clear the mesh queue without stopping the scan.
-- Filenames and log lines in GPS-derived local time; UTC without a fix.
+- **Local time, at last.** Logs and capture names use your timezone, DST included, worked out from the GPS fix. UTC until it locks.
 - SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
 - Mesh on/off saved across reboots.
 - Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
