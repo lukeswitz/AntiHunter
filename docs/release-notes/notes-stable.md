@@ -2,88 +2,103 @@
 
 Stable channel · Previous release v1.0.2 (2026-08-13)
 
-## What's Changed
+## New
 
 ### Both FW
 
 - **Packet capture to SD**: Wireshark pcap, WiFi radiotap, BLE PDUs.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, vibration mode 8, Scan tab.
-  - Capture keeps hopping with the web UI connected.
+  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`, `PCAP_STOP`, Scan tab.
+  - Stops at a size cap (8–300 MB, default 100), free-space floor, or write failures.
+  - Size cap: Scan tab or `PCAP_LIMITS:<MB>`.
   - Stop line reports channels visited.
-  - Captures list sorts newest first.
-  - Capture stops at size cap, free-space floor, or write failures.
-  - Cap 8–300 MB, default 100: Scan tab or `PCAP_LIMITS`.
-  - Mesh reply says `R=SIZECAP` or `R=WRITEFAIL`.
-
-> [!WARNING]
-> Stop a capture before cutting power or resetting. FAT has no power-fail protection; an
-> interrupted write can leave the card unreadable until reformatted. `SD_REPAIR:ON` lets the
-> node rebuild its own card (erases it).
-
-- Peer status lines no longer run as commands.
-- Local time on all boards; UTC without GPS.
-- SD writes retry on a busy card.
-- Reset mid-capture far less likely to corrupt the card.
-- Sync after each write; mount retries with bus re-init.
-- `SD_REPAIR:ON` rebuilds a bad card (erases it, off by default).
-- Failed mounts counted and shown in Diagnostics.
-- Triangulation target MAC read and written atomically.
-- Baseline no longer panics under dense RF.
-- Internal-heap floor before SD opens removed.
-- Task stacks in PSRAM; log file held open.
-- NimBLE per-window scan cache capped at 200 (150 baseline).
-  - Cleared every window; total devices seen is unbounded.
-- Device-history table in PSRAM, bounded by free heap.
-- Two use-after-free windows closed (BLE task, scan buffer).
-- Baseline teardown clears promiscuous mode and hop timer.
-- Emoji sender names no longer drop mesh commands.
-- Long BLE scans no longer abort in `fopen` (field report).
-  - NimBLE pools in PSRAM; small mallocs PSRAM-first.
-  - v1.0.2 aborted at 194 devices; flat at 200 now.
-- AP MAC randomization fix.
-- `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position.
-- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
-- Results snapshot written to temp file, then renamed.
-- Boot logs a `[MEM]` ladder of free internal RAM.
-
-| Build | Rebooted at | Lowest free internal heap |
-|---|---|---|
-| Unfixed | ~700 devices (`ESP_RST_PANIC`) | 508 B |
-| Fixed — ESP32-S3 | 9,200+, no reboot (test stopped) | 33,528 B |
-| Fixed — ESP32-C5 | 11,375, no reboot (test stopped) | 19,884 B |
+- **Vibration auto-scan**: `VIBSCAN_SET`, `VIBSCAN_STATUS`, Sensor Alerts card; mode 8 starts a capture.
+- **Sentinel attack response**: triangulate, capture, discovery, probe sweep, drone RID; each timed, run in turn.
+- `SD_REPAIR:ON` lets a node rebuild an unmountable card (erases it; off by default).
+- Filenames and log lines in GPS-derived local time; UTC without a fix.
+- SD bus at 16 MHz (was 400 kHz); 4 MHz and 400 kHz fallbacks.
+- Mesh on/off saved across reboots.
+- Boot `[MEM]` ladder and a `[HEAP]` line every 30 s on serial.
 
 ### Full FW
 
-- Scan Results no longer stalls; `/results` streams from PSRAM.
-- Web UI polls only the visible tab; taps land.
-- Baseline results rebuild every 2 s, only on change.
-- **Fleet roster** (System tab): mesh nodes, mode/uptime/temp/hits/GPS, privacy redaction.
-- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off.
-  - Stops the beacon, not access control.
+- **Fleet roster** (System tab): mesh nodes and radios, per-node mode/uptime/temp, privacy toggle.
+- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS, default off. Stops the beacon only.
+- **Accent Colors** (System tab): five choices for destructive controls and Sentinel banners.
+  - Sentinel defaults to copper; dark-theme danger defaults to acid lime.
 - Data Explorer privacy toggle.
-- **Accent Colors** (System tab): five choices; destructive controls and Sentinel banners.
-  - Sentinel defaults to copper.
-- Dark theme destructive controls: acid lime, was brick red.
+- Captures list on the Scan tab: download, delete, delete-all with confirm.
+- Method dropdown regrouped: Recon, Detection, Capture.
+- Results clear when a new scan starts.
 - Page reloads when the browser lands on a different node.
-- **Captures list** (Scan tab): size, download, delete, delete-all with confirm.
-  - The file being recorded cannot be deleted.
-- Recon & Detection method list regrouped: Recon, Detection, Capture.
-- Theme toggle stays in the mobile scan header.
-- Unclosed container element in web UI markup fixed.
+- Web UI polls only the open tab.
 
-### Flasher
+## Fixed
 
-- Hidden AP toggle for full firmware.
+### Both FW
 
-### Hardware
+- Long BLE device scans no longer abort in `fopen` (field report).
+  - NimBLE pools and small allocations now come from PSRAM.
+  - v1.0.2: abort at 194 injected devices, 1,672 B free. Now 98,376 B at 200.
+- Baseline no longer reboots under dense RF.
+  - Device history keyed by MAC, in PSRAM, bounded by free heap.
+  - Task locals freed before task exit (leaked ~96 B per device per scan).
+  - Resident task stacks in PSRAM (18,432 B internal freed).
+  - NimBLE per-window scan cache capped at 200 (150 baseline); total devices seen is not capped.
+  - Two use-after-free windows closed (baseline BLE task, WiFi scan buffer).
+  - Baseline exit stops promiscuous mode and the hop timer; no competing scans mid-run.
+- Log file held open across writes; reopened only after a failed write.
+- Results snapshot written to a temp file, then renamed.
+- SD writes retry with backoff on a busy card.
+- SD mount retries with a bus re-init; failures logged once a minute, counted in Diagnostics.
+- SD chip-select driven high before the SPI bus starts.
+- Peer node reports are never run as commands.
+- Emoji-only Meshtastic sender names no longer drop commands (#31).
+- Triangulation target MAC is atomic; torn reads dropped peer RSSI reports.
+- Diagnostics `Mesh TX` line no longer sticks at draining.
+- `STOP` no longer waits on a scan that can't finish.
+- `DEVICE_SCAN_START` honors `+PROBE` in any position.
+- `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- AP MAC randomization fix.
+- `memcpy` length guard against a WiFi driver underflow.
 
-- DIGINODE v2 side-charge enclosure prints as one body: `SinglePrintSideChargeHousing.stl`.
+### Full FW
 
-## Upgrade notes
+- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM.
+- Theme toggle stays in the mobile scan header during a scan.
+- Baseline results rebuild every 2 s, only on change.
 
-- Flash via web flasher. S3 stable on `main`; C5 on the Experimental channel.
-- No config changes; baselines read as-is.
+## Hardware
+
+- DIGINODE v2 side-charge enclosure single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
+- Revised full side-charge housing: `FullSideChargeHousing.stl`.
+- Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
+- Assembly manual, BOM links and welcome note updated.
+
+## Upgrade
+
+Settings in NVS and files on the SD card survive a flash without erase.
+
+**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Channel Stable, then Full or Headless.
+
+**Flasher script** (needs Python 3, esptool and pyserial):
+
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh
+```
+
+Pick channel 1 (Stable). `-e` erases first, `-c` sets device parameters during the flash, `-l` lists the firmware.
+
+**PlatformIO**:
+
+```bash
+git clone -b main https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio run -e AntiHunter-full -t upload
+```
+
+`AntiHunter-headless` for the mesh-only build. `-t erase` wipes the chip first.
 
 ## Thanks
 
