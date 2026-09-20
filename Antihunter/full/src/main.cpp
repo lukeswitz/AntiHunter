@@ -196,6 +196,14 @@ void randomizeMacAddress() {
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
 }
 
+void memMark(const char *what) {
+    Serial.printf("[MEM] %-16s internal=%u largest=%u psram=%u tasks=%u\n", what,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                  (unsigned)uxTaskGetNumberOfTasks());
+}
+
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
@@ -206,19 +214,22 @@ void setup() {
     recordBootReason();
 
     if (psramFound()) {
-        heap_caps_malloc_extmem_enable(64);
-        Serial.printf("[MEM] PSRAM heap routing on (>=64B -> PSRAM). psram_free=%u internal_free=%u\n",
+        heap_caps_malloc_extmem_enable(16);
+        Serial.printf("[MEM] PSRAM heap routing on (>16B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
 
     delay(400);
+    memMark("setup");
     initializeHardware();
     delay(10);
+    memMark("hardware");
     initializeDroneDetector();
     delay(20);
     initializeSD();
     logBootRecord();
     if (!wasCleanBoot()) loadResultsSnapshot();
+    memMark("sd+snapshot");
 
     if (waitForInitialConfig()) {
         delay(1000);
@@ -226,26 +237,31 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    memMark("config");
 
     Serial.println("Waiting for mesh device stability...");
     delay(10000);
 
     initializeNetwork();
     delay(500);
+    memMark("network");
     initializeGPS();
     delay(1000);
     initializeRTC();
     delay(500);
-    
+    memMark("gps+rtc");
+
     initializeVibrationSensor();
     delay(50);
     initializeScanner();
     delay(50);
+    memMark("scanner");
     initializeDetect();
     delay(50);
     initializeGpsPps(21);
     if (ahCreateResidentTask(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
+    memMark("detect+task");
     {
         uint8_t selfMac[6];
         esp_wifi_get_mac(WIFI_IF_AP, selfMac);
@@ -270,6 +286,7 @@ void setup() {
     if (ahCreateResidentTask(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
+    memMark("boot complete");
 
     Serial.println("===== ANTIHUNTER DIGINODE v1.0.3 STABLE BOOT COMPLETE =====");
 

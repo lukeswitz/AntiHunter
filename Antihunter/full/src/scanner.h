@@ -189,6 +189,7 @@ struct RFScanConfig {
 
 // Granular settings
 extern RFScanConfig rfConfig;
+void memMark(const char *what);
 void setRFPreset(uint8_t preset);
 void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
 void loadRFConfigFromPrefs();

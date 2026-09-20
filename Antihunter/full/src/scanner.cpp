@@ -1007,6 +1007,7 @@ void snifferScanTask(void *pv)
 
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
+    memMark("sniffer task");
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         if (apInfoQueue == nullptr) {
@@ -1016,10 +1017,12 @@ void snifferScanTask(void *pv)
         apCaptureEnabled = true;
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
+        memMark("sta radio");
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
+        memMark("ble radio");
     }
 
     uint32_t bleInterval = BLE_SCAN_INTERVAL;
@@ -1318,6 +1321,10 @@ void snifferScanTask(void *pv)
 
                 bleScan->clearResults();
                 Serial.printf("[SNIFFER] BLE scan found %d devices\n", scanResults.getCount());
+                {
+                    static uint8_t bleScanMarks = 0;
+                    if (bleScanMarks < 3) { bleScanMarks++; memMark("after ble scan"); }
+                }
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
         }

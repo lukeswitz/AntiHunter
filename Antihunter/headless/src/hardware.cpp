@@ -24,6 +24,14 @@
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 
+extern "C" void *__wrap_nimble_platform_mem_malloc(size_t size) {
+    return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+extern "C" void *__wrap_nimble_platform_mem_calloc(size_t n, size_t size) {
+    return heap_caps_calloc_prefer(n, size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
 extern Preferences prefs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;

@@ -197,11 +197,13 @@ void initializeNetwork()
   esp_coex_preference_set(ESP_COEX_PREFER_WIFI);
   Serial.println("Initializing mesh UART...");
   initializeMesh();
+  memMark("mesh");
 
   Serial.println("Starting AP...");
 
   WiFi.mode(WIFI_AP_STA);
   delay(100);
+  memMark("wifi mode");
   esp_wifi_stop();
   randomizeMacAddress();
   esp_wifi_start();
@@ -231,6 +233,7 @@ void initializeNetwork()
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
                 apHidden ? "hidden" : "broadcast",
                 apOk ? "OK" : "FAIL");
+  memMark("softap");
   // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
   // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
   {
@@ -265,6 +268,7 @@ void initializeNetwork()
 
   Serial.println("Starting web server...");
   startWebServer();
+  memMark("web server");
 }
 
 // ------------- AP HTML -------------
