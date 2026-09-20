@@ -1102,7 +1102,6 @@ R"HTML(
               <option value="6">Deauth (blue-team)</option>
               <option value="7">Baseline anomaly</option>
               <option value="8">Packet capture to SD</option>
-              <option value="8">Packet capture to SD</option>
             </select>
             <div style="display:flex;gap:8px;">
               <div style="flex:1;">
