@@ -4661,11 +4661,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
           const hot = hotArr.length > i && !!hotArr[i];
           const ev = evArr.length > i ? (evArr[i] || 0) : (hot ? 1 : 0);
-          const evPart = ev >= 3 ? 4 : ev >= 2 ? 3 : ev >= 1 ? 2 : 0;
-          const durPart = lvl > 0 ? Math.max(1, Math.round(lvl * 3)) : 0;
-          const shade = Math.min(7, evPart + durPart);
+          const shade = (lvl > 0 || ev > 0) ? Math.max(1, Math.min(7, Math.round(lvl * 7))) : 0;
           const tip = (ev ? ev + (ev === 1 ? ' movement event' : ' movement events') : 'no movement events') +
-                      ', in motion ' + Math.round(lvl * 100) + '% of this block';
+                      ', movement strength ' + Math.round(lvl * 100) + '%';
           cells += '<i data-i="' + i + '" class="h' + shade + '" title="' + tip + '"' +
                    (i === csiPick ? ' style="outline:2px solid var(--txt);outline-offset:-2px"' : '') + '></i>';
           if (i === csiPick) {

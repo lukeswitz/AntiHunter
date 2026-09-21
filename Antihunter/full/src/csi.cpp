@@ -70,11 +70,12 @@ static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 static uint32_t g_heatEvSnap = 0;
 
-static void csiHeatPush(bool alerting) {
-    if (alerting) {
-        g_heatSum++;
-        g_heatHotCur = 1;
-    }
+static void csiHeatPush(bool alerting, float peakRatio) {
+    if (alerting) g_heatHotCur = 1;
+    float s = (peakRatio - 1.0f) / 2.0f;
+    if (s < 0.0f) s = 0.0f;
+    if (s > 1.0f) s = 1.0f;
+    g_heatSum += (uint32_t)(s * 255.0f + 0.5f);
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
@@ -84,7 +85,7 @@ static void csiHeatPush(bool alerting) {
     const uint8_t evc = (dEv > 255u) ? 255u : (uint8_t)dEv;
     g_heatEvSnap = evNow;
 
-    float lvl = (float)g_heatSum / (float)(g_heatSec ? g_heatSec : 1);
+    float lvl = (float)g_heatSum / (255.0f * (float)(g_heatSec ? g_heatSec : 1));
     if (lvl > 1.0f) lvl = 1.0f;
     const uint8_t cell = (uint8_t)(lvl * 255.0f + 0.5f);
     g_heatSum = 0;
@@ -1555,7 +1556,7 @@ void csiMotionTask(void *pv) {
                     }
                 }
                 if (g_areaMotion && peakNow > g_epPeak) g_epPeak = peakNow;
-                csiHeatPush(g_areaMotion);
+                csiHeatPush(g_areaMotion, peakNow);
             }
             if (uxQueueMessagesWaiting(csiQueue) == 0) {
                 String snap = getCsiResults();
