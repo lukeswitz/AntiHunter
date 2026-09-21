@@ -21,16 +21,23 @@ jobs:
       run: |
         TAG="${GITHUB_REF#refs/tags/}"
         echo "version=${TAG}" >> $GITHUB_OUTPUT
-        # Beta channel: tags matching v*-beta* (e.g. v1.2.0-beta, v1.2.0-beta3) -> beta branch
-        # Stable channel: plain v* (e.g. v1.2.0) -> main branch
+        # v*-beta* builds beta, plain v* builds main; every channel attaches to the release named by the stable tag
+        echo "release=${TAG%%-beta*}" >> $GITHUB_OUTPUT
         if [[ "$TAG" == *-beta* ]]; then
           echo "channel=beta" >> $GITHUB_OUTPUT
           echo "branch=beta" >> $GITHUB_OUTPUT
-          echo "prerelease=true" >> $GITHUB_OUTPUT
         else
           echo "channel=stable" >> $GITHUB_OUTPUT
           echo "branch=main" >> $GITHUB_OUTPUT
-          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Stable release must exist before a beta attaches to it
+      if: steps.get_version.outputs.channel != 'stable'
+      run: |
+        REL="${{ steps.get_version.outputs.release }}"
+        if ! git ls-remote --exit-code --tags origin "refs/tags/${REL}" >/dev/null; then
+          echo "tag ${REL} is not on origin - push the stable tag before ${{ steps.get_version.outputs.version }}" >&2
+          exit 1
         fi
 
     - name: Set up Python
@@ -67,10 +74,19 @@ jobs:
 
         cp Dist/flashAntihunter.sh release/
 
-    - name: Generate checksums
+    - name: Print the toolchain the bins were built with
+      run: pio pkg list -e AntiHunter-full
+
+    - name: Stage release assets with channel-unique names
       run: |
-        cd release
-        sha256sum *.bin flashAntihunter.sh > SHA256SUMS.txt
+        VERSION="${{ steps.get_version.outputs.version }}"
+        mkdir -p publish
+        cp release/antihunter-*.bin publish/
+        cp release/bootloader.bin "publish/bootloader-${VERSION}.bin"
+        cp release/partitions.bin "publish/partitions-${VERSION}.bin"
+        cp release/flashAntihunter.sh publish/
+        cd publish
+        sha256sum *.bin flashAntihunter.sh > "SHA256SUMS-${VERSION}.txt"
 
     - name: Update Dist bins and web flasher manifests
       run: |
@@ -187,8 +203,8 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1
       with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        name: ${{ steps.get_version.outputs.version }}
-        files: release/*
-        prerelease: ${{ steps.get_version.outputs.prerelease }}
+        tag_name: ${{ steps.get_version.outputs.release }}
+        name: ${{ steps.get_version.outputs.release }}
+        files: publish/*
+        prerelease: false
         body_path: docs/release-notes/notes.md

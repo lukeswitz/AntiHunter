@@ -1,6 +1,6 @@
 # AntiHunter v1.0.3
 
-Motion detection from the WiFi already in the air, packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
+Motion detection from WiFi , packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -74,6 +74,8 @@ Breadboard the C5 and test it before you solder anything: a C5 soldered into a P
 ## Upgrade
 
 Settings in NVS and files on the SD card survive a flash.
+
+All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
