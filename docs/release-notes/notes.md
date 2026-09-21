@@ -1,6 +1,6 @@
 # AntiHunter v1.0.3
 
-Motion detection from WiFi , packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
+WiFi motion detection by channel state, packet capture to SD, a Sentinel that fights back, local-time logs, and a lot of bug fixes. 
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -8,9 +8,7 @@ Motion detection from WiFi , packet capture to SD, a Sentinel that fights back, 
 | Beta | v1.0.3-beta1 | ESP32-S3 | v1.0.2-beta1 (2026-08-13) |
 | Experimental | v1.0.3-c5exp1 | XIAO ESP32-C5 | v1.0.2-c5exp1 (2026-08-13) |
 
-Beta is stable plus the items under "Beta and C5". The C5 build is beta on a dual-band board plus the items under "C5 only".
 
-Breadboard the C5 and test it before you solder anything: a C5 soldered into a PCB can only go back to stable firmware by desoldering it and fitting an ESP32-S3.
 
 ## New
 
@@ -33,13 +31,20 @@ Breadboard the C5 and test it before you solder anything: a C5 soldered into a P
 
 ### Beta and C5
 
+
+ ****Channel State Information****: the WiFi radio's per-subcarrier measurement of how each received frame was shaped by the path it traveled, which a body moving through the room changes.
+
 - **CSI motion detection** (beta on ESP32-S3, in testing on ESP32-C5). A node senses people moving through a space by how their bodies disturb the WiFi signals already around it — nothing worn, no network joined, and it reports through walls. Scan tab → CSI Motion with Low / Medium / High presets, or `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` over mesh with `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`. Alerts go out as `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD. Listen-only by default; `ALLOW_TRANSMIT` lets the node send probe requests when the air is too quiet. Sensitivity is per receiver, so set it in the room it will live in. One 25-minute empty-house check at Low: zero alerts on both boards. No long-run false-alarm rate yet.
 - **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by movement strength, the strongest link over its trigger averaged across the block — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
 - Accent colors also cover movement hits (ice blue by default).
 - Headless: discovered devices persist across scans.
 - Task-creation failures are logged with the free and largest internal block.
 
+
 ### C5 only
+
+> [!NOTE]
+> ****Breadboard the C5 and test it before you solder anything:** a C5 soldered into a PCB can only go back to stable firmware by desoldering it. It is proven working, but I won't tell you to blindly do it until stable.
 
 - **CSI motion detection, in testing on the C5.** Same feature as the S3 beta, with its own presets: Medium is the level this board was scored at, Low and High are scaled from it. It runs and detects, but separates movement from background less cleanly than an S3 in the same room; the cause is open. Prefer an S3 where detection matters. Detail and open issues: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
 - **Packet capture: pick the band.** 2.4 GHz, 5 GHz, or both, from the Scan tab or the `band` field of `PCAP_START`.
@@ -73,7 +78,7 @@ Breadboard the C5 and test it before you solder anything: a C5 soldered into a P
 
 ## Upgrade
 
-Settings in NVS and files on the SD card survive a flash.
+Settings in memory and files on the SD card survive a flash
 
 All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them.
 
@@ -97,14 +102,35 @@ chmod +x flashAntihunter.sh
 
 `-c` sets device parameters during the flash, `-l` lists the firmware.
 
-**PlatformIO**, with the branch and environment from the table:
+**PlatformIO** — `-t upload` flashes the app only; settings and the SD card stay.
+
+Stable:
 
 ```bash
 git clone -b main https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
-pio run -e AntiHunter-full -t upload
+pio run -e AntiHunter-full -t upload        # web UI
+pio run -e AntiHunter-headless -t upload    # mesh only
 ```
 
-## Thanks
+Beta:
+
+```bash
+git clone -b beta https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio run -e AntiHunter-full -t upload
+pio run -e AntiHunter-headless -t upload
+```
+
+Experimental (C5):
+
+```bash
+git clone -b feat/c5 https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio run -e AntiHunter-c5-full -t upload
+pio run -e AntiHunter-c5-headless -t upload
+```
+
+### Thanks
 
 - rcbm. and d3mo for the bug reports.
