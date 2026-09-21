@@ -305,7 +305,7 @@ void startWebServer()
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         // ETag revalidation: 336KB page returns a tiny 304 on repeat loads, re-sent only on new fw
-        static const char *ETAG = "\"" __DATE__ __TIME__ "\"";
+        static const char *ETAG = "\"" AH_GIT_SHA "\"";
         if (r->hasHeader("If-None-Match") && r->header("If-None-Match") == ETAG) { r->send(304); return; }
         AsyncWebServerResponse* res = r->beginResponse(200, "text/html", reinterpret_cast<const uint8_t*>(INDEX_HTML), strlen_P(INDEX_HTML));
         res->addHeader("ETag", ETAG);

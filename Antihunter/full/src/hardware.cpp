@@ -2023,7 +2023,7 @@ void initializeRTC() {
     
     if (powerLost || yearInvalid) {
         Serial.println("[RTC] Time invalid, setting to compile time");
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        rtc.adjust(DateTime((uint32_t)AH_BUILD_EPOCH));
         DateTime updated = rtc.now();
         Serial.printf("[RTC] Set to: %04d-%02d-%02d %02d:%02d:%02d\n", 
                       updated.year(), updated.month(), updated.day(),
