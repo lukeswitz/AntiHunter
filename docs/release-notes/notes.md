@@ -80,7 +80,7 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 
 Settings in memory and files on the SD card survive a flash
 
-All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them.
+All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them. Builds are reproducible: a clean `pio run` of the tagged commit gives the same bytes as the release asset, so `shasum -a 256` against `SHA256SUMS-<version>.txt` is the check.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
