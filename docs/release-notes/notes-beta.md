@@ -2,77 +2,79 @@
 
 Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
-**Headline:** Packet capture to SD, CSI motion detection, and Baseline Detection no longer reboots under dense RF or on long runs.
+Motion detection from the WiFi already in the air, packet capture to SD, a Sentinel that fights back, local-time logs, and the memory fix behind the long-scan crash.
 
-## What's Changed
+## New
 
-### Both FW
-
-- **Packet capture to SD** (full + headless): writes a standard pcap Wireshark opens. WiFi frames carry a full radiotap header with channel, data rate and RSSI; BLE advertisements are written as link-layer PDUs so they dissect as ADV_IND, ADV_DIRECT_IND and SCAN_RSP. Band select on C5 covers 2.4 GHz, 5 GHz or both. `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]` and `PCAP_STOP` over mesh, vibration auto-scan mode 8, or the Scan tab. `CH` names the channels to hop; without it the node uses its configured list for the band.
-- **A capture keeps hopping while the web UI is connected.** `esp_wifi_set_channel` is refused for every channel once a station associates with the soft AP, and the capture silently parked on one channel. A capture now visits channels the way the scanner already did, through a passive `esp_wifi_scan_start` with a home-channel dwell, so the driver returns to the AP channel by itself and the link survives. The stop line reports `channels visited N/N (ch=frames/visits)`, so an empty channel is distinguishable from a skipped one.
-- **5 GHz capture recorded 2.4 GHz.** A 5 GHz or dual-band capture on C5 wrote only 2.4 GHz frames: the capture path set the regulatory 5 GHz channel mask but never the radio band mode, so the channel set had nowhere to go and its return value was discarded. The band mode is applied and the result of every channel change is now checked and counted.
-- **A node no longer runs another node's status line as a command.** Every mesh payload without an `@` prefix was passed to the command dispatcher, sender included, so one node announcing `PCAP_START: WIFI D=60` made its peers start captures of their own — and because that announcement is not in command grammar, they ran at the 300 s default instead of the 60 s asked for. A payload carrying a node id is now treated as a report; operator commands still arrive as `@ALL` or `@NODE`.
-- **Captures list newest first.** The capture list sorted on the raw filename, so every `wifi_` file ranked above every `ble_` file whatever its timestamp and BLE captures sank to the bottom of the list. It now sorts on the timestamp in the name.
-- **Timestamps show local time on every board.** The GPS-derived local time added last release reached only one firmware tree; the others still stamped filenames and log lines in UTC. Without a GPS lock the display falls back to UTC.
-- **Packet capture is bounded.** A capture used to run until stopped, and a forever run filled the card, drove every write to failure and left the filesystem damaged. It now stops on its own at a file size cap, at the free-space floor, or after three consecutive failed writes, and the mesh reply says which: `R=SIZECAP` or `R=WRITEFAIL`. The cap is 8 to 300 MB, 100 MB by default, on the Scan tab, in the sentinel auto-response panel, or over mesh with `PCAP_LIMITS`. The free-space floor now applies to every capture; it previously only guarded automatic ones, which is how a mesh-started capture bypassed it.
-
-> [!WARNING]
-> Stop a capture before cutting power or resetting the node. FAT has no power-fail
-> protection, so an interruption mid-write can leave the SD card unreadable until it is
-> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
-> rebuild its own card, which recovers most cases but not all, and erases the card.
-- **SD writes survive a busy card.** An SD card acknowledges writes quickly until its internal buffers fill, then stalls while its controller commits to flash. The SD library waits a fixed 500 ms and gives up, so every write after that point returned zero while the node carried on as if the data had landed. Writes now flush and retry with backoff, and every writer in the firmware routes through that path: baseline, config, event log, results snapshot, probes, device database, detect features, randomization. Measured on a C5: the same capture went from 27 short writes to none.
-- **A reset during a capture no longer costs the card.** FAT has no power-fail protection, so a reset mid-write left the card unmountable until a human wiped it. The filesystem is now synced after each write rather than on a timer, and the mount path retries with a full bus re-init. Measured on a C5: 1 of 4 resets survived before, 5 of 5 after. A node can also rebuild its own card with `SD_REPAIR:ON`, off by default because rebuilding erases it. A failed mount now reports its count and shows in Diagnostics instead of retrying silently forever.
-- **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
-- **CSI motion detection** (full + headless, **experimental**): detects people moving through a space using the WiFi already in the air — nothing worn, no network joined, no transmitter installed. Movement alerts go to serial, SD and mesh peers. Sensitivity is per-site: measure the room with nobody in it and set the trigger above what you see.
-- **Triangulation target MAC is read and written atomically.** It was a plain 6-byte array written memset-then-memcpy while the web task, the sniffer callback and the scan task read it unsynchronised; a reader landing in that window saw a partly-written MAC, and at the match gate that silently dropped the peer's RSSI report.
-- **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
-- **The SD card is never refused a write.** An earlier build put an internal-heap floor in front of every SD open, which turned a memory shortage into a node that silently stopped logging. The floor is gone. The memory it was covering for was found instead: resident task stacks moved to PSRAM, and the log file is held open across writes rather than reopened per line, so `fopen` is not on the hot path at all.
-- BLE result buffer bounded — 150 in baseline, 200 in device/probe/triangulation/drone.
-- Device-history table moved to PSRAM and bounded by free heap.
-- Closed two use-after-free windows (baseline vs BLE radio task; WiFi scan-buffer pointer across an alloc).
-- Baseline radio teardown fixed — no leftover promiscuous mode or hop timer, no competing WiFi scans mid-run.
-- Task-creation failures are reported instead of leaving the node wedged.
-- Mesh enable persists across reboot.
-- Mesh TX can be cancelled without killing the running scan.
-- An emoji in the Meshtastic sender name no longer drops the command.
-
-| Build | Rebooted at | Lowest free internal heap |
-|---|---|---|
-| Unfixed | ~700 devices (`ESP_RST_PANIC`) | 508 B |
-| Fixed — ESP32-S3 | 9,200+, no reboot (test stopped) | 33,528 B |
-| Fixed — ESP32-C5 | 11,375, no reboot (test stopped) | 19,884 B |
-
-### Full FW
-
-- Scan Results no longer stalls mid-scan — `/results` streams from one PSRAM copy, the poll times out at 5 s, and text is marked seen only after it renders.
-- Web UI polls only the visible page. The 1 s Scan Results re-render ran on every tab and swallowed taps on the page tab bar.
-- Baseline results rebuild on the 2 s timer and only when something changed (was every packet, with serial spam).
-- **CSI movement view**: says whether the room is quiet, moving, or can't be measured; a movement log; and a whole-session heat strip rendered on the device.
-- **Fleet roster** (System tab): live mesh node/radio roster, a card for this node, per-node mode/uptime/temp/hits/GPS, privacy redaction, collapsible.
-- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS (default off), carried in config export/import and `/wifi-config`; stops the beacon, not access control.
+- **CSI motion detection** (experimental beta, ESP32-S3). A node senses people moving through a space by how their bodies disturb the WiFi signals already around it — nothing worn, no network joined, and it reports through walls. Scan tab → CSI Motion with Low / Medium / High presets, or `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` over mesh with `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`. Alerts go out as `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD. Listen-only by default; `ALLOW_TRANSMIT` lets the node send probe requests when the air is too quiet. Sensitivity is per receiver, so set it in the room it will live in. On the ESP32-C5 it is in testing: it runs, but separates movement from background less cleanly than an S3. No long-run false-alarm rate is measured yet.
+- **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by how many movement events landed in them and how long the room stayed in motion — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
+- **Packet capture to SD.** Wireshark-ready pcap: WiFi with radiotap, BLE advertisements as link-layer PDUs. Start it from the Scan tab, on vibration, or with `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it. A capture stops on its own at the size cap (8–300 MB, default 100, `PCAP_LIMITS:<MB>` or the Sentinel panel), at the free-space floor, or after repeated write failures, and the stop line lists the channels it visited.
+- **Sentinel attack response.** On a confirmed attack with a source MAC, run what you pick — triangulate, capture, device discovery, probe sweep, drone RID — each for its own duration, one after another.
+- **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
+- **SD self-repair.** System tab → Node Configuration, or `SD_REPAIR:ON`: a node rebuilds an unmountable card on its own, and Repair now does it on demand. Off by default — rebuilding erases it.
+- **Fleet roster** (web UI, System tab): every mesh node and radio, with mode, uptime and temperature; privacy toggle.
+- **Hidden SoftAP** (web UI, RF Settings): stops the beacon. Not access control.
+- **Accent colors** (web UI, System tab): five schemes for the Stop and Clear buttons, and five for the Sentinel banners and movement hits. Buttons default to electric cyan, Sentinel and movement to ice blue.
+- `MESH_TX_CANCEL` (and the UI cancel) clears the mesh queue without stopping the scan; a queued backlog no longer blocks starting one.
+- Headless: discovered devices persist across scans.
+- Captures list on the Scan tab: download, delete, delete-all behind a confirmation.
 - Data Explorer privacy toggle.
-- **Accent Colors** (System tab): recolor the destructive controls, Sentinel banners and the movement hit color, five choices across all three themes, held in the browser.
-- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colors).
-- **Captures list** on the Scan tab: collapsible, one line per file with size, download and delete, delete-all behind a confirmation, and the file being recorded cannot be deleted.
-- Recon & Detection method list regrouped into Recon, Detection and Capture.
-- Clearing results clears the CSI history with it.
-- Theme toggle stays in the mobile scan header.
-- Fixed an unclosed container element in the web UI markup.
+- Method dropdown regrouped: Recon, Detection, Capture.
+- Mesh on/off is saved across reboots.
+- SD bus runs at 16 MHz (was 400 kHz), with 4 MHz and 400 kHz fallbacks.
+- Boot prints a `[MEM]` ladder and a `[HEAP]` line every 30 s; task-creation failures are logged with the free and largest internal block.
 
-### Flasher
+## Fixed
 
-- Hidden AP toggle for full firmware.
-- C5 experimental channel carries the same CSI, Fleet and fixes for testing.
-- Motion detection works the same on both board types and uses the same default sensitivity;
-  a C5 needs no special tuning. An alert needs half the transmitters a node is tracking to
-  show disturbance at the same moment, so one noisy neighbour cannot hold an alert open.
-  See [docs/ESP32-C5.md](../ESP32-C5.md) for C5 detail and the open upstream issues.
+- **Long BLE device scans no longer abort in `fopen`** (field report on v1.0.2). NimBLE's pools and small allocations moved to PSRAM. The previous beta aborted at 123 injected devices with 11,676 B of internal RAM left; this build held 64,404 B at 200.
+- **Baseline no longer reboots under dense RF.** Device history keyed by MAC and held in PSRAM, task locals freed on exit (leaked ~96 B per device per scan), resident task stacks in PSRAM (18,432 B freed), NimBLE's per-window scan cache capped at 200 (150 in baseline; the number of devices seen is not capped), two use-after-free windows closed, and baseline's exit now stops promiscuous mode and the hop timer.
+- `STOP` no longer waits on a scan that can't finish.
+- `DEVICE_SCAN_START` honors `+PROBE` in any position; `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
+- Baseline no longer runs forever when only another panel's Forever box was ticked (web UI).
+- Peer node reports are never run as commands.
+- Emoji-only Meshtastic sender names no longer drop commands (#31).
+- Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report. Headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
+- Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
+- SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
+- Log file is held open across writes and reopened only after a failed write.
+- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM. Results clear when a new scan starts; the UI polls only the open tab; the page reloads itself when the browser lands on a different node.
+- Baseline results rebuild every 2 s and only on change; theme toggle stays in the mobile scan header; Diagnostics `Mesh TX` line no longer sticks at draining.
+- AP MAC randomization fix.
+- `memcpy` length guard against a WiFi driver underflow.
 
-### Hardware
+## Hardware
 
-- DIGINODE v2 side-charge enclosure prints as one body — `SinglePrintSideChargeHousing.stl`.
+- DIGINODE v2 side-charge enclosure, single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
+- Revised full side-charge housing: `FullSideChargeHousing.stl`.
+- Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
+- Assembly manual, BOM links and welcome note updated.
 
-## Upgrade notes
+## Upgrade
 
-- Flash through the web flasher. No configuration changes required; existing SD baselines are read as-is.
+Settings in NVS and files on the SD card survive a flash without erase.
+
+**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Channel Beta, then Full or Headless.
+
+**Flasher script** (needs Python 3, esptool and pyserial):
+
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh
+```
+
+Pick channel 2 (Beta). `-e` erases first, `-c` sets device parameters during the flash, `-l` lists the firmware.
+
+**PlatformIO**:
+
+```bash
+git clone -b beta https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio run -e AntiHunter-full -t upload
+```
+
+`AntiHunter-headless` for the mesh-only build. `-t erase` wipes the chip first.
+
+## Thanks
+
+- rcbm. and d3mo for the bug reports.
