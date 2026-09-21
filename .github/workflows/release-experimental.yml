@@ -194,4 +194,5 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: ${{ github.ref_name }}
         files: release/*
+        body_path: docs/release-notes/notes-c5.md
         prerelease: true
