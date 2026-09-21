@@ -681,7 +681,10 @@ void saveConfiguration() {
     cw.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
     cw.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
     cw.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
-    cw.printf(" \"vibScanCooldown\":%u\n", vibAutoScanCooldownMs);
+    cw.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
+    cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
+    cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
+    cw.printf(" \"pcapMaxFileMB\":%u\n", (unsigned)getPcapMaxFileMB());
     cw.println("}");
 
     configFile.flush();
@@ -991,6 +994,20 @@ void loadConfiguration() {
     if (doc.containsKey("vibScanCooldown")) {
         vibAutoScanCooldownMs = doc["vibScanCooldown"].as<uint32_t>();
         prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    }
+
+    if (doc.containsKey("meshEnabled")) {
+        meshEnabled = doc["meshEnabled"].as<bool>();
+        prefs.putBool("meshEnabled", meshEnabled);
+    }
+
+    if (doc.containsKey("sdAutoRepair")) {
+        setSdAutoRepair(doc["sdAutoRepair"].as<bool>());
+    }
+
+    if (doc.containsKey("pcapMaxFileMB")) {
+        uint32_t mb = doc["pcapMaxFileMB"].as<uint32_t>();
+        if (mb >= 8 && mb <= 300) setPcapMaxFileMB(mb);
     }
 
     if (doc.containsKey("sentinelBoot")) {
