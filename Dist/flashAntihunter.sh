@@ -185,11 +185,56 @@ collect_configuration() {
 
     echo ""
     echo "RF Preset:"
-    echo "  0 - Balanced"
-    echo "  1 - Fast scan"
-    echo "  2 - Deep scan"
-    read -p "Select RF preset (0-2) [default: 0]: " RF_PRESET
-    RF_PRESET=${RF_PRESET:-0}
+    echo "  0 - Relaxed (low power)"
+    echo "  1 - Balanced"
+    echo "  2 - Aggressive (fast detection)"
+    read -p "Select RF preset (0-2) [default: 1]: " RF_PRESET
+    RF_PRESET=${RF_PRESET:-1}
+
+    echo ""
+    read -p "Mesh enabled? (Y/n): " MESH_ON
+    if [[ "$MESH_ON" =~ ^[Nn]$ ]]; then MESH_ENABLED="false"; else MESH_ENABLED="true"; fi
+    read -p "Mesh dedup TTL in seconds, 0 = off [default: 300]: " MESH_DEDUP_TTL
+    MESH_DEDUP_TTL=${MESH_DEDUP_TTL:-300}
+    read -p "Session dedup - send only devices not already sent this session? (y/N): " SESS_DEDUP
+    if [[ "$SESS_DEDUP" =~ ^[Yy]$ ]]; then MESH_SESS_DEDUP="true"; else MESH_SESS_DEDUP="false"; fi
+    read -p "Status heartbeat over mesh? (y/N): " HB_ON
+    if [[ "$HB_ON" =~ ^[Yy]$ ]]; then
+        HB_ENABLED="true"
+        read -p "Heartbeat interval in minutes [default: 10]: " HB_INTERVAL
+        HB_INTERVAL=${HB_INTERVAL:-10}
+    else
+        HB_ENABLED="false"
+        HB_INTERVAL=10
+    fi
+
+    echo ""
+    read -p "Vibration sensor alerts? (Y/n): " VIB_ON
+    if [[ "$VIB_ON" =~ ^[Nn]$ ]]; then VIB_ENABLED="false"; else VIB_ENABLED="true"; fi
+    read -p "Start a scan when the node is bumped? (y/N): " VIBSCAN_ON
+    if [[ "$VIBSCAN_ON" =~ ^[Yy]$ ]]; then
+        VIBSCAN_ENABLED="true"
+        echo "  1 - All-device scan   2 - Probe-request detect   3 - Randomized-MAC detect"
+        echo "  4 - List scan          5 - Drone / RemoteID       6 - Deauth detect"
+        echo "  7 - Baseline anomaly   8 - Packet capture to SD"
+        read -p "Scan to run (1-8) [default: 1]: " VIBSCAN_MODE
+        VIBSCAN_MODE=${VIBSCAN_MODE:-1}
+        read -p "Duration in seconds, 0 = until stopped [default: 60]: " VIBSCAN_DURATION
+        VIBSCAN_DURATION=${VIBSCAN_DURATION:-60}
+        read -p "Cooldown in seconds [default: 60]: " VIBSCAN_COOLDOWN
+        VIBSCAN_COOLDOWN=${VIBSCAN_COOLDOWN:-60}
+    else
+        VIBSCAN_ENABLED="false"
+        VIBSCAN_MODE=0
+        VIBSCAN_DURATION=60
+        VIBSCAN_COOLDOWN=60
+    fi
+
+    echo ""
+    read -p "Rebuild an unmountable SD card automatically? Rebuilding erases it. (y/N): " SD_REPAIR_ON
+    if [[ "$SD_REPAIR_ON" =~ ^[Yy]$ ]]; then SD_AUTO_REPAIR="true"; else SD_AUTO_REPAIR="false"; fi
+    read -p "Packet capture file cap in MB, 8-300 [default: 100]: " PCAP_MAX_MB
+    PCAP_MAX_MB=${PCAP_MAX_MB:-100}
 
     echo ""
     read -p "Baseline RAM cache size [default: 400]: " BASELINE_RAM
@@ -204,12 +249,19 @@ collect_configuration() {
         read -p "WiFi SSID [default: Antihunter]: " AP_SSID
         AP_SSID=${AP_SSID:-"Antihunter"}
 
-        read -p "WiFi Password (min 8 chars, empty for default): " AP_PASS
-        if [ -z "$AP_PASS" ]; then
-            AP_PASS="antihunter"
-        fi
+        read -p "WiFi Password (min 8 chars, empty keeps the firmware default antihunt3r123): " AP_PASS
+        while [ -n "$AP_PASS" ] && [ ${#AP_PASS} -lt 8 ]; do
+            read -p "Too short. WiFi Password (min 8 chars, empty keeps the default): " AP_PASS
+        done
+        read -p "AP security: 0 = WPA2/WPA3, 1 = WPA2 only [default: 0]: " AP_AUTH
+        AP_AUTH=${AP_AUTH:-0}
+        read -p "Hide the AP name (stops the beacon, not access control)? (y/N): " AP_HIDDEN_ON
+        if [[ "$AP_HIDDEN_ON" =~ ^[Yy]$ ]]; then AP_HIDDEN="true"; else AP_HIDDEN="false"; fi
 
-        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apPass\":\"$AP_PASS\""
+        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apAuth\":$AP_AUTH,\"apHidden\":$AP_HIDDEN"
+        if [ -n "$AP_PASS" ]; then
+            AP_SSID_JSON="$AP_SSID_JSON,\"apPass\":\"$AP_PASS\""
+        fi
     else
         AP_SSID_JSON=""
     fi
@@ -243,7 +295,7 @@ collect_configuration() {
     fi
 
     cat > /tmp/antihunter_config.json <<EOF
-{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"targets":"$TARGETS","rfPreset":$RF_PRESET,"wifiChannelTime":120,"wifiScanInterval":4000,"bleScanInterval":2000,"bleScanDuration":2000,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$AUTO_ERASE_DELAY,"autoEraseCooldown":$AUTO_ERASE_COOLDOWN,"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$DETECTION_WINDOW,"setupDelay":$SETUP_DELAY}
+{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$VIBSCAN_COOLDOWN,"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"$TARGETS","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$AUTO_ERASE_DELAY,"autoEraseCooldown":$AUTO_ERASE_COOLDOWN,"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$DETECTION_WINDOW,"setupDelay":$SETUP_DELAY}
 EOF
 
     echo ""

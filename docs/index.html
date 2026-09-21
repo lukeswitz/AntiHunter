@@ -380,6 +380,27 @@
             <input type="number" id="cfgMeshInterval" placeholder="3000" min="500" max="30000">
           </div>
           <div>
+            <label>Mesh Enabled</label>
+            <select id="cfgMeshEnabled">
+              <option value="" selected>On (default)</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+          </div>
+          <div>
+            <label>Mesh Dedup TTL (sec, 0 = off)</label>
+            <input type="number" id="cfgMeshDedupTtl" placeholder="300" min="0" max="3600">
+          </div>
+          <div>
+            <label>Session Dedup</label>
+            <select id="cfgMeshSessDedup">
+              <option value="" selected>Off (default)</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+            <div class="cfg-note">Send only devices not already sent this session</div>
+          </div>
+          <div>
             <label>RF Preset</label>
             <select id="cfgRfPreset">
               <option value="1" selected>Balanced</option>
@@ -445,6 +466,59 @@
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
+          </div>
+        </div>
+
+        <hr>
+        <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Vibration Auto-Scan</p>
+        <div class="cfg-grid">
+          <div>
+            <label>Scan on Vibration</label>
+            <select id="cfgVibScanEnabled">
+              <option value="" selected>Off (default)</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+          </div>
+          <div>
+            <label>Scan to Run</label>
+            <select id="cfgVibScanMode">
+              <option value="" selected>Unchanged</option>
+              <option value="1">All-device scan</option>
+              <option value="2">Probe-request detect</option>
+              <option value="3">Randomized-MAC detect</option>
+              <option value="4">List scan (targets)</option>
+              <option value="5">Drone / RemoteID</option>
+              <option value="6">Deauth detect</option>
+              <option value="7">Baseline anomaly</option>
+              <option value="8">Packet capture to SD</option>
+            </select>
+          </div>
+          <div>
+            <label>Duration (sec, 0 = until stopped)</label>
+            <input type="number" id="cfgVibScanDuration" placeholder="60" min="0" max="86400">
+          </div>
+          <div>
+            <label>Cooldown (sec)</label>
+            <input type="number" id="cfgVibScanCooldown" placeholder="60" min="5" max="86400">
+          </div>
+        </div>
+
+        <hr>
+        <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Storage</p>
+        <div class="cfg-grid">
+          <div>
+            <label>SD Auto-Repair</label>
+            <select id="cfgSdAutoRepair">
+              <option value="" selected>Off (default)</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+            <div class="cfg-note">Rebuilds an unmountable card by itself. Rebuilding erases it.</div>
+          </div>
+          <div>
+            <label>Capture File Cap (MB)</label>
+            <input type="number" id="cfgPcapMaxFileMB" placeholder="100" min="8" max="300">
           </div>
         </div>
 
@@ -522,6 +596,14 @@
               <label>AP Password</label>
               <input type="text" id="cfgApPass" placeholder="antihunt3r123" minlength="8" maxlength="63">
               <div class="cfg-note">Min 8 characters</div>
+            </div>
+            <div>
+              <label>AP Security</label>
+              <select id="cfgApAuth">
+                <option value="" selected>WPA2/WPA3 (default)</option>
+                <option value="0">WPA2/WPA3</option>
+                <option value="1">WPA2 only</option>
+              </select>
             </div>
             <div>
               <label>Hidden Network</label>
@@ -767,6 +849,15 @@ chmod +x flashAntihunter.sh
       const band = document.getElementById('cfgBand').value;
       if (band !== '') cfg.bandMode = parseInt(band, 10);
       num('cfgMeshInterval', 'meshInterval');
+      bool('cfgMeshEnabled', 'meshEnabled');
+      num('cfgMeshDedupTtl', 'meshDedupTtl');
+      bool('cfgMeshSessDedup', 'meshSessDedup');
+      bool('cfgVibScanEnabled', 'vibScanEnabled');
+      num('cfgVibScanMode', 'vibScanMode');
+      num('cfgVibScanDuration', 'vibScanDuration');
+      num('cfgVibScanCooldown', 'vibScanCooldown');
+      bool('cfgSdAutoRepair', 'sdAutoRepair');
+      num('cfgPcapMaxFileMB', 'pcapMaxFileMB');
       num('cfgBaselineRam', 'baselineRamSize');
       str('cfgTargets', 'targets');
       num('cfgWifiChannelTime', 'wifiChannelTime');
@@ -794,6 +885,7 @@ chmod +x flashAntihunter.sh
         str('cfgApSsid', 'apSsid');
         const apPass = document.getElementById('cfgApPass').value.trim();
         if (apPass && apPass.length >= 8) cfg.apPass = apPass;
+        num('cfgApAuth', 'apAuth');
         bool('cfgApHidden', 'apHidden');
       }
 
