@@ -689,6 +689,9 @@ void saveConfiguration() {
     configFile_w.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
     configFile_w.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
     configFile_w.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
+    configFile_w.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
+    configFile_w.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
+    configFile_w.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
     configFile_w.printf(" \"apPass\":\"%s\",\n", jsonEscape(prefsGetString("apPass", AP_PASS)).c_str());
     configFile_w.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
     configFile_w.printf(" \"apHidden\":%s\n", prefs.getBool("apHidden", false) ? "true" : "false");
@@ -903,6 +906,20 @@ void loadConfiguration() {
 
     if (doc.containsKey("apHidden")) {
         prefs.putBool("apHidden", doc["apHidden"].as<bool>());
+    }
+
+    if (doc.containsKey("meshEnabled")) {
+        meshEnabled = doc["meshEnabled"].as<bool>();
+        prefs.putBool("meshEnabled", meshEnabled);
+    }
+
+    if (doc.containsKey("sdAutoRepair")) {
+        setSdAutoRepair(doc["sdAutoRepair"].as<bool>());
+    }
+
+    if (doc.containsKey("pcapMaxFileMB")) {
+        uint32_t mb = doc["pcapMaxFileMB"].as<uint32_t>();
+        if (mb >= 8 && mb <= 300) setPcapMaxFileMB(mb);
     }
 
     if (doc.containsKey("autoEraseEnabled")) {
