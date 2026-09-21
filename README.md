@@ -291,14 +291,14 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ---
 
-### Detection: CSI Motion (experimental beta, S3 only)
+### Detection: CSI Motion (beta on S3, in testing on C5)
 
 > **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
 Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it listens to the access points and phones already around it and watches how a body disturbs those signals.
 
 <p align="center">
-  <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
+  <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
 - **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
@@ -1064,6 +1064,12 @@ Everything below is on the **System** tab.
 | **Accent Colors** | Recolors destructive controls and the Sentinel banners. Browser-local |
 
 > RF Settings and the band selector return "Radio busy" while a scan is running. Stop the scan before changing them.
+
+### Fleet Viewer
+
+<p align="center">
+ <img width="800" alt="7CD91F24-1BAC-4FF7-BCDA-43B666CB5DD8_1_201_a" src="https://github.com/user-attachments/assets/8c21a1be-1912-4560-9592-66551447c84d" />
+</p>
 
 ### Running Sentinel
 
