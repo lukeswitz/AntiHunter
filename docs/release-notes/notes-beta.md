@@ -11,7 +11,7 @@ Motion detection from the WiFi already in the air, packet capture to SD, a Senti
 - **Packet capture to SD.** Wireshark-ready pcap: WiFi with radiotap, BLE advertisements as link-layer PDUs. Start it from the Scan tab, on vibration, or with `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it. A capture stops on its own at the size cap (8–300 MB, default 100, `PCAP_LIMITS:<MB>` or the Sentinel panel), at the free-space floor, or after repeated write failures, and the stop line lists the channels it visited.
 - **Sentinel attack response.** On a confirmed attack with a source MAC, run what you pick — triangulate, capture, device discovery, probe sweep, drone RID — each for its own duration, one after another.
 - **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
-- **SD self-repair.** `SD_REPAIR:ON` lets a node rebuild an unmountable card on its own. Off by default — rebuilding erases it.
+- **SD self-repair.** System tab → Node Configuration, or `SD_REPAIR:ON`: a node rebuilds an unmountable card on its own, and Repair now does it on demand. Off by default — rebuilding erases it.
 - **Fleet roster** (web UI, System tab): every mesh node and radio, with mode, uptime and temperature; privacy toggle.
 - **Hidden SoftAP** (web UI, RF Settings): stops the beacon. Not access control.
 - **Accent colors** (web UI, System tab): five schemes for the Stop and Clear buttons, and five for the Sentinel banners and movement hits. Buttons default to electric cyan, Sentinel and movement to ice blue.

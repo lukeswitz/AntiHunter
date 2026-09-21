@@ -149,7 +149,7 @@ Flash it from your browser.
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Hidden SoftAP** | Stops the access point beaconing its SSID. Not access control | Web UI, RF Settings |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
-| **SD Repair** | Lets a node rebuild an unmountable SD card by itself. Off by default -- rebuilding erases the card | Mesh command |
+| **SD Repair** | Lets a node rebuild an unmountable SD card by itself. Off by default -- rebuilding erases the card | System tab / mesh |
 | **Allowlist** | Global device allowlist -- used by Target Scan and Baseline | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
