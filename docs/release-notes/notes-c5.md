@@ -6,7 +6,7 @@ Everything in [v1.0.3-beta1](https://github.com/lukeswitz/AntiHunter/releases/ta
 
 ## New
 
-- **CSI motion detection, in testing on the C5.** Same feature as the S3 beta, with its own presets: Medium is the level this board was scored at, Low and High are scaled from it. It runs and detects, but separates movement from background less cleanly than an S3 in the same room; the cause is open. Prefer an S3 where detection matters. Detail and open issues: [docs/ESP32-C5.md](../ESP32-C5.md).
+- **CSI motion detection, in testing on the C5.** Same feature as the S3 beta, with its own presets: Medium is the level this board was scored at, Low and High are scaled from it. It runs and detects, but separates movement from background less cleanly than an S3 in the same room; the cause is open. Prefer an S3 where detection matters. Detail and open issues: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
 - **Packet capture picks the band.** 2.4 GHz, 5 GHz, or both, from the Scan tab or the `band` field of `PCAP_START`.
 
 ## Upgrade
