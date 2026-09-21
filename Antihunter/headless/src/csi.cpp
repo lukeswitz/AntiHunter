@@ -70,11 +70,13 @@ static uint16_t g_heatCurSec = 0;
 static uint32_t g_heatEvSnap = 0;
 
 static void csiHeatPush(bool alerting, float peakRatio) {
-    if (alerting) g_heatHotCur = 1;
-    float s = (peakRatio - 1.0f) / 2.0f;
-    if (s < 0.0f) s = 0.0f;
-    if (s > 1.0f) s = 1.0f;
-    g_heatSum += (uint32_t)(s * 255.0f + 0.5f);
+    if (alerting) {
+        g_heatHotCur = 1;
+        float s = (peakRatio - 1.0f) / 2.0f;
+        if (s < 0.0f) s = 0.0f;
+        if (s > 1.0f) s = 1.0f;
+        g_heatSum += (uint32_t)(s * 255.0f + 0.5f);
+    }
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
