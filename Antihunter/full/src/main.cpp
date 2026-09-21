@@ -448,6 +448,7 @@ void loop() {
 
     checkAndSendVibrationAlert();
     serviceVibrationAutoScan();
+    serviceSdRepair();
     saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {
