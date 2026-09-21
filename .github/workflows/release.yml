@@ -191,4 +191,4 @@ jobs:
         name: ${{ steps.get_version.outputs.version }}
         files: release/*
         prerelease: ${{ steps.get_version.outputs.prerelease }}
-        body_path: docs/release-notes/notes-${{ steps.get_version.outputs.channel }}.md
+        body_path: docs/release-notes/notes.md
