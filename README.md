@@ -272,7 +272,7 @@ Detects drones broadcasting Remote ID under the FAA and EASA standards, over bot
 ### Detection: Baseline Anomaly
 
 <p align="center">
-<img width="880" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
+<img width="800" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
 </p>
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
@@ -313,12 +313,12 @@ Watches for deauthentication and disassociation frames in real time.
 
 ---
 
-### Detection: CSI Motion (upcoming)
+### Detection: CSI Motion (beta)
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Uses no baseline, **for indoor use**.
 
 <p align="center">
-  <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/dc9addd4-d7bd-421f-a38b-bb2f540b7d00" />
+  <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
 
@@ -503,6 +503,14 @@ Everything that configures the node is on one page, in cards.
 | **Battery Saver Mode** | Drops the CPU to 80 MHz, enables light sleep, polls GPS once a minute, mesh heartbeat only |
 | **Accent Colors** | Recolors the destructive controls and Sentinel banners. Stored in the browser |
 | **Data Explorer** | Review findings, device logs and scan data |
+
+
+### Fleet Viewer
+
+<p align="center">
+ <img width="800" alt="7CD91F24-1BAC-4FF7-BCDA-43B666CB5DD8_1_201_a" src="https://github.com/user-attachments/assets/8c21a1be-1912-4560-9592-66551447c84d" />
+</p>
+
 
 ---
 
