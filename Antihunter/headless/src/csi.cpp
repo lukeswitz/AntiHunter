@@ -1296,6 +1296,10 @@ void csiMotionTask(void *pv) {
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
             const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (movingLinks >= needLinks);
             if (areaNow) g_areaLastMotionMs = now;
+            if (csiTelemetry.load()) {
+                Serial.printf("[CSIA] mv=%d armed=%d need=%d duty=%u peak=%.2f area=%d\n",
+                              movingLinks, armedLinks, needLinks, (unsigned)dutySec, peak, areaNow ? 1 : 0);
+            }
 
             if (areaNow != g_areaCand) {
                 g_areaCand = areaNow;
