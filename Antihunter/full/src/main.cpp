@@ -394,6 +394,7 @@ void loop() {
     processUSBToMesh();
     checkAndSendVibrationAlert();
     serviceVibrationAutoScan();
+    serviceSdRepair();
     saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {

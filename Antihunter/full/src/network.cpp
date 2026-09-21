@@ -630,6 +630,24 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       req->send(200, "text/plain", "Mesh TX queue cleared, scan left running");
   });
 
+  server->on("/sd-repair", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String j = "{\"auto\":" + String(sdAutoRepair ? "true" : "false") +
+                 ",\"mounted\":" + String(sdAvailable ? "true" : "false") +
+                 ",\"mountFailures\":" + String(SafeSD::mountFailureCount()) +
+                 ",\"pending\":" + String(sdRepairPending ? "true" : "false") + "}";
+      req->send(200, "application/json", j);
+  });
+
+  server->on("/sd-repair", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (req->hasParam("now", true)) {
+          sdRepairPending = true;
+          req->send(200, "text/plain", "SD repair queued - the card is erased if it will not mount");
+          return;
+      }
+      if (req->hasParam("auto", true)) setSdAutoRepair(req->getParam("auto", true)->value() == "1");
+      req->send(200, "text/plain", sdAutoRepair ? "SD auto-repair on" : "SD auto-repair off");
+  });
+
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopAllScans();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");

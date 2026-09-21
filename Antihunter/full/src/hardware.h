@@ -107,9 +107,11 @@ void updateLocalTZFromGPS();
 // Sensors and GPS
 extern bool sdAvailable;
 extern bool sdAutoRepair;
+extern volatile bool sdRepairPending;
 bool sdMountOrRepair();
 void setSdAutoRepair(bool on);
 void loadSdAutoRepair();
+void serviceSdRepair();
 extern std::atomic<bool> gpsValid;
 extern float gpsLat, gpsLon;
 extern SemaphoreHandle_t gpsMutex;

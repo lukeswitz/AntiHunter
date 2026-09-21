@@ -1069,6 +1069,18 @@ R"HTML(
             </div>
           </div>
 
+          <hr>
+
+          <div style="margin-top:12px;">
+            <label>SD Card</label>
+            <div id="sdRepairState" style="font-size:11px;color:var(--mut);margin-bottom:6px;"></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:8px;cursor:pointer;" title="If the card will not mount at boot or after a fault, the node rebuilds the filesystem itself. Rebuilding erases the card.">
+              <input type="checkbox" id="sdAutoRepair" onchange="saveSdAutoRepair()" style="width:auto;">
+              Rebuild an unmountable card automatically (erases it)
+            </label>
+            <button class="btn alt" onclick="sdRepairNow()" style="width:100%;">Repair now</button>
+          </div>
+
         </div>
 
       <div class="card">
@@ -2553,6 +2565,40 @@ R"HTML(
           loadDedupTtl();
         } catch(e) {
           toast('Failed to clear dedup cache', 'error');
+        }
+      }
+
+      async function loadSdRepair() {
+        try {
+          const d = await (await fetch('/sd-repair')).json();
+          const cb = document.getElementById('sdAutoRepair');
+          if (cb && document.activeElement !== cb) cb.checked = !!d.auto;
+          const el = document.getElementById('sdRepairState');
+          if (el) el.textContent = (d.mounted ? 'Card mounted' : 'Card not mounted') +
+            (d.mountFailures ? ' · ' + d.mountFailures + ' failed mounts' : '') + (d.pending ? ' · repair queued' : '');
+        } catch(e) {
+          console.warn('loadSdRepair failed', e);
+        }
+      }
+
+      async function saveSdAutoRepair() {
+        const on = document.getElementById('sdAutoRepair').checked ? 1 : 0;
+        try {
+          const r = await fetch('/sd-repair', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'auto=' + on });
+          toast(await r.text(), 'success');
+        } catch(e) {
+          toast('Failed to save SD auto-repair', 'error');
+        }
+      }
+
+      async function sdRepairNow() {
+        if (!confirm('Repair the SD card now? If it will not mount, the card is erased and rebuilt.')) return;
+        try {
+          const r = await fetch('/sd-repair', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'now=1' });
+          toast(await r.text(), 'info');
+          setTimeout(loadSdRepair, 4000);
+        } catch(e) {
+          toast('Failed to queue SD repair', 'error');
         }
       }
 
@@ -6084,6 +6130,7 @@ R"HTML(
       loadBaselineAnomalyConfig();
       loadMeshInterval();
       loadDedupTtl();
+      loadSdRepair();
       updateAutoEraseStatus();
       loadVibScanConfig();
       refreshPskStatus();

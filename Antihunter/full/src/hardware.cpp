@@ -133,6 +133,20 @@ void setSdAutoRepair(bool on) {
     if (p.begin("sd", false)) { p.putBool("autorepair", on); p.end(); }
 }
 
+volatile bool sdRepairPending = false;
+
+void serviceSdRepair() {
+    if (!sdRepairPending) return;
+    sdRepairPending = false;
+    const bool prev = sdAutoRepair;
+    sdAutoRepair = true;
+    const bool ok = sdMountOrRepair();
+    sdAutoRepair = prev;
+    sdAvailable = ok;
+    SafeSD::forceRecheck();
+    Serial.printf("[SD] repair from web UI: %s\n", ok ? "mounted" : "failed");
+}
+
 void loadSdAutoRepair() {
     Preferences p;
     if (p.begin("sd", true)) { sdAutoRepair = p.getBool("autorepair", false); p.end(); }
