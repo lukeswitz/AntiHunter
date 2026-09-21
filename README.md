@@ -272,7 +272,7 @@ Detects drones broadcasting Remote ID under the FAA and EASA standards, over bot
 ### Detection: Baseline Anomaly
 
 <p align="center">
-<img width="880" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
+<img width="800" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
 </p>
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
@@ -313,7 +313,7 @@ Watches for deauthentication and disassociation frames in real time.
 
 ---
 
-### Detection: CSI Motion (experimental beta, S3 only)
+### Detection: CSI Motion (beta)
 
 > **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
@@ -322,7 +322,7 @@ Detects people moving through a space using the WiFi already in the air. Nothing
 Movement disturbs them most, a still person less, an empty room least. Sensitivity draws the line.
 
 <p align="center">
-  <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
+  <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
 - **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
@@ -516,6 +516,14 @@ Everything that configures the node is on one page, in cards.
 | **Battery Saver Mode** | Drops the CPU to 80 MHz, enables light sleep, polls GPS once a minute, mesh heartbeat only |
 | **Accent Colors** | Recolors the destructive controls and Sentinel banners. Stored in the browser |
 | **Data Explorer** | Review findings, device logs and scan data |
+
+
+### Fleet Viewer
+
+<p align="center">
+ <img width="800" alt="7CD91F24-1BAC-4FF7-BCDA-43B666CB5DD8_1_201_a" src="https://github.com/user-attachments/assets/8c21a1be-1912-4560-9592-66551447c84d" />
+</p>
+
 
 ---
 
