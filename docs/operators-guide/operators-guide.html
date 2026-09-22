@@ -172,7 +172,7 @@
     <div><span class="n">12</span> Command Center (C2)<span class="s">Quick install, first login, connecting a radio</span></div>
     <div><span class="n">13</span> Deployment<span class="s">Siting, sealing, mounting, power budget</span></div>
     <div><span class="n">14</span> Maintenance and troubleshooting<span class="s">Symptom tables, factory reset, getting help</span></div>
-    <div><span class="n">15</span> Legal and safety<span class="s">Authorisation, radio law, privacy, disclaimer</span></div>
+    <div><span class="n">15</span> Legal and safety<span class="s">Authorization, radio law, privacy, disclaimer</span></div>
     <div><span class="n">A–E</span> Appendices<span class="s">Pinout, BOM, defaults, glossary, quick-reference card</span></div>
   </div>
 </div>
@@ -738,7 +738,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
 
   <h3>9.7 Sentinel counter-intelligence</h3>
-  <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognisable template, Sentinel names the tool behind it.</p>
+  <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
 @ALL SENTINEL_BOOT:1           <span class="c"># start automatically on boot</span>
@@ -1111,18 +1111,18 @@ docker compose up -d --build</pre>
 <div class="sec">
   <h2><span class="num">15</span>Legal and safety</h2>
 
-  <h3>15.1 Authorisation</h3>
-  <p>AntiHunter is distributed for lawful, authorised defensive use only: security research, blue-team training, compliant monitoring, event security and network auditing. Operate it only on infrastructure, networks, devices, spectrum and datasets you own or have explicit written permission to assess. The detection, correlation and triangulation features exist to characterise an environment you are authorised to assess, not to identify, follow or profile people. Targeted surveillance, stalking, harassment and tracking individuals without informed consent are prohibited.</p>
+  <h3>15.1 Authorization</h3>
+  <p>AntiHunter is distributed for lawful, authorized defensive use only: security research, blue-team training, compliant monitoring, event security and network auditing. Operate it only on infrastructure, networks, devices, spectrum and datasets you own or have explicit written permission to assess. The detection, correlation and triangulation features exist to characterize an environment you are authorized to assess, not to identify, follow or profile people. Targeted surveillance, stalking, harassment and tracking individuals without informed consent are prohibited.</p>
 
   <h3>15.2 Radio compliance</h3>
   <p>You are responsible for every rule governing radio use where you operate: FCC Part 15 and Part 97, CE/RED, Ofcom and their national equivalents; ISM band allocations, power limits and duty cycles; and any licensing conditions for your class of operation. LoRa is region-locked, 868 MHz EU, 915 MHz US, 923 MHz Asia, and running a region outside the one you are in may be unlawful. Never use the node to cause harmful interference.</p>
 
   <h3>15.3 Interception and privacy</h3>
   <p>Passive reception of radio emissions is regulated separately from network access in most jurisdictions. Capturing, storing, decoding or disclosing frame contents and identifiers may engage the US Wiretap Act and ECPA, state two-party-consent statutes, the UK Investigatory Powers Act or equivalents. Determine the lawfulness of each capture mode where you are before enabling it.</p>
-  <p>MAC addresses, probe request contents, BLE advertisements and Remote ID broadcasts may be personal data under GDPR, UK GDPR, CCPA/CPRA and similar regimes. Collect only with a lawful basis, minimise what you keep, set a retention and destruction schedule, and honour data-subject rights. The maintainers never receive, process or host your data.</p>
+  <p>MAC addresses, probe request contents, BLE advertisements and Remote ID broadcasts may be personal data under GDPR, UK GDPR, CCPA/CPRA and similar regimes. Collect only with a lawful basis, minimize what you keep, set a retention and destruction schedule, and honor data-subject rights. The maintainers never receive, process or host your data.</p>
 
   <h3>15.4 Drone Remote ID</h3>
-  <p>Receiving broadcast Remote ID is permitted in most places. Using that data to locate, approach, confront or interfere with an aircraft or its operator may violate aviation, harassment or anti-stalking law, including 18 U.S.C. § 32. Reception is not authorisation to act.</p>
+  <p>Receiving broadcast Remote ID is permitted in most places. Using that data to locate, approach, confront or interfere with an aircraft or its operator may violate aviation, harassment or anti-stalking law, including 18 U.S.C. § 32. Reception is not authorization to act.</p>
 
   <h3>15.5 Hardware and battery safety</h3>
   <p>Kits, bare boards and assembled units are supplied for people competent in electronics assembly and operation. Correct assembly, ESD control, antenna selection and attachment, and supply of regulated 5 V power are your responsibility. Operating the transceiver without a properly matched antenna can damage the hardware. Lithium cells are never supplied. Sourcing, protection, charging, storage, transport and disposal are yours, and carry fire and injury risk. The hardware is not certified for and must not be used in life-safety, medical, aviation, automotive or industrial-control applications. It is not a substitute for a certified security or alarm system, and its output is advisory only, subject to false positives and false negatives.</p>
@@ -1137,7 +1137,7 @@ docker compose up -d --build</pre>
       <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE AUTHORS, DEVELOPERS, MAINTAINERS AND CONTRIBUTORS SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE OR CONSEQUENTIAL DAMAGES, including loss of data, profits, goodwill, equipment or business interruption, or damages arising from failure to detect, false detection, or regulatory enforcement action, ARISING FROM OR RELATED TO YOUR USE OF THE PROJECT, EVEN IF ADVISED OF THE POSSIBILITY. Where liability cannot be fully disclaimed, total aggregate liability shall not exceed the greater of the amount paid for the unit giving rise to the claim, or USD $0.</p>
       <p>Assembly, sale or instruction by the maintainers creates no warranty, no certification, no fitness-for-purpose representation and no responsibility for how a unit is later configured, deployed or used. Once the unit is in your hands, operation and compliance are yours alone. Flashing the firmware, by web flasher, shell script or any other means, is acceptance of these terms.</p>
       <p>Nothing here excludes liability that cannot lawfully be excluded, including for death or personal injury caused by negligence, for fraud, or non-excludable statutory consumer rights. Some jurisdictions do not allow the exclusion of implied warranties or the limitation of incidental or consequential damages, so parts of the above may not apply to you.</p>
-      <p>You alone are responsible for ensuring your build, deployment and operation comply with all applicable laws, regulations, licences, permits, equipment authorisations, organisational policies and third-party rights. <b>If you do not agree to these terms, do not build, flash, assemble, deploy or operate AntiHunter.</b></p>
+      <p>You alone are responsible for ensuring your build, deployment and operation comply with all applicable laws, regulations, licenses, permits, equipment authorizations, organizational policies and third-party rights. <b>If you do not agree to these terms, do not build, flash, assemble, deploy or operate AntiHunter.</b></p>
       <p class="small">Full text: <span class="mono">Legal Disclaimer</span> in the project README. Firmware is licensed under the GNU AGPL v3.0. Hardware and documentation are licensed as stated in their own files.</p>
     </div>
   </div>

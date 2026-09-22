@@ -901,7 +901,7 @@ void markTriangulationStopFromMesh() {
 void stopTriangulation() {
     if (coordinatorSetupTaskHandle != nullptr) {
         triSetupAbort.store(true);
-        Serial.println("[TRIANGULATE] Stop during setup - signalling coordinator abort");
+        Serial.println("[TRIANGULATE] Stop during setup - signaling coordinator abort");
     }
     if (!triangulationActive) {
         Serial.println("[TRIANGULATE] Not active, nothing to stop");

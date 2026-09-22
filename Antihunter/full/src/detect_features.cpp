@@ -504,7 +504,7 @@ void attack_responseArm(const uint8_t *mac, const char *attackType) {
 }
 
 void attack_responseCancel() {
-    if (g_arPending.exchange(0)) Serial.println("[SENTINEL] Attack response cancelled");
+    if (g_arPending.exchange(0)) Serial.println("[SENTINEL] Attack response canceled");
 }
 
 uint8_t attack_responsePending() { return g_arPending.load(); }

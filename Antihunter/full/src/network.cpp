@@ -1134,7 +1134,7 @@ void registerRemainingRoutes() {
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     cancelTamperErase();
-    req->send(200, "text/plain", "Tamper erase cancelled"); });
+    req->send(200, "text/plain", "Tamper erase canceled"); });
 
   server->on("/factory-wipe", HTTP_POST, [](AsyncWebServerRequest *req) {
     if (!req->hasParam("confirm", true)) {
@@ -1187,7 +1187,7 @@ void registerRemainingRoutes() {
   server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     cancelTamperErase();
-    req->send(200, "text/plain", "Cancelled"); });
+    req->send(200, "text/plain", "Canceled"); });
 
   // Battery Saver endpoint
   server->on("/battery-saver", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2627,5 +2627,5 @@ void handleEraseRequest(AsyncWebServerRequest *request) {
 
 void handleEraseCancel(AsyncWebServerRequest *request) {
     cancelTamperErase();
-    request->send(200, "text/plain", "Tamper erase sequence cancelled");
+    request->send(200, "text/plain", "Tamper erase sequence canceled");
 }

@@ -946,18 +946,18 @@ R"HTML(
 
           <label style="font-size:11px;">RF Environment</label>
           <select id="rfEnv" onchange="saveRFEnv()" style="margin-bottom:6px;">
-            <option value="0">Open Sky &mdash; clear LOS</option>
-            <option value="1">Suburban &mdash; light foliage</option>
-            <option value="2">Indoor &mdash; some walls</option>
-            <option value="3">Indoor Dense &mdash; many partitions</option>
-            <option value="4">Industrial &mdash; heavy obstruction</option>
+            <option value="0">Open Sky &mdash; Clear LOS</option>
+            <option value="1">Suburban &mdash; Light Foliage</option>
+            <option value="2">Indoor &mdash; Some Walls</option>
+            <option value="3">Indoor Dense &mdash; Many Partitions</option>
+            <option value="4">Industrial &mdash; Heavy Obstruction</option>
           </select>
           <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Path-loss model for range estimates and triangulation. Pick the one whose distances match reality on site.</p>
 
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
           <select id="rfPreset" onchange="updateRFPresetUI()">
-            <option value="0">Relaxed (Quiet</option>
+            <option value="0">Relaxed (Quiet)</option>
             <option value="1">Balanced (Default)</option>
             <option value="2">Aggressive (Fast)</option>
             <option value="3">Custom</option>
@@ -1006,8 +1006,8 @@ R"HTML(
 
             <label style="font-size:11px;">Security</label>
             <select id="apAuth" style="margin-bottom:8px;">
-              <option value="0">WPA2/WPA3 (default)</option>
-              <option value="1">WPA2 only</option>
+              <option value="0">WPA2/WPA3 (Default)</option>
+              <option value="1">WPA2 Only</option>
             </select>
 
             <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="apHidden" value="1">Hidden network (no SSID beacon)</label>
@@ -1107,14 +1107,14 @@ R"HTML(
             <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Scan to run</label>
             <select id="vibScanMode" style="width:100%;margin-bottom:8px;">
               <option value="0">None</option>
-              <option value="1">All-device scan</option>
-              <option value="2">Probe-request detect</option>
-              <option value="3">Randomized-MAC detect</option>
-              <option value="4">List scan (targets)</option>
+              <option value="1">All-Device Scan</option>
+              <option value="2">Probe-Request Detect</option>
+              <option value="3">Randomized-MAC Detect</option>
+              <option value="4">List Scan (Targets)</option>
               <option value="5">Drone / RemoteID</option>
-              <option value="6">Deauth (blue-team)</option>
-              <option value="7">Baseline anomaly</option>
-              <option value="8">Packet capture to SD</option>
+              <option value="6">Deauth (Blue-Team)</option>
+              <option value="7">Baseline Anomaly</option>
+              <option value="8">Packet Capture</option>
             </select>
             <div style="display:flex;gap:8px;">
               <div style="flex:1;">
@@ -1277,9 +1277,9 @@ R"HTML(
           </div>
           <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Reset Scope</label>
           <select id="factoryResetTier" onchange="updateFactoryResetTier()" style="width:100%;margin-top:4px;margin-bottom:4px">
-            <option value="full">Full Reset — wipe SD data + reset NVS config</option>
-            <option value="config">Config Only — reset settings, keep captured data</option>
-            <option value="data">Data Only — erase captured data, keep settings</option>
+            <option value="full">Full Reset — Wipe SD Data + Reset NVS Config</option>
+            <option value="config">Config Only — Reset Settings, Keep Captured Data</option>
+            <option value="data">Data Only — Erase Captured Data, Keep Settings</option>
           </select>
           <div id="factoryResetScopeHint" style="font-size:10px;color:var(--mut);margin-bottom:6px;line-height:1.4">Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
           <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
@@ -1309,12 +1309,12 @@ R"HTML(
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
             <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
             <select id="batterySaverInterval">
-              <option value="1">1 minute</option>
-              <option value="2">2 minutes</option>
-              <option value="5" selected>5 minutes</option>
-              <option value="10">10 minutes</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
+              <option value="1">1 Minute</option>
+              <option value="2">2 Minutes</option>
+              <option value="5" selected>5 Minutes</option>
+              <option value="10">10 Minutes</option>
+              <option value="15">15 Minutes</option>
+              <option value="30">30 Minutes</option>
             </select>
           </div>
 
@@ -1341,11 +1341,11 @@ R"HTML(
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Stop and Clear Buttons</label>
             <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is electric cyan.</label>
             <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
-              <option value="default">Default (electric cyan)</option>
+              <option value="default">Default (Electric Cyan)</option>
               <option value="magenta">Magenta</option>
-              <option value="orange">Signal orange</option>
-              <option value="cyan">Electric cyan</option>
-              <option value="lime">Acid lime</option>
+              <option value="orange">Signal Orange</option>
+              <option value="cyan">Electric Cyan</option>
+              <option value="lime">Acid Lime</option>
             </select>
           </div>
 
@@ -1353,12 +1353,12 @@ R"HTML(
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel Banners</label>
             <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is ice blue.</label>
             <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-              <option value="default">Default (ice blue)</option>
+              <option value="default">Default (Ice Blue)</option>
               <option value="violet">Violet</option>
               <option value="teal">Teal</option>
               <option value="copper">Copper</option>
               <option value="steel">Steel</option>
-              <option value="ice">Ice blue</option>
+              <option value="ice">Ice Blue</option>
             </select>
           </div>
 
@@ -1828,7 +1828,7 @@ R"HTML(
         <div class="card" data-key="analysis">
           <h3>Sentinel Analysis</h3>
           <div class="data-header">
-            <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All types</option></select>
+            <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All Types</option></select>
             <input type="text" id="saSearch" placeholder="Search..." oninput="loadSentinelAnalysis()">
             <button class="btn alt" onclick="refreshSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Refresh</button>
             <a class="btn alt" href="/api/incidents.jsonl" download style="padding:8px 14px;font-size:12px;">Export</a>
@@ -3082,7 +3082,7 @@ R"HTML(
         sortResultsDisplay();
       }
 
-      // Shared scrubber: MACs, GPS pairs, labelled lat/lon (plain + JSON), map URLs, quoted SSIDs
+      // Shared scrubber: MACs, GPS pairs, labeled lat/lon (plain + JSON), map URLs, quoted SSIDs
       function privScrubText(s) {
         return String(s == null ? '' : s)
           .replace(/https?:\/\/\S*maps\S*/gi, 'REDACTED')
@@ -3709,7 +3709,7 @@ R"HTML(
             } else if (data.status === 'CANCELLED') {
               clearInterval(poll);
               hideEraseProgressModal();
-              toast('Secure erase cancelled', 'info');
+              toast('Secure erase canceled', 'info');
             }
           }).catch(error => {
             clearInterval(poll);
@@ -5931,7 +5931,7 @@ R"HTML(
           _saData=t.split('\n').filter(x=>x.trim()).map(x=>{try{return JSON.parse(x)}catch(_){return null}}).filter(x=>x);
           const sel=document.getElementById('saType'); const cur=sel?sel.value:'ALL';
           const types=[...new Set(_saData.map(x=>x.type).filter(Boolean))].sort();
-          if(sel){sel.innerHTML='<option value="ALL">All types</option>'+types.map(t=>`<option>${t}</option>`).join(''); sel.value=cur||'ALL';}
+          if(sel){sel.innerHTML='<option value="ALL">All Types</option>'+types.map(t=>`<option>${t}</option>`).join(''); sel.value=cur||'ALL';}
         }
         const ty=(document.getElementById('saType')||{}).value||'ALL';
         const q=((document.getElementById('saSearch')||{}).value||'').toLowerCase();

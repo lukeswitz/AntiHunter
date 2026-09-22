@@ -2116,7 +2116,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     uint16_t seqCtrl = (uint16_t)p[22] | ((uint16_t)p[23] << 8);
     if (seqCtrl != 0x0001) return;
 
-    // Single-frame emit: src MAC is re-randomised every frame (WiFiScan.cpp:5919), so
+    // Single-frame emit: src MAC is re-randomized every frame (WiFiScan.cpp:5919), so
     // per-source cooldown is useless — gate globally.
     {
         static uint32_t s_probeForgeEmit = 0;

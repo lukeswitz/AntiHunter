@@ -745,7 +745,7 @@ chmod +x flashAntihunter.sh
     }
 
     // Channel lives in the manifest filename AND in the manifest body; both are
-    // checked before the flash button is armed, so a mislabelled build cannot flash.
+    // checked before the flash button is armed, so a mislabeled build cannot flash.
     async function updateManifest() {
       const variant = (selectedFirmware === 'full' || selectedFirmware === 'headless')
         ? selectedFirmware : 'radar';
