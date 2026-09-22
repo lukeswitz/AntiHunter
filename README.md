@@ -326,7 +326,7 @@ Movement disturbs them most, a still person less, an empty room least. Sensitivi
 </p>
 
 - **Sensitivity.** Low, Medium, High in the web menu or over mesh. Low by default. Set it from the room.
-- **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbour cannot hold an alert.
+- **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbor cannot hold an alert.
 - **Blind means blind.** If nothing on the channel is transmitting fast enough, the node says so instead of reporting an empty room, then moves channel itself.
 - **Coverage.** Follows each node-to-transmitter path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
 - **Listens, does not transmit.** The Scan tab's "Listen only, never transmit" box is checked by default. The only scan here that can transmit at all.
@@ -674,7 +674,7 @@ No firmware is shipped on it: you flash AntiHunter yourself, for integrity and r
 
 Then, on every tier:
 
-1. **Attach all three antennas before powering on** - on soldered PCB tier: ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec. All other tiers use SMA antennas.
+1. **Attach all three antennas before powering on** - on soldered PCB tier: ceramic is GPS, the labeled 2.4GHz one is the ESP32, the third is LoRa on the Heltec. All other tiers use SMA antennas.
 2. **Flash AntiHunter** - [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
 3. **Finish the radio** - set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off: [Radio Setup](#radio-setup). Bare PCB and Parts Kit builds flash Meshtastic and set the serial module here too.
 4. **Set your node ID and AP password** - web UI at `http://192.168.4.1`, or over mesh.
