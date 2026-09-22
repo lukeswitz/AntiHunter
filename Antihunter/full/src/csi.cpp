@@ -512,12 +512,12 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiPsiEta(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_PSI_ETA;
+static float csiGateEta(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_SIG_ETA;
 }
 
 static float csiTriggerRatio(float gateStat) {
-    const float r = gateStat / csiPsiEta(csiThresholdMilli.load());
+    const float r = gateStat / csiGateEta(csiThresholdMilli.load());
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -701,7 +701,7 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float gateEta = csiPsiEta(csiThresholdMilli.load());
+        const float gateEta = csiGateEta(csiThresholdMilli.load());
         const bool sigAbove = l.sc.psiValid && l.sc.sigVar >= gateEta;
 
         if (sigAbove) {
@@ -837,7 +837,7 @@ String getCsiResults() {
     r += "Rejected (FCS/40MHz/short): " + String(g_csiRejected.load()) + "\n";
     r += "Queue drops: " + String(g_csiDropped.load()) + "\n";
     r += "Motion events: " + String(g_csiMotionEvents.load()) + "\n";
-    r += "Threshold: " + String(csiPsiEta(csiThresholdMilli.load()), 3) +
+    r += "Threshold: " + String(csiGateEta(csiThresholdMilli.load()), 3) +
          "x  Hold: " + String(csiHoldMs.load()) + "ms\n";
     r += "Min motion: " + String(csiAreaDutyMinS.load()) +
          "s  Spots: " + String(csiAreaRadiosNeeded.load()) + "\n\n";
@@ -897,7 +897,7 @@ String getCsiJson() {
     j += ",\"drops\":" + String(g_csiDropped.load());
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
-    j += ",\"threshold\":" + String(csiPsiEta(csiThresholdMilli.load()), 3);
+    j += ",\"threshold\":" + String(csiGateEta(csiThresholdMilli.load()), 3);
     j += ",\"dutyMinS\":" + String(csiAreaDutyMinS.load());
     j += ",\"spots\":" + String(csiAreaRadiosNeeded.load());
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
@@ -1548,7 +1548,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.sigVar >= csiPsiEta(thrMilli)) statPassEta++;
+                    if (l.sc.sigVar >= csiGateEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;

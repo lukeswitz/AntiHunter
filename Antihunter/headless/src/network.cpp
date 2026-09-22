@@ -1015,7 +1015,7 @@ static void handleCsiCfg(const String &command)
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
   setCsiAreaConfig(dwell, radios);
-  const float shownThr = (thr > 0.0f) ? thr : CSI_PSI_ETA;
+  const float shownThr = (thr > 0.0f) ? thr : CSI_SIG_ETA;
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +
