@@ -325,11 +325,11 @@ Movement disturbs them most, a still person less, an empty room least. Sensitivi
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
-- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
+- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Low by default. Set it from the room.
 - **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbour cannot hold an alert.
 - **Blind means blind.** If nothing on the channel is transmitting fast enough, the node says so instead of reporting an empty room, then moves channel itself.
 - **Coverage.** Follows each node-to-transmitter path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
-- **Listens, does not transmit.** Off by default. The only scan here that can transmit at all.
+- **Listens, does not transmit.** The Scan tab's "Listen only, never transmit" box is checked by default. The only scan here that can transmit at all.
 
 > [!WARNING]
 > **Transmit is off unless you turn it on.** Left alone the node is silent. Turned on, it sends about one packet a second only when the air is too quiet to work with — the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site.
@@ -373,7 +373,7 @@ sitting still, both registered often.
 > - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
 > - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
 > - How many transmitters must agree: add `SPOTS=<n>`
-> - Allow transmitting when the air is too quiet: add `BROADCAST=ON`
+> - Allow transmitting when the air is too quiet: add `BROADCAST=ON`, or clear the "Listen only, never transmit" box in the web UI
 > - Back to defaults `@ALL CSI_RECAL`
 >
 > A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
