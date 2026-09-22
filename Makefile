@@ -4,6 +4,8 @@ CPPCHECK_FLAGS := --enable=warning,style,performance,portability,unusedFunction 
 	--suppress=useStlAlgorithm \
 	--inline-suppr \
 	-DPROGMEM= \
+	-DAH_GIT_SHA=\"dev\" \
+	-DAH_BUILD_EPOCH=0 \
 	--error-exitcode=1
 
 FULL_SRC := Antihunter/full/src

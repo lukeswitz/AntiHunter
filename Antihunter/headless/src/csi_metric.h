@@ -25,13 +25,8 @@ static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_PSI_ETA = 0.120f;
-static const float CSI_PSI_K = 3.0f;
 static const float CSI_PSI_Z = 2.0f;
 
-static inline float csiAnalyticEta() {
-    const float T = 1.0f / CSI_ACF_ALPHA;
-    return -1.0f / T + CSI_PSI_K * sqrtf(1.0f / ((float)CSI_NSUB * T));
-}
 static const int CSI_AREA_LINK_NUM = 1;
 static const int CSI_AREA_LINK_DEN = 2;
 static const int CSI_AREA_LINK_CAP = 2;
@@ -418,7 +413,7 @@ struct CsiScorer {
             if (phlen < CSI_ACF_HIST) phlen++;
             psiFloor = psiHistStats(&psiSpread);
         }
-        psiZ = (psiValid && phlen >= CSI_ACF_MIN_HIST) ? ((psi - psiFloor) / psiSpread) : 0.0f;
+        psiZ = (psiValid && psiHistReady()) ? ((psi - psiFloor) / psiSpread) : 0.0f;
 
         const bool sigBaseline = (shlen < CSI_ACF_MIN_HIST) ||
                                  (sigVar <= sigFloor + CSI_PSI_Z * sigSpread) ||

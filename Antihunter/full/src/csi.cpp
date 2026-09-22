@@ -1524,7 +1524,7 @@ void csiMotionTask(void *pv) {
             lastStatMs = now;
             const uint32_t statSeenNow = g_csiSeen.load();
             const float statRateNow = (float)(statSeenNow - statSeenSnap) * 1000.0f /
-                                      (float)(statMs ? statMs : 1);
+                                      (float)statMs;
             statSeenSnap = statSeenNow;
             const uint32_t span = now - startMs;
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
