@@ -734,8 +734,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
                 <label style="font-size:11px;">Sensitivity</label>
                 <select id="csiPreset" name="csiPreset" onchange="csiApplyPreset(this.value)">
-                  <option value="low" selected>Low — Fewest False Alarms</option>
-                  <option value="medium">Medium — Walking</option>
+                  <option value="low">Low — Fewest False Alarms</option>
+                  <option value="medium" selected>Medium — Walking</option>
                   <option value="high">High — Faint Movement</option>
                   <option value="custom">Custom</option>
                 </select>

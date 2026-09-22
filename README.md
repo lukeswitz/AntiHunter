@@ -301,7 +301,7 @@ Detects people moving through a space using the WiFi already in the air. Nothing
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
-- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Low by default. Set it from the room.
+- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
 - **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbour cannot hold an alert.
 - **Blind means blind.** If nothing on the channel is transmitting fast enough, the node says so instead of reporting an empty room, then moves channel itself.
 - **Coverage.** Follows each node-to-transmitter path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
