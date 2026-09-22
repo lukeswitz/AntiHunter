@@ -2203,8 +2203,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
 {
   String command = commandRaw;
   command.trim();
+#if defined(AH_DEBUG_VERBOSE) && (AH_DEBUG_VERBOSE)
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
+#endif
   if (meshIsResponse(command)) {
     Serial.println("[MESH] Response frame - not dispatched as command");
     return;
@@ -3059,7 +3061,9 @@ void processUSBToMesh() {
 
     while (Serial.available()) {
         char c = Serial.read();
+#if defined(AH_USB_ECHO) && (AH_USB_ECHO)
         Serial.write(c);
+#endif
         // Only process printable ASCII characters and line endings for mesh
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
@@ -3072,7 +3076,7 @@ void processUSBToMesh() {
                 } else if (usbBuffer == "FLEET") {
                     Serial.println(meshFleetJson());
                 } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
-                    Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
+                    Serial.printf("[USB CMD] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
                     Serial.println("[MESH] Ignoring invalid message length");

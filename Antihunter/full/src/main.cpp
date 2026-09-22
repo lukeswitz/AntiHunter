@@ -65,7 +65,9 @@ void uartForwardTask(void *parameter) {
 
     for (size_t i = 0; i < rxChunk.length(); i++) {
       char c = rxChunk[i];
+#if defined(AH_USB_ECHO) && (AH_USB_ECHO)
       Serial.write(c);
+#endif
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
