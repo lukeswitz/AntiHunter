@@ -838,7 +838,9 @@ String getCsiResults() {
     r += "Queue drops: " + String(g_csiDropped.load()) + "\n";
     r += "Motion events: " + String(g_csiMotionEvents.load()) + "\n";
     r += "Threshold: " + String(csiPsiEta(csiThresholdMilli.load()), 3) +
-         "x  Hold: " + String(csiHoldMs.load()) + "ms\n\n";
+         "x  Hold: " + String(csiHoldMs.load()) + "ms\n";
+    r += "Min motion: " + String(csiAreaDutyMinS.load()) +
+         "s  Spots: " + String(csiAreaRadiosNeeded.load()) + "\n\n";
 
     if (n == 0) {
         r += "No transmitters tracked yet on this channel.\n";
@@ -896,6 +898,8 @@ String getCsiJson() {
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
     j += ",\"threshold\":" + String(csiPsiEta(csiThresholdMilli.load()), 3);
+    j += ",\"dutyMinS\":" + String(csiAreaDutyMinS.load());
+    j += ",\"spots\":" + String(csiAreaRadiosNeeded.load());
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
