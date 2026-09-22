@@ -205,24 +205,24 @@ struct CsiEvent {
 };
 
 struct CsiLink {
-    uint8_t mac[6];
-    bool used;
-    uint32_t packets;
-    uint32_t firstMs;
-    uint32_t lastMs;
-    uint32_t lastTs;
-    int8_t rssi;
+    uint8_t mac[6] = {};
+    bool used = false;
+    uint32_t packets = 0;
+    uint32_t firstMs = 0;
+    uint32_t lastMs = 0;
+    uint32_t lastTs = 0;
+    int8_t rssi = 0;
     CsiScorer sc;
-    float peakScore;
-    uint8_t consec;
-    bool motion;
-    uint32_t lastAboveMs;
-    uint32_t lastTickMs;
-    uint32_t elevMs;
-    uint32_t motionStartMs;
-    uint32_t events;
-    uint32_t pairsSnap;
-    float pairRate;
+    float peakScore = 0.0f;
+    uint8_t consec = 0;
+    bool motion = false;
+    uint32_t lastAboveMs = 0;
+    uint32_t lastTickMs = 0;
+    uint32_t elevMs = 0;
+    uint32_t motionStartMs = 0;
+    uint32_t events = 0;
+    uint32_t pairsSnap = 0;
+    float pairRate = 0.0f;
 };
 
 static CsiLink g_links[CSI_MAX_LINKS];

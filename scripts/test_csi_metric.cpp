@@ -132,7 +132,7 @@ static void addWalker(Path *p, int &np, float scale) {
 
 int main() {
     Path p[16]; int np;
-    const uint32_t LAG = CSI_ACF_LAG_US;
+    const uint32_t LAG = 33333;
     const float ETA = CSI_ACF_ETA;
 
     printf("== WiDetect null: static channel, noise only ==\n");
@@ -140,10 +140,11 @@ int main() {
            CSI_ACF_T, -1.0f / (float)CSI_ACF_T);
     {
         mkStatic(p, np);
-        CsiScorer s; s.reset();
+        static float win[CsiScorer::windowFloats()];
+        CsiScorer s; s.attachWindow(win); s.reset();
         feedChannel(s, p, np, 2.0f, 6000, LAG, false);
-        printf("   acf=%+.4f vote=%.2f pairs=%u\n", s.acf, s.vote, s.acfPairs);
-        assert(fabsf(s.acf) < ETA);
+        printf("   psi=%+.4f acf=%+.4f vote=%.2f pairs=%u\n", s.psi, s.acf, s.vote, s.acfPairs);
+        assert(fabsf(s.psi) < ETA);
         assert(s.acfPairs > CSI_ACF_T);
     }
 
@@ -175,18 +176,20 @@ int main() {
         }
     }
 
-    printf("== lag gate: out-of-window pairs must not enter the ACF ==\n");
+    printf("== lag buckets: dt classifies into lagBkt, no pair is rejected ==\n");
     {
         mkStatic(p, np);
         CsiScorer fast; fast.reset();
-        feedChannel(fast, p, np, 2.0f, 2000, CSI_ACF_LAG_MIN_US / 4, false);
-        printf("   dt=%uus below min -> pairs=%u\n", CSI_ACF_LAG_MIN_US / 4, fast.acfPairs);
-        assert(fast.acfPairs == 0);
+        feedChannel(fast, p, np, 2.0f, 2000, 10000, false);
+        printf("   dt=10000us -> pairs=%u bkt0=%u\n", fast.acfPairs, fast.lagBkt[0]);
+        assert(fast.acfPairs > 0);
+        assert(fast.lagBkt[0] > 0);
 
         CsiScorer slow; slow.reset();
-        feedChannel(slow, p, np, 2.0f, 2000, CSI_ACF_LAG_MAX_US * 4, false);
-        printf("   dt=%uus above max -> pairs=%u\n", CSI_ACF_LAG_MAX_US * 4, slow.acfPairs);
-        assert(slow.acfPairs == 0);
+        feedChannel(slow, p, np, 2.0f, 2000, 4000000, false);
+        printf("   dt=4000000us -> pairs=%u bkt4=%u\n", slow.acfPairs, slow.lagBkt[4]);
+        assert(slow.acfPairs > 0);
+        assert(slow.lagBkt[4] > 0);
     }
 
     printf("== holdFloor must actually freeze the floors ==\n");
@@ -213,17 +216,21 @@ int main() {
 
     printf("== separation at the operating threshold ==\n");
     {
+        static float qwin[CsiScorer::windowFloats()];
+        static float mwin[CsiScorer::windowFloats()];
         mkStatic(p, np);
-        CsiScorer q; q.reset();
+        CsiScorer q; q.attachWindow(qwin); q.reset();
         feedChannel(q, p, np, 2.0f, 6000, LAG, false);
 
         mkStatic(p, np); addWalker(p, np, 1.0f);
-        CsiScorer m; m.reset();
+        CsiScorer m; m.attachWindow(mwin); m.reset();
         feedChannel(m, p, np, 2.0f, 6000, LAG, false);
 
-        printf("   quiet acf=%+.4f   moving acf=%+.4f   eta=%.2f\n", q.acf, m.acf, ETA);
-        assert(q.acf < ETA);
-        assert(m.acf > ETA);
+        printf("   quiet psi=%+.4f sig=%.4f   moving psi=%+.4f sig=%.4f   gate=%.3f\n",
+               q.psi, q.sigVar, m.psi, m.sigVar, CSI_SIG_ETA);
+        assert(q.psi < m.psi);
+        assert(q.sigVar < CSI_SIG_ETA);
+        assert(m.sigVar > CSI_SIG_ETA);
     }
 
     printf("== fixed-channel generator: AGC step must not read as motion ==\n");
@@ -235,12 +242,14 @@ int main() {
             lo[i] = re[i] * 0.35f;
             loIm[i] = im[i] * 0.35f;
         }
-        CsiScorer s; s.reset();
+        static float awin[CsiScorer::windowFloats()];
+        CsiScorer s; s.attachWindow(awin); s.reset();
         feed(s, re, im, 3.0f, 3000, false, LAG);
-        const float quietAcf = s.acf;
+        const float quietSig = s.sigVar;
         feedPeak(s, lo, loIm, 1.0f, 200, false, LAG);
-        printf("   quiet acf=%+.4f  after 9dB gain step acf=%+.4f\n", quietAcf, s.acf);
-        assert(s.acf < ETA);
+        printf("   quiet sig=%.4f  after 9dB gain step sig=%.4f  gate=%.3f\n",
+               quietSig, s.sigVar, CSI_SIG_ETA);
+        assert(s.sigVar < CSI_SIG_ETA);
     }
 
     printf("\nOK\n");
