@@ -55,7 +55,7 @@ void uartForwardTask(void *parameter) {
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
 
           String toProcess, senderId;
           meshSplitSender(meshBuffer, senderId, toProcess);
@@ -327,7 +327,7 @@ void loop() {
         } else if (cmd == "FLEET") {
             Serial.println(meshFleetJson());
         } else if (cmd.length() > 0 && cmd.length() <= MAX_MESH_SIZE) {
-            Serial.printf("[USB CMD] %s\n", cmd.c_str());
+            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", cmd.c_str());
             processMeshMessage(cmd);
         }
     }
