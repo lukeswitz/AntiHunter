@@ -44,7 +44,7 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 ### C5 only
 
 > [!NOTE]
-> ****Breadboard the C5 and test it before you solder anything:** a C5 soldered into a PCB can only go back to stable firmware by desoldering it. It is proven working, but I won't tell you to blindly do it until stable.
+> **Breadboard the C5 and test it before you solder anything:** a C5 soldered into a PCB can only go back to stable firmware by desoldering it. It is proven working, but I won't tell you to blindly do it until stable.
 
 - **CSI motion detection, in testing on the C5.** Same feature as the S3 beta, with its own presets: Medium is the level this board was scored at, Low and High are scaled from it. It runs and detects, but separates movement from background less cleanly than an S3 in the same room; the cause is open. Prefer an S3 where detection matters. Detail and open issues: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
 - **Packet capture: pick the band.** 2.4 GHz, 5 GHz, or both, from the Scan tab or the `band` field of `PCAP_START`.
