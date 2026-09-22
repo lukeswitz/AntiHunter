@@ -71,7 +71,7 @@ void uartForwardTask(void *parameter) {
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
 
           String toProcess, senderId;
           meshSplitSender(meshBuffer, senderId, toProcess);
