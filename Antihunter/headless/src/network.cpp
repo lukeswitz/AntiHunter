@@ -494,6 +494,13 @@ static void handleMeshDedupClear()
   sendToSerial1(nodeId + ": DEDUP_CLEAR_ACK:OK", true);
 }
 
+static void handleDeviceDbClear()
+{
+  clearDeviceDB();
+  Serial.println("[DEVICE] Device database cleared");
+  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:OK", true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
@@ -2240,6 +2247,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
   else if (command == "MESH_DEDUP_CLEAR")             handleMeshDedupClear();
+  else if (command == "DEVICE_DB_CLEAR")              handleDeviceDbClear();
   else if (command.startsWith("CONFIG_BAND:"))        handleConfigBand(command);
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
