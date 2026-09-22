@@ -9,6 +9,8 @@ CPPCHECK_FLAGS := --enable=all --std=c++17 \
 	--suppress=useStlAlgorithm \
 	--inline-suppr \
 	-DPROGMEM= \
+	-DAH_GIT_SHA=\"dev\" \
+	-DAH_BUILD_EPOCH=0 \
 	--error-exitcode=1
 
 FULL_SRC := Antihunter/full/src
