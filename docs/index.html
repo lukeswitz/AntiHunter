@@ -255,8 +255,8 @@
       <div style="max-width:320px;margin:0 auto 14px;">
         <label>Release Channel</label>
         <select id="cfgChannel" onchange="selectChannel(this.value)">
-          <option value="stable">Stable (recommended)</option>
-          <option value="beta">Beta (latest — may be unstable)</option>
+          <option value="stable">Stable (Recommended)</option>
+          <option value="beta">Beta (Latest — May Be Unstable)</option>
           <option value="c5">C5 (XIAO ESP32-C5, 2.4 + 5GHz)</option>
         </select>
       </div>
@@ -316,7 +316,7 @@
           <div>
             <label>Mesh Enabled</label>
             <select id="cfgMeshEnabled">
-              <option value="" selected>On (default)</option>
+              <option value="" selected>On (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -328,7 +328,7 @@
           <div>
             <label>Session Dedup</label>
             <select id="cfgMeshSessDedup">
-              <option value="" selected>Off (default)</option>
+              <option value="" selected>Off (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -384,7 +384,7 @@
           <div>
             <label>Heartbeat Enabled</label>
             <select id="cfgHbEnabled">
-              <option value="" selected>Off (default)</option>
+              <option value="" selected>Off (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -396,7 +396,7 @@
           <div>
             <label>Vibration Sensor</label>
             <select id="cfgVibEnabled">
-              <option value="" selected>On (default)</option>
+              <option value="" selected>On (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -409,7 +409,7 @@
           <div>
             <label>Scan on Vibration</label>
             <select id="cfgVibScanEnabled">
-              <option value="" selected>Off (default)</option>
+              <option value="" selected>Off (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -418,14 +418,14 @@
             <label>Scan to Run</label>
             <select id="cfgVibScanMode">
               <option value="" selected>Unchanged</option>
-              <option value="1">All-device scan</option>
-              <option value="2">Probe-request detect</option>
-              <option value="3">Randomized-MAC detect</option>
-              <option value="4">List scan (targets)</option>
+              <option value="1">All-Device Scan</option>
+              <option value="2">Probe-Request Detect</option>
+              <option value="3">Randomized-MAC Detect</option>
+              <option value="4">List Scan (Targets)</option>
               <option value="5">Drone / RemoteID</option>
-              <option value="6">Deauth detect</option>
-              <option value="7">Baseline anomaly</option>
-              <option value="8">Packet capture to SD</option>
+              <option value="6">Deauth Detect</option>
+              <option value="7">Baseline Anomaly</option>
+              <option value="8">Packet Capture</option>
             </select>
           </div>
           <div>
@@ -444,7 +444,7 @@
           <div>
             <label>SD Auto-Repair</label>
             <select id="cfgSdAutoRepair">
-              <option value="" selected>Off (default)</option>
+              <option value="" selected>Off (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -462,7 +462,7 @@
           <div>
             <label>Auto-Erase Enabled</label>
             <select id="cfgAutoEraseEnabled">
-              <option value="" selected>Off (default)</option>
+              <option value="" selected>Off (Default)</option>
               <option value="1">On</option>
               <option value="0">Off</option>
             </select>
@@ -534,15 +534,15 @@
             <div>
               <label>AP Security</label>
               <select id="cfgApAuth">
-                <option value="" selected>WPA2/WPA3 (default)</option>
+                <option value="" selected>WPA2/WPA3 (Default)</option>
                 <option value="0">WPA2/WPA3</option>
-                <option value="1">WPA2 only</option>
+                <option value="1">WPA2 Only</option>
               </select>
             </div>
             <div>
               <label>Hidden Network</label>
               <select id="cfgApHidden">
-                <option value="" selected>Off (default)</option>
+                <option value="" selected>Off (Default)</option>
                 <option value="1">On</option>
                 <option value="0">Off</option>
               </select>
@@ -559,8 +559,8 @@
           <div>
             <label>Start Sentinel on Boot</label>
             <select id="cfgSentinelBoot">
-              <option value="">Default (off, manual)</option>
-              <option value="1">On — persist &amp; auto-start</option>
+              <option value="">Default (Off, Manual)</option>
+              <option value="1">On — Persist &amp; Auto-Start</option>
               <option value="0">Off</option>
             </select>
             <div class="cfg-note">Persists across reboot when On</div>
@@ -569,8 +569,8 @@
             <label>Sentinel Radio Mode</label>
             <select id="cfgSentinelScan">
               <option value="">Default</option>
-              <option value="0">Defend (pin one channel — Full only, needs an AP)</option>
-              <option value="1">Scan all channels (use this on Headless)</option>
+              <option value="0">Defend (Pin One Channel — Full Only, Needs an AP)</option>
+              <option value="1">Scan All Channels (Use This on Headless)</option>
             </select>
           </div>
         </div>

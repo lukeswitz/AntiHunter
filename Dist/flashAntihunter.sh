@@ -46,7 +46,7 @@ select_channel() {
         read -p "Continue? (y/N): " ack
         case "$ack" in
             [Yy]*) ;;
-            *) echo "Cancelled."; exit 0 ;;
+            *) echo "Canceled."; exit 0 ;;
         esac
         local c5base="https://github.com/lukeswitz/AntiHunter/raw/refs/heads/$C5_BRANCH/Dist"
         local rbase="https://github.com/lukeswitz/AntiHunter/raw/refs/heads/$RADAR_BRANCH/Dist"

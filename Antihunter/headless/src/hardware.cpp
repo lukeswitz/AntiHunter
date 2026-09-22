@@ -2420,7 +2420,7 @@ bool initiateTamperErase() {
 
 void cancelTamperErase() {
     if (tamperEraseActive) {
-        Serial.println("[TAMPER] Auto-erase cancelled");
+        Serial.println("[TAMPER] Auto-erase canceled");
         String cancelMsg = getNodeId() + ": TAMPER_CANCELLED";
         sendToSerial1(cancelMsg, false);
     }

@@ -3207,7 +3207,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         sortResultsDisplay();
       }
 
-      // Shared scrubber: MACs, GPS pairs, labelled lat/lon (plain + JSON), map URLs, quoted SSIDs
+      // Shared scrubber: MACs, GPS pairs, labeled lat/lon (plain + JSON), map URLs, quoted SSIDs
       function privScrubText(s) {
         return String(s == null ? '' : s)
           .replace(/https?:\/\/\S*maps\S*/gi, 'REDACTED')
@@ -3833,7 +3833,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             } else if (data.status === 'CANCELLED') {
               clearInterval(poll);
               hideEraseProgressModal();
-              toast('Secure erase cancelled', 'info');
+              toast('Secure erase canceled', 'info');
             }
           }).catch(error => {
             clearInterval(poll);

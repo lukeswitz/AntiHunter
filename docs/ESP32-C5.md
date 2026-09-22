@@ -78,7 +78,7 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### Motion detection on a C5
 
-**In testing.** It runs and it detects, but against the same labelled walk-ins in the same
+**In testing.** It runs and it detects, but against the same labeled walk-ins in the same
 room a C5 separates movement from background less cleanly than an S3. The cause is still
 open. Prefer an S3 where detection matters.
 
