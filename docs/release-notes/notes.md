@@ -58,8 +58,15 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 - Baseline no longer runs forever when only another panel's Forever box was ticked (web UI).
 - Peer node reports are never run as commands.
 - Emoji-only Meshtastic sender names no longer drop commands (#31).
+- **Console output no longer feeds itself** (#32). Every line read on USB or radio was re-emitted — the reprint, the `[MESH] Processing` line and the dispatch trace — so more console text came out than went in. Anything that put the node's own output back on its input then compounded that into a flood, and the recycled text was dispatched as commands. The node now discards inbound lines that begin with `[`, which only its own log lines do. The byte echo is behind `AH_USB_ECHO` and `[DEBUG_RAW]` behind `AH_DEBUG_VERBOSE`, both off by default, and USB input logs as `[USB CMD]` so cable-side and air-side input can be told apart in a log.
+- `BATTERY_SAVER_STATUS` replies are recognized as replies again; two adjacent string literals had joined, so the guard never matched and the reply fell through to the dispatcher (#32).
+- The mesh rate-limiter log reads `barrel_free=` instead of `barrel=`. The number was always the budget remaining, not the queue depth, and the old label invited the opposite reading (#32).
 - Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report.
 - Beta and C5: headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
+- Beta and C5: the CSI channel survey runs again. `CSI_CFG` had no `CH=` handler, so `CSI_CFG:CH=0` was read as a threshold instead, and the pinned channel was kept in NVS, so once a channel was set the node never surveyed again. `CH=` is now a real token and the pin is not persisted.
+- Beta and C5: CSI arming no longer requires the psiZ term. Scored against logged per-link telemetry, occupied hours versus quiet nights, psiZ separated at chance and rejected most true detections for almost no reduction in false ones. It stays in telemetry.
+- Beta: the S3 compiled CSI defaults are the labeled config for that board, 0.120 / 8 s / 3 spots, instead of 0.065 / 4 s / 2.
+- Headless: `DEVICE_DB_CLEAR` clears the device database over mesh. The function existed but nothing could call it — the web UI route is full-build only.
 - Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
 - SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
 - Log file is held open across writes and reopened only after a failed write.
@@ -134,3 +141,4 @@ pio run -e AntiHunter-c5-headless -t upload
 ### Thanks
 
 - rcbm. and d3mo for the bug reports.
+- nconder for #32 — a read-only capture, byte offsets, a counter script and a coordinate-masked copy with matching counts. It pinned the ingest path on the first read.
