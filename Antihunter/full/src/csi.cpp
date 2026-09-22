@@ -702,9 +702,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float psiEta = csiPsiEta(csiThresholdMilli.load());
-        const bool zReady = l.sc.psiHistReady();
-        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta &&
-                              (!zReady || l.sc.psiZ >= CSI_PSI_Z);
+        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta;
 
         if (psiAbove) {
             l.lastAboveMs = now;
