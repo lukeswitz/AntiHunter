@@ -1015,6 +1015,7 @@ static void handleCsiCfg(const String &command)
         const String v = tok.substring(10);
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
       }
+      else if (tok.startsWith("CH=")) ch = (uint8_t)tok.substring(3).toInt();
       else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();

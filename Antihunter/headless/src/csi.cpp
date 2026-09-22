@@ -930,7 +930,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     csiRawDump.store(rawDump);
     csiTelemetry.store(telemetry);
 
-    prefs.putUChar("csiCh", csiPinnedChannel.load());
+    if (prefs.isKey("csiCh")) prefs.remove("csiCh");
     prefs.putUInt("csiThr3", csiThresholdMilli.load());
     prefs.putUInt("csiHold", csiHoldMs.load());
     prefs.putUInt("csiCons", csiConsecNeeded.load());
@@ -948,7 +948,7 @@ void loadCsiConfigFromPrefs() {
         prefs.remove("csiThr2");
         Serial.println("[CSI] removed stale csiThr2 from NVS (pre-sigvar threshold)");
     }
-    csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
+    csiPinnedChannel.store(0);
     uint32_t thrStored = prefs.getUInt("csiThr3", 0);
     if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
     csiThresholdMilli.store(thrStored);
