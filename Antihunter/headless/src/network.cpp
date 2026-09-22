@@ -126,7 +126,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     // Phase 1 + review fix A: rate-limit check INSIDE mutex so canSend/consume are atomic.
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         meshTxDroppedRateLimit.fetch_add(1);
-        Serial.printf("[MESH] DROP rate-limit: barrel=%u/%u need=%u msg=\"%.32s\"\n",
+        Serial.printf("[MESH] DROP rate-limit: barrel_free=%u/%u need=%u msg=\"%.32s\"\n",
                       rateLimiter.available(), SerialRateLimiter::capacity(), (unsigned)msgLen, message.c_str());
         xSemaphoreGive(serial1Mutex);
         return false;
@@ -172,10 +172,10 @@ bool sendToSerial1(const String &message, bool canDelay) {
         if (total > 0) {
             uint32_t idx = meshDrainSent.load() + meshMsgUnits(message);
             if (idx > total) idx = total;
-            Serial.printf("[MESH] barrel=%u/%uB  drain %u/%u\n",
+            Serial.printf("[MESH] barrel_free=%u/%uB  drain %u/%u\n",
                           rateLimiter.available(), SerialRateLimiter::capacity(), idx, total);
         } else {
-            Serial.printf("[MESH] barrel=%u/%uB\n",
+            Serial.printf("[MESH] barrel_free=%u/%uB\n",
                           rateLimiter.available(), SerialRateLimiter::capacity());
         }
     }
