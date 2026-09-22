@@ -1143,8 +1143,8 @@ void loadCsiConfigFromPrefs() {
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
-    csiAreaDutyMinS.store(prefs.getUInt("csiDuty", 12));
-    csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", CSI_AREA_LINK_CAP));
+    csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
+    csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
     csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
 }
 
