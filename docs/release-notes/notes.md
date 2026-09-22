@@ -141,5 +141,5 @@ pio run -e AntiHunter-c5-headless -t upload
 ### Thanks
 
 - d3mocide for #31 — emoji short names on a mesh node stopped a DigiNode responding to commands at all.
-- rbcm. for the v1.0.2 field report behind the internal-RAM fix — long BLE device scans aborting in `fopen`, with the device count and the conditions that reproduced it.
+- rcbm. for the v1.0.2 field report behind the internal-RAM fix — long BLE device scans aborting in `fopen`, with the device count and the conditions that reproduced it.
 - nconder for #32 — a read-only capture, byte offsets, a counter script and a coordinate-masked copy with matching counts. It pinned the ingest path on the first read.
