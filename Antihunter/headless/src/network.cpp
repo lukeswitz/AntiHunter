@@ -994,6 +994,7 @@ static void handleCsiCfg(const String &command)
   bool telemetry = csiTelemetry.load();
   uint32_t dwell = csiAreaDutyMinS.load();
   uint32_t radios = csiAreaRadiosNeeded.load();
+  bool areaGiven = false;
   int idx = 0;
 
   while (params.length() > 0) {
@@ -1002,14 +1003,14 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.350f; dwell = 8; radios = 3; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.200f; dwell = 4; radios = 2; }
-        else if (v == "HIGH") { thr = 0.140f; dwell = 4; radios = 1; }
+        if (v == "LOW") { thr = 0.350f; dwell = 8; radios = 3; areaGiven = true; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.200f; dwell = 4; radios = 2; areaGiven = true; }
+        else if (v == "HIGH") { thr = 0.140f; dwell = 4; radios = 1; areaGiven = true; }
         else thr = v.toFloat();
       }
-      else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
+      else if (tok.startsWith("MIN_MOTION=")) { dwell = (uint32_t)tok.substring(11).toInt(); areaGiven = true; }
       else if (tok.startsWith("CLEAR_AFTER=")) hold = (uint32_t)tok.substring(12).toInt() * 1000UL;
-      else if (tok.startsWith("SPOTS=")) radios = (uint32_t)tok.substring(6).toInt();
+      else if (tok.startsWith("SPOTS=")) { radios = (uint32_t)tok.substring(6).toInt(); areaGiven = true; }
       else if (tok.startsWith("BROADCAST=")) {
         const String v = tok.substring(10);
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
@@ -1038,7 +1039,7 @@ static void handleCsiCfg(const String &command)
   }
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
-  setCsiAreaConfig(dwell, radios);
+  if (areaGiven) setCsiAreaConfig(dwell, radios);
   const float shownThr = (thr > 0.0f) ? thr : CSI_PSI_ETA;
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
