@@ -2591,6 +2591,8 @@ void processMeshMessage(const String &message) {
     }
     if (cleanMessage.length() == 0) return;
 
+    if (cleanMessage.startsWith("[")) return;
+
     String sendingNode, content;
     meshSplitSender(cleanMessage, sendingNode, content);
     const bool haveSender = sendingNode.length() > 0;
@@ -3043,7 +3045,7 @@ void processUSBToMesh() {
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
                 if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
-                    Serial.printf("[USB CMD] %s\n", usbBuffer.c_str());
+                    if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
                     Serial.println("[MESH] Ignoring invalid message length");
