@@ -245,6 +245,7 @@ void setup() {
     delay(10000);
 
     initializeNetwork();
+    ensureErasePSK();
     delay(500);
     memMark("network");
     initializeGPS();

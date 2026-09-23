@@ -2019,17 +2019,15 @@ String generateEraseToken() {
     return String(tokenBuffer);
 }
 
-bool validateEraseToken(const String &token) {
-    if (token != tamperAuthToken) return false;
-    
-    int lastUnderscorePos = token.lastIndexOf('_');
-    if (lastUnderscorePos < 0) return false;
-    
-    String timestampStr = token.substring(lastUnderscorePos + 1);
-    uint32_t tokenTime = strtoul(timestampStr.c_str(), nullptr, 16);
-    uint32_t currentTime = millis() / 1000;
-
-    return (currentTime - tokenTime) < 300;
+void ensureErasePSK() {
+    erasePSK = prefsGetString("erasePSK", "");
+    if (erasePSK.length() == 0) {
+        char buf[33];
+        for (int i = 0; i < 4; i++) snprintf(buf + i * 8, 9, "%08x", (unsigned)esp_random());
+        setErasePSK(String(buf));
+        Serial.println("[ERASE] Generated new erase PSK");
+    }
+    Serial.printf("[ERASE] PSK: %s\n", erasePSK.c_str());
 }
 
 void setErasePSK(const String &key) {

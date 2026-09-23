@@ -767,11 +767,13 @@ Tamper detection and emergency data wiping.
 
 - **Auto-erase on tampering**: Vibration-triggered destruction (disabled by default)
 - **Setup delay**: Grace period after enabling for deployment
-- **Manual secure wipe**: Via web interface
-- **Remote force erase**: Mesh-commanded with token auth (5-min expiry, device-specific)
+- **Manual secure wipe**: Via web interface, requires the erase PSK
+- **Remote force erase**: Mesh-commanded, answered with an HMAC of a challenge keyed by the erase PSK (5-min expiry)
 - **Obfuscation**: Plants a dummy IoT weather config after wipe
 
 > **Warning**: Data destruction is permanent and irreversible.
+
+Each node generates a random erase PSK on first boot and prints it on the USB console at every boot (`[ERASE] PSK: ...`). Every erase command needs a credential: send `@<NODE> ERASE_REQUEST`, take the `ERASE_TOKEN:` challenge from the reply, and answer with the hex HMAC-SHA256 of that token keyed with the PSK, e.g. `printf %s "<token>" | openssl dgst -sha256 -hmac "<psk>"`. Mesh forms: `ERASE_FORCE:<hmac>`, `ERASE_CANCEL:<hmac>`, `AUTOERASE_ENABLE:<setup>:<erase>:<vibs>:<window>:<cooldown>:<hmac>`, `AUTOERASE_DISABLE:<hmac>`, `CONFIG_ERASE_PSK:<new>:<hmac>` (key 1-64 chars, no `:`). Web: the wipe, abort and auto-erase controls take the PSK in the Authorization field (`confirm=<psk>`), and `POST /erase/psk` (`confirm=<psk>`, `key=<new>`) changes it.
 
 <details>
 <summary>Auto-Erase Configuration</summary>
@@ -789,7 +791,7 @@ Tamper detection and emergency data wiping.
 2. Configure thresholds for your environment
 3. Deploy and walk away during setup period
 4. Monitor mesh alerts for tamper events
-5. Remote erase: `@NODE ERASE_REQUEST` to generate token, then `@NODE ERASE_FORCE:<token>`
+5. Remote erase: `@NODE ERASE_REQUEST` returns a challenge, then `@NODE ERASE_FORCE:<hmac>`
 
 </details>
 

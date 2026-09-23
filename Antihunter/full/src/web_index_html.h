@@ -1148,8 +1148,12 @@ R"HTML(
 
           <div style="margin-top:8px">
             <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
-            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Type WIPE_ALL_DATA exactly</label>
-            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA" autocomplete="off">
+            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Enter erase PSK (printed on the USB console at boot). Required for wipe, abort and auto-erase changes.</label>
+            <input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off">
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <input type="text" id="eraseNewPsk" placeholder="new PSK (1-64 chars)" autocomplete="off" style="flex:1">
+              <button class="btn alt" type="button" onclick="changeErasePsk()">CHANGE PSK</button>
+            </div>
           </div>
 
           <button class="btn danger" type="button" onclick="requestErase()" style="width:100%;margin-top:10px">WIPE NOW</button>
@@ -3656,6 +3660,7 @@ R"HTML(
         fd.append('vibrationsRequired', vibrationsRequired);
         fd.append('detectionWindow', detectionWindow);
         fd.append('setupDelay', setupDelay);
+        fd.append('confirm', document.getElementById('eraseConfirm').value);
 
         const response = await fetch('/config/autoerase', {
           method: 'POST',
@@ -4834,7 +4839,11 @@ R"HTML(
       }
       
       async function cancelErase() {
-        const response = await fetch('/erase/cancel', { method: 'POST' });
+        const response = await fetch('/erase/cancel', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value)
+        });
         const data = await response.text();
         document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
       }
@@ -4878,11 +4887,7 @@ R"HTML(
             if (fwHint) fwHint.textContent = 'Enter erase PSK';
             if (fwInput) fwInput.placeholder = 'erase PSK';
           } else {
-            if (badge) { badge.textContent = 'NO PSK — using default code'; badge.className = 'psk-badge unset'; }
-            if (hint) hint.textContent = 'Type WIPE_ALL_DATA exactly (set a PSK via mesh CONFIG_ERASE_PSK:<key>)';
-            if (input) input.placeholder = 'WIPE_ALL_DATA';
-            if (fwHint) fwHint.textContent = 'Type FACTORY_WIPE exactly';
-            if (fwInput) fwInput.placeholder = 'FACTORY_WIPE';
+            if (badge) { badge.textContent = 'NO PSK — reboot to generate'; badge.className = 'psk-badge unset'; }
           }
         }).catch(()=>{});
       }
@@ -4931,9 +4936,8 @@ R"HTML(
         const tier = document.getElementById('factoryResetTier').value;
         const t = _factoryResetTiers[tier] || _factoryResetTiers.full;
         const code = document.getElementById('factoryWipeConfirm').value;
-        const expected = _erasePskSet ? null : 'FACTORY_WIPE';
-        if (!code || (expected && code !== expected)) {
-          toast(_erasePskSet ? 'Enter erase PSK' : 'Type FACTORY_WIPE exactly to confirm', 'error');
+        if (!code) {
+          toast('Enter erase PSK', 'error');
           return;
         }
         if (!window.confirm(t.warn)) {
@@ -4954,11 +4958,21 @@ R"HTML(
         });
       }
 
+      function changeErasePsk() {
+        const body = 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) +
+                     '&key=' + encodeURIComponent(document.getElementById('eraseNewPsk').value);
+        fetch('/erase/psk', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: body
+        }).then(r => r.text().then(t => { toast(t, r.ok ? 'success' : 'error'); refreshPskStatus(); }))
+          .catch(e => toast('PSK change error: ' + e, 'error'));
+      }
+
       function requestErase() {
         const confirm = document.getElementById('eraseConfirm').value;
-        const expected = _erasePskSet ? null : 'WIPE_ALL_DATA';
-        if (!confirm || (expected && confirm !== expected)) {
-          toast(_erasePskSet ? 'Enter erase PSK' : 'Type WIPE_ALL_DATA exactly to confirm', 'error');
+        if (!confirm) {
+          toast('Enter erase PSK', 'error');
           return;
         }
         if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {

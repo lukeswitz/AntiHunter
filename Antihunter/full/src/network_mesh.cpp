@@ -1592,9 +1592,7 @@ static void handleTriangulateResults(const String &command)
 static void handleEraseForce(const String &command)
 {
   String credential = command.substring(12);
-  bool ok = (erasePSK.length() > 0) ? validateEraseResponse(credential)
-                                    : validateEraseToken(credential);
-  if (ok)
+  if (validateEraseResponse(credential))
   {
     executeSecureErase("Force command");
     sendToSerial1(nodeId + ": ERASE_ACK:COMPLETE", true);
@@ -1607,17 +1605,23 @@ static void handleEraseForce(const String &command)
 
 static bool meshEraseAuthorized(const String &credential)
 {
-  if (erasePSK.length() == 0) return true;
   return validateEraseResponse(credential);
 }
 
 static void handleConfigErasePsk(const String &command)
 {
-  String key = command.substring(17);
+  String body = command.substring(17);
+  int lastColon = body.lastIndexOf(':');
+  String key = (lastColon > 0) ? body.substring(0, lastColon) : "";
+  String credential = (lastColon > 0) ? body.substring(lastColon + 1) : "";
+  if (key.length() == 0 || !validateEraseResponse(credential)) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:DENIED", true);
+    return;
+  }
   setErasePSK(key);
   saveConfiguration();
-  Serial.printf("[ERASE] PSK %s\n", key.length() ? "set (HMAC auth enabled)" : "cleared (legacy token mode)");
-  sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:" + String(key.length() ? "SET" : "CLEARED"), true);
+  Serial.println("[ERASE] PSK changed");
+  sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:SET", true);
 }
 
 static void handleEraseCancel(const String &command)
@@ -1689,15 +1693,13 @@ static void handleFactoryReset(const String &command)
 static void handleAutoeraseEnable(const String &command)
 {
   String body = command;
-  if (erasePSK.length() > 0) {
-    int lastColon = body.lastIndexOf(':');
-    String credential = (lastColon >= 16) ? body.substring(lastColon + 1) : "";
-    if (!validateEraseResponse(credential)) {
-      sendToSerial1(nodeId + ": AUTOERASE_ACK:DENIED", true);
-      return;
-    }
-    body = body.substring(0, lastColon);
+  int lastColon = body.lastIndexOf(':');
+  String credential = (lastColon >= 16) ? body.substring(lastColon + 1) : "";
+  if (!validateEraseResponse(credential)) {
+    sendToSerial1(nodeId + ": AUTOERASE_ACK:DENIED", true);
+    return;
   }
+  body = body.substring(0, lastColon);
   // Format: AUTOERASE_ENABLE[:setupDelay:eraseDelay:vibrationsRequired:detectionWindow:cooldown]
   if (body.length() > 16 && body.charAt(16) == ':') {
     // Parse parameters

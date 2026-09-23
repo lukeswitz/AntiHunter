@@ -739,6 +739,12 @@ void registerRemainingRoutes() {
         return;
     }
 
+    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+        req->getParam("confirm", true)->value() != erasePSK) {
+        req->send(403, "text/plain", "Invalid erase PSK");
+        return;
+    }
+
     String enabledParam = req->getParam("enabled", true)->value();
     Serial.printf("[AUTOERASE] Received enabled parameter: '%s'\n", enabledParam.c_str());
 
@@ -1104,7 +1110,7 @@ void registerRemainingRoutes() {
     }
     
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = (erasePSK.length() > 0) ? (confirm == erasePSK) : (confirm == "WIPE_ALL_DATA");
+    bool authed = erasePSK.length() > 0 && confirm == erasePSK;
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirmation");
         return;
@@ -1133,8 +1139,30 @@ void registerRemainingRoutes() {
 
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+        req->getParam("confirm", true)->value() != erasePSK) {
+        req->send(403, "text/plain", "Invalid erase PSK");
+        return;
+    }
     cancelTamperErase();
     req->send(200, "text/plain", "Tamper erase canceled"); });
+
+  server->on("/erase/psk", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("confirm", true) || !req->hasParam("key", true) || erasePSK.length() == 0 ||
+        req->getParam("confirm", true)->value() != erasePSK) {
+        req->send(403, "text/plain", "Invalid erase PSK");
+        return;
+    }
+    String key = req->getParam("key", true)->value();
+    if (key.length() == 0 || key.length() > 64 || key.indexOf(':') >= 0) {
+        req->send(400, "text/plain", "PSK must be 1-64 chars, no ':'");
+        return;
+    }
+    setErasePSK(key);
+    saveConfiguration();
+    Serial.println("[ERASE] PSK changed via web");
+    req->send(200, "text/plain", "Erase PSK changed");
+  });
 
   server->on("/factory-wipe", HTTP_POST, [](AsyncWebServerRequest *req) {
     if (!req->hasParam("confirm", true)) {
@@ -1142,7 +1170,7 @@ void registerRemainingRoutes() {
         return;
     }
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = (erasePSK.length() > 0) ? (confirm == erasePSK) : (confirm == "FACTORY_WIPE");
+    bool authed = erasePSK.length() > 0 && confirm == erasePSK;
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirm code");
         return;
@@ -1186,6 +1214,11 @@ void registerRemainingRoutes() {
 
   server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+        req->getParam("confirm", true)->value() != erasePSK) {
+        req->send(403, "text/plain", "Invalid erase PSK");
+        return;
+    }
     cancelTamperErase();
     req->send(200, "text/plain", "Canceled"); });
 

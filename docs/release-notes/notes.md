@@ -60,6 +60,7 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 - Emoji-only Meshtastic sender names no longer drop commands (#31).
 - **Console output no longer feeds itself** (#32). Every line read on USB or radio was re-emitted — the reprint, the `[MESH] Processing` line and the dispatch trace — so more console text came out than went in. Anything that put the node's own output back on its input then compounded that into a flood, and the recycled text was dispatched as commands. The node now discards inbound lines that begin with `[`, which only its own log lines do. The byte echo is behind `AH_USB_ECHO` and `[DEBUG_RAW]` behind `AH_DEBUG_VERBOSE`, both off by default, and USB input logs as `[USB CMD]` so cable-side and air-side input can be told apart in a log.
 - `BATTERY_SAVER_STATUS` replies are recognized as replies again; two adjacent string literals had joined, so the guard never matched and the reply fell through to the dispatcher (#32).
+- **Erase PSK always set.** Generated on first boot, printed on USB at boot; every erase command and web wipe needs it. See README → Secure Data Destruction.
 - The mesh rate-limiter log reads `barrel_free=` instead of `barrel=`. The number was always the budget remaining, not the queue depth, and the old label invited the opposite reading (#32).
 - Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report.
 - Beta and C5: headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
@@ -140,6 +141,7 @@ pio run -e AntiHunter-c5-headless -t upload
 
 ### Thanks
 
-- d3mocide for #31 — emoji short names on a mesh node stopped a DigiNode responding to commands at all.
-- rcbm. for the v1.0.2 field report behind the internal-RAM fix — long BLE device scans aborting in `fopen`, with the device count and the conditions that reproduced it.
-- nconder for #32 — a read-only capture, byte offsets, a counter script and a coordinate-masked copy with matching counts. It pinned the ingest path on the first read.
+- d3mocide (#31): a node ignored commands when a mesh radio's short name was an emoji.
+- rcbm.: long BLE device scans crashed the node.
+- nconder (#32): console output fed back into the node and flooded the log.
+- nconder: nodes had no erase PSK until one was set.
