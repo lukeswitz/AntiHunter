@@ -761,7 +761,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How many access points must see it at once. Lower catches movement in areas only one AP reaches">Access points that must agree</label>
-                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="2">
+                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="1">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
@@ -773,7 +773,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                   </div>
                   <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
-                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Motion detection is the only scan that transmits. When there is too little traffic to measure it sends one broadcast probe request per second to pull more out of the air. Tick this and the node stays silent, but it can only detect movement while other traffic is already present."><input type="checkbox" id="csiNoTx" name="csiNoTx" value="1" checked>Listen only, never transmit</label>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off (default): sends about one probe request per second when fixed access points are quiet, so they answer and give a steady signal. On: node stays silent and needs a busy access point nearby."><input type="checkbox" id="csiNoTx" name="csiNoTx" value="1">Listen only, never transmit</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off (default): track only fixed access points, whose signal a body disturbs. On: also track phones and watches, which move with the person and read as proximity rather than through-air sensing."><input type="checkbox" id="csiRnd" name="csiRnd" value="1">Include randomized-MAC devices (phones, watches)</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
@@ -5955,7 +5955,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.077, 8, 3], medium: [0.052, 8, 4], high: [0.040, 8, 3] };
+            const presets = { low: [0.077, 8, 1], medium: [0.052, 8, 1], high: [0.040, 8, 1] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];

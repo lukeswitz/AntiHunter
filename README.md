@@ -295,34 +295,31 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 > **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
 
-Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it listens to the access points and phones already around it and watches how a body disturbs those signals.
+Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed access points around it.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
 - **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
-- **Raising an alert.** Half the transmitters a node tracks must be disturbed at once, for several seconds. One busy neighbor cannot hold an alert.
-- **Blind means blind.** If nothing on the channel is transmitting fast enough, the node says so instead of reporting an empty room, then moves channel itself.
-- **Coverage.** Follows each node-to-transmitter path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
-- **Listens, does not transmit.** The Scan tab's "Listen only, never transmit" box is checked by default. The only scan here that can transmit at all.
+- **Raising an alert.** One device disturbed for several seconds is enough by default. Raise `SPOTS` to require more.
+- **Fixed devices only.** Devices with randomized MACs, mostly phones and watches, move with the person, so they are ignored by default.
+- **Blind means blind.** If no usable device sends fast enough, the node says so instead of reporting an empty room, then moves channel itself.
+- **Coverage.** Follows each node-to-device path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
+- **Transmits when it has to.** Access points often send only about one beacon a second, too few to measure. When traffic is thin the node sends up to five probe requests a second to the strongest device so it answers. The only scan here that transmits.
 
 > [!WARNING]
-> **Transmit is off unless you turn it on.** Left alone the node is silent. Turned on, it sends about one packet a second only when the air is too quiet to work with — the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site.
+> **Transmit is on by default.** The probe is the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site. To stay silent, check "Listen only, never transmit" or send `BROADCAST=OFF`; the node then needs a busy access point nearby.
 
 #### Measured
 
-Two nodes, one room, same channel and sensitivity. "Over the line" = readings high enough to count as movement.
+One S3 node, one room, one fixed access point, transmit on. Two-second readings with the area alarm on:
 
-| | occupant moving | building empty |
+| | around vibration-confirmed taps | quiet time |
 |---|---|---|
-| S3 node | 22.6% | 2.4% |
-| C5 node | 17.7% | 0.3% |
+| S3 node | 85 of 134 | 0 of 74 |
 
-No alerts on either node while empty. One site, one channel.
-
-A longer run showed the harder case: empty, both near silent; someone asleep upstairs or
-sitting still, both registered often.
+One site, one channel, one session.
 
 > [!IMPORTANT]
 > One setting cannot separate "here but still" from "moving". Expect a still occupant to land
@@ -335,7 +332,7 @@ sitting still, both registered often.
 #### Limitations
 
 - **Let it choose the channel.** In one room, minutes apart, one channel gave under three usable readings a second and another gave fifty. Start it without a channel; it picks, and moves if that one goes quiet.
-- **It runs on other people's WiFi.** The node transmits nothing, so a quiet site gives it little to work with. No setting changes that.
+- **It needs a fixed access point in range.** Transmit gets answers from ones nearby; ones at the edge of range may not answer.
 - **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
 - **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
@@ -349,7 +346,7 @@ sitting still, both registered often.
 > - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
 > - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
 > - How many transmitters must agree: add `SPOTS=<n>`
-> - Allow transmitting when the air is too quiet: add `BROADCAST=ON`, or clear the "Listen only, never transmit" box in the web UI
+> - Stay silent: add `BROADCAST=OFF`, or check the "Listen only, never transmit" box in the web UI. Use it where transmitting is not allowed and a busy access point is nearby.
 > - Track phones and watches too, not just fixed access points: add `ALLOW_RANDOM=ON`, or check "Include randomized-MAC devices" in the web UI. Off by default — randomized-MAC devices move with the person, so they read as proximity, and they crowd fixed access points out of the limited link table.
 > - Back to defaults `@ALL CSI_RECAL`
 >

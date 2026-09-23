@@ -32,9 +32,9 @@ std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{8};
-std::atomic<uint32_t> csiAreaRadiosNeeded{4};
+std::atomic<uint32_t> csiAreaRadiosNeeded{1};
 std::atomic<uint32_t> csiSolicitMs{0};
-std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint8_t> csiNoTx{0};
 std::atomic<uint8_t> csiAllowRandom{0};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
@@ -1155,7 +1155,7 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
-    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
     csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 0));
 }
 
