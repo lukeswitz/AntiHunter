@@ -196,6 +196,7 @@ struct CsiLink {
     uint8_t mac[6] = {};
     bool used = false;
     uint32_t packets = 0;
+    uint32_t rollPkts = 0;
     uint32_t firstMs = 0;
     uint32_t lastMs = 0;
     uint32_t lastTs = 0;
@@ -571,6 +572,7 @@ static void csiLinkReset(CsiLink &l) {
     memset(l.mac, 0, sizeof(l.mac));
     l.used = false;
     l.packets = 0;
+    l.rollPkts = 0;
     l.firstMs = 0;
     l.lastMs = 0;
     l.lastTs = 0;
@@ -637,11 +639,13 @@ static uint8_t csiWindowCapableCount() {
     return n;
 }
 
-static uint8_t csiArmingCount() {
+static uint8_t csiArmingCount(float spanSec) {
     uint8_t n = 0;
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
-        const CsiLink &l = g_links[i];
-        if (csiLinkUsable(l) && l.pairRate >= CSI_LINK_MIN_PAIR_RATE) n++;
+        CsiLink &l = g_links[i];
+        const float rate = (spanSec > 0.0f) ? (float)(l.packets - l.rollPkts) / spanSec : 0.0f;
+        l.rollPkts = l.packets;
+        if (csiLinkUsable(l) && rate >= CSI_LINK_MIN_PAIR_RATE) n++;
     }
     return n;
 }
@@ -1579,6 +1583,7 @@ void csiMotionTask(void *pv) {
         }
 
         if (now - lastRollMs >= 60000) {
+            const float rollSec = (float)(now - lastRollMs) / 1000.0f;
             lastRollMs = now;
             float peakRoll = 0.0f;
             int movingRoll = 0;
@@ -1591,7 +1596,7 @@ void csiMotionTask(void *pv) {
                 usableRoll = csiUsableCount();
                 armedRoll = csiArmedCount();
                 windowRoll = csiWindowCapableCount();
-                armingRoll = csiArmingCount();
+                armingRoll = csiArmingCount(rollSec);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
