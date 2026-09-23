@@ -301,6 +301,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     }
 
     if (g_surveyMode.load()) {
+        if (!csiAllowRandom.load() && (m[0] & 0x02)) return;
         g_surveyHits.fetch_add(1);
         if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
         {
