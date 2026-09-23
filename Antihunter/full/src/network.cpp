@@ -1461,6 +1461,8 @@ void registerRemainingRoutes() {
                          csiTelemReq);
             setCsiAreaConfig(csiDwell, csiSpots);
             setCsiNoTx(req->hasParam("csiNoTx", true));
+            csiAllowRandom.store(req->hasParam("csiRnd", true) ? 1 : 0);
+            prefs.putUInt("csiRnd", csiAllowRandom.load());
             if (req->hasParam("csiRecal", true)) csiClearCalibration();
             Serial.printf("[WEB CMD] csi start from %s ch=%u thr=%.3f hold=%ums dwell=%us spots=%u telem=%d secs=%d%s\n",
                           req->client()->remoteIP().toString().c_str(), (unsigned)csiCh, csiThr,

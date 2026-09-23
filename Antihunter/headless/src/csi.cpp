@@ -32,6 +32,7 @@ std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint8_t> csiAllowRandom{0};
 std::atomic<uint32_t> csiAreaDutyMinS{8};
 std::atomic<uint32_t> csiAreaRadiosNeeded{4};
 std::atomic<uint64_t> csiExcludeMac{0};
@@ -726,6 +727,7 @@ static void csiProcess(const CsiEvent &ev) {
     if (ev.fwInvalid) g_fwSkip.fetch_add(1);
     int liveBins = 0;
     if (!csiAmplitudesLen(ev.buf, ev.len, ev.fwInvalid, a, &liveBins)) return;
+    if (!csiAllowRandom.load() && (ev.mac[0] & 0x02)) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
@@ -1080,6 +1082,7 @@ void loadCsiConfigFromPrefs() {
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
     csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
+    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 0));
 }
 
 void setCsiNoTx(bool noTx) {
