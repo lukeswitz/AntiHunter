@@ -197,6 +197,26 @@ int main() {
                trig, runs, smallest * 100.0f);
     }
 
+    printf("== quiet link is below the gate from the moment it arms ==\n");
+    {
+        static float swin[CsiScorer::windowFloats()];
+        mkStatic(p, np);
+        CsiScorer s; s.attachWindow(swin); s.reset();
+        int n = 0;
+        int armN = 0;
+        float worst = 0.0f;
+        while (n < 1000) {
+            feedChannel(s, p, np, 2.0f, 1, LAG, false);
+            n++;
+            if (s.settled() && !armN) armN = n;
+            if (s.settled() && s.sigVar > worst) worst = s.sigVar;
+        }
+        printf("   armed after %d packets  worst quiet sig after arming=%.4f  gate=%.3f\n",
+               armN, worst, CSI_SIG_ETA);
+        assert(armN > 0);
+        assert(worst < CSI_SIG_ETA);
+    }
+
     printf("\nOK\n");
     return 0;
 }
