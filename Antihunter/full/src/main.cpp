@@ -313,6 +313,7 @@ void setup() {
     delay(10000);
 
     initializeNetwork();
+    ensureErasePSK();
     heapMark("after network+AP+web");
     delay(500);
     initializeGPS();

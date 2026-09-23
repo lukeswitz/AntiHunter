@@ -240,6 +240,7 @@ void setup() {
     delay(10000);
 
     initializeNetwork();
+    ensureErasePSK();
     delay(500);
     initializeGPS();
     delay(1000);

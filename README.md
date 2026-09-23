@@ -412,13 +412,13 @@ Vibration-triggered and mesh-commanded destruction of everything on the node.
 
 - **Auto-erase on tampering** - vibration-triggered, disabled by default
 - **Setup delay** - grace period after enabling, so you can walk away from a deployed node
-- **Manual secure wipe** - from the web interface, requires typing `WIPE_ALL_DATA`
-- **Remote force erase** - mesh-commanded with a challenge token, 5-minute expiry, device-specific
+- **Manual secure wipe** - from the web interface, requires the erase PSK
+- **Remote force erase** - mesh-commanded, answered with an HMAC of a challenge keyed by the erase PSK, 5-minute expiry
 - **Obfuscation** - plants a dummy IoT weather config after the wipe
 
 ### Setting an erase PSK
 
-Set a key first with `@<NODE> CONFIG_ERASE_PSK:<key>` (1-64 chars). Once a PSK is set, `AUTOERASE_ENABLE` requires the credential appended to the command; without a PSK the command is accepted unauthenticated. Check the state with `GET /erase/psk-status`.
+Each node generates a random erase PSK on first boot and prints it on the USB console at every boot (`[ERASE] PSK: ...`). Every erase command needs a credential: send `@<NODE> ERASE_REQUEST`, take the `ERASE_TOKEN:` challenge from the reply, and answer with the hex HMAC-SHA256 of that token keyed with the PSK, e.g. `printf %s "<token>" | openssl dgst -sha256 -hmac "<psk>"`. Change the PSK with `@<NODE> CONFIG_ERASE_PSK:<new>:<hmac>` (1-64 chars, no `:`) or from **System → Secure Data Destruction** with the current PSK.
 
 <details>
 <summary>Auto-erase configuration</summary>
@@ -431,14 +431,14 @@ Set a key first with `@<NODE> CONFIG_ERASE_PSK:<key>` (1-64 chars). Once a PSK i
 | Detection window | 10 - 60s | Window the vibration count must fall inside |
 | Cooldown period | 5 - 60min | Minimum time between tamper attempts |
 
-Mesh: `AUTOERASE_ENABLE:<setup>:<erase>:<vibrations>:<window>:<cooldown>` in seconds, plus the PSK credential if one is set. Web: **System → Auto-Erase**, or `GET`/`POST /config/autoerase`.
+Mesh: `AUTOERASE_ENABLE:<setup>:<erase>:<vibrations>:<window>:<cooldown>` in seconds, then `:<hmac>`. Web: **System → Auto-Erase** with the PSK in the Authorization field, or `GET`/`POST /config/autoerase` with `confirm=<psk>`.
 
 **Deploying it:**
 1. Enable auto-erase with a setup delay long enough to leave the area
 2. Set thresholds for the site - a windy pole needs a higher vibration count than a shelf
 3. Deploy and walk away during the setup period
 4. Watch mesh for `TAMPER_DETECTED` alerts
-5. Remote wipe: `@NODE ERASE_REQUEST` returns a challenge, then `@NODE ERASE_FORCE:<token>`. `@NODE ERASE_CANCEL` aborts a countdown
+5. Remote wipe: `@NODE ERASE_REQUEST` returns a challenge, then `@NODE ERASE_FORCE:<hmac>`. `@NODE ERASE_CANCEL:<hmac>` aborts a countdown
 
 </details>
 
@@ -894,12 +894,12 @@ A node with links in range but none armed for 3 minutes re-surveys and moves cha
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `CONFIG_ERASE_PSK` | Set the key that authorizes a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
-| `ERASE_REQUEST` | Ask to wipe, returns a challenge | None | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | Wipe with the answered challenge | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `ERASE_CANCEL` | Abort a pending wipe | None | `@AH01 ERASE_CANCEL` |
-| `AUTOERASE_ENABLE` | Wipe if the node is moved | `setup:erase:vibs:window:cooldown`, plus the PSK if one is set | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
-| `AUTOERASE_DISABLE` | Turn that off | None | `@AH01 AUTOERASE_DISABLE` |
+| `CONFIG_ERASE_PSK` | Change the key that authorizes a wipe | `<new>:<hmac>`, key 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<hmac>` |
+| `ERASE_REQUEST` | Returns a challenge for the erase commands | None | `@AH01 ERASE_REQUEST` |
+| `ERASE_FORCE` | Wipe with the answered challenge | `<hmac>` | `@AH02 ERASE_FORCE:<hmac>` |
+| `ERASE_CANCEL` | Abort a pending wipe | `<hmac>` | `@AH01 ERASE_CANCEL:<hmac>` |
+| `AUTOERASE_ENABLE` | Wipe if the node is moved | `setup:erase:vibs:window:cooldown:<hmac>` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300:<hmac>` |
+| `AUTOERASE_DISABLE` | Turn that off | `<hmac>` | `@AH01 AUTOERASE_DISABLE:<hmac>` |
 | `AUTOERASE_STATUS` | Report auto-erase state | None | `@AH01 AUTOERASE_STATUS` |
 | `FACTORY_RESET` | Reset one node, needs the key | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 | `VIBRATION_ON` / `VIBRATION_OFF` | Enable the movement sensor | None | `@AH01 VIBRATION_ON` |
@@ -1296,8 +1296,9 @@ Each incident record carries `ts` (device uptime ms), `epoch` (RTC Unix seconds,
 |----------|--------|-------------|
 | `/erase/status` | GET | Erasure status |
 | `/erase/psk-status` | GET | Whether an erase PSK is set |
-| `/erase/request` | POST | Request secure erase (`confirm=WIPE_ALL_DATA`, optional `reason`) |
-| `/erase/cancel` | POST | Cancel the erase sequence |
+| `/erase/request` | POST | Request secure erase (`confirm=<psk>`, optional `reason`) |
+| `/erase/cancel` | POST | Cancel the erase sequence (`confirm=<psk>`) |
+| `/erase/psk` | POST | Change the erase PSK (`confirm=<psk>`, `key=<new>`) |
 | `/factory-wipe` | POST | Factory reset |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort the tamper sequence |
