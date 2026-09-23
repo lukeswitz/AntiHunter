@@ -32,9 +32,21 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 ### Beta and C5
 
 
-**Channel State Information**: the WiFi radio's per-subcarrier measurement of how each received frame was shaped by the path it traveled, which a body moving through the room changes.
+**Channel State Information (CSI)**: how each WiFi frame's path changed.
 
-- **CSI motion detection** (beta on ESP32-S3, in testing on ESP32-C5). A node senses people moving through a space by how their bodies disturb the WiFi signals already around it — nothing worn, no network joined, and it reports through walls. Scan tab → CSI Motion with Low / Medium / High presets, or `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` over mesh with `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`. Alerts go out as `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial and SD. Senses from fixed access points only; phones and watches move with the person and are ignored unless `ALLOW_RANDOM=ON`. Access points often beacon about once a second, too slow to measure, so by default the node sends about one probe request a second when they go quiet and they answer; `BROADCAST=OFF` or the Listen-only box keeps it silent where transmitting is not allowed, and then needs a busy access point nearby. One fixed access point is enough to alert (`SPOTS=1`). Sensitivity is per receiver, so set it in the room it will live in. S3, one room, one access point: alarm in 85 of 134 two-second readings around vibration-confirmed taps, 0 of 74 in quiet time. No long-run false-alarm rate yet.
+- **CSI motion detection** (beta S3, testing C5).
+  - Senses people moving, through walls, nothing worn.
+  - Scan tab → CSI Motion: Low / Medium / High.
+  - Mesh: `CSI_MOTION_START:secs[:CH<n>][:FOREVER]`.
+  - Also `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`.
+  - Alerts: `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial, SD.
+  - Ignores randomized MACs; `ALLOW_RANDOM=ON` adds them.
+  - Probes quiet devices, up to 5/s, by default.
+  - `BROADCAST=OFF` stays silent; needs a busy AP.
+  - One device can raise an alert (`SPOTS=1`).
+  - Set sensitivity in the room it lives in.
+  - S3 test: 85/134 near taps, 0/74 quiet.
+  - No long-run false-alarm rate yet.
 - **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by movement strength, the strongest link over its trigger averaged across the block — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
 - Accent colors also cover movement hits (ice blue by default).
 - Headless: discovered devices persist across scans.
