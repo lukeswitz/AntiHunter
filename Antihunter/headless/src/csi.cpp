@@ -191,7 +191,17 @@ struct CsiEvent {
     uint8_t ch;
     uint32_t ts;
     int8_t buf[128];
+    bool usable;
 };
+
+static inline bool csiFromAp(const uint8_t *h) {
+    if (!h) return false;
+    const uint8_t type = (h[0] >> 2) & 0x03;
+    const uint8_t sub = (h[0] >> 4) & 0x0F;
+    if (type == 0) return sub == 8 || sub == 5;
+    if (type == 2) return (h[1] & 0x03) == 0x02;
+    return false;
+}
 
 struct CsiLink {
     uint8_t mac[6] = {};
@@ -288,9 +298,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         g_rejMac.fetch_add(1);
         return;
     }
+    const bool usable = csiAllowRandom.load() || (!(m[0] & 0x02) && csiFromAp(info->hdr));
 
     if (g_surveyMode.load()) {
-        if (!csiAllowRandom.load() && (m[0] & 0x02)) return;
+        if (!usable) return;
         g_surveyHits.fetch_add(1);
         if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
         {
@@ -316,9 +327,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     ev.ch = rx.channel;
     ev.ts = rx.timestamp;
     memcpy(ev.buf, info->buf, 128);
+    ev.usable = usable;
 
     g_csiSeen.fetch_add(1);
-    if (csiAllowRandom.load() || !(m[0] & 0x02)) g_csiUsedSeen.fetch_add(1);
+    if (usable) g_csiUsedSeen.fetch_add(1);
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
@@ -617,7 +629,7 @@ static void csiEmitAlert(const CsiAlert &al) {
 static void csiProcess(const CsiEvent &ev) {
     float a[CSI_NSUB];
     if (!csiAmplitudes(ev.buf, a)) return;
-    if (!csiAllowRandom.load() && (ev.mac[0] & 0x02)) return;
+    if (!ev.usable) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
