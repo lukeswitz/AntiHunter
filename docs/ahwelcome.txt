@@ -1,0 +1,59 @@
+ █████╗ ███╗   ██╗████████╗██╗██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
+██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+██║  ██║██║ ╚██╗█║   ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+
+                                D I G I   N O D E
+==================================================================================
+                                 HELLO, OPERATOR
+
+   Thank you for being part of the project. Fully open source: write your own mesh
+   commands, wire in your IDS, make it yours.
+
+   OPERATOR'S GUIDE -- unboxing to deployment, every detector, tuning, C2:
+   github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+==================================================================================
+                                  [01]  ANTENNAS
+
+   Never power the node with the LoRa antenna missing. It can destroy the radio.
+
+      2.4 GHz film antenna or short duck  ->  XIAO ESP32-S3
+      LoRa coiled whip or long duck       ->  Heltec / T114
+      GPS ceramic patch or active helix   ->  GPS module
+
+   U.FL: parallel to the board, rims aligned, press STRAIGHT DOWN until it clicks.
+   Never at an angle, never forced. SMA: finger tight plus an eighth of a turn.
+==================================================================================
+                                 [02]  MESH RADIO
+
+   Soldered Core and Assembled ship flashed and serial-configured. Bare PCB and
+   Parts Kit: flash stable Meshtastic at flasher.meshtastic.org, then set
+   SERIAL Enabled, TEXTMSG, 115200, pins 19RX/20TX (V3) or 10RX/9TX (T114).
+
+   On every radio, before you deploy:
+      REGION ships UNSET, it receives but never transmits until you set it
+      PAIRING PIN is the same on every unit, change it
+      CHANNEL is the public default, make your own encrypted one primary
+==================================================================================
+                              [03]  FLASH ANTIHUNTER
+
+   The ESP32 ships erased on every tier. You flash it, so you know what is on it.
+   FULL = WiFi AP and web UI, plus mesh.  HEADLESS = serial and mesh, no AP.
+
+   WEB FLASHER:  lukeswitz.github.io/AntiHunter
+
+   FIRST BOOT: join the AP "Antihunter" (antihunt3r123), open 192.168.4.1, and
+   change those credentials under RF Settings first. They are published.
+==================================================================================
+                                   !  POWER  !
+
+   Regulated 5V only, from USB or the UPS board. Unregulated input kills parts.
+   One USB cable at a time: the ESP32 and the radio share the power rails.
+   A 2A fast-blow fuse on the battery line is recommended. Not supplied.
+==================================================================================
+   DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter
+   COMMAND CENTER PRO, multi-site with TAK, MQTT and ADSB:
+   github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
+==================================================================================
