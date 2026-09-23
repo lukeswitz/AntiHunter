@@ -409,97 +409,96 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
-static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint8_t avoidCh = 0) {
-    std::vector<uint8_t> chans;
+static void csiSolicit();
+
+static bool csiMoveRadio(uint8_t ch);
+static uint8_t g_probeTarget[6];
+static bool g_probeTargetSet = false;
+
+static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
+    uint16_t allowed = 0;
     for (uint8_t c : CHANNELS) {
-        if (c >= 1 && c <= 14 && c != avoidCh) chans.push_back(c);
+        if (c >= 1 && c <= 14) allowed |= (uint16_t)(1u << c);
     }
-    if (chans.empty()) chans = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    if (!allowed) allowed = 0x0FFE;
+    allowed &= (uint16_t)~avoidMask;
 
-    Serial.printf("[CSI] Surveying %u channels for traffic (%ums each)...\n",
-                  (unsigned)chans.size(), dwellMs);
+    wifi_scan_config_t sc = {};
+    sc.show_hidden = true;
+    sc.scan_type = csiNoTx.load() ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
+    const esp_err_t sr = esp_wifi_scan_start(&sc, true);
+    uint16_t n = 0;
+    if (sr == ESP_OK) esp_wifi_scan_get_ap_num(&n);
+    std::vector<wifi_ap_record_t> recs(n);
+    if (n && esp_wifi_scan_get_ap_records(&n, recs.data()) != ESP_OK) n = 0;
+    esp_wifi_clear_ap_list();
 
-    uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
-    uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
+    int8_t best[15];
+    uint8_t bestMac[15][6] = {};
+    for (int c = 0; c < 15; c++) best[c] = -128;
+    const uint64_t ex = csiExcludeMac.load();
+    uint16_t aps = 0;
+    for (uint16_t i = 0; i < n; i++) {
+        const uint8_t *b = recs[i].bssid;
+        const uint8_t c = recs[i].primary;
+        if (c < 1 || c > 14 || !((allowed >> c) & 1)) continue;
+        if (!csiAllowRandom.load() && (b[0] & 0x02)) continue;
+        if (ex && ((((uint64_t)b[0] << 32) | ((uint64_t)b[1] << 24) | ((uint64_t)b[2] << 16) |
+                    ((uint64_t)b[3] << 8) | (uint64_t)b[4]) == (ex >> 8))) continue;
+        aps++;
+        if (recs[i].rssi > best[c]) { best[c] = recs[i].rssi; memcpy(bestMac[c], b, 6); }
+    }
+    Serial.printf("[CSI] Survey: %u access points on allowed channels (scan %s)\n",
+                  aps, esp_err_to_name(sr));
 
-    for (uint8_t ch : chans) {
-        if (stopRequested) break;
+    uint8_t cand[3] = {0, 0, 0};
+    for (int k = 0; k < 3; k++) {
+        int top = CSI_LINK_MIN_RSSI - 1;
+        for (uint8_t c = 1; c <= 14; c++) {
+            if (best[c] > top && c != cand[0] && c != cand[1]) { top = best[c]; cand[k] = c; }
+        }
+    }
+    if (!cand[0]) {
+        Serial.println("[CSI] No access point in range on any allowed channel");
+        return 0;
+    }
 
+    const uint32_t trialMs = dwellMs * 2;
+    uint8_t pick = cand[0];
+    uint32_t pickHits = 0;
+    for (uint8_t c : cand) {
+        if (!c || stopRequested) continue;
+        csiMoveRadio(c);
+        memcpy(g_probeTarget, bestMac[c], 6);
+        g_probeTargetSet = true;
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
         g_surveyHt.store(0);
         g_surveyPeak.store(-128);
         g_surveyTx.store(0);
         g_surveyMacCount = 0;
-
-        wifi_scan_config_t sc = {};
-        sc.channel = ch;
-        sc.show_hidden = true;
-        sc.scan_type = csiNoTx.load() ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
-        sc.scan_time.passive = dwellMs;
-        sc.scan_time.active.min = dwellMs;
-        sc.scan_time.active.max = dwellMs;
-        sc.home_chan_dwell_time = 1;
-
         g_surveyMode.store(true);
-        const esp_err_t sr = esp_wifi_scan_start(&sc, true);
+        const uint32_t t0 = millis();
+        while (millis() - t0 < trialMs && !stopRequested) {
+            csiSolicit();
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
         g_surveyMode.store(false);
-        esp_wifi_clear_ap_list();
-        if (sr != ESP_OK) {
-            Serial.printf("[CSI]   ch%-3u survey scan failed: %s\n", ch, esp_err_to_name(sr));
-            continue;
-        }
-
-        const uint32_t hits = g_surveyHits.load();
-        const uint32_t strong = g_surveyStrong.load();
-        const uint32_t ht = g_surveyHt.load();
-        const uint32_t tx = g_surveyTx.load();
-        const int peak = g_surveyPeak.load();
-        const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        uint32_t topLink = 0;
+        uint32_t top = 0;
+        uint8_t topIdx = 0;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (g_surveyMacHits[i] > topLink) topLink = g_surveyMacHits[i];
+            if (g_surveyMacHits[i] > top) { top = g_surveyMacHits[i]; topIdx = i; }
         }
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht  peak %ddBm  best link %.1f/s\n",
-                      ch, hits, rate, tx, strong, ht, peak,
-                      (float)topLink * 1000.0f / (float)dwellMs);
-
-        if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        uint32_t bestLinkHits = 0;
-        for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (g_surveyMacHits[i] > bestLinkHits) bestLinkHits = g_surveyMacHits[i];
-        }
-        const uint32_t chScore = bestLinkHits * (strong ? 1u : 0u);
-        if (chScore > bestChScore) {
-            bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
-            bestStrongTx = tx; bestStrongCh = ch;
-        }
+        Serial.printf("[CSI]   ch%-3u strongest AP %ddBm  %u APs answered  %u ht  best AP %.1f/s %s\n",
+                      c, best[c], g_surveyTx.load(), g_surveyHt.load(),
+                      (float)top * 1000.0f / (float)trialMs,
+                      top ? macFmt6(g_surveyMacs[topIdx]).c_str() : "-");
+        if (top > pickHits) { pickHits = top; pick = c; }
     }
 
-    if (bestTotal == 0) {
-        Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
-        return 0;
-    }
-
-    if (bestStrong == 0) {
-        Serial.printf("[CSI] WARNING: no transmitter stronger than %ddBm on any channel - "
-                      "falling back to ch%u (%u records). Detection will report BLIND.\n",
-                      (int)CSI_SURVEY_MIN_RSSI, bestTotalCh, bestTotal);
-        return bestTotalCh;
-    }
-
-    const uint32_t needHits = CSI_SOLICIT_FLOOR * dwellMs / 1000u;
-    if (bestStrongHits < needHits && bestTotal >= needHits && bestTotalCh != bestStrongCh) {
-        Serial.printf("[CSI] ch%u has the strongest transmitters but only %.1f/s - taking ch%u (%.1f/s) instead\n",
-                      bestStrongCh, (float)bestStrongHits * 1000.0f / (float)dwellMs,
-                      bestTotalCh, (float)bestTotal * 1000.0f / (float)dwellMs);
-        return bestTotalCh;
-    }
-
-    Serial.printf("[CSI] Selected ch%u (%.1f/s, %u strong, %u transmitters)\n",
-                  bestStrongCh,
-                  (float)bestStrongHits * 1000.0f / (float)dwellMs, bestStrong, bestStrongTx);
-    return bestStrongCh;
+    Serial.printf("[CSI] Selected ch%u (%.1f/s from its best access point)\n",
+                  pick, (float)pickHits * 1000.0f / (float)trialMs);
+    return pick;
 }
 
 static const uint8_t kCsiProbeHdr[24] = {
@@ -510,7 +509,7 @@ static const uint8_t kCsiProbeHdr[24] = {
     0x00, 0x00
 };
 static const uint8_t kCsiProbeRates[10] = {
-    0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24
+    0x01, 0x08, 0x8C, 0x12, 0x98, 0x24, 0xB0, 0x48, 0x60, 0x6C
 };
 
 
@@ -519,6 +518,10 @@ static void csiSolicit() {
     if (csiNoTx.load()) return;
     uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
     memcpy(frame, kCsiProbeHdr, 24);
+    if (g_probeTargetSet) {
+        memcpy(frame + 4, g_probeTarget, 6);
+        memcpy(frame + 16, g_probeTarget, 6);
+    }
     frame[24] = 0x00;
     frame[25] = 0x00;
     memcpy(frame + 26, kCsiProbeRates, sizeof(kCsiProbeRates));
@@ -527,6 +530,7 @@ static void csiSolicit() {
     wifi_mode_t wmode = WIFI_MODE_NULL;
     wifi_interface_t txif =
         (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
+    esp_wifi_config_80211_tx_rate(txif, WIFI_PHY_RATE_6M);
     const esp_err_t err = esp_wifi_80211_tx(txif, frame, total, true);
     if (err == ESP_OK) g_solicitOk.fetch_add(1);
     else { g_solicitErr.fetch_add(1); g_solicitLastErr.store((int32_t)err); }
@@ -895,6 +899,7 @@ static void csiExpireLinks() {
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
+        const CsiLink *target = nullptr;
 
         for (int i = 0; i < CSI_MAX_LINKS; i++) {
             CsiLink &l = g_links[i];
@@ -904,6 +909,7 @@ static void csiExpireLinks() {
             const float dpps = (float)(uint32_t)(pnow - l.pairsSnap) * 0.5f;
             l.pairsSnap = pnow;
             l.pairRate += 0.5f * (dpps - l.pairRate);
+            if (csiLinkUsable(l) && (!target || l.rssi > target->rssi)) target = &l;
 
             const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
             if (!stale) continue;
@@ -915,6 +921,10 @@ static void csiExpireLinks() {
             l.consec = 0;
             l.elevMs = 0;
             if ((now - l.lastMs) >= CSI_LINK_FORGET_MS) l.used = false;
+        }
+        if (target) {
+            memcpy(g_probeTarget, target->mac, 6);
+            g_probeTargetSet = true;
         }
     }
 
@@ -1227,7 +1237,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
     cfg.lltf_bit_mode = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 #else
     cfg.lltf_en = true;
     cfg.htltf_en = true;
@@ -1236,7 +1246,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 #endif
 
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
@@ -1290,7 +1300,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
     cfg.lltf_bit_mode = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 #else
     cfg.lltf_en = true;
     cfg.htltf_en = true;
@@ -1299,7 +1309,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 #endif
 
     esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
@@ -1493,6 +1503,7 @@ void csiMotionTask(void *pv) {
     uint32_t lastRejSnap = 0;
     uint32_t blindSinceMs = 0;
     uint32_t lastRehopMs = 0;
+    uint16_t blindMask = 0;
     uint32_t rollSeenSnap = 0;
     uint32_t lastSolicitMs = millis();
     uint32_t lastSolicitSeen = 0;
@@ -1681,7 +1692,13 @@ void csiMotionTask(void *pv) {
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
-                    const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS, g_csiActiveChannel);
+                    const uint16_t curBit = (g_csiActiveChannel <= 14) ? (uint16_t)(1u << g_csiActiveChannel) : 0;
+                    blindMask |= curBit;
+                    uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS, blindMask);
+                    if (next == 0) {
+                        blindMask = curBit;
+                        next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS, blindMask);
+                    }
                     if (next != 0 && next != g_csiActiveChannel) {
                         Serial.printf("[CSI] blind %us on ch%u - moving to ch%u, SoftAP moves with it\n",
                                       blindFor, g_csiActiveChannel, next);
@@ -1701,6 +1718,7 @@ void csiMotionTask(void *pv) {
                 }
             } else {
                 blindSinceMs = 0;
+                blindMask = 0;
             }
         }
 
