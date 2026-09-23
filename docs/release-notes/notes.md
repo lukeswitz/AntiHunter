@@ -47,6 +47,9 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
   - Set sensitivity in the room it lives in.
   - S3 test: 85/134 near taps, 0/74 quiet.
   - No long-run false-alarm rate yet.
+
+> [!IMPORTANT]
+> **CSI motion transmits by default.** It sends probe requests anyone nearby can see. Legality varies by country. To stay silent: check "Listen only, never transmit" or send `BROADCAST=OFF`.
 - **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by movement strength, the strongest link over its trigger averaged across the block — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
 - Accent colors also cover movement hits (ice blue by default).
 - Headless: discovered devices persist across scans.
