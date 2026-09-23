@@ -333,15 +333,6 @@ Detects people moving through a space using the WiFi already in the air. Nothing
 > [!WARNING]
 > **Transmit is on by default.** The probe is the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site. To stay silent, check "Listen only, never transmit" or send `BROADCAST=OFF`; the node then needs a busy access point nearby.
 
-#### Measured
-
-One S3 node, one room, one fixed access point, transmit on. Two-second readings with the area alarm on:
-
-| | around vibration-confirmed taps | quiet time |
-|---|---|---|
-| S3 node | 85 of 134 | 0 of 74 |
-
-One site, one channel, one session.
 
 > [!IMPORTANT]
 > One setting cannot separate "here but still" from "moving". Expect a still occupant to land
@@ -357,20 +348,14 @@ One site, one channel, one session.
 - **Weak access points may not answer.** Ones at the edge of range often ignore the probe.
 - **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
-- **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
+- **Experimental beta on the ESP32-S3.** Not your only sensor.
 - **In testing on the ESP32-C5.** It runs, but separates movement from background less cleanly than an S3 in the same room. Prefer an S3 where detection matters.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
 > **Mesh** &nbsp;`@ALL CSI_MOTION_START:300`
 >
-> **Settings**
-> - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
-> - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
-> - Access points that must alert together: `SPOTS=<n>`, default 1
-> - Stay silent: `BROADCAST=OFF`, or the "Listen only, never transmit" box. Needs a busy access point nearby.
-> - Include phones and watches: `ALLOW_RANDOM=ON`, or "Include randomized-MAC devices". Off by default; they move with the person.
-> - Back to defaults `@ALL CSI_RECAL`
+> **Settings** &nbsp;all CSI mesh commands: [mesh commands](docs/mesh-commands.md#csi-motion-beta-version-only)
 >
 > A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
 

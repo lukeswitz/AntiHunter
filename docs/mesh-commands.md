@@ -76,6 +76,19 @@ These commands are only present on Beta firmware. On Stable they are not recogni
 
 Headless has no SoftAP. `defend` pins to whatever channel the radio last used, so use `scan`.
 
+### CSI Motion (Beta version only)
+
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `CSI_MOTION_START` | Start detection; `0` + `FOREVER` runs until `STOP` | `secs[:CH<n>][:FOREVER]` | `@ALL CSI_MOTION_START:0:FOREVER` |
+| `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
+| `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
+| `CSI_STATUS` | Links, channel, settings | None | `@AH01 CSI_STATUS` |
+| `CSI_JSON` | Same as JSON | None | `@AH01 CSI_JSON` |
+| `CSI_RECAL` | Clear a saved threshold; use the preset | None | `@ALL CSI_RECAL` |
+
+`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON: probes quiet devices) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` lets it choose).
+
 <details>
 <summary>Triangulation Commands</summary>
 
