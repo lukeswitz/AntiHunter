@@ -315,7 +315,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         ((((uint64_t)m[0] << 32) | ((uint64_t)m[1] << 24) | ((uint64_t)m[2] << 16) |
           ((uint64_t)m[3] << 8) | (uint64_t)m[4]) == (ex >> 8));
     const bool usable = !excluded &&
-        (csiAllowRandom.load() || (!(m[0] & 0x02) && csiFromAp(info->hdr)));
+        (csiAllowRandom.load() || !(m[0] & 0x02));
 
     if (g_surveyMode.load()) {
         if (!usable) return;
