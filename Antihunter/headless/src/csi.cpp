@@ -298,7 +298,12 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         g_rejMac.fetch_add(1);
         return;
     }
-    const bool usable = csiAllowRandom.load() || (!(m[0] & 0x02) && csiFromAp(info->hdr));
+    const uint64_t ex = csiExcludeMac.load();
+    const bool excluded = ex != 0 &&
+        ((((uint64_t)m[0] << 32) | ((uint64_t)m[1] << 24) | ((uint64_t)m[2] << 16) |
+          ((uint64_t)m[3] << 8) | (uint64_t)m[4]) == (ex >> 8));
+    const bool usable = !excluded &&
+        (csiAllowRandom.load() || (!(m[0] & 0x02) && csiFromAp(info->hdr)));
 
     if (g_surveyMode.load()) {
         if (!usable) return;
@@ -334,10 +339,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
-static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
+static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint8_t avoidCh = 0) {
     std::vector<uint8_t> chans;
     for (uint8_t c : CHANNELS) {
-        if (c >= 1 && c <= 14) chans.push_back(c);
+        if (c >= 1 && c <= 14 && c != avoidCh) chans.push_back(c);
     }
     if (chans.empty()) chans = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
@@ -359,8 +364,10 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         wifi_scan_config_t sc = {};
         sc.channel = ch;
         sc.show_hidden = true;
-        sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+        sc.scan_type = csiNoTx.load() ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
         sc.scan_time.passive = dwellMs;
+        sc.scan_time.active.min = dwellMs;
+        sc.scan_time.active.max = dwellMs;
         sc.home_chan_dwell_time = 1;
 
         g_surveyMode.store(true);
@@ -1459,7 +1466,7 @@ void csiMotionTask(void *pv) {
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
-                    const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
+                    const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS, g_csiActiveChannel);
                     if (next != 0 && next != g_csiActiveChannel) {
                         Serial.printf("[CSI] blind %us on ch%u - moving to ch%u, SoftAP moves with it\n",
                                       blindFor, g_csiActiveChannel, next);
