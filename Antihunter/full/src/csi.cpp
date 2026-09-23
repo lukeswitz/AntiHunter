@@ -206,15 +206,6 @@ struct CsiEvent {
     bool usable;
 };
 
-static inline bool csiFromAp(const uint8_t *h) {
-    if (!h) return false;
-    const uint8_t type = (h[0] >> 2) & 0x03;
-    const uint8_t sub = (h[0] >> 4) & 0x0F;
-    if (type == 0) return sub == 8 || sub == 5;
-    if (type == 2) return (h[1] & 0x03) == 0x02;
-    return false;
-}
-
 struct CsiLink {
     uint8_t mac[6] = {};
     bool used = false;
