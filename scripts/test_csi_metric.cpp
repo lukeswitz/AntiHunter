@@ -29,7 +29,7 @@ static float feed(CsiScorer &s, const float *re, const float *im, float noise, i
     for (int i = 0; i < n; i++) {
         makePacket(buf, re, im, noise);
         if (!csiAmplitudes(buf, a)) continue;
-        if (s.update(a, holdFloor)) last = s.score;
+        if (s.update(a, holdFloor, 20000)) last = s.score;
     }
     return last;
 }
@@ -41,7 +41,7 @@ static float feedPeak(CsiScorer &s, const float *re, const float *im, float nois
     for (int i = 0; i < n; i++) {
         makePacket(buf, re, im, noise);
         if (!csiAmplitudes(buf, a)) continue;
-        if (s.update(a, holdFloor) && s.score > peak) peak = s.score;
+        if (s.update(a, holdFloor, 20000) && s.score > peak) peak = s.score;
     }
     return peak;
 }
@@ -121,7 +121,7 @@ int main() {
         for (int i = 0; i < 20000; i++) {
             makePacket(buf, re, im, 3.0f);
             if (!csiAmplitudes(buf, amp)) continue;
-            if (!fp.update(amp, false)) continue;
+            if (!fp.update(amp, false, 20000)) continue;
             scored++;
             if (fp.score >= 2.5f) {
                 over++;
@@ -173,7 +173,7 @@ int main() {
         for (int i = 0; i < 20000; i++) {
             makePacket(buf, re, im, 3.0f);
             if (!csiAmplitudes(buf, amp)) continue;
-            if (!fp.update(amp, false)) continue;
+            if (!fp.update(amp, false, 20000)) continue;
             if (fp.score >= trig) { consec++; if (consec == 3) runs++; }
             else consec = 0;
         }
@@ -199,17 +199,19 @@ int main() {
 
     printf("== quiet link is below the gate from the moment it arms ==\n");
     {
-        static float swin[CsiScorer::windowFloats()];
-        mkStatic(p, np);
-        CsiScorer s; s.attachWindow(swin); s.reset();
+        CsiScorer q; q.reset();
+        int8_t qbuf[128];
+        float qa[CSI_NSUB];
         int n = 0;
         int armN = 0;
         float worst = 0.0f;
         while (n < 1000) {
-            feedChannel(s, p, np, 2.0f, 1, LAG, false);
+            makePacket(qbuf, re, im, 3.0f);
             n++;
-            if (s.settled() && !armN) armN = n;
-            if (s.settled() && s.sigVar > worst) worst = s.sigVar;
+            if (!csiAmplitudes(qbuf, qa)) continue;
+            q.update(qa, false, 20000);
+            if (q.settled() && !armN) armN = n;
+            if (q.settled() && q.sigVar > worst) worst = q.sigVar;
         }
         printf("   armed after %d packets  worst quiet sig after arming=%.4f  gate=%.3f\n",
                armN, worst, CSI_SIG_ETA);
