@@ -932,6 +932,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     if (holdMs >= 500 && holdMs <= 120000) csiHoldMs.store(holdMs);
     if (consec >= 1 && consec <= 50) csiConsecNeeded.store(consec);
     csiRawDump.store(rawDump);
+    if (csiTelemetry.load() != telemetry) Serial.printf("[CSI] telemetry %s\n", telemetry ? "on" : "off");
     csiTelemetry.store(telemetry);
 
     if (prefs.isKey("csiCh")) prefs.remove("csiCh");
@@ -1508,13 +1509,14 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used) continue;
-                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lag=%u/%u/%u/%u/%u\n",
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lag=%u/%u/%u/%u/%u consec=%u elev=%u above=%u\n",
                                   macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
                                   csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
                                   l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate,
                                   (unsigned)l.sc.lagBkt[0], (unsigned)l.sc.lagBkt[1],
                                   (unsigned)l.sc.lagBkt[2], (unsigned)l.sc.lagBkt[3],
-                                  (unsigned)l.sc.lagBkt[4]);
+                                  (unsigned)l.sc.lagBkt[4], (unsigned)l.consec, (unsigned)l.elevMs,
+                                  (unsigned)(l.lastAboveMs ? (millis() - l.lastAboveMs) : 0));
                 }
             }
         }

@@ -72,6 +72,9 @@ jobs:
         test -f .pio/build/AntiHunter-headless/firmware.bin
         cp .pio/build/AntiHunter-headless/firmware.bin "release/antihunter-headless-${VERSION}.bin"
 
+        cp .pio/build/AntiHunter-full/firmware.elf "release/antihunter-full-${VERSION}.elf"
+        cp .pio/build/AntiHunter-headless/firmware.elf "release/antihunter-headless-${VERSION}.elf"
+
         cp Dist/flashAntihunter.sh release/
 
     - name: Print the toolchain the bins were built with
@@ -82,11 +85,12 @@ jobs:
         VERSION="${{ steps.get_version.outputs.version }}"
         mkdir -p publish
         cp release/antihunter-*.bin publish/
+        cp release/antihunter-*.elf publish/
         cp release/bootloader.bin "publish/bootloader-${VERSION}.bin"
         cp release/partitions.bin "publish/partitions-${VERSION}.bin"
         cp release/flashAntihunter.sh publish/
         cd publish
-        sha256sum *.bin flashAntihunter.sh > "SHA256SUMS-${VERSION}.txt"
+        sha256sum *.bin *.elf flashAntihunter.sh > "SHA256SUMS-${VERSION}.txt"
 
     - name: Update Dist bins and web flasher manifests
       run: |
