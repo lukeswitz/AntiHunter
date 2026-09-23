@@ -412,11 +412,13 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
         }
         g_surveyMode.store(false);
         uint32_t top = 0;
+        uint8_t topIdx = 0;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
-            if (g_surveyMacHits[i] > top) top = g_surveyMacHits[i];
+            if (g_surveyMacHits[i] > top) { top = g_surveyMacHits[i]; topIdx = i; }
         }
-        Serial.printf("[CSI]   ch%-3u strongest AP %ddBm  %u APs answered  best AP %.1f/s\n",
-                      c, best[c], g_surveyTx.load(), (float)top * 1000.0f / (float)trialMs);
+        Serial.printf("[CSI]   ch%-3u strongest AP %ddBm  %u APs answered  best AP %.1f/s %s\n",
+                      c, best[c], g_surveyTx.load(), (float)top * 1000.0f / (float)trialMs,
+                      top ? macFmt6(g_surveyMacs[topIdx]).c_str() : "-");
         if (top > pickHits) { pickHits = top; pick = c; }
     }
 
