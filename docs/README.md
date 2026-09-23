@@ -2,6 +2,7 @@
 - **[Read the Documentation](https://github.com/lukeswitz/AntiHunter/tree/main)** - everything there is to know about this project
 - **[Operator's Guide](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html)** — the node, from the box to the field. [PDF](AntiHunter-Operators-Guide.pdf)
 - **[Assembly Manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** — soldering, SD card prep, connectors, printed enclosure
+- **Tier notes** — the sheet in the box: [Assembled](note-tier1-assembled.pdf) · [Parts Kit](note-tier2-parts-kit.pdf) · [Populated PCB](note-tier3-populated-pcb.pdf) · [Bare PCB](note-tier4-bare-pcb.pdf)
 
 ---
 
@@ -80,7 +81,7 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 | Question | Answer |
 |---|---|
 | **Full or Headless?** | Same detectors, same scan engine, same mesh commands. Full hosts the WiFi AP with the web UI and API, and beacons continuously. Headless is serial and mesh only, never beacons. Start on Full, reflash to Headless before a quiet deployment. [Details](../README.md#full-vs-headless) |
-| **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first, Sentinel among them. [Stable notes](release-notes/notes-stable.md) · [Beta notes](release-notes/notes-beta.md) |
+| **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first, Sentinel among them. [Release notes](release-notes/notes.md) |
 | **S3 or C5?** | ESP32-S3 is the shipping build. The [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) is a drop-in on the same pads and adds 5 GHz, under the flasher's Experimental channel while it is in testing. [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md) pairs a 24 GHz radar with the same mesh. |
 | **Do I need the Meshtastic radio?** | Not for scanning. Without it, you control one node from its own AP or over serial, standing next to it. With it, you send commands and get detections over LoRa from anywhere in mesh range, across as many nodes as you deploy. |
 | **Which SD card?** | FAT32, under 32 GB. Every tier except Bare PCB ships with an 8 GB card fitted. |
@@ -131,9 +132,9 @@ Full symptom table, factory reset and what to include in a bug report: [§14](ht
 
 ## Everything else
 
-**Hardware** — [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [BOM links](../hw/Prototype_STL_Files/BOM-Links.md) · [enclosures and STLs](../hw/Prototype_STL_Files/README.md) · [welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt) · [what each tier ships](../README.md#deployment-steps-by-tier)
+**Hardware** — [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [BOM links](../hw/Prototype_STL_Files/BOM-Links.md) · [enclosures and STLs](../hw/Prototype_STL_Files/README.md) · [welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt) · [what each tier ships](../README.md#deployment-steps-by-tier) · tier notes: [Assembled](note-tier1-assembled.pdf) · [Parts Kit](note-tier2-parts-kit.pdf) · [Populated PCB](note-tier3-populated-pcb.pdf) · [Bare PCB](note-tier4-bare-pcb.pdf)
 
-**Firmware** — [web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI flasher](../Dist/flashAntihunter.sh) · [build from source](../README.md#build-from-source) · [releases](https://github.com/lukeswitz/AntiHunter/releases) · [stable notes](release-notes/notes-stable.md) · [beta notes](release-notes/notes-beta.md)
+**Firmware** — [web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI flasher](../Dist/flashAntihunter.sh) · [build from source](../README.md#build-from-source) · [releases](https://github.com/lukeswitz/AntiHunter/releases) · [release notes](release-notes/notes.md)
 
 **Operating** — [what it detects](../README.md#what-it-detects) · [scan presets](../README.md#rf-scan-presets) · [field controls](../README.md#field-controls) · [secure data destruction](../README.md#secure-data-destruction) · [mesh networking](../README.md#mesh-networking) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
 
