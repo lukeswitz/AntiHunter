@@ -722,9 +722,9 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL CSI_MOTION_START:300:CH11</pre>
   <p>Leave the channel at 0 so the node picks its own; the web UI moves with it, so rejoin there. A hand-picked channel can cripple it. Motion for the node needs <span class="mono">SPOTS</span> (default 1) separate fixed access points disturbed at once, or all of them when fewer than that are armed, for <span class="mono">MIN_MOTION</span> seconds. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
   <div class="box"><span class="t">Set the trigger per install</span>
-    <p>Measure the gate statistic with the building empty and set the trigger above it. Both boards gate on <span class="mono">psi</span>, the lag-one autocorrelation of CSI power. Presets are <span class="mono">LOW</span> 0.120 / <span class="mono">MEDIUM</span> 0.065 / <span class="mono">HIGH</span> 0.045, the same values in the web menu and <span class="mono">CSI_CFG:SENSITIVITY=</span>. A C5 reads a wider spread than an S3 in the same room, so it needs its own higher number rather than the S3's; measure each board where it sits.</p>
+    <p>The S3 gates on the lag-one autocovariance of CSI power. Presets are <span class="mono">LOW</span> 0.140 / <span class="mono">MEDIUM</span> 0.115 / <span class="mono">HIGH</span> 0.095, the same in the web menu and <span class="mono">CSI_CFG:SENSITIVITY=</span>. The C5 has its own presets. Check each board where it sits.</p>
   </div>
-  <div class="box"><span class="t">Listen-only by default</span>
+  <div class="box"><span class="t">Transmit</span>
     <p>Transmit is on by default. Fixed access points often beacon about once a second, too slow to measure, so when fewer than 15 packets a second arrive from them the node sends one broadcast probe request per second and they answer. Anyone on the channel sees it. Where transmitting is not allowed, set <span class="mono">BROADCAST=OFF</span> or check "Listen only, never transmit"; the node then needs a busy access point nearby. Phones and watches are ignored unless <span class="mono">ALLOW_RANDOM=ON</span>. Every <span class="mono">CSI_CFG_ACK</span> shows both.</p>
   </div>
   <div class="box"><span class="t">A C5 node reads hotter than an S3</span>

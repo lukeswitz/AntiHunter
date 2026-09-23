@@ -315,11 +315,9 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (beta)
 
-> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
+> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed access point in range. Read [Limitations](#csi-limitations) before relying on it.
 
 Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed access points around it.
-
-Movement disturbs them most, a still person less, an empty room least. Sensitivity draws the line.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
@@ -355,8 +353,8 @@ One site, one channel, one session.
 <a id="csi-limitations"></a>
 #### Limitations
 
-- **Let it choose the channel.** In one room, minutes apart, one channel gave under three usable readings a second and another gave fifty. Start it without a channel; it picks, and moves if that one goes quiet.
-- **It needs a fixed access point in range.** Transmit gets answers from ones nearby; ones at the edge of range may not answer.
+- **Let it choose the channel.** Start it without one; it picks, and moves if that one goes quiet.
+- **Weak access points may not answer.** Ones at the edge of range often ignore the probe.
 - **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
 - **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
@@ -364,14 +362,14 @@ One site, one channel, one session.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
-> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
+> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300`
 >
 > **Settings**
 > - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
 > - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
-> - How many transmitters must agree: add `SPOTS=<n>`
-> - Stay silent: add `BROADCAST=OFF`, or check the "Listen only, never transmit" box in the web UI. Use it where transmitting is not allowed and a busy access point is nearby.
-> - Track phones and watches too, not just fixed access points: add `ALLOW_RANDOM=ON`, or check "Include randomized-MAC devices" in the web UI. Off by default — randomized-MAC devices move with the person, so they read as proximity, and they crowd fixed access points out of the limited link table.
+> - Access points that must alert together: `SPOTS=<n>`, default 1
+> - Stay silent: `BROADCAST=OFF`, or the "Listen only, never transmit" box. Needs a busy access point nearby.
+> - Include phones and watches: `ALLOW_RANDOM=ON`, or "Include randomized-MAC devices". Off by default; they move with the person.
 > - Back to defaults `@ALL CSI_RECAL`
 >
 > A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
