@@ -220,6 +220,7 @@ static std::mutex g_csiMutex;
 static QueueHandle_t csiQueue = nullptr;
 
 static std::atomic<uint32_t> g_csiSeen{0};
+static std::atomic<uint32_t> g_csiUsedSeen{0};
 static std::atomic<uint32_t> g_csiDropped{0};
 static std::atomic<uint32_t> g_csiRejected{0};
 static std::atomic<uint32_t> g_rejFcs{0};
@@ -317,6 +318,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     memcpy(ev.buf, info->buf, 128);
 
     g_csiSeen.fetch_add(1);
+    if (csiAllowRandom.load() || !(m[0] & 0x02)) g_csiUsedSeen.fetch_add(1);
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
@@ -1370,7 +1372,7 @@ void csiMotionTask(void *pv) {
                 lastSolicitMs = now;
             }
         } else if (now - lastSolicitMs >= 1000) {
-            const uint32_t seenNow = g_csiSeen.load();
+            const uint32_t seenNow = g_csiUsedSeen.load();
             if ((seenNow - lastSolicitSeen) < CSI_SOLICIT_FLOOR) {
                 csiSolicit();
             }
