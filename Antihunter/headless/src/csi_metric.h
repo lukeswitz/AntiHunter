@@ -42,7 +42,7 @@ static const uint8_t CSI_ACF_MIN_HIST = 12;
 static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
-static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
+static const uint16_t CSI_FLOOR_SETTLE_PKTS = 2 * CSI_ACF_T;
 static const uint16_t CSI_ACF_SETTLE_PAIRS = 450;
 static const float CSI_SPREAD_ALPHA = 0.02f;
 static const float CSI_LINK_MIN_SPREAD = 0.03f;
@@ -78,6 +78,7 @@ struct CsiScorer {
     float mG2[CSI_NSUB] = {};
     float mD2[CSI_NSUB] = {};
     float acf = 0.0f;
+    float acfW = 0.0f;
     float sigVar = 0.0f;
     float vote = 0.0f;
     float psi = 0.0f;
@@ -136,6 +137,7 @@ struct CsiScorer {
             prevG[k] = 0.0f; mG[k] = 0.0f; mGG[k] = 0.0f; mG2[k] = 0.0f; mD2[k] = 0.0f;
         }
         acf = 0.0f;
+        acfW = 0.0f;
         sigVar = 0.0f;
         vote = 0.0f;
         psi = 0.0f;
@@ -341,26 +343,31 @@ struct CsiScorer {
             const int bi = (dtUs < 50000) ? 0 : (dtUs < 200000) ? 1 : (dtUs < 1000000) ? 2 : (dtUs < 3000000) ? 3 : 4;
             if (lagBkt[bi] < 0xFFFFFFFFu) lagBkt[bi]++;
         }
+        const bool pairOk = acfPairs > 0 && prevValid;
+        if (pairOk) acfW += CSI_ACF_ALPHA * (1.0f - acfW);
+        const float inv = (acfW > 1e-6f) ? 1.0f / acfW : 0.0f;
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
-            if (acfPairs > 0 && prevValid) {
+            if (pairOk) {
                 const float dG = G - prevG[k];
                 mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
                 mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
                 mG2[k] += CSI_ACF_ALPHA * (G * G - mG2[k]);
                 mD2[k] += CSI_ACF_ALPHA * (dG * dG - mD2[k]);
+                const float cG = mG[k] * inv;
+                const float cG2 = mG2[k] * inv;
                 {
-                    const float tv = mG2[k] - mG[k] * mG[k];
+                    const float tv = cG2 - cG * cG;
                     if (tv > 1e-12f) {
-                        const float sv = tv - mD2[k] * 0.5f;
+                        const float sv = tv - mD2[k] * inv * 0.5f;
                         sigAcc += (sv > 0.0f) ? sv : 0.0f;
                         nsig++;
                     }
                 }
-                const float m2 = mG[k] * mG[k];
-                const float v = mG2[k] - m2;
+                const float m2 = cG * cG;
+                const float v = cG2 - m2;
                 if (v > 1e-12f) {
-                    float p = (mGG[k] - m2) / v;
+                    float p = (mGG[k] * inv - m2) / v;
                     if (p > 1.0f) p = 1.0f;
                     if (p < -1.0f) p = -1.0f;
                     if (p > 0.0f) {
