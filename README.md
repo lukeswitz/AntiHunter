@@ -374,6 +374,7 @@ sitting still, both registered often.
 > - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
 > - How many transmitters must agree: add `SPOTS=<n>`
 > - Allow transmitting when the air is too quiet: add `BROADCAST=ON`, or clear the "Listen only, never transmit" box in the web UI
+> - Track phones and watches too, not just fixed access points: add `ALLOW_RANDOM=ON`, or check "Include randomized-MAC devices" in the web UI. Off by default — randomized-MAC devices move with the person, so they read as proximity, and they crowd fixed access points out of the limited link table.
 > - Back to defaults `@ALL CSI_RECAL`
 >
 > A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.

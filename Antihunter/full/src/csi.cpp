@@ -35,6 +35,7 @@ std::atomic<uint32_t> csiAreaDutyMinS{8};
 std::atomic<uint32_t> csiAreaRadiosNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint8_t> csiAllowRandom{0};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
@@ -659,6 +660,7 @@ static void csiEmitAlert(const CsiAlert &al) {
 static void csiProcess(const CsiEvent &ev) {
     float a[CSI_NSUB];
     if (!csiAmplitudes(ev.buf, a)) return;
+    if (!csiAllowRandom.load() && (ev.mac[0] & 0x02)) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
@@ -1025,6 +1027,7 @@ void loadCsiConfigFromPrefs() {
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
     csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
+    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 0));
 }
 
 static bool csiMoveRadio(uint8_t ch) {

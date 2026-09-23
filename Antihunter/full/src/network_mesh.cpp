@@ -1016,6 +1016,11 @@ static void handleCsiCfg(const String &command)
         setCsiNoTx(v == "OFF" || v == "NO" || v == "0");
       }
       else if (tok.startsWith("CH=")) ch = (uint8_t)tok.substring(3).toInt();
+      else if (tok.startsWith("ALLOW_RANDOM=")) {
+        const String v = tok.substring(13);
+        csiAllowRandom.store((v == "ON" || v == "YES" || v == "1") ? 1 : 0);
+        prefs.putUInt("csiRnd", csiAllowRandom.load());
+      }
       else if (idx == 0) thr = tok.toFloat();
       else if (idx == 1) hold = (uint32_t)tok.toInt();
       else if (idx == 2) consec = (uint32_t)tok.toInt();
@@ -1040,7 +1045,8 @@ static void handleCsiCfg(const String &command)
   sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +
-                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON"), true);
+                " BROADCAST=" + String(csiNoTx.load() ? "OFF" : "ON") +
+                " ALLOW_RANDOM=" + String(csiAllowRandom.load() ? "ON" : "OFF"), true);
 }
 
 static void handleRandomizationStart(const String &command)

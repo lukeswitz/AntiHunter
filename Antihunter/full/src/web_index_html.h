@@ -774,6 +774,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   </div>
                   <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Node stays silent. Detects only while other WiFi traffic is present."><input type="checkbox" id="csiNoTx" name="csiNoTx" value="1" checked>Listen only, never transmit</label>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off (default): track only fixed access points, whose signal a body disturbs. On: also track phones and watches, which move with the person and read as proximity rather than through-air sensing."><input type="checkbox" id="csiRnd" name="csiRnd" value="1">Include randomized-MAC devices (phones, watches)</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
