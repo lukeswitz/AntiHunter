@@ -765,7 +765,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
-                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.005" value="0.065">
+                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.005" value="0.140">
                     </div>
                     <div>
                       <label style="font-size:11px;">Packets in a row before alerting</label>
@@ -5919,7 +5919,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.120, 8, 1], medium: [0.065, 4, 1], high: [0.045, 4, 1] };
+            const presets = { low: [0.140, 8, 1], medium: [0.115, 4, 1], high: [0.095, 4, 1] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];
