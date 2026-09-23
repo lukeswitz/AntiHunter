@@ -1448,9 +1448,9 @@ void csiMotionTask(void *pv) {
                 csiSolicit();
                 lastSolicitMs = now;
             }
-        } else if (now - lastSolicitMs >= 1000) {
+        } else if (now - lastSolicitMs >= 200) {
             const uint32_t seenNow = g_csiUsedSeen.load();
-            if ((seenNow - lastSolicitSeen) < CSI_SOLICIT_FLOOR) {
+            if ((seenNow - lastSolicitSeen) < CSI_SOLICIT_FLOOR / 5) {
                 csiSolicit();
             }
             lastSolicitSeen = seenNow;
