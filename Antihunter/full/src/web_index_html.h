@@ -281,20 +281,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-act small{font-size:17px;color:var(--mut);font-weight:500}
       .csi-state.move .csi-act{color:var(--csi-hit)}
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
-      .csi-heat{display:flex;gap:1px;height:30px;margin-top:12px;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--mut) 16%,transparent)}
+      .csi-heat{display:flex;gap:1px;height:30px;margin-top:12px;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--mut) 24%,transparent)}
       .csi-heat i{flex:1 1 0;min-width:0;display:flex;align-items:flex-end;cursor:pointer;background:transparent}
       .csi-heat i u{display:block;width:100%;height:0;text-decoration:none;background:var(--csi-hit)}
-      .csi-heat i.h1 u{background:color-mix(in srgb,var(--csi-hit) 22%,#fff)}
-      .csi-heat i.h2 u{background:color-mix(in srgb,var(--csi-hit) 38%,#fff)}
-      .csi-heat i.h3 u{background:color-mix(in srgb,var(--csi-hit) 55%,#fff)}
-      .csi-heat i.h4 u{background:color-mix(in srgb,var(--csi-hit) 72%,#fff)}
-      .csi-heat i.h5 u{background:color-mix(in srgb,var(--csi-hit) 90%,#fff)}
-      .csi-heat i.h6 u{background:color-mix(in srgb,var(--csi-hit) 80%,#10161f)}
+      .csi-heat i.h1 u{background:color-mix(in srgb,var(--csi-hit) 50%,#fff)}
+      .csi-heat i.h2 u{background:color-mix(in srgb,var(--csi-hit) 62%,#fff)}
+      .csi-heat i.h3 u{background:color-mix(in srgb,var(--csi-hit) 74%,#fff)}
+      .csi-heat i.h4 u{background:color-mix(in srgb,var(--csi-hit) 87%,#fff)}
+      .csi-heat i.h5 u{background:var(--csi-hit)}
+      .csi-heat i.h6 u{background:color-mix(in srgb,var(--csi-hit) 78%,#10161f)}
       .csi-heat i.h7 u{background:color-mix(in srgb,var(--csi-hit) 55%,#10161f)}
-      [data-theme="dark"] .csi-heat i.h1 u,[data-theme="cyber"] .csi-heat i.h1 u{background:color-mix(in srgb,var(--csi-hit) 30%,var(--surf))}
-      [data-theme="dark"] .csi-heat i.h2 u,[data-theme="cyber"] .csi-heat i.h2 u{background:color-mix(in srgb,var(--csi-hit) 48%,var(--surf))}
-      [data-theme="dark"] .csi-heat i.h3 u,[data-theme="cyber"] .csi-heat i.h3 u{background:color-mix(in srgb,var(--csi-hit) 66%,var(--surf))}
-      [data-theme="dark"] .csi-heat i.h4 u,[data-theme="cyber"] .csi-heat i.h4 u{background:color-mix(in srgb,var(--csi-hit) 84%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h1 u,[data-theme="cyber"] .csi-heat i.h1 u{background:color-mix(in srgb,var(--csi-hit) 50%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h2 u,[data-theme="cyber"] .csi-heat i.h2 u{background:color-mix(in srgb,var(--csi-hit) 62%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h3 u,[data-theme="cyber"] .csi-heat i.h3 u{background:color-mix(in srgb,var(--csi-hit) 74%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h4 u,[data-theme="cyber"] .csi-heat i.h4 u{background:color-mix(in srgb,var(--csi-hit) 87%,var(--surf))}
       [data-theme="dark"] .csi-heat i.h5 u,[data-theme="cyber"] .csi-heat i.h5 u{background:var(--csi-hit)}
       [data-theme="dark"] .csi-heat i.h6 u,[data-theme="cyber"] .csi-heat i.h6 u{background:color-mix(in srgb,var(--csi-hit) 55%,#fff)}
       [data-theme="dark"] .csi-heat i.h7 u,[data-theme="cyber"] .csi-heat i.h7 u{background:color-mix(in srgb,var(--csi-hit) 22%,#fff)}
