@@ -65,7 +65,7 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 - Beta and C5: headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
 - Beta and C5: the CSI channel survey runs again. `CSI_CFG` had no `CH=` handler, so `CSI_CFG:CH=0` was read as a threshold instead, and the pinned channel was kept in NVS, so once a channel was set the node never surveyed again. `CH=` is now a real token and the pin is not persisted.
 - Beta and C5: CSI arming no longer requires the psiZ term. Scored against logged per-link telemetry, occupied hours versus quiet nights, psiZ separated at chance and rejected most true detections for almost no reduction in false ones. It stays in telemetry.
-- Beta: the S3 compiled CSI defaults are the labeled config for that board, 0.120 / 8 s / 3 spots, instead of 0.065 / 4 s / 2.
+- Beta: the S3 compiled CSI defaults are the Low preset for that board, 0.140 / 8 s / 1 spot, and the web presets match the mesh presets.
 - Headless: `DEVICE_DB_CLEAR` clears the device database over mesh. The function existed but nothing could call it — the web UI route is full-build only.
 - Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
 - SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
