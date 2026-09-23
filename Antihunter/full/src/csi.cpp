@@ -345,6 +345,8 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
 static void csiSolicit();
 
 static bool csiMoveRadio(uint8_t ch);
+static uint8_t g_probeTarget[6];
+static bool g_probeTargetSet = false;
 
 static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
     uint16_t allowed = 0;
@@ -365,6 +367,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
     esp_wifi_clear_ap_list();
 
     int8_t best[15];
+    uint8_t bestMac[15][6] = {};
     for (int c = 0; c < 15; c++) best[c] = -128;
     const uint64_t ex = csiExcludeMac.load();
     uint16_t aps = 0;
@@ -376,7 +379,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
         if (ex && ((((uint64_t)b[0] << 32) | ((uint64_t)b[1] << 24) | ((uint64_t)b[2] << 16) |
                     ((uint64_t)b[3] << 8) | (uint64_t)b[4]) == (ex >> 8))) continue;
         aps++;
-        if (recs[i].rssi > best[c]) best[c] = recs[i].rssi;
+        if (recs[i].rssi > best[c]) { best[c] = recs[i].rssi; memcpy(bestMac[c], b, 6); }
     }
     Serial.printf("[CSI] Survey: %u access points on allowed channels (scan %s)\n",
                   aps, esp_err_to_name(sr));
@@ -399,6 +402,8 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
     for (uint8_t c : cand) {
         if (!c || stopRequested) continue;
         csiMoveRadio(c);
+        memcpy(g_probeTarget, bestMac[c], 6);
+        g_probeTargetSet = true;
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
         g_surveyPeak.store(-128);
@@ -444,6 +449,10 @@ static void csiSolicit() {
     if (csiNoTx.load()) return;
     uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
     memcpy(frame, kCsiProbeHdr, 24);
+    if (g_probeTargetSet) {
+        memcpy(frame + 4, g_probeTarget, 6);
+        memcpy(frame + 16, g_probeTarget, 6);
+    }
     frame[24] = 0x00;
     frame[25] = 0x00;
     memcpy(frame + 26, kCsiProbeRates, sizeof(kCsiProbeRates));
@@ -768,6 +777,7 @@ static void csiExpireLinks() {
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
+        const CsiLink *target = nullptr;
 
         for (int i = 0; i < CSI_MAX_LINKS; i++) {
             CsiLink &l = g_links[i];
@@ -777,6 +787,7 @@ static void csiExpireLinks() {
             const float dpps = (float)(uint32_t)(pnow - l.pairsSnap) * 0.5f;
             l.pairsSnap = pnow;
             l.pairRate += 0.5f * (dpps - l.pairRate);
+            if (csiLinkUsable(l) && (!target || l.rssi > target->rssi)) target = &l;
 
             const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
             if (!stale) continue;
@@ -788,6 +799,10 @@ static void csiExpireLinks() {
             l.consec = 0;
             l.elevMs = 0;
             if ((now - l.lastMs) >= CSI_LINK_FORGET_MS) l.used = false;
+        }
+        if (target) {
+            memcpy(g_probeTarget, target->mac, 6);
+            g_probeTargetSet = true;
         }
     }
 
@@ -1089,7 +1104,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
     if (esp_wifi_set_csi_config(&cfg) != ESP_OK) {
@@ -1141,7 +1156,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0) || !csiNoTx.load();
 
     esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
     if (rb != ESP_OK) {
