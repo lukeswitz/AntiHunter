@@ -558,6 +558,15 @@ static uint8_t csiWindowCapableCount() {
     return n;
 }
 
+static uint8_t csiArmingCount() {
+    uint8_t n = 0;
+    for (int i = 0; i < CSI_MAX_LINKS; i++) {
+        const CsiLink &l = g_links[i];
+        if (csiLinkUsable(l) && l.pairRate >= CSI_LINK_MIN_PAIR_RATE) n++;
+    }
+    return n;
+}
+
 static int csiNeedLinks(int armedLinks) {
     int need = (armedLinks * CSI_AREA_LINK_NUM + CSI_AREA_LINK_DEN - 1) / CSI_AREA_LINK_DEN;
     if (need < 1) need = 1;
@@ -1469,11 +1478,13 @@ void csiMotionTask(void *pv) {
             uint8_t usableRoll = 0;
             uint8_t armedRoll = 0;
             uint8_t windowRoll = 0;
+            uint8_t armingRoll = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 usableRoll = csiUsableCount();
                 armedRoll = csiArmedCount();
                 windowRoll = csiWindowCapableCount();
+                armingRoll = csiArmingCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
@@ -1505,7 +1516,7 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[CSI] STARVED: %u records in 60s on ch%u - too little traffic to detect motion\n",
                               rollRecords, g_csiActiveChannel);
             }
-            if (windowRoll == 0 || starved) {
+            if (armingRoll == 0 && (windowRoll == 0 || starved)) {
                 if (usableRoll == 0)
                     Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                                   (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
