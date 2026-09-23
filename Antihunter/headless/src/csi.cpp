@@ -189,7 +189,17 @@ struct CsiEvent {
     uint16_t len;
     bool fwInvalid;
     int8_t buf[CSI_BUF_BYTES];
+    bool usable;
 };
+
+static inline bool csiFromAp(const uint8_t *h) {
+    if (!h) return false;
+    const uint8_t type = (h[0] >> 2) & 0x03;
+    const uint8_t sub = (h[0] >> 4) & 0x0F;
+    if (type == 0) return sub == 8 || sub == 5;
+    if (type == 2) return (h[1] & 0x03) == 0x02;
+    return false;
+}
 
 struct CsiLink {
     uint8_t mac[6] = {};
@@ -340,9 +350,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         g_rejMac.fetch_add(1);
         return;
     }
+    const bool usable = csiAllowRandom.load() || (!(m[0] & 0x02) && csiFromAp(info->hdr));
 
     if (g_surveyMode.load()) {
-        if (!csiAllowRandom.load() && (m[0] & 0x02)) return;
+        if (!usable) return;
         g_surveyHits.fetch_add(1);
         if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
 #if CONFIG_SOC_WIFI_HE_SUPPORT
@@ -373,9 +384,10 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     ev.len = info->len;
     ev.fwInvalid = info->first_word_invalid;
     memcpy(ev.buf, info->buf, info->len);
+    ev.usable = usable;
 
     g_csiSeen.fetch_add(1);
-    if (csiAllowRandom.load() || !(m[0] & 0x02)) g_csiUsedSeen.fetch_add(1);
+    if (usable) g_csiUsedSeen.fetch_add(1);
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
@@ -730,7 +742,7 @@ static void csiProcess(const CsiEvent &ev) {
     if (ev.fwInvalid) g_fwSkip.fetch_add(1);
     int liveBins = 0;
     if (!csiAmplitudesLen(ev.buf, ev.len, ev.fwInvalid, a, &liveBins)) return;
-    if (!csiAllowRandom.load() && (ev.mac[0] & 0x02)) return;
+    if (!ev.usable) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
