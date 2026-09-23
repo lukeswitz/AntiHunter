@@ -639,6 +639,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
+      Serial.printf("[WEB CMD] stop from %s\n", req->client()->remoteIP().toString().c_str());
       stopAllScans();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
       if (triangulationActive || triangulationInitiator) requestTriangulationStop();
@@ -1454,12 +1455,17 @@ void registerRemainingRoutes() {
                 uint32_t c = (uint32_t)req->getParam("csiConsec", true)->value().toInt();
                 if (c >= 1 && c <= 50) csiCons = c;
             }
+            const bool csiTelemReq = req->hasParam("csiTelem", true) || csiTelemetry.load();
             setCsiConfig(csiCh, csiThr, csiHold, csiCons,
                          req->hasParam("csiRaw", true),
-                         req->hasParam("csiTelem", true));
+                         csiTelemReq);
             setCsiAreaConfig(csiDwell, csiSpots);
             setCsiNoTx(req->hasParam("csiNoTx", true));
             if (req->hasParam("csiRecal", true)) csiClearCalibration();
+            Serial.printf("[WEB CMD] csi start from %s ch=%u thr=%.3f hold=%ums dwell=%us spots=%u telem=%d secs=%d%s\n",
+                          req->client()->remoteIP().toString().c_str(), (unsigned)csiCh, csiThr,
+                          (unsigned)csiHold, (unsigned)csiDwell, (unsigned)csiSpots, csiTelemReq ? 1 : 0,
+                          forever ? 0 : secs, forever ? " forever" : "");
 
             stopRequested = false;
 

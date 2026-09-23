@@ -102,6 +102,7 @@ jobs:
           SRC=".pio/build/AntiHunter-c5-${VARIANT}/firmware.factory.bin"
           test -f "$SRC"
           cp "$SRC" "release/antihunter-c5-${VARIANT}-${VERSION}.factory.bin"
+          cp ".pio/build/AntiHunter-c5-${VARIANT}/firmware.elf" "release/antihunter-c5-${VARIANT}-${VERSION}.elf"
         done
 
     - name: Build RadarNode C5
@@ -115,6 +116,7 @@ jobs:
         SRC=".pio/build/RadarNode-c5/firmware.factory.bin"
         test -f "$SRC"
         cp "$SRC" "release/radarnode-c5-${VERSION}.factory.bin"
+        cp .pio/build/RadarNode-c5/firmware.elf "release/radarnode-c5-${VERSION}.elf"
 
     - name: Stable release must exist before experimental assets attach to it
       if: startsWith(github.ref, 'refs/tags/')
@@ -132,7 +134,7 @@ jobs:
     - name: Generate checksums
       run: |
         cd release
-        sha256sum *.factory.bin > "SHA256SUMS-${GITHUB_REF_NAME}.txt"
+        sha256sum *.factory.bin *.elf > "SHA256SUMS-${GITHUB_REF_NAME}.txt"
         cat SHA256SUMS.txt
 
     - name: Publish bins and manifests to main

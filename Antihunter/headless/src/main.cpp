@@ -204,6 +204,7 @@ void setup() {
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== AntiHunter v1.0.3-c5exp1 C5 [HEADLESS] Boot ===");
+    Serial.printf("[BUILD] sha=%s epoch=%lu\n", AH_GIT_SHA, (unsigned long)AH_BUILD_EPOCH);
     recordBootReason();
 
 #ifdef ARDUINO_XIAO_ESP32C5

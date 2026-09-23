@@ -270,6 +270,7 @@ void setup() {
     delay(300);
 
     Serial.println("\n=== AntiHunter v1.0.3-c5exp1 C5 [FULL] Boot ===");
+    Serial.printf("[BUILD] sha=%s epoch=%lu\n", AH_GIT_SHA, (unsigned long)AH_BUILD_EPOCH);
     recordBootReason();
 
 
