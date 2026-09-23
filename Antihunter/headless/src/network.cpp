@@ -1003,9 +1003,9 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.350f; dwell = 8; radios = 3; areaGiven = true; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.200f; dwell = 4; radios = 2; areaGiven = true; }
-        else if (v == "HIGH") { thr = 0.140f; dwell = 4; radios = 1; areaGiven = true; }
+        if (v == "LOW") { thr = 0.077f; dwell = 8; radios = 3; areaGiven = true; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.052f; dwell = 8; radios = 4; areaGiven = true; }
+        else if (v == "HIGH") { thr = 0.040f; dwell = 8; radios = 3; areaGiven = true; }
         else thr = v.toFloat();
       }
       else if (tok.startsWith("MIN_MOTION=")) { dwell = (uint32_t)tok.substring(11).toInt(); areaGiven = true; }
@@ -1040,7 +1040,7 @@ static void handleCsiCfg(const String &command)
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
   if (areaGiven) setCsiAreaConfig(dwell, radios);
-  const float shownThr = (thr > 0.0f) ? thr : CSI_PSI_ETA;
+  const float shownThr = (thr > 0.0f) ? thr : CSI_SIG_ETA;
   sendToSerial1(getNodeId() + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
                 "s SPOTS=" + String(radios) + " CH=" + String(ch) +

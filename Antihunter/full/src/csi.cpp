@@ -31,8 +31,8 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
-std::atomic<uint32_t> csiAreaDutyMinS{4};
-std::atomic<uint32_t> csiAreaRadiosNeeded{CSI_AREA_LINK_CAP};
+std::atomic<uint32_t> csiAreaDutyMinS{8};
+std::atomic<uint32_t> csiAreaRadiosNeeded{4};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{1};
 std::atomic<uint8_t> csiMgmtOnly{0};
@@ -631,12 +631,12 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiPsiEta(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_PSI_ETA;
+static float csiGateEta(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_SIG_ETA;
 }
 
-static float csiTriggerRatio(float psi) {
-    const float r = psi / csiPsiEta(csiThresholdMilli.load());
+static float csiTriggerRatio(float gateStat) {
+    const float r = gateStat / csiGateEta(csiThresholdMilli.load());
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -821,14 +821,14 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
         const uint32_t thrMilli = csiThresholdMilli.load();
-        const float psiEta = csiPsiEta(thrMilli);
+        const float gateEta = csiGateEta(thrMilli);
 
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const bool psiAbove = l.sc.psiValid && l.sc.psi >= psiEta;
+        const bool sigAbove = l.sc.psiValid && l.sc.sigVar >= gateEta && l.sc.sigZ >= CSI_SIG_Z_GATE;
 
-        if (psiAbove) {
+        if (sigAbove) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -852,7 +852,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && !psiAbove &&
+        } else if (l.motion && !sigAbove &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -923,7 +923,7 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.acf = l.sc.acf;
         v.vote = l.sc.vote;
         v.z = l.sc.acfZ;
-        v.sig = csiTriggerRatio(l.sc.psi);
+        v.sig = csiTriggerRatio(l.sc.sigVar);
         v.score = l.sc.score;
         v.peakScore = l.peakScore;
         v.motion = l.motion;
@@ -963,7 +963,7 @@ String getCsiResults() {
     r += "Rejected (FCS/40MHz/short): " + String(g_csiRejected.load()) + "\n";
     r += "Queue drops: " + String(g_csiDropped.load()) + "\n";
     r += "Motion events: " + String(g_csiMotionEvents.load()) + "\n";
-    r += "Threshold: " + String(csiPsiEta(csiThresholdMilli.load()), 3) +
+    r += "Threshold: " + String(csiGateEta(csiThresholdMilli.load()), 3) +
          "x  Hold: " + String(csiHoldMs.load()) + "ms\n";
     r += "Min motion: " + String(csiAreaDutyMinS.load()) +
          "s  Spots: " + String(csiAreaRadiosNeeded.load()) + "\n\n";
@@ -1023,7 +1023,7 @@ String getCsiJson() {
     j += ",\"drops\":" + String(g_csiDropped.load());
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
-    j += ",\"threshold\":" + String(csiPsiEta(csiThresholdMilli.load()), 3);
+    j += ",\"threshold\":" + String(csiGateEta(csiThresholdMilli.load()), 3);
     j += ",\"dutyMinS\":" + String(csiAreaDutyMinS.load());
     j += ",\"spots\":" + String(csiAreaRadiosNeeded.load());
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
@@ -1560,7 +1560,7 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.psi);
+                        const float r = csiTriggerRatio(l.sc.sigVar);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1704,7 +1704,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.psi >= csiPsiEta(thrMilli)) statPassEta++;
+                    if (l.sc.sigVar >= csiGateEta(thrMilli) && l.sc.sigZ >= CSI_SIG_Z_GATE) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.sigVar > statSigMax) statSigMax = l.sc.sigVar;

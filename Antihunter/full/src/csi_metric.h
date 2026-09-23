@@ -46,7 +46,8 @@ static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
-static const float CSI_PSI_ETA = 0.200f;
+static const float CSI_SIG_ETA = 0.052f;
+static const float CSI_SIG_Z_GATE = 1.0f;
 static const float CSI_PSI_Z = 1.5f;
 
 static const int CSI_AREA_LINK_NUM = 1;
