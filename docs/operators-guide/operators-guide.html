@@ -728,7 +728,7 @@ python3 scripts/meshtastic_config.py</pre>
     <p>Transmit is on by default. Access points often beacon about once a second, too slow to measure, so when fewer than 3 usable packets arrive in 200 ms the node sends a probe request, up to 5 a second, unicast to its strongest device, which must answer. Anyone on the channel sees it. Where transmitting is not allowed, set <span class="mono">BROADCAST=OFF</span> or check "Listen only, never transmit"; the node then needs a busy access point nearby. Randomized-MAC devices, mostly phones and watches, are ignored unless <span class="mono">ALLOW_RANDOM=ON</span>. Every <span class="mono">CSI_CFG_ACK</span> shows both.</p>
   </div>
   <div class="box"><span class="t">A C5 node reads hotter than an S3</span>
-    <p>The C5 ingests more CSI on the same channel (measured 74.8 against 44.8 records/s in one paired survey). The S3 is dual-core and handles scanning, mesh and the web UI together better. Run scanning on S3 nodes, put a C5 where sensing matters most.</p>
+    <p>The C5 takes in more CSI on the same channel. The S3 is dual-core and handles scanning, mesh and the web UI together better. Run scanning on S3 nodes, put a C5 where sensing matters most.</p>
   </div>
 
   <h3>9.11 Packet Capture</h3>
