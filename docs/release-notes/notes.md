@@ -124,6 +124,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 - Scan Results page no longer freezes mid-scan.
 - `/results` streams from PSRAM and clears on a new scan.
 - The UI polls only the open tab.
+- Data tab loads SD logs a page at a time.
 - The page reloads when the browser lands on another node.
 - Baseline results rebuild every 2 s, only on change.
 - Theme toggle stays in the mobile scan header.
