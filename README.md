@@ -516,7 +516,7 @@ Everything that configures the node is on one page, in cards.
 
 ### Before you deploy
 
-**Change the defaults.** The AP ships as `Antihunter` / `antihunt3r123` - published, so treat an unchanged node as open. Set your own SSID and password in RF Settings on first boot. Set the erase PSK too if you plan to use [Secure Data Destruction](#secure-data-destruction).
+**Change the defaults.** The AP defaults to `Antihunter` / `antihunt3r123` - published, so treat an unchanged node as open. Set your own SSID and password in RF Settings on first boot. Set the erase PSK too if you plan to use [Secure Data Destruction](#secure-data-destruction).
 
 **Reduce what the node emits.** The AP is a beacon that identifies the device. For covert work run **Headless** - no AP at all, serial and mesh only. On the radio, `--screen off --led off --ble off` removes the visual and Bluetooth signature.
 
@@ -650,7 +650,7 @@ The [Web Flasher](#quick-start) is the simplest path. Use the options below to f
 
 No firmware is shipped on it: you flash AntiHunter yourself, for integrity and regulatory purposes.
 
-**Soldered Core PCB and Assembled** tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel - set the region, the pin and your own channel on every tier. **Bare PCB and Parts Kit** builds flash and configure the radio themselves.
+**Soldered Core PCB and Assembled** tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with the default pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel - set the region, the pin and your own channel on every tier. **Bare PCB and Parts Kit** builds flash and configure the radio themselves.
 
 | Tier | What ships | What you supply |
 |---|---|---|
@@ -855,7 +855,7 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing. Optional - a s
 
 ### Radio Setup
 
-Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
+Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with the default pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
 
 Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
 

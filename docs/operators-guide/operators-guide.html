@@ -296,8 +296,8 @@
     <li>Remove the back cover and fit two flat-top 18650 batteries the right way round. A small red LED on the UPS board lights when batteries are present.</li>
     <li>Screw on the antennas: WiFi left, LoRa right, GPS center. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
     <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
-    <li>Set the LoRa region on the radio. It ships UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
-    <li>Change the Bluetooth pairing pin on the radio. Every unit ships with the same one. §7.4</li>
+    <li>Set the LoRa region on the radio. It defaults to UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
+    <li>Change the Bluetooth pairing pin on the radio. Every unit has the same default one. §7.4</li>
     <li>Make your own encrypted Meshtastic channel primary and turn the public default off. §7.3</li>
     <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
     <li>Watch the serial log on the first boot. Hardware faults always show up there, and shipping can unseat the SD card. §4</li>
@@ -577,9 +577,9 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
 
   <div class="box warn"><span class="t">Three things every radio needs, whatever tier you bought</span>
     <ul style="margin-bottom:0">
-      <li><b>LoRa region.</b> Ships <span class="mono">UNSET</span>. The radio receives but will not transmit until you set it (§7.2).</li>
-      <li><b>Bluetooth pairing PIN.</b> Every unit ships with the same pin. Change it, or turn BLE off.</li>
-      <li><b>Channel.</b> Ships on the public default. Make your own encrypted channel primary and turn the public one off (§7.3).</li>
+      <li><b>LoRa region.</b> Defaults to <span class="mono">UNSET</span>. The radio receives but will not transmit until you set it (§7.2).</li>
+      <li><b>Bluetooth pairing PIN.</b> Every unit has the same default pin. Change it, or turn BLE off.</li>
+      <li><b>Channel.</b> Defaults to the public channel. Make your own encrypted channel primary and turn the public one off (§7.3).</li>
     </ul>
   </div>
 
@@ -605,7 +605,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>The same settings can be applied from the Meshtastic phone app or web client if you prefer.</p>
 
   <h3>7.3 Your own encrypted channel</h3>
-  <p>Meshtastic ships with a public default channel whose key is published. Anything you send on it, commands, detections and coordinates alike, is readable by anyone in radio range running stock firmware. Before you deploy:</p>
+  <p>Meshtastic defaults to a public channel whose key is published. Anything you send on it, commands, detections and coordinates alike, is readable by anyone in radio range running stock firmware. Before you deploy:</p>
   <ol>
     <li>In the Meshtastic app, create a <b>new channel</b> with a generated key and give it a name of your own.</li>
     <li>Make it the <b>primary</b> channel.</li>

@@ -66,7 +66,7 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 | 1 | Fit the antennas — 2.4 GHz to the XIAO, LoRa to the radio, GPS to the GPS module | [§2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2) |
 | 2 | Flash AntiHunter, Full to start with | [Web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI](../README.md#cli-flash) |
 | 3 | Change the AP credentials — the defaults are published in this repo | RF Settings in the web UI |
-| 4 | Set the radio's LoRa region — it ships UNSET and receives without ever transmitting | [Radio Setup](../README.md#radio-setup) |
+| 4 | Set the radio's LoRa region — it defaults to UNSET and receives without ever transmitting | [Radio Setup](../README.md#radio-setup) |
 | 5 | Create your own encrypted channel, make it primary, disable the public one | [Radio Setup](../README.md#radio-setup) |
 | 6 | Set the node ID — it prefixes every mesh message the node sends. The clock needs nothing: the RTC is set at flash time and disciplined by GPS | Web UI, or `@AH01 CONFIG_NODEID:GATE1` · [§8.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s8-2) |
 | 7 | Confirm the SD card mounts and GPS gets a fix outdoors | [§4](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s4) |
@@ -82,7 +82,7 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 |---|---|
 | **Full or Headless?** | Same detectors, same scan engine, same mesh commands. Full hosts the WiFi AP with the web UI and API, and beacons continuously. Headless is serial and mesh only, never beacons. Start on Full, reflash to Headless before a quiet deployment. [Details](../README.md#full-vs-headless) |
 | **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first, Sentinel among them. [Release notes](release-notes/notes.md) |
-| **S3 or C5?** | ESP32-S3 is the shipping build. The [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) is a drop-in on the same pads and adds 5 GHz, under the flasher's Experimental channel while it is in testing. [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md) pairs a 24 GHz radar with the same mesh. |
+| **S3 or C5?** | ESP32-S3 is the stable build. The [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) is a drop-in on the same pads and adds 5 GHz, under the flasher's Experimental channel while it is in testing. [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md) pairs a 24 GHz radar with the same mesh. |
 | **Do I need the Meshtastic radio?** | Not for scanning. Without it, you control one node from its own AP or over serial, standing next to it. With it, you send commands and get detections over LoRa from anywhere in mesh range, across as many nodes as you deploy. |
 | **Which SD card?** | FAT32, under 32 GB. Every tier except Bare PCB ships with an 8 GB card fitted. |
 | **How do I update?** | Re-run the flasher on the same channel with *Erase Device* unticked. Settings are in NVS and mirrored to the SD card, so they survive. Read the release notes first. |
