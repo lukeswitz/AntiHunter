@@ -113,7 +113,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 - Beta and C5: the CSI channel survey runs again.
   - `CSI_CFG:CH=` is a real token; the pin isn't saved.
 - Beta and C5: CSI arming no longer needs psiZ.
-- Beta: S3 CSI defaults to Medium (0.115/4s/1 spot).
+- Beta: S3 CSI defaults to Low (0.140/8s/1 spot).
 - Beta: web presets match the mesh presets.
 - Headless: `DEVICE_DB_CLEAR` clears the device database over mesh.
 - Results snapshot written atomically; a power cut can't corrupt it.
