@@ -82,17 +82,12 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 
 ## Fixed
 
-- **Long BLE scans no longer abort in `fopen`** (field report).
+- **Long BLE scans no longer abort in `fopen`.**
   - NimBLE pools and small allocations moved to PSRAM.
-  - Stable: 98,376 B free at 200 devices.
-  - v1.0.2 aborted at 194 with 1,672 B left.
-  - Beta: 64,404 B at 200; aborted at 123 before.
 - **Baseline no longer reboots under dense RF.**
-  - Device history keyed by MAC, held in PSRAM.
-  - Task locals freed on exit (leaked ~96 B/device/scan).
-  - Resident task stacks in PSRAM (18,432 B freed).
-  - NimBLE scan cache capped at 200 (baseline 150).
-  - The number of devices seen is not capped.
+  - Device history and task stacks moved to PSRAM.
+  - Task memory freed on exit.
+  - NimBLE scan cache capped.
   - Two use-after-free windows closed.
   - Exit stops promiscuous mode and the hop timer.
 - `STOP` no longer waits on a scan that can't finish.
