@@ -293,33 +293,23 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ### Detection: CSI Motion (beta on S3, in testing on C5)
 
-> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** How well it works depends on how much WiFi traffic is around the node, which varies by site. Read [Limitations](#csi-limitations) before relying on it.
+> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed WiFi device in range. Read [Limitations](#csi-limitations) before relying on it.
 
-Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed access points around it.
+Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed WiFi devices around it.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
-- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Medium by default. Set it from the room.
-- **Raising an alert.** One device disturbed for several seconds is enough by default. Raise `SPOTS` to require more.
-- **Fixed devices only.** Devices with randomized MACs, mostly phones and watches, move with the person, so they are ignored by default.
-- **Blind means blind.** If no usable device sends fast enough, the node says so instead of reporting an empty room, then moves channel itself.
-- **Coverage.** Follows each node-to-device path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
-- **Transmits when it has to.** Access points often send only about one beacon a second, too few to measure. When traffic is thin the node sends up to five probe requests a second to the strongest device so it answers. The only scan here that transmits.
+- **Sensitivity.** Low, Medium, High. Medium by default.
+- **Raising an alert.** One device disturbed for seconds is enough.
+- **Fixed devices only.** Randomized MACs, mostly phones and watches, are ignored.
+- **Blind means blind.** Too little traffic reads blind, then moves channel.
+- **Coverage.** Follows each node-to-device path, not a circle.
+- **Transmits when it has to.** Probes quiet devices, up to 5/s.
 
 > [!WARNING]
 > **Transmit is on by default.** The probe is the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site. To stay silent, check "Listen only, never transmit" or send `BROADCAST=OFF`; the node then needs a busy access point nearby.
-
-#### Measured
-
-One S3 node, one room, one fixed access point, transmit on. Two-second readings with the area alarm on:
-
-| | around vibration-confirmed taps | quiet time |
-|---|---|---|
-| S3 node | 85 of 134 | 0 of 74 |
-
-One site, one channel, one session.
 
 > [!IMPORTANT]
 > One setting cannot separate "here but still" from "moving". Expect a still occupant to land
@@ -331,24 +321,18 @@ One site, one channel, one session.
 <a id="csi-limitations"></a>
 #### Limitations
 
-- **Let it choose the channel.** In one room, minutes apart, one channel gave under three usable readings a second and another gave fifty. Start it without a channel; it picks, and moves if that one goes quiet.
-- **It needs a fixed access point in range.** Transmit gets answers from ones nearby; ones at the edge of range may not answer.
+- **Let it choose the channel.** Start it without one; it picks, and moves if that one goes quiet.
+- **Weak access points may not answer.** Ones at the edge of range often ignore the probe.
 - **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
 - **Defaults come from one room.** Re-check on site.
-- **Experimental beta on the ESP32-S3.** No long-run false-alarm rate yet. Not your only sensor.
+- **Experimental beta on the ESP32-S3.** Not your only sensor.
 - **In testing on the ESP32-C5.** It runs, but separates movement from background less cleanly than an S3 in the same room. Prefer an S3 where detection matters.
 
 > **Web UI** &nbsp;Scan tab -> CSI Motion Detection
 >
-> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
+> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300`
 >
-> **Settings**
-> - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` — also `LOW`, `HIGH`, or your own number
-> - How long movement must last before alerting, and how long quiet must last before clearing: add `MIN_MOTION=<seconds>` and `CLEAR_AFTER=<seconds>`
-> - How many transmitters must agree: add `SPOTS=<n>`
-> - Stay silent: add `BROADCAST=OFF`, or check the "Listen only, never transmit" box in the web UI. Use it where transmitting is not allowed and a busy access point is nearby.
-> - Track phones and watches too, not just fixed access points: add `ALLOW_RANDOM=ON`, or check "Include randomized-MAC devices" in the web UI. Off by default — randomized-MAC devices move with the person, so they read as proximity, and they crowd fixed access points out of the limited link table.
-> - Back to defaults `@ALL CSI_RECAL`
+> **Settings** &nbsp;all CSI mesh commands: [CSI Motion commands](#csi-motion)
 >
 > A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
 
@@ -834,14 +818,17 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:300:CH11` |
-| `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
+| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:0:FOREVER` |
+| `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
+| `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
-| `CSI_RECAL` | Reset the trigger to the compiled default | None | `@ALL CSI_RECAL` |
+| `CSI_RECAL` | Clear a saved threshold; use the preset | None | `@ALL CSI_RECAL` |
+
+`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` picks).
 
 `CSI_CFG` ranges: trigger 0.005-20.0, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
 
-The trigger compares against `sig`, the noise-subtracted signal variance `var(G) - E[dG^2]/2` averaged over subcarriers. A link reads MOTION while `sig` is at or above the trigger, and clears once it falls below for `hold` ms. The value is per-install: measure the idle distribution on the channel the node settled on, then set the trigger above it. A node that re-surveys onto another channel needs the value re-measured.
+The trigger compares against `sig`, the noise-subtracted signal variance `var(G) - E[dG^2]/2` averaged over subcarriers. A link reads MOTION while `sig` is at or above the trigger and `sigz` is at least 1, and clears once it falls below for `hold` ms. The value is per-install: measure the idle distribution on the channel the node settled on, then set the trigger above it. A node that re-surveys onto another channel needs the value re-measured.
 
 Named fields work in place of the positional form: `CSI_CFG:SENSITIVITY=<LOW|MEDIUM|HIGH|value>:MIN_MOTION=<s>:CLEAR_AFTER=<s>:SPOTS=<n>`.
 
