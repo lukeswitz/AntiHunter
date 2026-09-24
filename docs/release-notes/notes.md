@@ -1,14 +1,12 @@
 # AntiHunter v1.0.3
 
-WiFi motion detection by channel state, packet capture to SD, a Sentinel that fights back, local-time logs, and a lot of bug fixes. 
+CSI motion, packet capture, Sentinel response, local time, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
 | Stable | v1.0.3 | ESP32-S3 | v1.0.2 (2026-08-13) |
 | Beta | v1.0.3-beta1 | ESP32-S3 | v1.0.2-beta1 (2026-08-13) |
 | Experimental | v1.0.3-c5exp1 | XIAO ESP32-C5 | v1.0.2-c5exp1 (2026-08-13) |
-
-
 
 ## New
 
@@ -45,57 +43,40 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 
 ### Beta and C5
 
+- **CSI motion detection** (S3 beta, C5 testing).
+  - Detects people moving, through walls.
+  - Scan tab → CSI Motion, or the mesh commands below.
+  - Ignores randomized MACs by default.
 
-**Channel State Information (CSI)**: how each WiFi frame's path changed.
-
-- **CSI motion detection** (beta S3, testing C5).
-  - Senses people moving, through walls, nothing worn.
-  - Scan tab → CSI Motion: Low / Medium / High.
-  - Mesh commands: table below.
-  - Alerts: `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial, SD.
-  - Ignores randomized MACs; `ALLOW_RANDOM=ON` adds them.
-  - Probes quiet devices, up to 5/s, by default.
-  - `BROADCAST=OFF` stays silent; needs a busy AP.
-  - One device can raise an alert (`SPOTS=1`).
-  - Set sensitivity in the room it lives in.
-
-| Command | Does | Example |
-|---|---|---|
-| `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` | Start detection; `0` + `FOREVER` runs until `STOP` | `@ALL CSI_MOTION_START:0:FOREVER` |
-| `CSI_CFG:SENSITIVITY=` | `LOW`, `MEDIUM`, `HIGH`, or a number | `@ALL CSI_CFG:SENSITIVITY=MEDIUM` |
-| `CSI_CFG:MIN_MOTION=` | Seconds of movement before an alert | `@ALL CSI_CFG:MIN_MOTION=4` |
-| `CSI_CFG:CLEAR_AFTER=` | Seconds of quiet before clearing | `@ALL CSI_CFG:CLEAR_AFTER=5` |
-| `CSI_CFG:SPOTS=` | Devices that must alert together | `@ALL CSI_CFG:SPOTS=1` |
-| `CSI_CFG:BROADCAST=` | `ON` probes (default), `OFF` silent | `@ALL CSI_CFG:BROADCAST=OFF` |
-| `CSI_CFG:ALLOW_RANDOM=` | `ON` adds randomized-MAC devices | `@ALL CSI_CFG:ALLOW_RANDOM=ON` |
-| `CSI_CFG:CH=` | Pin a channel; `0` lets it choose | `@ALL CSI_CFG:CH=0` |
-| `CSI_EXCLUDE:` | Ignore one MAC until reboot; `NONE` clears | `@AH01 CSI_EXCLUDE:NONE` |
-| `CSI_STATUS` | Links, channel, settings | `@AH01 CSI_STATUS` |
-| `CSI_JSON` | Same as JSON | `@AH01 CSI_JSON` |
-| `CSI_RECAL` | Clear a saved threshold; use the preset | `@ALL CSI_RECAL` |
-
-Tokens combine: `CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF`.
+| Command | Does |
+|---|---|
+| `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` | Start |
+| `CSI_CFG:SENSITIVITY=LOW\|MEDIUM\|HIGH` | Sensitivity |
+| `CSI_CFG:BROADCAST=OFF` | Stop probing |
+| `CSI_CFG:ALLOW_RANDOM=ON` | Use randomized MACs |
+| `CSI_CFG:SPOTS=<n>` | Devices needed to alert |
+| `CSI_CFG:MIN_MOTION=<s>` / `CLEAR_AFTER=<s>` | Alert and clear timing |
+| `CSI_CFG:CH=<n>` | Pin a channel; `0` picks |
+| `CSI_EXCLUDE:<MAC>` | Ignore a MAC until reboot |
+| `CSI_STATUS` / `CSI_JSON` | Report |
+| `CSI_RECAL` | Clear a saved threshold |
 
 > [!IMPORTANT]
-> **CSI motion transmits by default.** It sends probe requests anyone nearby can see. Legality varies by country. To stay silent: check "Listen only, never transmit" or send `BROADCAST=OFF`.
+> **Transmits by default.** Probes are visible. Check local law.
 
-- **CSI movement view** (web UI): state, movement log, heat strip.
-  - Heat blocks shade by movement strength; tap for time.
-  - Blocks widen from 1 to 5, 15, 30+ minutes.
-  - Clearing results clears the CSI history too.
+- **CSI movement view** (web UI): state, log, heat strip.
 - Accent colors also cover movement hits.
 - Headless: discovered devices persist across scans.
-- Task-creation failures log the free and largest internal block.
-
+- Task-creation failures log the free and largest block.
 
 ### C5 only
 
 > [!NOTE]
-> **Breadboard the C5 and test it before you solder anything:** a C5 soldered into a PCB can only go back to stable firmware by desoldering it. It is proven working, but I won't tell you to blindly do it until stable.
+> **Breadboard the C5 before soldering.**
+> A soldered C5 can't return to stable firmware.
 
 - **CSI motion, in testing on the C5.** Own presets.
-  - Detects, but less cleanly than an S3.
-  - Prefer an S3 where detection matters.
+  - Detects less cleanly than an S3.
   - Details: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
 - **Packet capture band:** 2.4 GHz, 5 GHz, or both.
 
@@ -166,9 +147,12 @@ Tokens combine: `CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF`.
 
 ## Upgrade
 
-Settings in memory and files on the SD card survive a flash
+Settings and SD card files survive a flash.
 
-All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them. Builds are reproducible: a clean `pio run` of the tagged commit gives the same bytes as the release asset, so `shasum -a 256` against `SHA256SUMS-<version>.txt` is the check.
+All three builds attach to the one v1.0.3 release.
+Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
+Also `bootloader`, `partitions` and `SHA256SUMS` per version.
+Builds are reproducible; verify with `shasum -a 256`.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
@@ -178,9 +162,10 @@ All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<ver
 | PlatformIO full | `AntiHunter-full` | `AntiHunter-full` | `AntiHunter-c5-full` |
 | PlatformIO mesh-only | `AntiHunter-headless` | `AntiHunter-headless` | `AntiHunter-c5-headless` |
 
-**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Pick the channel, then Full or Headless.
+**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge.
+Pick the channel, then Full or Headless.
 
-**Flasher script** (needs Python 3, esptool and pyserial); the same script is on every branch:
+**Flasher script** (Python 3, esptool, pyserial), same on every branch:
 
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
@@ -188,9 +173,9 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-`-c` sets device parameters during the flash, `-l` lists the firmware.
+`-c` sets device settings; `-l` lists firmware.
 
-**PlatformIO** — `-t upload` flashes the app only; settings and the SD card stay.
+**PlatformIO**: `-t upload` keeps settings and the SD card.
 
 Stable:
 
