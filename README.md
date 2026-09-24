@@ -51,7 +51,7 @@
 ## Overview
 
 > [!WARNING]
-> **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything - a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It ships through the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
+> **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything - a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It is on the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness.
 - ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking.
@@ -501,7 +501,7 @@ A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/b
 
 ### Radio Setup
 
-Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
+Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with the default pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
 
 The app and the web client can set all of this by hand. The script below does it in one go: flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
 
@@ -663,7 +663,7 @@ Same pads as the S3 node. The [ESP32-C5 page](docs/ESP32-C5.md#pinout) has the s
 
 No firmware ships on the node. You flash AntiHunter yourself, for integrity and regulatory reasons.
 
-**Soldered Core PCB** and **Assembled** tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it sits on the public default channel. **Bare PCB** and **Parts Kit** builds flash and configure the radio themselves.
+**Soldered Core PCB** and **Assembled** tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with the default pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it sits on the public default channel. **Bare PCB** and **Parts Kit** builds flash and configure the radio themselves.
 
 | Tier | What ships | What you supply |
 |---|---|---|
