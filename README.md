@@ -315,20 +315,20 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (beta)
 
-> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed access point in range. Read [Limitations](#csi-limitations) before relying on it.
+> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed WiFi device in range. Read [Limitations](#csi-limitations) before relying on it.
 
-Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed access points around it.
+Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed WiFi devices around it.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
-- **Sensitivity.** Low, Medium, High in the web menu or over mesh. Low by default. Set it from the room.
-- **Raising an alert.** One fixed access point disturbed for several seconds is enough by default. Raise `SPOTS` to require more.
-- **Fixed access points only.** Phones and watches move with the person, so they are ignored by default.
-- **Blind means blind.** If no fixed access point sends fast enough, the node says so instead of reporting an empty room, then moves channel itself.
-- **Coverage.** Follows each node-to-access-point path, not a circle. Published work reaches through walls, roughly 18 m and five rooms.
-- **Transmits when it has to.** Access points often send only about one beacon a second, too few to measure. When they go quiet the node sends about one probe request a second so they answer. The only scan here that transmits.
+- **Sensitivity.** Low, Medium, High. Low by default.
+- **Raising an alert.** One device disturbed for seconds is enough.
+- **Fixed devices only.** Randomized MACs, mostly phones and watches, are ignored.
+- **Blind means blind.** Too little traffic reads blind, then moves channel.
+- **Coverage.** Follows each node-to-device path, not a circle.
+- **Transmits when it has to.** Probes quiet devices, up to 5/s.
 
 > [!WARNING]
 > **Transmit is on by default.** The probe is the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site. To stay silent, check "Listen only, never transmit" or send `BROADCAST=OFF`; the node then needs a busy access point nearby.
