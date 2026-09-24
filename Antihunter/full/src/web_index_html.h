@@ -760,7 +760,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" name="csiHold" id="csiHold" min="1" max="120" value="5">
                     </div>
                     <div>
-                      <label style="font-size:11px;" title="How many access points must see it at once. Lower catches movement in areas only one AP reaches">Access points that must agree</label>
+                      <label style="font-size:11px;" title="How many devices must see it at once. Lower catches movement in areas only one device reaches">Devices that must agree</label>
                       <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="1">
                     </div>
                     <div>
