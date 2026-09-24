@@ -5895,7 +5895,51 @@ R"HTML(
 
       // ---- Data Tab ----
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
-      var DATA_PAGE_SIZE=50;
+      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0;
+      function dataChunked(cfg){return cfg.fmt==='jsonl'||cfg.fmt==='text';}
+      function dataParseChunk(text,cfg){
+        var out=[],lines=text.split('\n');
+        for(var i=0;i<lines.length;i++){
+          var line=lines[i];if(!line.trim())continue;
+          if(cfg.fmt==='text'){var m=line.match(/^\[([^\]]+)\]\s*(.*)$/);out.push(m?{_time:m[1],_msg:m[2]}:{_time:'',_msg:line});}
+          else{try{out.push(JSON.parse(line));}catch(e){dataSkipped++;}}
+        }
+        return out.reverse();
+      }
+      function dataFetchChunk(cfg,before){
+        var u=cfg.url+'?bytes='+DATA_CHUNK+(before!=null?'&before='+before:'');
+        return fetch(u).then(function(r){
+          if(!r.ok) throw new Error(r.status);
+          var s=parseInt(r.headers.get('X-Start'),10);
+          return r.text().then(function(t){return {start:isNaN(s)?0:s,rows:dataParseChunk(t,cfg)};});
+        });
+      }
+      function dataRefilter(){
+        var q=document.getElementById('dataSearch').value.toLowerCase();
+        dataFiltered=!q?dataRows.slice():dataRows.filter(function(row){
+          for(var c=0;c<dataCols.length;c++){var v=getVal(row,dataCols[c]);if(v!==undefined&&v!==null&&String(v).toLowerCase().indexOf(q)>=0) return true;}
+          return false;
+        });
+        if(dataSortCol>=0){
+          var key=dataCols[dataSortCol];
+          dataFiltered.sort(function(a,b){
+            var av=getVal(a,key),bv=getVal(b,key);
+            if(av===undefined||av===null) av='';if(bv===undefined||bv===null) bv='';
+            if(typeof av==='number'&&typeof bv==='number') return dataSortAsc?av-bv:bv-av;
+            av=String(av).toLowerCase();bv=String(bv).toLowerCase();
+            return dataSortAsc?av.localeCompare(bv):bv.localeCompare(av);
+          });
+        }
+      }
+      function dataLoadOlder(cfg,need){
+        var gen=dataGen;dataBusy=true;
+        return dataFetchChunk(cfg,dataCursor).then(function(c){
+          if(gen!==dataGen) return;
+          dataCursor=c.start<dataCursor?c.start:0;
+          dataRows=dataRows.concat(c.rows);dataRefilter();
+          if(dataFiltered.length<need&&dataCursor>0) return dataLoadOlder(cfg,need);
+        }).finally(function(){if(gen===dataGen) dataBusy=false;});
+      }
       var DATA_SETS={
         devicedb:{url:'/api/devicedb',clear:'/api/devicedb/clear',fmt:'json',
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','Rand'],
@@ -6006,6 +6050,20 @@ R"HTML(
         exp.href=cfg.url;
         exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'?'.json':'.jsonl');
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
+        dataGen++;dataCursor=0;dataBusy=false;
+        if(dataChunked(cfg)){
+          var gen=dataGen;
+          dataFetchChunk(cfg,null).then(function(c){
+            if(gen!==dataGen) return;
+            dataRows=c.rows;dataCursor=c.start;dataCols=cfg.keys;dataPage=0;dataSortCol=-1;dataSortAsc=false;
+            var tk=dataCols.indexOf('last')>=0?'last':dataCols.indexOf('timestamp')>=0?'timestamp':dataCols.indexOf('t')>=0?'t':null;
+            if(tk){dataSortCol=dataCols.indexOf(tk);dataSortAsc=false;}
+            dataRefilter();
+            if(dataFiltered.length<DATA_PAGE_SIZE&&dataCursor>0) return dataLoadOlder(cfg,DATA_PAGE_SIZE).then(function(){if(gen===dataGen) renderDataTable(cfg);});
+            renderDataTable(cfg);
+          }).catch(function(e){if(gen===dataGen) area.innerHTML='<div class="data-empty">No data available.</div>';});
+          return;
+        }
         fetch(cfg.url).then(function(r){
           if(!r.ok) throw new Error(r.status);
           return r.text();
@@ -6074,11 +6132,11 @@ R"HTML(
         for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
         html+='</tbody></table>';area.innerHTML=html;privacyApply(area);
         var pager=document.getElementById('dataPager');
-        if(dataFiltered.length>DATA_PAGE_SIZE){
+        if(dataFiltered.length>DATA_PAGE_SIZE||dataCursor>0){
           pager.style.display='flex';
-          document.getElementById('dataPageInfo').textContent=(start+1)+'-'+end+' of '+dataFiltered.length;
+          document.getElementById('dataPageInfo').textContent=(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'');
           document.getElementById('dataPrevBtn').disabled=dataPage===0;
-          document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length;
+          document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length&&!(dataCursor>0);
         } else { pager.style.display='none'; }
       }
       function sortDataCol(ci){
@@ -6109,7 +6167,18 @@ R"HTML(
         },300);
       }
       function dataPagePrev(){if(dataPage>0){dataPage--;renderDataTable(DATA_SETS[document.getElementById('dataSet').value]);}}
-      function dataPageNext(){var ds=document.getElementById('dataSet').value;if((dataPage+1)*DATA_PAGE_SIZE<dataFiltered.length){dataPage++;renderDataTable(DATA_SETS[ds]);}}
+      function dataPageNext(){
+        var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+        if((dataPage+1)*DATA_PAGE_SIZE<dataFiltered.length){dataPage++;renderDataTable(cfg);return;}
+        if(dataChunked(cfg)&&dataCursor>0&&!dataBusy){
+          var need=(dataPage+2)*DATA_PAGE_SIZE,gen=dataGen;
+          dataLoadOlder(cfg,need).then(function(){
+            if(gen!==dataGen) return;
+            if((dataPage+1)*DATA_PAGE_SIZE<dataFiltered.length) dataPage++;
+            renderDataTable(cfg);
+          }).catch(function(){toast('Load failed','error');});
+        }
+      }
       function clearDataSet(){
         var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
         if(!cfg.clear) return;

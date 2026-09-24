@@ -275,6 +275,45 @@ void initializeNetwork()
 
 #include "web_index_html.h"
 
+static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *mime, int missCode, const char *missMsg) {
+    if (!SD.exists(path)) { req->send(missCode, missCode == 200 ? mime : "text/plain", missMsg); return; }
+    if (!req->hasParam("bytes")) { req->send(SD, path, mime); return; }
+    File f = SD.open(path, FILE_READ);
+    if (!f) { req->send(500, "text/plain", "Open failed"); return; }
+    const size_t size = f.size();
+    long want = req->getParam("bytes")->value().toInt();
+    if (want < 1024) want = 1024;
+    if (want > 65536) want = 65536;
+    size_t end = size;
+    if (req->hasParam("before")) {
+        long b = req->getParam("before")->value().toInt();
+        if (b >= 0 && (size_t)b < size) end = (size_t)b;
+    }
+    size_t start = end > (size_t)want ? end - (size_t)want : 0;
+    auto body = std::make_shared<PsramJsonString>();
+    body->resize(end - start);
+    size_t got = 0;
+    if (end > start && f.seek(start)) got = f.read(reinterpret_cast<uint8_t *>(&(*body)[0]), end - start);
+    f.close();
+    body->resize(got);
+    if (start > 0) {
+        size_t nl = body->find('\n');
+        if (nl != PsramJsonString::npos) { body->erase(0, nl + 1); start += nl + 1; }
+    }
+    AsyncWebServerResponse *res = req->beginChunkedResponse(mime,
+        [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+            size_t total = body->size();
+            if (index >= total) return 0;
+            size_t n = total - index;
+            if (n > maxLen) n = maxLen;
+            memcpy(buffer, body->data() + index, n);
+            return n;
+        });
+    res->addHeader("X-Start", String((unsigned long)start));
+    res->addHeader("X-Size", String((unsigned long)size));
+    req->send(res);
+}
+
 void registerRemainingRoutes();
 
 // Owns scanning/handle state so a failed create can never leave a phantom "scanning" node.
@@ -2072,11 +2111,7 @@ void registerRemainingRoutes() {
   // --- Data tab API endpoints ---
 
   server->on("/api/deauth.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (SD.exists("/deauth.jsonl")) {
-          req->send(SD, "/deauth.jsonl", "application/x-ndjson");
-      } else {
-          req->send(404, "text/plain", "No deauth log file");
-      }
+      sendSdLog(req, "/deauth.jsonl", "application/x-ndjson", 404, "No deauth log file");
   });
 
   server->on("/api/deauth/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -2089,11 +2124,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/drones.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (SD.exists("/drones.jsonl")) {
-          req->send(SD, "/drones.jsonl", "application/x-ndjson");
-      } else {
-          req->send(404, "text/plain", "No drone log file");
-      }
+      sendSdLog(req, "/drones.jsonl", "application/x-ndjson", 404, "No drone log file");
   });
 
   server->on("/api/drones/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -2105,11 +2136,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/vibrations.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (SD.exists("/vibrations.jsonl")) {
-          req->send(SD, "/vibrations.jsonl", "application/x-ndjson");
-      } else {
-          req->send(404, "text/plain", "No vibration log file");
-      }
+      sendSdLog(req, "/vibrations.jsonl", "application/x-ndjson", 404, "No vibration log file");
   });
 
   server->on("/api/vibrations/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -2119,11 +2146,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/antihunter.log", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (SD.exists("/antihunter.log")) {
-          req->send(SD, "/antihunter.log", "text/plain");
-      } else {
-          req->send(404, "text/plain", "No system log file");
-      }
+      sendSdLog(req, "/antihunter.log", "text/plain", 404, "No system log file");
   });
 
   server->on("/api/antihunter.log/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -2292,8 +2315,7 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", detect_getIncidentsJson(maxN));
   });
   server->on("/api/incidents.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/incidents.jsonl")) r->send(SD, "/incidents.jsonl", "application/x-ndjson");
-      else                               r->send(200, "application/x-ndjson", "");
+      sendSdLog(r, "/incidents.jsonl", "application/x-ndjson", 200, "");
   });
   server->on("/api/mesh_cmd.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/mesh_cmd.jsonl")) r->send(SD, "/mesh_cmd.jsonl", "application/x-ndjson");
