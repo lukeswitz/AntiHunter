@@ -1,6 +1,6 @@
 # AntiHunter v1.0.3
 
-WiFi motion detection by channel state, packet capture to SD, a Sentinel that fights back, local-time logs, and a lot of bug fixes. 
+CSI motion, packet capture, Sentinel response, local time, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -8,102 +8,151 @@ WiFi motion detection by channel state, packet capture to SD, a Sentinel that fi
 | Beta | v1.0.3-beta1 | ESP32-S3 | v1.0.2-beta1 (2026-08-13) |
 | Experimental | v1.0.3-c5exp1 | XIAO ESP32-C5 | v1.0.2-c5exp1 (2026-08-13) |
 
-
-
 ## New
 
-- **Packet capture to SD.** Wireshark-ready pcap: WiFi with radiotap, BLE advertisements as link-layer PDUs. Start it from the Scan tab, on vibration, or with `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it. A capture stops on its own at the size cap (8–300 MB, default 100, `PCAP_LIMITS:<MB>` or the Sentinel panel), at the free-space floor, or after repeated write failures, and the stop line lists the channels it visited.
-- **Sentinel attack response.** On a confirmed attack with a source MAC, run what you pick — triangulate, capture, device discovery, probe sweep, drone RID — each for its own duration, one after another.
-- **Vibration auto-scan** (new on stable). System tab → Sensor Alerts: choose the scan that runs when the node is bumped, packet capture included. Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
-- **Local time.** Logs and capture names in your timezone, DST included. The RTC keeps the clock; the GPS fix tells the node which zone it sits in. Before the first fix after a boot it shows UTC.
-- **SD self-repair.** System tab → Node Configuration, or `SD_REPAIR:ON`: a node rebuilds an unmountable card on its own, and Repair now does it on demand. Off by default — rebuilding erases it.
-- **Fleet roster** (web UI, System tab): every mesh node and radio, with mode, uptime and temperature; privacy toggle.
-- **Hidden SoftAP** (web UI, RF Settings): stops the beacon. Not access control.
-- **Accent colors** (web UI, System tab): five schemes for the Stop and Clear buttons and the Sentinel banners. Buttons default to electric cyan, Sentinel to ice blue.
-- Captures list on the Scan tab: download, delete, delete-all behind a confirmation.
+- **Packet capture to SD.** Wireshark-ready pcap, WiFi and BLE.
+  - Start from the Scan tab, vibration, or `PCAP_START`.
+  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it.
+  - Size cap 8–300 MB, default 100 (`PCAP_LIMITS:<MB>`).
+  - Also stops at the free-space floor or repeated write failures.
+  - The stop line lists the channels visited.
+- **Sentinel attack response.** Runs your picks on a confirmed attack.
+  - Triangulate, capture, discovery, probe sweep, drone RID.
+  - Each runs for its own duration, one after another.
+- **Vibration auto-scan** (new on stable): a bump starts a scan.
+  - System tab → Sensor Alerts; packet capture included.
+  - Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
+- **Local time.** Logs and capture names use your timezone.
+  - DST included. The RTC keeps time; GPS sets the zone.
+  - Shows UTC until the first fix after boot.
+- **SD self-repair.** Rebuilds an unmountable card. Off by default.
+  - System tab → Node Configuration, or `SD_REPAIR:ON`.
+  - "Repair now" runs it on demand. Rebuilding erases the card.
+- **Fleet roster** (System tab): nodes, radios, mode, uptime, temperature.
+- **Hidden SoftAP** (RF Settings): stops the beacon. Not access control.
+- **Accent colors** (System tab): five schemes for buttons and banners.
+- Captures list on the Scan tab: download, delete, delete-all.
 - Data Explorer privacy toggle.
 - Method dropdown regrouped: Recon, Detection, Capture.
-- `MESH_TX_CANCEL` (and the UI cancel) clears the mesh queue without stopping the scan; a queued backlog no longer blocks starting one.
+- `MESH_TX_CANCEL` clears the mesh queue; the scan keeps running.
+- A queued backlog no longer blocks starting a scan.
 - Mesh on/off is saved across reboots.
-- SD bus runs at 16 MHz (was 400 kHz), with 4 MHz and 400 kHz fallbacks.
-- Boot prints a `[MEM]` ladder and a `[HEAP]` line every 30 s, so a memory report can be read off the serial log.
-- Every setting above can be set at flash time: the web flasher's Configure step and the flasher script's `-c` cover mesh on/off, dedup, vibration auto-scan, SD repair, capture cap and AP security.
+- SD bus at 16 MHz; 4 MHz, 400 kHz fallbacks.
+- Boot prints a `[MEM]` ladder; `[HEAP]` every 30 s.
+- The web flasher and script `-c` set all of these.
 
 ### Beta and C5
 
+- **CSI motion detection** (S3 beta, C5 testing).
+  - Detects people moving, through walls.
+  - Scan tab → CSI Motion, or the mesh commands below.
+  - Ignores randomized MACs by default.
 
-**Channel State Information (CSI)**: how each WiFi frame's path changed.
-
-- **CSI motion detection** (beta S3, testing C5).
-  - Senses people moving, through walls, nothing worn.
-  - Scan tab → CSI Motion: Low / Medium / High.
-  - Mesh: `CSI_MOTION_START:secs[:CH<n>][:FOREVER]`.
-  - Also `CSI_CFG`, `CSI_RECAL`, `CSI_STATUS`, `CSI_JSON`, `CSI_EXCLUDE`.
-  - Alerts: `CSI_MOTION:` / `CSI_CLEAR:` on mesh, serial, SD.
-  - Ignores randomized MACs; `ALLOW_RANDOM=ON` adds them.
-  - Probes quiet devices, up to 5/s, by default.
-  - `BROADCAST=OFF` stays silent; needs a busy AP.
-  - One device can raise an alert (`SPOTS=1`).
-  - Set sensitivity in the room it lives in.
-  - S3 test: 85/134 near taps, 0/74 quiet.
-  - No long-run false-alarm rate yet.
+| Command | Does |
+|---|---|
+| `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` | Start |
+| `CSI_CFG:SENSITIVITY=LOW\|MEDIUM\|HIGH` | Sensitivity |
+| `CSI_CFG:BROADCAST=OFF` | Stop probing |
+| `CSI_CFG:ALLOW_RANDOM=ON` | Use randomized MACs |
+| `CSI_CFG:SPOTS=<n>` | Devices needed to alert |
+| `CSI_CFG:MIN_MOTION=<s>` / `CLEAR_AFTER=<s>` | Alert and clear timing |
+| `CSI_CFG:CH=<n>` | Pin a channel; `0` picks |
+| `CSI_EXCLUDE:<MAC>` | Ignore a MAC until reboot |
+| `CSI_STATUS` / `CSI_JSON` | Report |
+| `CSI_RECAL` | Clear a saved threshold |
 
 > [!IMPORTANT]
-> **CSI motion transmits by default.** It sends probe requests anyone nearby can see. Legality varies by country. To stay silent: check "Listen only, never transmit" or send `BROADCAST=OFF`.
-- **CSI movement view** (web UI): quiet / moving / can't-measure state, a movement log, and a whole-session heat strip whose blocks shade by movement strength, the strongest link over its trigger averaged across the block — tap a block for its time. Blocks widen from 1 to 5, 15, 30 minutes and up as the session ages. Clearing results clears the CSI history too.
-- Accent colors also cover movement hits (ice blue by default).
-- Headless: discovered devices persist across scans.
-- Task-creation failures are logged with the free and largest internal block.
+> **Transmits by default.** Probes are visible. Check local law.
 
+- **CSI movement view** (web UI): state, log, heat strip.
+- Accent colors also cover movement hits.
+- Headless: discovered devices persist across scans.
+- Task-creation failures log the free and largest block.
 
 ### C5 only
 
 > [!NOTE]
-> **Breadboard the C5 and test it before you solder anything:** a C5 soldered into a PCB can only go back to stable firmware by desoldering it. It is proven working, but I won't tell you to blindly do it until stable.
+> **Breadboard the C5 before soldering.**
+> A soldered C5 can't return to stable firmware.
 
-- **CSI motion detection, in testing on the C5.** Same feature as the S3 beta, with its own presets: Medium is the level this board was scored at, Low and High are scaled from it. It runs and detects, but separates movement from background less cleanly than an S3 in the same room; the cause is open. Prefer an S3 where detection matters. Detail and open issues: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
-- **Packet capture: pick the band.** 2.4 GHz, 5 GHz, or both, from the Scan tab or the `band` field of `PCAP_START`.
+- **CSI motion, in testing on the C5.** Own presets.
+  - Detects less cleanly than an S3.
+  - Details: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
+- **Packet capture band:** 2.4 GHz, 5 GHz, or both.
 
 ## Fixed
 
-- **Long BLE device scans no longer abort in `fopen`** (field report on v1.0.2). NimBLE's pools and small allocations moved to PSRAM. Stable: v1.0.2 aborted at 194 injected devices with 1,672 B of internal RAM left; v1.0.3 held 98,376 B at 200. Beta: the previous beta build aborted at 123 with 11,676 B left; v1.0.3-beta1 held 64,404 B at 200.
-- **Baseline no longer reboots under dense RF.** Device history keyed by MAC and held in PSRAM, task locals freed on exit (leaked ~96 B per device per scan), resident task stacks in PSRAM (18,432 B freed), NimBLE's per-window scan cache capped at 200 (150 in baseline; the number of devices seen is not capped), two use-after-free windows closed, and baseline's exit now stops promiscuous mode and the hop timer.
+- **Long BLE scans no longer abort in `fopen`** (field report).
+  - NimBLE pools and small allocations moved to PSRAM.
+  - Stable: 98,376 B free at 200 devices.
+  - v1.0.2 aborted at 194 with 1,672 B left.
+  - Beta: 64,404 B at 200; aborted at 123 before.
+- **Baseline no longer reboots under dense RF.**
+  - Device history keyed by MAC, held in PSRAM.
+  - Task locals freed on exit (leaked ~96 B/device/scan).
+  - Resident task stacks in PSRAM (18,432 B freed).
+  - NimBLE scan cache capped at 200 (baseline 150).
+  - The number of devices seen is not capped.
+  - Two use-after-free windows closed.
+  - Exit stops promiscuous mode and the hop timer.
 - `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position; `SCAN_START:mode:secs:FOREVER` runs forever without a channel list.
-- Baseline no longer runs forever when only another panel's Forever box was ticked (web UI).
+- `DEVICE_SCAN_START` honors `+PROBE` in any position.
+- `SCAN_START:mode:secs:FOREVER` runs without a channel list.
+- Baseline no longer runs forever from another panel's box.
 - Peer node reports are never run as commands.
 - Emoji-only Meshtastic sender names no longer drop commands (#31).
-- **Console output no longer feeds itself** (#32). Every line read on USB or radio was re-emitted — the reprint, the `[MESH] Processing` line and the dispatch trace — so more console text came out than went in. Anything that put the node's own output back on its input then compounded that into a flood, and the recycled text was dispatched as commands. The node now discards inbound lines that begin with `[`, which only its own log lines do. The byte echo is behind `AH_USB_ECHO` and `[DEBUG_RAW]` behind `AH_DEBUG_VERBOSE`, both off by default, and USB input logs as `[USB CMD]` so cable-side and air-side input can be told apart in a log.
-- `BATTERY_SAVER_STATUS` replies are recognized as replies again; two adjacent string literals had joined, so the guard never matched and the reply fell through to the dispatcher (#32).
-- **Erase PSK always set.** Generated on first boot, printed on USB at boot; every erase command and web wipe needs it. See README → Secure Data Destruction.
-- The mesh rate-limiter log reads `barrel_free=` instead of `barrel=`. The number was always the budget remaining, not the queue depth, and the old label invited the opposite reading (#32).
-- Triangulation target MAC is read atomically; a torn read used to drop a peer's RSSI report.
-- Beta and C5: headless honors a stop during the ACK and report waits, and its baseline MAC queue sends go through the guarded path.
-- Beta and C5: the CSI channel survey runs again. `CSI_CFG` had no `CH=` handler, so `CSI_CFG:CH=0` was read as a threshold instead, and the pinned channel was kept in NVS, so once a channel was set the node never surveyed again. `CH=` is now a real token and the pin is not persisted.
-- Beta and C5: CSI arming no longer requires the psiZ term. Scored against logged per-link telemetry, occupied hours versus quiet nights, psiZ separated at chance and rejected most true detections for almost no reduction in false ones. It stays in telemetry.
-- Beta: the S3 compiled CSI defaults are the Low preset for that board, 0.140 / 8 s / 1 spot, and the web presets match the mesh presets.
-- Headless: `DEVICE_DB_CLEAR` clears the device database over mesh. The function existed but nothing could call it — the web UI route is full-build only.
-- Results snapshot is written to a temp file and renamed, so a power cut can't leave a partial one.
-- SD writes retry with backoff on a busy card; a failed mount retries with a bus re-init, is logged once a minute and counted in Diagnostics; SD chip-select is driven high before the SPI bus starts.
-- Log file is held open across writes and reopened only after a failed write.
-- Scan Results page no longer freezes mid-scan; `/results` streams from PSRAM. Results clear when a new scan starts; the UI polls only the open tab; the page reloads itself when the browser lands on a different node.
-- Baseline results rebuild every 2 s and only on change; theme toggle stays in the mobile scan header; Diagnostics `Mesh TX` line no longer sticks at draining.
-- Flasher script: its preset menu called `0` Balanced, but the firmware's `0` is Relaxed and `1` is Balanced — the default now sends `1`; a blank AP password no longer sends `antihunter`, the firmware default stays.
+- **Console output no longer feeds itself** (#32).
+  - The node discards inbound lines starting with `[`.
+  - Byte echo behind `AH_USB_ECHO`, off by default.
+  - `[DEBUG_RAW]` behind `AH_DEBUG_VERBOSE`, off by default.
+  - USB input logs as `[USB CMD]`.
+- `BATTERY_SAVER_STATUS` replies are recognized again (#32).
+- **Erase PSK always set.** Made on first boot.
+  - Printed on USB at boot.
+  - Every erase command and web wipe needs it.
+  - See README → Secure Data Destruction.
+- Rate-limiter log reads `barrel_free=`, not `barrel=` (#32).
+- Triangulation target MAC read atomically; RSSI reports no longer dropped.
+- Beta and C5: headless honors a stop during ACK waits.
+- Beta and C5: headless baseline queue uses the guarded path.
+- Beta and C5: the CSI channel survey runs again.
+  - `CSI_CFG:CH=` is a real token; the pin isn't saved.
+- Beta and C5: CSI arming no longer needs psiZ.
+- Beta: S3 CSI defaults to Low (0.140/8s/1 spot).
+- Beta: web presets match the mesh presets.
+- Headless: `DEVICE_DB_CLEAR` clears the device database over mesh.
+- Results snapshot written atomically; a power cut can't corrupt it.
+- SD writes retry with backoff on a busy card.
+- A failed SD mount retries with a bus re-init.
+- SD chip-select is driven high before SPI starts.
+- Log file held open; reopened only after a failed write.
+- Scan Results page no longer freezes mid-scan.
+- `/results` streams from PSRAM and clears on a new scan.
+- The UI polls only the open tab.
+- The page reloads when the browser lands on another node.
+- Baseline results rebuild every 2 s, only on change.
+- Theme toggle stays in the mobile scan header.
+- Diagnostics `Mesh TX` no longer sticks at draining.
+- Flasher script: the default preset now sends `1` (Balanced).
+- Flasher script: a blank AP password keeps the firmware default.
 - AP MAC randomization fix.
 - `memcpy` length guard against a WiFi driver underflow.
 
 ## Hardware
 
-- DIGINODE v2 side-charge enclosure, single-body model: `One-Piece-Housing-SideCharge-Version.stl`.
-- Revised full side-charge housing: `FullSideChargeHousing.stl`.
+- DIGINODE v2 single-body side-charge enclosure: `One-Piece-Housing-SideCharge-Version.stl`.
+- Revised side-charge housing: `FullSideChargeHousing.stl`.
 - Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
 - Assembly manual, BOM links and welcome note updated.
 
 ## Upgrade
 
-Settings in memory and files on the SD card survive a flash
+Settings and SD card files survive a flash.
 
-All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<version>.bin` per channel (`.factory.bin` for the C5), with `bootloader-<version>.bin`, `partitions-<version>.bin` and `SHA256SUMS-<version>.txt` beside them. Builds are reproducible: a clean `pio run` of the tagged commit gives the same bytes as the release asset, so `shasum -a 256` against `SHA256SUMS-<version>.txt` is the check.
+All three builds attach to the one v1.0.3 release.
+Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
+Also `bootloader`, `partitions` and `SHA256SUMS` per version.
+Builds are reproducible; verify with `shasum -a 256`.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
@@ -113,9 +162,10 @@ All three builds sit on the one v1.0.3 release: `antihunter-<full|headless>-<ver
 | PlatformIO full | `AntiHunter-full` | `AntiHunter-full` | `AntiHunter-c5-full` |
 | PlatformIO mesh-only | `AntiHunter-headless` | `AntiHunter-headless` | `AntiHunter-c5-headless` |
 
-**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Pick the channel, then Full or Headless.
+**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge.
+Pick the channel, then Full or Headless.
 
-**Flasher script** (needs Python 3, esptool and pyserial); the same script is on every branch:
+**Flasher script** (Python 3, esptool, pyserial), same on every branch:
 
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
@@ -123,9 +173,9 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-`-c` sets device parameters during the flash, `-l` lists the firmware.
+`-c` sets device settings; `-l` lists firmware.
 
-**PlatformIO** — `-t upload` flashes the app only; settings and the SD card stay.
+**PlatformIO**: `-t upload` keeps settings and the SD card.
 
 Stable:
 
@@ -156,7 +206,7 @@ pio run -e AntiHunter-c5-headless -t upload
 
 ### Thanks
 
-- d3mocide (#31): a node ignored commands when a mesh radio's short name was an emoji.
+- d3mocide (#31): emoji radio names made nodes ignore commands.
 - rcbm.: long BLE device scans crashed the node.
-- nconder (#32): console output fed back into the node and flooded the log.
+- nconder (#32): console output fed back and flooded the log.
 - nconder: nodes had no erase PSK until one was set.
