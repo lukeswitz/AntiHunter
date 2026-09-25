@@ -89,6 +89,8 @@ Headless has no SoftAP. `defend` pins to whatever channel the radio last used, s
 
 `CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON: probes quiet devices) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` lets it choose).
 
+On CSI start each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
+
 <details>
 <summary>Triangulation Commands</summary>
 

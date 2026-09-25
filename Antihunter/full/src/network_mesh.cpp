@@ -995,6 +995,7 @@ static void handleCsiCfg(const String &command)
   bool telemetry = csiTelemetry.load();
   uint32_t dwell = csiAreaDutyMinS.load();
   uint32_t radios = csiAreaRadiosNeeded.load();
+  uint32_t zMilli = csiZGateMilli.load();
   int idx = 0;
 
   while (params.length() > 0) {
@@ -1003,9 +1004,9 @@ static void handleCsiCfg(const String &command)
     if (tok.length() > 0) {
       if (tok.startsWith("SENSITIVITY=")) {
         const String v = tok.substring(12);
-        if (v == "LOW") { thr = 0.140f; dwell = 8; radios = 1; }
-        else if (v == "MEDIUM" || v == "MED") { thr = 0.115f; dwell = 4; radios = 1; }
-        else if (v == "HIGH") { thr = 0.095f; dwell = 4; radios = 1; }
+        if (v == "LOW") { thr = 0.140f; dwell = 8; radios = 1; zMilli = 500; }
+        else if (v == "MEDIUM" || v == "MED") { thr = 0.140f; dwell = 8; radios = 1; zMilli = 0; }
+        else if (v == "HIGH") { thr = 0.115f; dwell = 4; radios = 1; zMilli = 0; }
         else thr = v.toFloat();
       }
       else if (tok.startsWith("MIN_MOTION=")) dwell = (uint32_t)tok.substring(11).toInt();
@@ -1041,6 +1042,10 @@ static void handleCsiCfg(const String &command)
 
   setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), telemetry);
   setCsiAreaConfig(dwell, radios);
+  if (zMilli != csiZGateMilli.load()) {
+    csiZGateMilli.store(zMilli);
+    prefs.putUInt("csiZ", zMilli);
+  }
   const float shownThr = (thr > 0.0f) ? thr : CSI_SIG_ETA;
   sendToSerial1(nodeId + ": CSI_CFG_ACK:SENSITIVITY=" + String(shownThr, 3) +
                 " MIN_MOTION=" + String(dwell) + "s CLEAR_AFTER=" + String(hold / 1000) +
@@ -2608,6 +2613,12 @@ void processMeshMessage(const String &message) {
     if (haveSender && sendingNode == getNodeId()) return;
 
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
+
+    if (haveSender && content.startsWith("CSI_PEER:")) {
+        uint8_t pm[6];
+        if (parseMac6(content.substring(9), pm) && csiAddPeerMac(pm)) csiAnnouncePeer();
+        return;
+    }
 
     if (haveSender && content == "TRI_START_ACK" && (triangulationActive || triangulationInitiator)) {
         reportingSchedule.addNode(sendingNode);

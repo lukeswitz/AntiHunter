@@ -25,6 +25,8 @@ static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_SIG_ETA = 0.140f;
+static const float CSI_REL_FLOOR_K = 4.0f;
+static const float CSI_REL_MIN_SIG = 0.03f;
 static const float CSI_PSI_Z = 2.0f;
 
 static const int CSI_AREA_LINK_NUM = 1;
@@ -50,7 +52,6 @@ static const uint32_t CSI_LINK_MIN_PKTS = 60;
 static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
-static const int8_t CSI_SURVEY_MIN_RSSI = -85;
 
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;
