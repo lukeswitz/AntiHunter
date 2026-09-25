@@ -32,7 +32,7 @@ std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{8};
-std::atomic<uint32_t> csiAreaRadiosNeeded{1};
+std::atomic<uint32_t> csiAreaRadiosNeeded{2};
 std::atomic<uint32_t> csiSolicitMs{0};
 std::atomic<uint8_t> csiNoTx{0};
 std::atomic<uint8_t> csiAllowRandom{0};
@@ -47,7 +47,6 @@ static const uint32_t CSI_SOLICIT_FLOOR = 15;
 
 static std::atomic<bool> g_surveyMode{false};
 static std::atomic<uint32_t> g_surveyHits{0};
-static std::atomic<uint32_t> g_surveyStrong{0};
 static std::atomic<uint32_t> g_surveyHt{0};
 static std::atomic<int> g_surveyPeak{-128};
 static std::atomic<uint32_t> g_surveyTx{0};
@@ -249,6 +248,9 @@ static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
 static std::atomic<uint32_t> g_rejFmt{0};
+static std::atomic<uint32_t> g_linkEvict{0};
+static std::atomic<uint32_t> g_linkEvictYoung{0};
+static std::atomic<uint32_t> g_linkFull{0};
 static std::atomic<uint32_t> g_fwSkip{0};
 static std::atomic<uint32_t> g_solicitOk{0};
 static std::atomic<uint32_t> g_solicitErr{0};
@@ -310,6 +312,69 @@ static void csiLenSeen(uint16_t len, uint8_t fmt) {
     }
 }
 
+static const uint8_t CSI_KNOWN_AP_MAX = 32;
+static uint8_t g_knownAp[CSI_KNOWN_AP_MAX][6];
+static std::atomic<uint8_t> g_knownApCount{0};
+
+static bool csiIsKnownAp(const uint8_t *m) {
+    const uint8_t n = g_knownApCount.load(std::memory_order_acquire);
+    for (uint8_t i = 0; i < n; i++) {
+        if (memcmp(g_knownAp[i], m, 6) == 0) return true;
+    }
+    return false;
+}
+
+static const uint8_t CSI_PEER_MAX = 8;
+static uint8_t g_peerMac[CSI_PEER_MAX][6];
+static std::atomic<uint8_t> g_peerCount{0};
+static uint8_t g_surveyPickMac[6];
+static std::atomic<bool> g_peerWonSurvey{false};
+
+static bool csiIsPeer(const uint8_t *m) {
+    static const uint8_t kNodeProbeSrc[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    if (memcmp(m, kNodeProbeSrc, 6) == 0) return true;
+    const uint8_t n = g_peerCount.load(std::memory_order_acquire);
+    for (uint8_t i = 0; i < n; i++) {
+        if (memcmp(g_peerMac[i], m, 6) == 0) return true;
+    }
+    return false;
+}
+
+bool csiAddPeerMac(const uint8_t *m) {
+    if (csiIsPeer(m)) return false;
+    uint8_t n = g_peerCount.load(std::memory_order_relaxed);
+    if (n >= CSI_PEER_MAX) {
+        memmove(g_peerMac[0], g_peerMac[1], (size_t)(CSI_PEER_MAX - 1) * 6);
+        n = CSI_PEER_MAX - 1;
+        g_peerCount.store(n, std::memory_order_release);
+    }
+    memcpy(g_peerMac[n], m, 6);
+    g_peerCount.store(n + 1, std::memory_order_release);
+    Serial.printf("[CSI] Ignoring peer node %02X:%02X:%02X:%02X:%02X:%02X\n", m[0], m[1], m[2], m[3], m[4], m[5]);
+    if (memcmp(m, g_surveyPickMac, 6) == 0) g_peerWonSurvey.store(true);
+    return true;
+}
+
+static void csiAnnounceSelf() {
+    uint8_t m[6];
+    if (esp_wifi_get_mac(WIFI_IF_AP, m) != ESP_OK) return;
+    char buf[18];
+    snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+    meshEnqueuePrio(getNodeId() + ": CSI_PEER:" + String(buf), PRIO_CONTROL);
+}
+
+void csiAnnouncePeer() {
+    csiAnnounceSelf();
+}
+
+static void csiRememberAp(const uint8_t *b) {
+    if (csiIsKnownAp(b)) return;
+    const uint8_t n = g_knownApCount.load(std::memory_order_relaxed);
+    if (n >= CSI_KNOWN_AP_MAX) return;
+    memcpy(g_knownAp[n], b, 6);
+    g_knownApCount.store(n + 1, std::memory_order_release);
+}
+
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
 static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (!info || !info->buf || !csiQueue) return;
@@ -357,15 +422,14 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     }
     const uint64_t ex = csiExcludeMac.load();
     const bool excluded = ex != 0 &&
-        ((((uint64_t)m[0] << 32) | ((uint64_t)m[1] << 24) | ((uint64_t)m[2] << 16) |
-          ((uint64_t)m[3] << 8) | (uint64_t)m[4]) == (ex >> 8));
-    const bool usable = !excluded &&
-        (csiAllowRandom.load() || !(m[0] & 0x02));
+        ((((uint64_t)m[0] << 40) | ((uint64_t)m[1] << 32) | ((uint64_t)m[2] << 24) |
+          ((uint64_t)m[3] << 16) | ((uint64_t)m[4] << 8) | (uint64_t)m[5]) == ex);
+    const bool usable = !excluded && !csiIsPeer(m) &&
+        (csiAllowRandom.load() || !(m[0] & 0x02) || csiIsKnownAp(m));
 
     if (g_surveyMode.load()) {
         if (!usable) return;
         g_surveyHits.fetch_add(1);
-        if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
 #if CONFIG_SOC_WIFI_HE_SUPPORT
         if (rx.cur_bb_format == RX_BB_FORMAT_HT) g_surveyHt.fetch_add(1);
 #endif
@@ -434,9 +498,10 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
         const uint8_t *b = recs[i].bssid;
         const uint8_t c = recs[i].primary;
         if (c < 1 || c > 14 || !((allowed >> c) & 1)) continue;
-        if (!csiAllowRandom.load() && (b[0] & 0x02)) continue;
-        if (ex && ((((uint64_t)b[0] << 32) | ((uint64_t)b[1] << 24) | ((uint64_t)b[2] << 16) |
-                    ((uint64_t)b[3] << 8) | (uint64_t)b[4]) == (ex >> 8))) continue;
+        csiRememberAp(b);
+        if (csiIsPeer(b)) continue;
+        if (ex && ((((uint64_t)b[0] << 40) | ((uint64_t)b[1] << 32) | ((uint64_t)b[2] << 24) |
+                    ((uint64_t)b[3] << 16) | ((uint64_t)b[4] << 8) | (uint64_t)b[5]) == ex)) continue;
         aps++;
         if (recs[i].rssi > best[c]) { best[c] = recs[i].rssi; memcpy(bestMac[c], b, 6); }
     }
@@ -464,7 +529,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
         memcpy(g_probeTarget, bestMac[c], 6);
         g_probeTargetSet = true;
         g_surveyHits.store(0);
-        g_surveyStrong.store(0);
         g_surveyHt.store(0);
         g_surveyPeak.store(-128);
         g_surveyTx.store(0);
@@ -485,7 +549,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
                       c, best[c], g_surveyTx.load(), g_surveyHt.load(),
                       (float)top * 1000.0f / (float)trialMs,
                       top ? macFmt6(g_surveyMacs[topIdx]).c_str() : "-");
-        if (top > pickHits) { pickHits = top; pick = c; }
+        if (top > pickHits) { pickHits = top; pick = c; memcpy(g_surveyPickMac, g_surveyMacs[topIdx], 6); }
     }
 
     Serial.printf("[CSI] Selected ch%u (%.1f/s from its best access point)\n",
@@ -646,7 +710,7 @@ static bool csiLinkUsable(const CsiLink &l) {
     if (ex != 0) {
         uint64_t m = 0;
         for (int i = 0; i < 6; i++) m = (m << 8) | l.mac[i];
-        if ((m >> 8) == (ex >> 8)) return false;
+        if (m == ex) return false;
     }
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
@@ -658,6 +722,13 @@ static float csiGateEta(uint32_t thrMilli) {
 static float csiTriggerRatio(float gateStat) {
     const float r = gateStat / csiGateEta(csiThresholdMilli.load());
     return (r > 0.0f) ? r : 0.0f;
+}
+
+static float csiLinkRatio(const CsiLink &l) {
+    const float r = csiTriggerRatio(l.sc.sigVar);
+    float z = l.sc.sigZ / CSI_SIG_Z_GATE;
+    if (z < 0.0f) z = 0.0f;
+    return (z < r) ? z : r;
 }
 
 static uint8_t csiUsableCount() {
@@ -754,8 +825,10 @@ static CsiLink *csiFindLink(const uint8_t *mac) {
     CsiLink *slot = freeSlot;
     if (!slot) {
         CsiLink *worst = worstUnsettled ? worstUnsettled : worstSettled;
-        if (!worst) return nullptr;
+        if (!worst) { g_linkFull.fetch_add(1); return nullptr; }
         slot = worst;
+        g_linkEvict.fetch_add(1);
+        if (slot->packets < CSI_LINK_MIN_PKTS) g_linkEvictYoung.fetch_add(1);
     }
 
     csiLinkReset(*slot);
@@ -785,7 +858,7 @@ static void csiStageAlert(CsiAlert &al, const CsiLink &l, bool rising) {
     al.rssi = l.rssi;
     al.packets = l.packets;
     al.dwell = rising ? 0 : ((millis() - l.motionStartMs) / 1000);
-    al.score = l.sc.score;
+    al.score = csiLinkRatio(l);
     al.mad = l.sc.mad;
     al.floorMad = l.sc.floorMad;
 }
@@ -841,7 +914,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.liveBins = (uint8_t)liveBins;
 
         if (!l.sc.update(a, l.motion, dtUs)) return;
-        if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
+        { const float lr = csiLinkRatio(l); if (lr > l.peakScore) l.peakScore = lr; }
 
         if (csiRawDump.load()) {
             Serial.printf("CSIT,%lu,%s,%.3f,%.5f,%.5f,%d\n",
@@ -961,8 +1034,8 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.acf = l.sc.acf;
         v.vote = l.sc.vote;
         v.z = l.sc.acfZ;
-        v.sig = csiTriggerRatio(l.sc.sigVar);
-        v.score = l.sc.score;
+        v.sig = csiLinkRatio(l);
+        v.score = csiLinkRatio(l);
         v.peakScore = l.peakScore;
         v.motion = l.motion;
     }
@@ -989,8 +1062,9 @@ String getCsiResults() {
         r += "Usable links: " + String(usable) + "\n";
         r += "Armed links: " + String(armed) + "\n";
         if (usable == 0) {
-            r += "BLIND - no link reaches " + String((int)CSI_LINK_MIN_RSSI) + "dBm.\n"
-                 "Motion cannot be detected. Move the node nearer an active AP or pick a busier channel.\n";
+            r += "BLIND - no usable link yet (needs " + String((unsigned)CSI_LINK_MIN_PKTS) +
+                 " packets at " + String((int)CSI_LINK_MIN_RSSI) + "dBm or stronger).\n"
+                 "Motion cannot be detected until one qualifies.\n";
         } else if (armed == 0) {
             r += "BLIND - " + String(usable) + " link(s) in range but none armed.\n"
                  "Motion cannot be detected until a link settles.\n";
@@ -1359,6 +1433,7 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Starting motion detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
+    csiAnnounceSelf();
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -1432,6 +1507,11 @@ void csiMotionTask(void *pv) {
 
     if (autoChannel) {
         uint8_t picked = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
+        if (picked != 0 && csiIsPeer(g_surveyPickMac)) {
+            Serial.printf("[CSI] ch%u was won by peer node %s - surveying again\n",
+                          picked, macFmt6(g_surveyPickMac).c_str());
+            picked = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
+        }
         if (picked == 0) {
             Serial.println("[CSI] Aborting: no channel carries CSI-eligible traffic");
             {
@@ -1528,6 +1608,29 @@ void csiMotionTask(void *pv) {
         const uint32_t now = millis();
 
 
+        if (autoChannel && g_peerWonSurvey.exchange(false) && csiIsPeer(g_surveyPickMac)) {
+            Serial.printf("[CSI] ch%u was picked on peer node %s traffic - surveying again\n",
+                          g_csiActiveChannel, macFmt6(g_surveyPickMac).c_str());
+            const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
+            if (next != 0 && next != g_csiActiveChannel) {
+                Serial.printf("[CSI] moving ch%u -> ch%u, SoftAP moves with it\n", g_csiActiveChannel, next);
+                {
+                    std::lock_guard<std::mutex> lock(g_csiMutex);
+                    for (int i = 0; i < CSI_MAX_LINKS; i++) csiLinkReset(g_links[i]);
+                }
+                g_csiActiveChannel = next;
+                xQueueReset(csiQueue);
+                if (!csiArmCsi(next)) Serial.println("[CSI] re-arm after channel move failed");
+            } else if (!csiArmCsi(g_csiActiveChannel)) {
+                Serial.println("[CSI] re-arm after survey failed");
+            }
+            const uint32_t after = millis();
+            lastExpireMs = lastResultsMs = lastStallMs = lastStatMs = lastRollMs = after;
+            lastSeenSnap = g_csiSeen.load();
+            lastRejSnap = g_csiRejected.load();
+            continue;
+        }
+
         if (now - lastExpireMs >= 2000) {
             lastExpireMs = now;
             csiExpireLinks();
@@ -1542,7 +1645,7 @@ void csiMotionTask(void *pv) {
                 movingLinks = csiCountRadios(true);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
-                    if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
+                    { const float lr = csiLinkRatio(g_links[i]); if (lr > peak) peak = lr; }
                 }
                 radiosRecent = movingLinks;
             }
@@ -1600,7 +1703,7 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.sigVar);
+                        const float r = csiLinkRatio(l);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1661,11 +1764,11 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].sc.settled()) continue;
                     if (g_links[i].motion) movingRoll++;
-                    if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
+                    { const float lr = csiLinkRatio(g_links[i]); if (lr > peakRoll) peakRoll = lr; }
                 }
             }
             Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u fast=%u need=%u events=%u up=%us\n",
-                          windowRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
+                          armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll, windowRoll,
                           (unsigned)csiNeedLinks(armedRoll),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
@@ -1681,6 +1784,8 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
             }
+            static uint8_t announceTick = 0;
+            if (++announceTick >= 5) { announceTick = 0; csiAnnounceSelf(); }
             const uint32_t rollSeenNow = g_csiSeen.load();
             const uint32_t rollRecords = rollSeenNow - rollSeenSnap;
             rollSeenSnap = rollSeenNow;
@@ -1782,6 +1887,8 @@ void csiMotionTask(void *pv) {
                           g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load(),
                           g_phyDsss.load(), g_phyOfdm.load(), g_phyHt.load(), g_phyOther.load(),
                           statRateNow);
+            Serial.printf("[CSI] LINKS evict=%u evict_young=%u full_drop=%u\n",
+                          g_linkEvict.load(), g_linkEvictYoung.load(), g_linkFull.load());
             if (g_areaMotion) {
                 Serial.printf("[CSI] AREA HELD %us on ch%u\n",
                               (unsigned)((now - g_areaSinceMs) / 1000), g_csiActiveChannel);

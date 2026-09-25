@@ -40,6 +40,8 @@ extern std::atomic<uint32_t> csiSolicitMs;
 extern std::atomic<uint8_t> csiNoTx;
 extern std::atomic<uint8_t> csiAllowRandom;
 void setCsiNoTx(bool noTx);
+bool csiAddPeerMac(const uint8_t *m);
+void csiAnnouncePeer();
 
 void csiMotionTask(void *pv);
 String getCsiResults();

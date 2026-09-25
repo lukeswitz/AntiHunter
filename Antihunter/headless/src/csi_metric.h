@@ -46,8 +46,8 @@ static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
-static const float CSI_SIG_ETA = 0.052f;
-static const float CSI_SIG_Z_GATE = 1.0f;
+static const float CSI_SIG_ETA = 0.020f;
+static const float CSI_SIG_Z_GATE = 3.0f;
 static const float CSI_PSI_Z = 1.5f;
 
 static const int CSI_AREA_LINK_NUM = 1;
@@ -73,7 +73,6 @@ static const uint32_t CSI_LINK_MIN_PKTS = 60;
 static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
-static const int8_t CSI_SURVEY_MIN_RSSI = -85;
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
 static inline int csiWord12(const uint8_t *u) {

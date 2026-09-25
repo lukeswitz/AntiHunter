@@ -734,8 +734,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
                 <label style="font-size:11px;">Sensitivity</label>
                 <select id="csiPreset" name="csiPreset" onchange="csiApplyPreset(this.value)">
-                  <option value="low">Low — Fewest False Alarms</option>
-                  <option value="medium" selected>Medium — Walking</option>
+                  <option value="low" selected>Low — Fewest False Alarms</option>
+                  <option value="medium">Medium — Walking</option>
                   <option value="high">High — Faint Movement</option>
                   <option value="custom">Custom</option>
                 </select>
@@ -753,7 +753,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long movement must continue before it reports">Movement needed before alerting (s)</label>
-                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="4">
+                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="8">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long stillness must last before it says all-clear">Stillness before all-clear (s)</label>
@@ -761,11 +761,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How many devices must see it at once. Lower catches movement in areas only one device reaches">Devices that must agree</label>
-                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="1">
+                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="2">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
-                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.001" value="0.052">
+                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.001" value="0.020">
                     </div>
                     <div>
                       <label style="font-size:11px;">Consecutive packets</label>
@@ -5969,7 +5969,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.077, 8, 1], medium: [0.052, 8, 1], high: [0.040, 8, 1] };
+            const presets = { low: [0.020, 8, 2], medium: [0.052, 8, 1], high: [0.020, 8, 1] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];
