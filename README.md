@@ -826,7 +826,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 
 `CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` picks).
 
-On CSI start each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
+On the first CSI start after boot each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
 
 `CSI_CFG` ranges: trigger 0.005-20.0, hold 500-120000ms, consecutive 1-50, channel 0-14 (`0` auto). Out-of-range values return `CSI_CFG_ACK:INVALID`. `TELEM` and `RAW` dump per-packet scores and raw CSI to serial.
 
