@@ -1294,7 +1294,8 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Starting motion detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
-    csiAnnounceSelf();
+    static bool announcedThisBoot = false;
+    if (!announcedThisBoot) { announcedThisBoot = true; csiAnnounceSelf(); }
 
     {
         std::lock_guard<std::mutex> lock(g_csiMutex);
@@ -1649,8 +1650,6 @@ void csiMotionTask(void *pv) {
                 Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
                               (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
             }
-            static uint8_t announceTick = 0;
-            if (++announceTick >= 5) { announceTick = 0; csiAnnounceSelf(); }
             const uint32_t rollSeenNow = g_csiSeen.load();
             const uint32_t rollRecords = rollSeenNow - rollSeenSnap;
             rollSeenSnap = rollSeenNow;
