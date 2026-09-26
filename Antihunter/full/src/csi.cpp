@@ -764,7 +764,7 @@ static void csiStageAlert(CsiAlert &al, const CsiLink &l, bool rising) {
 }
 
 static void csiEmitAlert(const CsiAlert &al) {
-    if (!al.valid) return;
+    if (!al.valid || !csiRawDump.load()) return;
 
     String mac = macFmt6(al.mac);
 
@@ -1600,6 +1600,7 @@ void csiMotionTask(void *pv) {
             const uint32_t seenNow = g_csiSeen.load();
             const uint32_t rejNow = g_csiRejected.load();
             if (seenNow == lastSeenSnap && rejNow > lastRejSnap) {
+                if (csiRawDump.load())
                 Serial.printf("[CSI] STALL: 0 accepted, +%u rejected (fcs=%u width=%u short=%u mac=%u) - re-arming ch%u\n",
                               rejNow - lastRejSnap, g_rejFcs.load(), g_rejWidth.load(),
                               g_rejShort.load(), g_rejMac.load(), g_csiActiveChannel);
@@ -1630,16 +1631,17 @@ void csiMotionTask(void *pv) {
                     { const float lr = csiLinkRatio(g_links[i]); if (lr > peakRoll) peakRoll = lr; }
                 }
             }
+            if (csiRawDump.load())
             Serial.printf("[CSI] STATE %s peak=%.2f links=%d usable=%u armed=%u fast=%u need=%u events=%u up=%us\n",
                           armedRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll, armedRoll, windowRoll,
                           (unsigned)csiNeedLinks(armedRoll),
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
-            if (armedRoll == 0 && usableRoll > 0) {
+            if (csiRawDump.load() && armedRoll == 0 && usableRoll > 0) {
                 Serial.printf("[CSI] BLIND: %u link(s) in range but none armed - cannot detect motion\n",
                               usableRoll);
             }
-            if (windowRoll == 0 && armedRoll > 0) {
+            if (csiRawDump.load() && windowRoll == 0 && armedRoll > 0) {
                 Serial.printf("[CSI] SLOW: %u armed link(s), none at %.1f pkt/s - slower response on ch%u\n",
                               armedRoll, CSI_LINK_MIN_PAIR_RATE, g_csiActiveChannel);
             }
@@ -1653,12 +1655,12 @@ void csiMotionTask(void *pv) {
             const uint32_t rollRecords = rollSeenNow - rollSeenSnap;
             rollSeenSnap = rollSeenNow;
             const bool starved = (rollRecords < CSI_SOLICIT_FLOOR * 60u);
-            if (starved) {
+            if (starved && csiRawDump.load()) {
                 Serial.printf("[CSI] STARVED: %u records in 60s on ch%u - too little traffic to detect motion\n",
                               rollRecords, g_csiActiveChannel);
             }
             if (armingRoll == 0 && (windowRoll == 0 || starved)) {
-                if (usableRoll == 0)
+                if (usableRoll == 0 && csiRawDump.load())
                     Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                                   (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
                 if (blindSinceMs == 0) blindSinceMs = now;
@@ -1729,6 +1731,7 @@ void csiMotionTask(void *pv) {
                     statPairs += l.sc.acfPairs;
                 }
             }
+            if (csiRawDump.load()) {
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f sig=%.4f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d "
@@ -1744,7 +1747,8 @@ void csiMotionTask(void *pv) {
                           statRateNow);
             Serial.printf("[CSI] LINKS evict=%u evict_young=%u full_drop=%u\n",
                           g_linkEvict.load(), g_linkEvictYoung.load(), g_linkFull.load());
-            if (g_areaMotion) {
+            }
+            if (g_areaMotion && csiRawDump.load()) {
                 Serial.printf("[CSI] AREA HELD %us on ch%u\n",
                               (unsigned)((now - g_areaSinceMs) / 1000), g_csiActiveChannel);
             }
