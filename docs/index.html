@@ -232,7 +232,7 @@
             </svg>
           </span>
           <div class="fw-name">Full</div>
-          <div class="fw-desc">Standalone WiFi AP. WebUI for configuration and command</div>
+          <div class="fw-desc">Standalone Wi-Fi AP. WebUI for configuration and command</div>
         </div>
         <div class="fw-option" id="opt-headless" onclick="selectFirmware('headless')">
           <span class="fw-check"></span>
@@ -243,12 +243,12 @@
             </svg>
           </span>
           <div class="fw-name">Headless</div>
-          <div class="fw-desc">Mesh-only, no WiFi AP. Config and control with mesh commands.</div>
+          <div class="fw-desc">Mesh-only, no Wi-Fi AP. Config and control with mesh commands.</div>
         </div>
       </div>
 
       <div id="fullNote" class="banner ok">
-        After flashing, join the <strong>Antihunter</strong> WiFi network
+        After flashing, join the <strong>Antihunter</strong> Wi-Fi network
         (password: <strong>antihunt3r123</strong>) and open
         <strong>http://192.168.4.1</strong> to configure.
       </div>
@@ -312,13 +312,13 @@
           <div>
             <label>Scan Mode</label>
             <select id="cfgScanMode">
-              <option value="2" selected>WiFi + BLE</option>
-              <option value="0">WiFi Only</option>
+              <option value="2" selected>Wi-Fi + BLE</option>
+              <option value="0">Wi-Fi Only</option>
               <option value="1">BLE Only</option>
             </select>
           </div>
           <div>
-            <label>WiFi Channels</label>
+            <label>Wi-Fi Channels</label>
             <input type="text" id="cfgChannels" placeholder="1..11 or 1,6,11">
           </div>
           <div>
@@ -369,11 +369,11 @@
         <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Scan Timing</p>
         <div class="cfg-grid">
           <div>
-            <label>WiFi Channel Dwell (ms)</label>
+            <label>Wi-Fi Channel Dwell (ms)</label>
             <input type="number" id="cfgWifiChannelTime" placeholder="110" min="20" max="500">
           </div>
           <div>
-            <label>WiFi Scan Interval (ms)</label>
+            <label>Wi-Fi Scan Interval (ms)</label>
             <input type="number" id="cfgWifiScanInterval" placeholder="2000" min="500" max="30000">
           </div>
           <div>
@@ -532,7 +532,7 @@
 
         <div id="apSettings">
           <hr>
-          <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">WiFi Access Point (Full firmware only)</p>
+          <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Wi-Fi Access Point (Full firmware only)</p>
           <div class="cfg-grid">
             <div>
               <label>AP SSID</label>
@@ -716,7 +716,7 @@ chmod +x flashAntihunter.sh
       await port.setSignals({ dataTerminalReady: false, requestToSend: false });
     }
 
-    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Assoc Sleep'],['frag','FragAttacks'],['tsf','TSF / Evil-Twin'],['jam','WiFi Jamming'],['mesh_guard','Mesh Guard']];
+    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Assoc Sleep'],['frag','FragAttacks'],['tsf','TSF / Evil-Twin'],['jam','Wi-Fi Jamming'],['mesh_guard','Mesh Guard']];
     const SENT_MESH=[['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil Twin'],['mesh_sae','SAE'],['mesh_frag','Frag'],['mesh_hshk','Handshake'],['mesh_krack','KRACK'],['mesh_karma','Karma'],['mesh_recon','Recon']];
     const SENT_THRESH=[['pmkid_window','PMKID Window (ms)'],['pmkid_min_bssids','PMKID Min BSSIDs'],['sae_window','SAE Window (ms)'],['sae_unmatched_thresh','SAE Unmatched'],['frag_reuse_thresh','Frag PN Reuse'],['probe_single_thresh','Probe Single-MAC'],['probe_rand_total','Probe Rand Total'],['probe_rand_distinct','Probe Rand Distinct']];
     function renderSentinelCfg(){

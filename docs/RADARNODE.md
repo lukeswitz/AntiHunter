@@ -3,7 +3,7 @@
 > [!WARNING]
 > **Experimental.** The radar path works — detection, RF enrichment, web UI and mesh all run — but the firmware is unreleased: no branch is published yet, no web-flasher entry, no release binaries. Source link: _(branch not yet pushed)_.
 
-A 24GHz radar node that detects a moving target, then sweeps WiFi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
+A 24GHz radar node that detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
 
 Separate firmware from the DIGI node — different sensor, different app, same PCB and same mesh.
 
@@ -20,7 +20,7 @@ Separate firmware from the DIGI node — different sensor, different app, same P
 
 ## How it works
 
-The radar is the primary sensor and runs continuously. WiFi/BLE scanning is not a separate mode you launch — it is enrichment triggered by the radar.
+The radar is the primary sensor and runs continuously. Wi-Fi/BLE scanning is not a separate mode you launch — it is enrichment triggered by the radar.
 
 ```
 HLK-LD2451 frame  ──►  radarTask
@@ -30,13 +30,13 @@ HLK-LD2451 frame  ──►  radarTask
                          │                └─► RF sweep (if enabled, past cooldown)
                          ▼                        │
                     traffic baseline              ├─ BLE scan
-                                                  └─ WiFi scan (2.4 + 5GHz)
+                                                  └─ Wi-Fi scan (2.4 + 5GHz)
                                                         │
                                                         ▼
                                               candidates scored, top 3 meshed
 ```
 
-A detection record holds both halves: distance, speed, angle, direction and target class from the radar, plus the WiFi/BLE candidates seen at that instant.
+A detection record holds both halves: distance, speed, angle, direction and target class from the radar, plus the Wi-Fi/BLE candidates seen at that instant.
 
 **State machine**
 
@@ -172,7 +172,7 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 
 | Setting | Range | Default | Meaning |
 |---|---|---|---|
-| Enabled | on/off | on | Sweep BLE + WiFi on a radar trigger |
+| Enabled | on/off | on | Sweep BLE + Wi-Fi on a radar trigger |
 | Sweep Cooldown | 0–600 s | 15 | Minimum gap between sweeps |
 | Linger | 1–60 s | 3 | Hold TRIGGERED after the last frame |
 | RSSI Floor | −100…−30 dBm | −95 | Drop weaker devices — about 100 m line of sight, matching radar range |
