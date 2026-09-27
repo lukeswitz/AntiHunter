@@ -298,8 +298,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="dark"] .csi-heat i.h5,[data-theme="cyber"] .csi-heat i.h5{background:var(--csi-hit)}
       [data-theme="dark"] .csi-heat i.h6,[data-theme="cyber"] .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 82%,#fff)}
       [data-theme="dark"] .csi-heat i.h7,[data-theme="cyber"] .csi-heat i.h7{background:color-mix(in srgb,var(--csi-hit) 64%,#fff)}
-      .csi-pick{display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut)}
-      .csi-pick b{font-size:16px;color:var(--txt);font-variant-numeric:tabular-nums}
+      .csi-pick{display:flex;align-items:center;gap:10px;margin-top:8px;padding:6px 12px;border-radius:8px;background:var(--accbg);border:1px solid var(--bord);font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden}
+      .csi-pick b{font-size:15px;color:var(--txt);font-variant-numeric:tabular-nums}
+      .csi-pk-ev{padding:1px 8px;border-radius:999px;border:1px solid var(--bord);font-size:12px}
+      .csi-pk-ev.on{background:var(--csi-hit);border-color:var(--csi-hit);color:#fff;font-weight:600}
+      .csi-pk-bar{flex:1 1 auto;min-width:40px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--csi-hit) 15%,transparent);overflow:hidden}
+      .csi-pk-bar u{display:block;height:100%;background:var(--csi-hit);border-radius:3px}
+      .csi-pk-pct{font-variant-numeric:tabular-nums;min-width:3ch;text-align:right;color:var(--txt)}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
       .det-desc{font-size:12px;color:var(--mut);line-height:1.5;margin-top:8px;padding-left:11px;border-left:2px solid var(--acc);max-width:70ch}
       .res-card.csi-hit::before{background:var(--csi-hit)}
@@ -4633,13 +4638,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const hot = hotArr.length > i && !!hotArr[i];
           const ev = evArr.length > i ? (evArr[i] || 0) : (hot ? 1 : 0);
           const shade = (lvl > 0 || ev > 0) ? Math.max(1, Math.min(7, Math.round(lvl * 7))) : 0;
-          const tip = (ev ? ev + (ev === 1 ? ' movement event' : ' movement events') : 'no movement events') +
-                      ', movement strength ' + Math.round(lvl * 100) + '%';
+          const pct = Math.round(lvl * 100);
+          const evTxt = ev ? ev + (ev === 1 ? ' event' : ' events') : 'quiet';
+          const tip = evTxt + ' · ' + pct + '%';
           cells += '<i data-i="' + i + '" class="h' + shade + '" title="' + tip + '"' +
                    (i === csiPick ? ' style="outline:2px solid var(--txt);outline-offset:-2px"' : '') + '></i>';
           if (i === csiPick) {
             const t = new Date(Date.now() - (heat.length - i - 0.5) * sec * 1000);
-            pick = '<div class="csi-pick"><b>~' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</b>' + tip + '</div>';
+            pick = '<div class="csi-pick"><b>~' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</b>' +
+                   '<span class="csi-pk-ev' + (ev ? ' on' : '') + '">' + evTxt + '</span>' +
+                   '<span class="csi-pk-bar"><u style="width:' + pct + '%"></u></span><span class="csi-pk-pct">' + pct + '%</span></div>';
           }
         }
         return '<div class="csi-heatwrap" onclick="csiHeatTap(event)"><div class="csi-heat">' + cells + '</div>' + pick +
