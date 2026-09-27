@@ -474,7 +474,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div style="text-align:center;padding:32px 0 20px;flex-shrink:0">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><path d="M8 12a4 4 0 0 0 4 4M16 12a4 4 0 0 0-4-4" opacity="0.5"/></svg>
           <div style="font-size:22px;font-weight:700;color:#e8ecf0;letter-spacing:-0.02em">Welcome to AntiHunter</div>
-          <div style="font-size:13px;color:#6878a0;margin-top:4px">WiFi/BLE Detection Node</div>
+          <div style="font-size:13px;color:#6878a0;margin-top:4px">Wi-Fi/BLE Detection Node</div>
         </div>
         <div id="ob-scroll" style="flex:1;overflow-y:auto;padding:0 24px 16px;-webkit-overflow-scrolling:touch">
           <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
@@ -651,9 +651,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div>
                   <label style="font-size:11px;">Mode</label>
                   <select name="mode">
-                    <option value="0">WiFi</option>
+                    <option value="0">Wi-Fi</option>
                     <option value="1">BLE</option>
-                    <option value="2" selected>WiFi+BLE</option>
+                    <option value="2" selected>Wi-Fi+BLE</option>
                   </select>
                 </div>
                 <div>
@@ -684,7 +684,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
                 <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
                 <div style="margin-bottom:6px;">
-                  <label style="font-size:10px;color:var(--mut);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
+                  <label style="font-size:10px;color:var(--mut);">Wi-Fi: <span id="wifiPwrDisplay">1.0x</span></label>
                   <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
                         oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
                         style="width:100%;">
@@ -783,8 +783,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div id="probeScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="probeScanMode" name="probeScanMode">
-                  <option value="0">WiFi Only</option>
-                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="0">Wi-Fi Only</option>
+                  <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
                 <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="broadcastAll" value="1">Broadcast All Probes (mesh)</label>
@@ -792,24 +792,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div id="droneScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="droneScanMode" name="droneScanMode">
-                  <option value="0">WiFi Only</option>
-                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="0">Wi-Fi Only</option>
+                  <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="randomizationMode" name="randomizationMode">
-                  <option value="0">WiFi Only</option>
-                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="0">Wi-Fi Only</option>
+                  <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
               </div>
               <div id="deviceScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="deviceScanMode" name="deviceScanMode">
-                  <option value="0">WiFi Only</option>
-                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="0">Wi-Fi Only</option>
+                  <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
                 <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="captureProbes" value="1">Capture Probes</label>
@@ -819,7 +819,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <div>
                     <label style="font-size:11px;">Radio</label>
                     <select id="pcapRadio" name="pcapRadio">
-                      <option value="0" selected>WiFi</option>
+                      <option value="0" selected>Wi-Fi</option>
                       <option value="1">BLE</option>
                     </select>
                   </div>
@@ -960,7 +960,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="sessions-desc">Sessions (Most)</option>
               <option value="lastseen-asc">Last Seen (Recent)</option>
               <option value="name-asc">Name (A-Z)</option>
-              <option value="type-asc">Type (WiFi/BLE)</option>
+              <option value="type-asc">Type (Wi-Fi/BLE)</option>
               <option value="channel-asc">Channel (Low-High)</option>
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
@@ -988,7 +988,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div id="overview" class="tab-content active">
             <div class="stat-grid">
               <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
-              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div><svg class="stat-spark" data-spark="wifiFrames"></svg></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>Wi-Fi Frames</div><div class="stat-value" id="wifiFrames">0</div><svg class="stat-spark" data-spark="wifiFrames"></svg></div>
               <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>BLE Frames</div><div class="stat-value" id="bleFrames">0</div><svg class="stat-spark" data-spark="bleFrames"></svg></div>
               <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Target Hits</div><div class="stat-value" id="totalHits">0</div></div>
               <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v2M14 3v2M10 19v2M14 19v2M3 10h2M3 14h2M19 10h2M19 14h2"/></svg>Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div><svg class="stat-spark" data-spark="uniqueDevices"></svg></div>
@@ -1062,11 +1062,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div id="customRFSettings" style="display:block;margin-top:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
-                <label style="font-size:10px;color:var(--mut);">WiFi Channel Time (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">Wi-Fi Channel Time (ms)</label>
                 <input type="number" id="wifiChannelTime" min="110" max="300" value="160" style="padding:4px;font-size:11px;">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--mut);">WiFi Scan Interval (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">Wi-Fi Scan Interval (ms)</label>
                 <input type="number" id="wifiScanInterval" min="1000" max="10000" value="3000" style="padding:4px;font-size:11px;">
               </div>
             </div>
@@ -1081,7 +1081,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
             </div>
             <div style="margin-bottom:8px;">
-              <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
+              <label style="font-size:10px;color:var(--mut);">Wi-Fi Channels</label>
               <input type="text" id="wifiChannels" placeholder="1..11" value="1..11" style="padding:4px;font-size:11px;">
             </div>
 
@@ -1100,7 +1100,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
 
       <div class="card">
-        <h3>WiFi Access Point</h3>
+        <h3>Wi-Fi Access Point</h3>
         <p class="card-sub">Node SoftAP credentials</p>
         <label style="font-size:11px;">SSID</label>
         <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
@@ -1117,7 +1117,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="apHidden" value="1">Hidden network (no SSID beacon)</label>
         <p class="card-sub" style="margin:6px 0 0;">Clients must enter the SSID manually and will probe for it by name.</p>
 
-        <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
+        <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save Wi-Fi Settings</button>
       </div>
 
       <div class="card">
@@ -1399,7 +1399,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
 
           <p style="font-size:11px;color:var(--mut);margin-bottom:12px;">
-            Reduces power consumption by stopping WiFi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. WiFi AP and web UI remain active. Mesh UART remains active for receiving commands.
+            Reduces power consumption by stopping Wi-Fi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. Wi-Fi AP and web UI remain active. Mesh UART remains active for receiving commands.
           </p>
 
           <div style="margin-bottom:16px;">
@@ -1559,7 +1559,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
           </div>
           <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
-            Passive WiFi monitoring that flags attacker-tool activity.
+            Passive Wi-Fi monitoring that flags attacker-tool activity.
           </div>
         </div>
 
@@ -1650,7 +1650,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Assoc Sleep</div><div class="stat-value" id="d-asl">0</div></div>
               <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
               <div class="stat" data-cfg="tsf"><div class="stat-label">TSF / Twin</div><div class="stat-value" id="d-tsf">0</div></div>
-              <div class="stat" data-cfg="jam"><div class="stat-label">WiFi Jam</div><div class="stat-value" id="d-jam">0</div></div>
+              <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Jam</div><div class="stat-value" id="d-jam">0</div></div>
               <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Guard</div><div class="stat-value" id="d-mgd">0</div></div>
               <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
               <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
@@ -3091,7 +3091,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (stats.scanning) {
             const cur = stats.totalDevices;
             const newBadge = (cur > prevUniqueDevices && prevUniqueDevices > 0) ? ' <span style="color:var(--succ);font-size:10px;font-weight:normal;">(+' + (cur - prevUniqueDevices) + ' new)</span>' : '';
-            statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">WiFi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + cur + newBadge + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+            statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">Wi-Fi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + cur + newBadge + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
             // Also update system overview unique devices
             const el = document.getElementById('uniqueDevices');
             if (el) {
@@ -4136,7 +4136,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (identitiesMatch) html += _resStat('Linked Identities', identitiesMatch[1]);
         const pendMatch = text.match(/Pending Sessions:\s*WiFi (\d+)\s+BLE (\d+)/);
         if (pendMatch) {
-          html += _resStat('Pending WiFi', pendMatch[1]);
+          html += _resStat('Pending Wi-Fi', pendMatch[1]);
           html += _resStat('Pending BLE', pendMatch[2]);
         }
         html += '</div></div>';
@@ -4619,14 +4619,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       const DETECTION_DESC = {
-        'device-scan': 'Lists every WiFi and BLE device in range, with signal strength and vendor.',
+        'device-scan': 'Lists every Wi-Fi and BLE device in range, with signal strength and vendor.',
         'baseline': 'Learns which devices belong here, then alerts on anything new, returning, or moving.',
         'randomization-detection': 'Links rotating MAC addresses back to one device so randomisation stops hiding it.',
         'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
-        'drone-detection': 'Decodes drone Remote ID beacons over WiFi and BLE, including operator position.',
+        'drone-detection': 'Decodes drone Remote ID beacons over Wi-Fi and BLE, including operator position.',
         'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
-        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals. Indoor only - outdoors needs the RadarNode (in development).',
-        'pcap': 'Records the WiFi or BLE traffic around you to SD, ready to open in Wireshark.'
+        'csi-motion': 'Detects movement in the area from how bodies disturb nearby Wi-Fi signals. Indoor only - outdoors needs the RadarNode (in development).',
+        'pcap': 'Records the Wi-Fi or BLE traffic around you to SD, ready to open in Wireshark.'
       };
       function setDetectionDesc(mode) {
         const el = document.getElementById('detectionDesc');
@@ -4833,7 +4833,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function renderProbeClientCard(d) {
         let h = '<div class="res-card' + (d.known ? ' acc' : '') + '">';
         h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
-        h += '<span class="res-badge' + (d.isBLE ? ' acc' : '') + '">' + (d.isBLE ? 'BLE' : 'WiFi') + '</span>';
+        h += '<span class="res-badge' + (d.isBLE ? ' acc' : '') + '">' + (d.isBLE ? 'BLE' : 'Wi-Fi') + '</span>';
         if (d.vendor && !d.randomized && !isRandomMac(d.mac)) h += '<span class="res-badge">' + d.vendor + '</span>';
         if (d.devName) h += '<span class="res-badge acc">' + d.devName + '</span>';
         if (d.ch) h += '<span class="res-badge">CH' + d.ch + '</span>';
@@ -4877,7 +4877,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const bWifi = broadcast.length - bBle;
           html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
           html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span>';
-          if (bWifi) html += '<span class="res-badge">' + bWifi + ' WiFi</span>';
+          if (bWifi) html += '<span class="res-badge">' + bWifi + ' Wi-Fi</span>';
           if (bBle) html += '<span class="res-badge acc">' + bBle + ' BLE</span>';
           html += '</summary><div class="res-section-body">';
           for (const d of broadcast) html += renderProbeClientCard(d);
@@ -5910,7 +5910,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const auto = f.name.indexOf('_auto_') >= 0;
             const label = pcapStampLabel(f.name);
             return '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
-              '<span class="pcap-radio ' + (ble ? 'ble' : 'wifi') + '" title="' + (ble ? 'BLE' : 'WiFi') + '">' +
+              '<span class="pcap-radio ' + (ble ? 'ble' : 'wifi') + '" title="' + (ble ? 'BLE' : 'Wi-Fi') + '">' +
                 (ble ? PCAP_ICON_BLE : PCAP_ICON_WIFI) + '</span>' +
               '<div class="pcap-row-name" title="' + f.name + '"><span class="pcap-row-text">' + label + '</span>' +
                 (auto ? '<span class="pcap-auto">auto</span>' : '') + '</div>' +
@@ -6236,7 +6236,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function showBatterySaverHelp() {
-        toast('Battery Saver: Disables WiFi/BLE scanning, reduces CPU to 80MHz, sends periodic heartbeats. Mesh UART stays active to receive commands like BATTERY_SAVER_STOP.', 'info');
+        toast('Battery Saver: Disables Wi-Fi/BLE scanning, reduces CPU to 80MHz, sends periodic heartbeats. Mesh UART stays active to receive commands like BATTERY_SAVER_STOP.', 'info');
       }
 
       // ---- Data Tab ----
@@ -6594,7 +6594,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
-        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']],
+        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','Wi-Fi Interf (L2)','jam']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]
         /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
         ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed']]
@@ -6628,7 +6628,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               t=document.getElementById('dos-mode-desc');
         if(d)d.className=scan?'btn alt':'btn primary';
         if(s)s.className=scan?'btn primary':'btn alt';
-        if(t)t.textContent=scan?'Hopping all channels — sees attacks on set WiFi channels (AP clients may drop).'
+        if(t)t.textContent=scan?'Hopping all channels — sees attacks on set Wi-Fi channels (AP clients may drop).'
                                :'Locked to this AP’s channel — catches attacks against us. (Stable)';
       }
       async function detScanMode(scan){
@@ -7186,7 +7186,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['hshk','Handshake Reconstruction'],
-        ['tsf','TSF / Evil-Twin'],['jam','WiFi Interference (L2)'],['mesh_guard','Mesh Disruption'],
+        ['tsf','TSF / Evil-Twin'],['jam','Wi-Fi Interference (L2)'],['mesh_guard','Mesh Disruption'],
         ['ble_malformed','BLE Malformed'],['ble_attack','BLE Attack Tools'],
         ['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
@@ -7200,7 +7200,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['mesh_owe','OWE Abuse'],['mesh_karma','Karma'],
         ['mesh_pmkid','PMKID'],['mesh_probe_flood','Probe Flood'],
         ['mesh_hshk','Handshake/KRACK'],['mesh_frag','FragAttacks'],
-        ['mesh_tsf','TSF Twin'],['mesh_jam','WiFi Jamming'],
+        ['mesh_tsf','TSF Twin'],['mesh_jam','Wi-Fi Jamming'],
         ['mesh_guard','Mesh Disruption']
       ];
       const DET_THRESHOLDS=[
