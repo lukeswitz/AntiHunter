@@ -761,7 +761,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How many devices must see it at once. Lower catches movement in areas only one device reaches">Devices that must agree</label>
-                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="1">
+                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="2">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
@@ -774,7 +774,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   </div>
                   <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off: sends about one probe request per second when fixed access points are quiet, so they answer and give a steady signal. On (default): node stays silent and needs a busy access point nearby."><input type="checkbox" id="csiNoTx" name="csiNoTx" value="1" checked>Listen only, never transmit</label>
-                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off (default): track only fixed access points, whose signal a body disturbs. On: also track phones and watches, which move with the person and read as proximity rather than through-air sensing."><input type="checkbox" id="csiRnd" name="csiRnd" value="1">Include randomized-MAC devices (phones, watches)</label>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;" title="Off: track only fixed access points, whose signal a body disturbs. On (default): also track phones and watches, which move with the person and read as proximity rather than through-air sensing."><input type="checkbox" id="csiRnd" name="csiRnd" value="1" checked>Include randomized-MAC devices (phones, watches)</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -5933,7 +5933,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         csiControls.style.display = 'none';
         if (!window.csiApplyPreset) {
           window.csiApplyPreset = function (p) {
-            const presets = { low: [0.140, 8, 1], medium: [0.140, 8, 1], high: [0.115, 4, 1] };
+            const presets = { low: [0.140, 8, 2], medium: [0.140, 8, 1], high: [0.115, 4, 1] };
             const v = presets[p];
             if (!v) return;
             document.getElementById('csiThr').value = v[0];

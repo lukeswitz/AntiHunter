@@ -32,10 +32,10 @@ std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiAreaDutyMinS{8};
-std::atomic<uint32_t> csiAreaRadiosNeeded{1};
+std::atomic<uint32_t> csiAreaRadiosNeeded{2};
 std::atomic<uint32_t> csiSolicitMs{0};
-std::atomic<uint8_t> csiNoTx{0};
-std::atomic<uint8_t> csiAllowRandom{0};
+std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint8_t> csiAllowRandom{1};
 std::atomic<uint32_t> csiZGateMilli{500};
 std::atomic<uint8_t> csiMgmtOnly{0};
 
@@ -1154,8 +1154,8 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
-    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
-    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 0));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
+    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 1));
     csiZGateMilli.store(prefs.getUInt("csiZ", csiZGateMilli.load()));
 }
 
@@ -1291,6 +1291,11 @@ void csiMotionTask(void *pv) {
     bool forever = (duration <= 0);
     uint8_t ch = csiPinnedChannel.load();
     const bool autoChannel = (ch == 0);
+    const bool skipSurvey = autoChannel && WiFi.softAPgetStationNum() > 0;
+    if (skipSurvey) {
+        ch = (uint8_t)AP_CHANNEL;
+        Serial.printf("[CSI] AP client connected - skipping survey, staying on ch%u\n", ch);
+    }
 
     Serial.printf("[CSI] Starting motion detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
@@ -1367,7 +1372,7 @@ void csiMotionTask(void *pv) {
     scanStopPending.store(false);
     scanSetCountdown(duration, forever);
 
-    if (autoChannel) {
+    if (autoChannel && !skipSurvey) {
         uint8_t picked = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
         if (picked != 0 && csiIsPeer(g_surveyPickMac)) {
             Serial.printf("[CSI] ch%u was won by peer node %s - surveying again\n",
@@ -1515,11 +1520,12 @@ void csiMotionTask(void *pv) {
 
             if (movingLinks > g_areaPeakLinks) g_areaPeakLinks = (uint8_t)movingLinks;
             if (peak > g_areaPeakScore) g_areaPeakScore = peak;
-            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks >= needLinks ? 1 : 0);
+            const bool tickOk = movingLinks >= needLinks && (movingLinks >= 2 || peak >= CSI_AREA_SOLO_PEAK);
+            g_areaDuty[g_areaDutyPos] = (uint8_t)(tickOk ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (radiosRecent >= needLinks);
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (radiosRecent >= needLinks) && tickOk;
             if (areaNow) g_areaLastMotionMs = now;
             if (csiTelemetry.load()) {
                 Serial.printf("[CSIA] mv=%d armed=%d need=%d duty=%u peak=%.2f area=%d\n",
