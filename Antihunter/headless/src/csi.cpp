@@ -31,8 +31,8 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
-std::atomic<uint8_t> csiNoTx{0};
-std::atomic<uint8_t> csiAllowRandom{0};
+std::atomic<uint8_t> csiNoTx{1};
+std::atomic<uint8_t> csiAllowRandom{1};
 std::atomic<uint32_t> csiAreaDutyMinS{8};
 std::atomic<uint32_t> csiAreaRadiosNeeded{2};
 std::atomic<uint64_t> csiExcludeMac{0};
@@ -1194,8 +1194,8 @@ void loadCsiConfigFromPrefs() {
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
     csiAreaDutyMinS.store(prefs.getUInt("csiDuty", csiAreaDutyMinS.load()));
     csiAreaRadiosNeeded.store(prefs.getUInt("csiRad", csiAreaRadiosNeeded.load()));
-    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 0));
-    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 0));
+    csiNoTx.store((uint8_t)prefs.getUInt("csiNoTx", 1));
+    csiAllowRandom.store((uint8_t)prefs.getUInt("csiRnd", 1));
 }
 
 void setCsiNoTx(bool noTx) {
@@ -1591,11 +1591,12 @@ void csiMotionTask(void *pv) {
 
             const int needLinks = csiNeedLinks(armedLinks);
 
-            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks >= needLinks ? 1 : 0);
+            const bool tickOk = movingLinks >= needLinks && (movingLinks >= 2 || peak >= CSI_AREA_SOLO_PEAK);
+            g_areaDuty[g_areaDutyPos] = (uint8_t)(tickOk ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (movingLinks >= needLinks);
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && tickOk;
             if (areaNow) g_areaLastMotionMs = now;
             if (csiTelemetry.load()) {
                 Serial.printf("[CSIA] mv=%d armed=%d need=%d duty=%u peak=%.2f area=%d\n",

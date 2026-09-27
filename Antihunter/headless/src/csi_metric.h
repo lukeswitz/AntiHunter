@@ -53,6 +53,7 @@ static const float CSI_PSI_Z = 1.5f;
 static const int CSI_AREA_LINK_NUM = 1;
 static const int CSI_AREA_LINK_DEN = 2;
 static const int CSI_AREA_LINK_CAP = 2;
+static const float CSI_AREA_SOLO_PEAK = 4.0f;
 static const float CSI_ACF_ETA_SUB = 0.10f;
 static const uint8_t CSI_ACF_HIST = 120;
 static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
