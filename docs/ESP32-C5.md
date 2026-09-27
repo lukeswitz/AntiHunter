@@ -3,7 +3,7 @@
 > [!WARNING]
 > **Testing phase.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. The C5 build is on the web flasher's **Experimental** channel; the S3 build on `main`/`beta` is the stable one.
 
-The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band WiFi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
+The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band Wi-Fi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
 
 Everything the S3 node does — target scan, device scanner, probe scanner, baseline, deauth detection, Sentinel, drone RID, CSI motion, packet capture, triangulation, mesh, SD, GPS, vibration wipe — runs on the C5. The rest of this page covers only what differs.
 
@@ -73,7 +73,7 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 ## Known limits
 
 - Experimental build — it does not follow the stable release schedule.
-- 5 GHz is for scanning only. The node's own WiFi access point stays on 2.4 GHz.
+- 5 GHz is for scanning only. The node's own Wi-Fi access point stays on 2.4 GHz.
 - Changing band briefly restarts that access point, so a browser connected to the node reconnects.
 
 ### Motion detection on a C5

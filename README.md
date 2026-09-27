@@ -54,7 +54,7 @@
 > **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything - a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It is on the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness.
-- ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking.
+- ESP32-C5 with dual-band 2.4 + 5 GHz Wi-Fi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking.
 - Drop-in replacement for the ESP32-S3 on the same PCB - same pads, same peripherals, adds 5 GHz.
 - Deploy one node or a distributed network - each scans independently and coordinates over mesh.
 
@@ -69,15 +69,15 @@
 | Detector | What it finds | Where |
 |---|---|---|
 | **Target Scan** | MAC, OUI or SSID watchlist hits, with mesh alerts | Scan tab |
-| **Device Discovery** | Every WiFi and BLE device in range, with RSSI, channel, vendor, name | Recon |
+| **Device Discovery** | Every Wi-Fi and BLE device in range, with RSSI, channel, vendor, name | Recon |
 | **Probe Request Scanner** | The networks devices are searching for, including ghost SSIDs with no AP present | Recon |
 | **Randomized MAC Tracer** | Rotating MACs linked back to one persistent identity | Recon |
-| **Drone RID** | Drones broadcasting Remote ID over WiFi and BLE, with operator position | Recon |
+| **Drone RID** | Drones broadcasting Remote ID over Wi-Fi and BLE, with operator position | Recon |
 | **Baseline Anomaly** | Devices that are new, gone, returned, or that moved | Detection |
 | **Deauth Detection** | Deauth and disassoc attacks, fingerprinted to the tool behind them | Detection |
-| **CSI Motion** (experimental beta, S3) | Movement in the room, from how bodies disturb nearby WiFi | Detection |
+| **CSI Motion** (experimental beta, S3) | Movement in the room, from how bodies disturb nearby Wi-Fi | Detection |
 | **Sentinel** | Attacker-tool activity: floods, evil twins, karma, handshake capture, PMKID harvesting | Sentinel tab |
-| **Packet Capture** | Raw WiFi or BLE traffic to SD as a standard pcap | Capture |
+| **Packet Capture** | Raw Wi-Fi or BLE traffic to SD as a standard pcap | Capture |
 | **Triangulation** | Multi-node RSSI location estimate for one target | Scan tab |
 
 Supporting features: **Allowlist** (used by Target Scan and Baseline) · **Mesh networking** over Meshtastic LoRa · **Secure data destruction** on tamper or mesh command · **Vibration auto-scan** (movement starts a scan) · **Battery saver** · **Privacy mode** (one-click MAC/GPS/SSID redaction for screenshots) · **Data Explorer** (search and export every SD dataset) · theme and accent color choices in the System tab.
@@ -114,7 +114,7 @@ Sentinel is the exception to the one-at-a-time rule: starting any scan mode make
 
 Keep a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`) and alert when one appears.
 
-- WiFi-only, BLE-only, or both
+- Wi-Fi-only, BLE-only, or both
 - Global allowlist filters out known devices before anything alerts
 - Logs RSSI, channel, GPS and device name to SD
 - Alerts over mesh, web UI and Command Center as they happen
@@ -149,7 +149,7 @@ Tick **Triangulate** on the Target Scan form and give a target MAC. Several node
 
 Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
-| Environment | WiFi n | BLE n | WiFi RSSI0 | BLE RSSI0 | Use Case |
+| Environment | Wi-Fi n | BLE n | Wi-Fi RSSI0 | BLE RSSI0 | Use Case |
 |-------------|--------|-------|------------|-----------|----------|
 | Open Sky | 2.0 | 2.0 | -23 dBm | -60 dBm | Clear LOS, minimal obstruction |
 | Suburban | 2.7 | 2.5 | -24 dBm | -62 dBm | Light foliage, scattered buildings |
@@ -167,9 +167,9 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### Recon: Device Discovery
 
-Lists every WiFi and BLE device in range with signal strength, channel and vendor.
+Lists every Wi-Fi and BLE device in range with signal strength, channel and vendor.
 
-AP discovery runs a periodic all-channel scan, paced by **WiFi Scan Interval**, so every channel gets covered even while the Full build's SoftAP holds the shared radio on channel 6. Between those scans the radio hops channels in promiscuous mode and captures frames passively.
+AP discovery runs a periodic all-channel scan, paced by **Wi-Fi Scan Interval**, so every channel gets covered even while the Full build's SoftAP holds the shared radio on channel 6. Between those scans the radio hops channels in promiscuous mode and captures frames passively.
 
 - **Capture Probes** checkbox piggybacks probe request collection onto the device scan, feeding the same probe database (MAC, vendor, RSSI, SSIDs, randomization status)
 - Everything seen merges into `/devicedb.jsonl` on SD and survives reboots, capped at 2000 entries with least-recently-seen eviction (Full build only)
@@ -219,14 +219,14 @@ Links rotating MAC addresses back to one device using behavioral signatures: IE 
 - Up to 256 simultaneous identities, 128 linked MACs each. At the cap the oldest identity is evicted; stale tracks are pruned every 60s
 - Dual signature support, full and minimal IE patterns
 - Confidence-based linking with adaptive thresholds
-- Detects global MAC leaks and WiFi-to-BLE correlation
+- Detects global MAC leaks and Wi-Fi-to-BLE correlation
 
 > **Web UI** &nbsp;Scan tab -> Randomized MAC Tracer
 >
 > **Mesh** &nbsp;`RANDOMIZATION_START:mode:secs[:FOREVER]`
 >
 > **Settings**
-> - Mode `0` WiFi, `1` BLE, `2` both
+> - Mode `0` Wi-Fi, `1` BLE, `2` both
 > - RSSI floor `@ALL CONFIG_RSSI:-80`
 
 > [!NOTE]
@@ -236,7 +236,7 @@ Links rotating MAC addresses back to one device using behavioral signatures: IE 
 
 ### Recon: Drone RID Detection
 
-Decodes drone Remote ID per FAA/EASA standards over **WiFi and Bluetooth**: ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and BLE (BT4 legacy and BT5 long-range advertising, service UUID 0xFFFA), plus French drone ID (OUI 0x6a5c35).
+Decodes drone Remote ID per FAA/EASA standards over **Wi-Fi and Bluetooth**: ODID/ASTM F3411 over Wi-Fi (NAN action frames, beacon frames) and BLE (BT4 legacy and BT5 long-range advertising, service UUID 0xFFFA), plus French drone ID (OUI 0x6a5c35).
 
 Decodes every ODID message type - Basic ID, Location, System, Operator ID, Auth, Self-ID - preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location and flight telemetry. Mesh alerts and SD logging.
 
@@ -278,7 +278,7 @@ Learns which devices belong here, then alerts on anything new, missing, returnin
 
 ### Detection: Deauth Detection
 
-WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames and cross-references the Randomized MAC Tracer for source identification.
+Wi-Fi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames and cross-references the Randomized MAC Tracer for source identification.
 
 
 > **Web UI** &nbsp;Scan tab -> Deauth Detection
@@ -293,9 +293,9 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 ### Detection: CSI Motion (beta on S3, in testing on C5)
 
-> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed WiFi device in range. Read [Limitations](#csi-limitations) before relying on it.
+> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed Wi-Fi device in range. Read [Limitations](#csi-limitations) before relying on it.
 
-Detects people moving through a space using the WiFi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed WiFi devices around it.
+Detects people moving through a space using the Wi-Fi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed Wi-Fi devices around it.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
@@ -345,12 +345,12 @@ Detects people moving through a space using the WiFi already in the air. Nothing
 | **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed/rotated deauth seqCtrl + reason codes, impersonation bursts, beacon-spam rate + static templates, open-system auth flood, assoc-req PM-bit floods, SAE commit floods (algo 3 / txn 1) |
 | **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
 | **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced and passive EAPOL M1-M4 capture |
-| **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
+| **Physical** | FragAttacks, TSF / multi-channel twin, Wi-Fi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
 | **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound; inbound rate DoS; every privileged mesh command logged with the radio id that issued it |
 
 **Field-verified on hardware**, confirmed firing against the live tools above: deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
 
-**Experimental**: OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
+**Experimental**: OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, Wi-Fi interference, mesh disruption.
 
 **Behavioral fallbacks**, which survive template changes: SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
 
@@ -453,7 +453,7 @@ Mesh: `CONFIG_BAND:<0|1|2>`. API: `POST /rf-config` with `bandMode`. Channel lis
 
 ### Scan presets
 
-| Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
+| Preset | Wi-Fi Chan Time | Wi-Fi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|
 | Relaxed | 300ms | 5000ms | 6000ms | 3000ms | -80 dBm | Low power |
 | Balanced | 160ms | 3000ms | 4000ms | 2000ms | -95 dBm | General use (default) |
@@ -465,15 +465,15 @@ Set from the web interface at `http://192.168.4.1` or `POST /rf-config`. Persist
 <details>
 <summary>Parameter tuning</summary>
 
-- **WiFi Channel Time** - dwell per channel, 50-300ms. Used for both the passive hop and the per-channel time in the all-channel scan. It has to clear the ~100ms beacon interval to catch every AP on a channel; shorter covers more channels but risks missing beacons.
-- **WiFi Scan Interval** - cadence of the all-channel AP discovery scan, 1000-10000ms. Between scans, target frames are captured passively while hopping channels.
+- **Wi-Fi Channel Time** - dwell per channel, 50-300ms. Used for both the passive hop and the per-channel time in the all-channel scan. It has to clear the ~100ms beacon interval to catch every AP on a channel; shorter covers more channels but risks missing beacons.
+- **Wi-Fi Scan Interval** - cadence of the all-channel AP discovery scan, 1000-10000ms. Between scans, target frames are captured passively while hopping channels.
 - **BLE Scan Interval** - time between BLE cycles, 1000-10000ms.
-- **BLE Scan Duration** - active scanning per cycle, 1000-5000ms. Longer improves BLE discovery but holds the shared radio on BLE, pausing WiFi channel-hopping.
+- **BLE Scan Duration** - active scanning per cycle, 1000-5000ms. Longer improves BLE discovery but holds the shared radio on BLE, pausing Wi-Fi channel-hopping.
 
-WiFi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, and WiFi promiscuous capture is off-air for that whole time. BLE Scan Duration is therefore the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval, an even 50/50 split.
+Wi-Fi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, and Wi-Fi promiscuous capture is off-air for that whole time. BLE Scan Duration is therefore the fraction of each cycle Wi-Fi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval, an even 50/50 split.
 
 - **RSSI Threshold** - global signal filter, -100 to -10 dBm. Triangulation is exempt.
-- **WiFi Channels** - comma-separated (`1,6,11`) or a range (`1..14`). Default `1..11`.
+- **Wi-Fi Channels** - comma-separated (`1,6,11`) or a range (`1..14`). Default `1..11`.
 
 > [!TIP]
 > Lower intervals detect faster and draw more power. Higher intervals save power and may miss brief transmissions.
@@ -497,7 +497,7 @@ Nodes scan independently and coordinate over Meshtastic LoRa. Detection → data
 
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)** aggregates every node with live mapping and visualization.
 
-A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md), shares this PCB and mesh: 24GHz radar as the primary sensor, WiFi/BLE swept on a radar trigger. It tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and Command Center use to type peers. Experimental, branch not yet published.
+A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md), shares this PCB and mesh: 24GHz radar as the primary sensor, Wi-Fi/BLE swept on a radar trigger. It tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and Command Center use to type peers. Experimental, branch not yet published.
 
 ### Radio Setup
 
@@ -588,7 +588,7 @@ Assembly: the [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/ma
 CORE COMPONENTS
 - 1x DIGI PCB (82mm, 2-layer)
 - 1x Seeed Studio XIAO ESP32-C5
-- 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
+- 1x Heltec Wi-Fi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
 - 1x ATGM336H GPS Module
 - 1x Micro SD SDHC TF Card Adapter Reader Module
 - 1x SD Card (FAT32, 8GB shipped with every built tier; 32GB+ not recommended)
@@ -609,7 +609,7 @@ CONNECTORS & FASTENERS
 
 ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
-- 1x 6dBi Antenna 2.4GHz (WiFi/BLE)
+- 1x 6dBi Antenna 2.4GHz (Wi-Fi/BLE)
 - 1x 6dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
 - 1x Active GPS Antenna (L1, SMA)
 
@@ -708,7 +708,7 @@ Settings persist to NVS and mirror to SD. A corrupted preference set self-heals 
 
 ### Radio footprint
 
-The node is passive by default. Two things transmit on WiFi, both opt-in:
+The node is passive by default. Two things transmit on Wi-Fi, both opt-in:
 
 - **Karma bait** (Sentinel, `GROUP:rogue:on`) - one probe request every 8s carrying a throwaway SSID. Off by default.
 - **CSI Motion** - only with `BROADCAST=ON` (default off): a broadcast probe request at most once per second, and only when fewer than 15 CSI packets arrived in the last second. It only runs while you have CSI Motion selected.
@@ -812,7 +812,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 > reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
 > rebuild its own card, which recovers most cases but not all, and erases the card.
 
-`mode` is `0` WiFi, `1` BLE, `2` both. `+PROBE` on `DEVICE_SCAN_START` captures probe requests alongside device discovery, feeding the probe database.
+`mode` is `0` Wi-Fi, `1` BLE, `2` both. `+PROBE` on `DEVICE_SCAN_START` captures probe requests alongside device discovery, feeding the probe database.
 
 ### CSI Motion
 
@@ -907,7 +907,7 @@ A node with links in range but none armed for 3 minutes re-surveys and moves cha
 | `BATTERY_SAVER_STOP` | Return to normal | None | `@AH01 BATTERY_SAVER_STOP` |
 | `BATTERY_SAVER_STATUS` | Report power state | None | `@AH01 BATTERY_SAVER_STATUS` |
 
-Stops WiFi and BLE scanning, drops the CPU to 80MHz, enables light sleep, and polls GPS once a minute. Mesh UART stays active.
+Stops Wi-Fi and BLE scanning, drops the CPU to 80MHz, enables light sleep, and polls GPS once a minute. Mesh UART stays active.
 
 ```
 NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
@@ -938,7 +938,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Baseline anomaly | `NODE_ID: ANOMALY-NEW/RETURN/RSSI: TYPE MAC RSSI:dBm [details]` |
 | Deauth attack | `NODE_ID: ATTACK: DEAUTH\|DISASSOC [BROADCAST\|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason [GPS:lat,lon]` |
 | Probe watchlist hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
-| Drone detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` - sent once per appearance, WiFi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
+| Drone detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` - sent once per appearance, Wi-Fi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
 | Drone lost | `NODE_ID: DRONE_LOST: MAC [ID:uavId] AGE:secs` - sent once, 120s after the last Remote ID beacon. Not repeated while the aircraft stays away, and the Web UI keeps the detection, marked stale |
 | Triangulation data | `NODE_ID: T_D: MAC Hits=N RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` - one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
 | Triangulation final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
@@ -1025,7 +1025,7 @@ The bar at the top stays visible on every tab:
 
 1. **Scan tab → Scanning & Targets → Target List.** One entry per line: a full MAC (`AA:BB:CC:DD:EE:FF`), an OUI prefix (`AA:BB:CC`), an SSID, or an identity ID (`T-XXXX`). **Save**.
 2. **Allow List**, just below it, takes the same formats. Anything listed there is ignored by every scan mode, so put your own devices in it first - otherwise you alert on yourself.
-3. Pick **Mode** (WiFi, BLE, or WiFi+BLE) and a **Duration**. Tick **Forever** to run until stopped.
+3. Pick **Mode** (Wi-Fi, BLE, or Wi-Fi+BLE) and a **Duration**. Tick **Forever** to run until stopped.
 4. **Start Scan.** The header ticker switches off `Idle` and the STOP button appears.
 5. **Results tab** fills in as hits arrive. Sort by RSSI, confidence, sessions, last seen, name, type or channel, and reverse the order with the arrows button.
 
@@ -1039,10 +1039,10 @@ Everything below is on the **System** tab.
 
 | Card | What to set |
 |---|---|
-| **System Diagnostics** | Uptime, WiFi/BLE frame counts, target hits, unique devices, CPU temp. Hardware and Network sub-tabs for SD, GPS, RTC and mesh state |
+| **System Diagnostics** | Uptime, Wi-Fi/BLE frame counts, target hits, unique devices, CPU temp. Hardware and Network sub-tabs for SD, GPS, RTC and mesh state |
 | **Fleet** | Every node and mesh radio heard. **Ping Nodes** broadcasts `@ALL STATUS` to refresh it |
 | **RF Settings** | Global RSSI filter, RF environment, scan preset or custom timings, channel list, and Band on C5 hardware. **Save RF Settings** |
-| **WiFi Access Point** | SSID, password, auth mode, hidden. Saving reboots the node - change the default password here first |
+| **Wi-Fi Access Point** | SSID, password, auth mode, hidden. Saving reboots the node - change the default password here first |
 | **Node Configuration** | Node ID (2-5 chars, `A-Z0-9`), mesh on/off, heartbeat, mesh send interval, dedup TTL |
 | **Sensor Alerts** | Vibration sensor alerts, and Vibration Auto-Scan (which scan mode to start when the node is moved) |
 | **Secure Data Destruction** | Auto-erase thresholds, **WIPE NOW**, and the abort button for a running tamper countdown |
@@ -1094,7 +1094,7 @@ The **Privacy** button, on the Results, Fleet, Data and Sentinel toolbars, redac
 |----------|--------|-------------|
 | `/` | GET | Web interface |
 | `/diag` | GET | System diagnostics |
-| `/stop` | GET | Fast-abort every scan and task: aborts in-flight WiFi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
+| `/stop` | GET | Fast-abort every scan and task: aborts in-flight Wi-Fi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
 | `/config` | GET | System configuration (JSON) |
 | `/config` | POST | Set channels, targets and optionally `bandMode`. `channels` and `targets` are both required or it returns `400` |
 | `/clear-results` | POST | Clear all scan results |
@@ -1238,7 +1238,7 @@ Each incident record carries `ts` (device uptime ms), `epoch` (RTC Unix seconds,
 | `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
 | `/rf-config` | POST | `rfEnv` (0-4) | Path-loss environment: 0 Open Sky, 1 Suburban, 2 Indoor, 3 Indoor Dense, 4 Industrial |
 | `/rf-config` | POST | `bandMode` (0-2) | Band: 0 2.4GHz, 1 5GHz, 2 both. Also returned by GET, and accepted on `/config` and in the serial `CONFIG:` JSON |
-| `/wifi-config` | GET | - | WiFi AP settings (JSON) |
+| `/wifi-config` | GET | - | Wi-Fi AP settings (JSON) |
 | `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty), `auth` (0 WPA2/WPA3, 1 WPA2), `hidden` (0/1) | Update AP credentials and mode, triggers a reboot |
 
 > `hidden=1` stops the SSID beacon, but clients must then enter the SSID manually and will probe for it by name, so the network name travels with them. Auth is what actually controls access, not hiding.

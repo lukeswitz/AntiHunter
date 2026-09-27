@@ -1,6 +1,6 @@
 # Security Policy
 
-AntiHunter DIGI node firmware is currently in **beta** and has not completed formal security testing. The device operates as a standalone WiFi access point without internet connectivity. We welcome responsible disclosure of security vulnerabilities.
+AntiHunter DIGI node firmware is currently in **beta** and has not completed formal security testing. The device operates as a standalone Wi-Fi access point without internet connectivity. We welcome responsible disclosure of security vulnerabilities.
 
 ## Supported Versions
 

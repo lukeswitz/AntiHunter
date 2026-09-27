@@ -10,7 +10,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 
 ## New
 
-- **Packet capture to SD.** Wireshark-ready pcap, WiFi and BLE.
+- **Packet capture to SD.** Wireshark-ready pcap, Wi-Fi and BLE.
   - Start from the Scan tab, vibration, or `PCAP_START`.
   - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it.
   - Size cap 8–300 MB, default 100 (`PCAP_LIMITS:<MB>`).
@@ -134,7 +134,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 - Flasher script: the default preset now sends `1` (Balanced).
 - Flasher script: a blank AP password keeps the firmware default.
 - AP MAC randomization fix.
-- `memcpy` length guard against a WiFi driver underflow.
+- `memcpy` length guard against a Wi-Fi driver underflow.
 
 ## Hardware
 
