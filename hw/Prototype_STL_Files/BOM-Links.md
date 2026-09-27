@@ -93,7 +93,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | Qty | Part | Image | AMZN | ALI |
 |:---:|------|:---:|------|-----|
 | 3× | **U.FL → SMA Pigtail**<br>*10cm, SMA bulkhead — female/jack, see Note 2* | <img width="110" src="../../docs/img/bom-ufl-pigtail.jpg" /> | [Search](https://www.amazon.com/s?k=U.FL+to+SMA+female+bulkhead+pigtail+10cm) | [Search](https://www.aliexpress.com/w/wholesale-ufl-to-sma-female-bulkhead.html) |
-| 1× | **6dBi 2.4GHz Antenna**<br>*WiFi/BLE, SMA* | — | [Search](https://www.amazon.com/s?k=6dBi+2.4GHz+SMA+antenna) | [Search](https://www.aliexpress.com/w/wholesale-6dBi-2.4GHz-SMA-antenna.html) |
+| 1× | **6dBi 2.4GHz Antenna**<br>*Wi-Fi/BLE, SMA* | — | [Search](https://www.amazon.com/s?k=6dBi+2.4GHz+SMA+antenna) | [Search](https://www.aliexpress.com/w/wholesale-6dBi-2.4GHz-SMA-antenna.html) |
 | 1× | **6dBi LoRa Antenna**<br>*868 EU / 915 US / 923 Asia, SMA* | — | [Search](https://www.amazon.com/s?k=915MHz+LoRa+antenna+SMA) | [Search](https://www.aliexpress.com/w/wholesale-915MHz-LoRa-antenna.html) |
 | 1× | **GNSS Antenna — Active L1, SMA**<br>*1575.42 MHz, 28 dB, 3–5V* | <img width="110" src="../../docs/img/bom-gnss-antenna.jpg" /> | [View](https://amazon.com/dp/B0FPKPBW7G) | [Search](https://www.aliexpress.us/w/wholesale-gps-helix-l1-antenna.html) |
 
@@ -117,7 +117,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 ## Builder Notes — read before ordering
 
 1. **2× 18650 cells are never supplied.** The HW-465A UPS holds two; they do not come with the UPS board or with any tier. Use protected flat-top cells, ~3000 mAh.
-2. **SMA gender chain.** GPS/LoRa/WiFi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread. Most common ordering mistake on this build.
+2. **SMA gender chain.** GPS/LoRa/Wi-Fi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread. Most common ordering mistake on this build.
 3. **SD card = FAT32.** Built tiers ship with an 8 GB card. 32 GB and larger are not recommended; 64 GB+ ships exFAT and needs reformatting (untested).
 4. **LoRa band must match your region and Heltec board variant** (EU868 / US915 / AS923). Mismatched antenna/board band degrades range.
 5. **Check which way the fan blows.** The sticker side is not always the exhaust side. Feel the airflow before you screw it down. Assembled units ship set to exhaust.

@@ -80,7 +80,7 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 
 | Question | Answer |
 |---|---|
-| **Full or Headless?** | Same detectors, same scan engine, same mesh commands. Full hosts the WiFi AP with the web UI and API, and beacons continuously. Headless is serial and mesh only, never beacons. Start on Full, reflash to Headless before a quiet deployment. [Details](../README.md#full-vs-headless) |
+| **Full or Headless?** | Same detectors, same scan engine, same mesh commands. Full hosts the Wi-Fi AP with the web UI and API, and beacons continuously. Headless is serial and mesh only, never beacons. Start on Full, reflash to Headless before a quiet deployment. [Details](../README.md#full-vs-headless) |
 | **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first, Sentinel among them. [Release notes](release-notes/notes.md) |
 | **S3 or C5?** | ESP32-S3 is the stable build. The [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) is a drop-in on the same pads and adds 5 GHz, under the flasher's Experimental channel while it is in testing. [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md) pairs a 24 GHz radar with the same mesh. |
 | **Do I need the Meshtastic radio?** | Not for scanning. Without it, you control one node from its own AP or over serial, standing next to it. With it, you send commands and get detections over LoRa from anywhere in mesh range, across as many nodes as you deploy. |
@@ -114,7 +114,7 @@ Every command, every reply label: [Mesh Commands](../README.md#mesh-commands). O
 
 | Symptom | Usual cause | Fix |
 |---|---|---|
-| No `Antihunter` WiFi network | Headless is flashed, or the AP name and password were changed | Check over serial which build is running. Reflash Full if you need the UI |
+| No `Antihunter` Wi-Fi network | Headless is flashed, or the AP name and password were changed | Check over serial which build is running. Reflash Full if you need the UI |
 | Web UI will not load | Not on the node's own AP, or the browser forced https | Join the AP, open `http://192.168.4.1` exactly |
 | Flashing fails, or no serial port appears | Charge-only cable, a serial monitor holding the port, both USB ports connected, or the wrong browser | Data cable, close other serial tools, unplug the radio, use Chrome or Edge |
 | SD card not detected | Not FAT32, 32 GB or larger, or not seated | Reformat FAT32 on a card under 32 GB |

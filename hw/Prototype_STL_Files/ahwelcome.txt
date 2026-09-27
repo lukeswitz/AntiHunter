@@ -40,7 +40,7 @@
                               [03]  FLASH ANTIHUNTER
 
    The ESP32 ships erased on every tier. You flash it, so you know what is on it.
-   FULL = WiFi AP and web UI, plus mesh.  HEADLESS = serial and mesh, no AP.
+   FULL = Wi-Fi AP and web UI, plus mesh.  HEADLESS = serial and mesh, no AP.
 
    WEB FLASHER:  lukeswitz.github.io/AntiHunter
 

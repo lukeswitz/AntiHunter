@@ -130,7 +130,7 @@
 
 <div class="sec">
   <h2>Hello, operator</h2>
-  <p class="lead">Welcome to AntiHunter. This node is a self-contained WiFi, Bluetooth and LoRa mesh sensor. It runs everything on the device: no cloud, no account, no server needed. It is fully open source. Read the firmware, write your own mesh commands, wire it into your own IDS. Make it yours.</p>
+  <p class="lead">Welcome to AntiHunter. This node is a self-contained Wi-Fi, Bluetooth and LoRa mesh sensor. It runs everything on the device: no cloud, no account, no server needed. It is fully open source. Read the firmware, write your own mesh commands, wire it into your own IDS. Make it yours.</p>
 
   <p>This guide takes you from opening the box to a tuned node in the field, whichever tier you bought. Sections that only apply to one tier are marked. Everything else applies to every node.</p>
 
@@ -188,7 +188,7 @@
     <li>Node built, soldered and bench-tested</li>
     <li>8 GB SD card fitted</li>
     <li>Active GPS helix antenna</li>
-    <li>2.4 GHz WiFi/BLE SMA antenna</li>
+    <li>2.4 GHz Wi-Fi/BLE SMA antenna</li>
     <li>LoRa SMA antenna for your region</li>
     <li>Meshtastic flashed on the radio, serial link configured</li>
   </ul>
@@ -199,7 +199,7 @@
   <ul class="check" style="margin-bottom:0">
     <li>1× DIGI NODE PCB, 82 mm, 2-layer</li>
     <li>1× Seeed XIAO ESP32-S3, with its U.FL antenna</li>
-    <li>1× Heltec WiFi LoRa 32 V3.2, with its U.FL antenna</li>
+    <li>1× Heltec Wi-Fi LoRa 32 V3.2, with its U.FL antenna</li>
     <li>1× ATGM336H GPS module, with its U.FL ceramic antenna</li>
     <li>1× DS3231 RTC module</li>
     <li>1× SW-420 vibration sensor</li>
@@ -294,7 +294,7 @@
   <div class="box tier"><span class="t">Tier 1: Fully Assembled Unit</span>
   <ol style="margin-bottom:0">
     <li>Remove the back cover and fit two flat-top 18650 batteries the right way round. A small red LED on the UPS board lights when batteries are present.</li>
-    <li>Screw on the antennas: WiFi left, LoRa right, GPS center. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
+    <li>Screw on the antennas: Wi-Fi left, LoRa right, GPS center. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
     <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
     <li>Set the LoRa region on the radio. It defaults to UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
     <li>Change the Bluetooth pairing pin on the radio. Every unit has the same default one. §7.4</li>
@@ -353,15 +353,15 @@
   <h3>2.1 Which antenna goes where</h3>
   <table>
     <tr><th>Antenna</th><th>U.FL set (tiers 2 and 3)</th><th>SMA set (tiers 1 and 2)</th><th>Connects to</th></tr>
-    <tr><td><b>2.4 GHz WiFi / BLE</b></td><td>Flat black film antenna, printed <span class="mono">2.4G</span></td><td>Shorter of the two rubber ducks, 6 dBi</td><td>The U.FL socket on the XIAO ESP32-S3, or its SMA bulkhead</td></tr>
+    <tr><td><b>2.4 GHz Wi-Fi / BLE</b></td><td>Flat black film antenna, printed <span class="mono">2.4G</span></td><td>Shorter of the two rubber ducks, 6 dBi</td><td>The U.FL socket on the XIAO ESP32-S3, or its SMA bulkhead</td></tr>
     <tr><td><b>LoRa</b> (region specific)</td><td>Coiled black whip</td><td>Longer duck, marked 868 MHz (EU), 915 MHz (US) or 923 MHz (Asia)</td><td>The U.FL socket on the Heltec / T114 radio, or its SMA bulkhead</td></tr>
     <tr><td><b>GPS</b></td><td>Passive ceramic patch, supplied with the GPS module</td><td>Active helix, Fully Assembled Unit only</td><td>The U.FL socket on the GPS module, or the SMA bulkhead in the battery housing</td></tr>
   </table>
 
-  <figure><img src="img/antenna-map.jpg" alt=""><figcaption>The factory U.FL antenna set beside the sockets each one belongs to: ceramic GPS patch, coiled LoRa whip (915 MHz shown, yours matches your region), flat 2.4 GHz film antenna. The GPS module carries the GPS socket, the Heltec carries LoRa, the XIAO carries 2.4 GHz WiFi and BLE.</figcaption></figure>
+  <figure><img src="img/antenna-map.jpg" alt=""><figcaption>The factory U.FL antenna set beside the sockets each one belongs to: ceramic GPS patch, coiled LoRa whip (915 MHz shown, yours matches your region), flat 2.4 GHz film antenna. The GPS module carries the GPS socket, the Heltec carries LoRa, the XIAO carries 2.4 GHz Wi-Fi and BLE.</figcaption></figure>
 
   <div class="box"><span class="t">Pick an orientation and keep it</span>
-    <p>On an enclosed build, decide which bulkhead carries LoRa and which carries WiFi, then wire every node you build the same way. It does not matter which you choose. It matters that a spare antenna always fits the port you expect in the field.</p>
+    <p>On an enclosed build, decide which bulkhead carries LoRa and which carries Wi-Fi, then wire every node you build the same way. It does not matter which you choose. It matters that a spare antenna always fits the port you expect in the field.</p>
   </div>
 
   <figure class="half"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centered between them.</figcaption></figure>
@@ -383,7 +383,7 @@
   <div class="row">
     <figure><img src="img/ufl-gps.jpg" alt=""><figcaption>GPS module, connector facing up.</figcaption></figure>
     <figure><img src="img/ufl-lora.jpg" alt=""><figcaption>LoRa radio, socket circled.</figcaption></figure>
-    <figure><img src="img/ufl-wifi.jpg" alt=""><figcaption>XIAO ESP32-S3, WiFi/BLE socket.</figcaption></figure>
+    <figure><img src="img/ufl-wifi.jpg" alt=""><figcaption>XIAO ESP32-S3, Wi-Fi/BLE socket.</figcaption></figure>
   </div>
 
   <div class="box warn">
@@ -406,7 +406,7 @@
   </ol>
   <div class="row">
     <figure><img src="img/sma-gps-housing.jpg" alt=""><figcaption>GPS SMA female fitted into the battery housing, secured from outside with washer and nut.</figcaption></figure>
-    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>WiFi SMA (female, left) and LoRa SMA (male, right) in the main housing.</figcaption></figure>
+    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>Wi-Fi SMA (female, left) and LoRa SMA (male, right) in the main housing.</figcaption></figure>
   </div>
 
   <div class="box tip"><span class="t">Wet conditions</span>
@@ -438,7 +438,7 @@
 
   <h3>4.1 What a healthy boot looks like</h3>
   <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialize says so by name.</p>
-  <p>If you flashed the <b>Full</b> firmware, a WiFi access point named <span class="mono">Antihunter</span> also appears within a few seconds.</p>
+  <p>If you flashed the <b>Full</b> firmware, a Wi-Fi access point named <span class="mono">Antihunter</span> also appears within a few seconds.</p>
 
   <h3>4.2 Confirming the hardware</h3>
   <p>Every subsystem reports into the diagnostics text, visible in the web UI's System tab, over serial, and in the reply to a mesh <span class="mono">STATUS</span> command. Check for:</p>
@@ -462,11 +462,11 @@
   <p class="lead">The ESP32 ships empty on every tier. You choose the build and put it on yourself.</p>
 
   <h3>5.1 Full or Headless?</h3>
-  <p>Same firmware, same detectors, same mesh commands, same scan engine. The difference is whether the node hosts a WiFi access point.</p>
+  <p>Same firmware, same detectors, same mesh commands, same scan engine. The difference is whether the node hosts a Wi-Fi access point.</p>
   <table>
     <tr><th style="width:22%"></th><th>Full</th><th>Headless</th></tr>
     <tr><td><b>Control</b></td><td>Web UI and HTTP API over its own AP, plus serial and mesh</td><td>Serial and mesh only</td></tr>
-    <tr><td><b>RF footprint</b></td><td>The AP beacons continuously, so the node is discoverable as a WiFi network</td><td>Never beacons</td></tr>
+    <tr><td><b>RF footprint</b></td><td>The AP beacons continuously, so the node is discoverable as a Wi-Fi network</td><td>Never beacons</td></tr>
     <tr><td><b>Results</b></td><td>Rendered as cards in the web UI's Results tab, and served plain over the API like every other endpoint. Written to the SD card as well</td><td>Written to <span class="mono">/last_results.txt</span> on the SD card</td></tr>
     <tr><td><b>Logging</b></td><td colspan="2">Identical. Both builds write results, the probe database, vibration events, sentinel incidents and scan logs to the SD card</td></tr>
     <tr><td><b>Device database</b></td><td><span class="mono">/devicedb.jsonl</span>, which is what the Data Explorer browses</td><td>Not written</td></tr>
@@ -523,7 +523,7 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
   </div>
 
   <h3>5.7 Board variants</h3>
-  <p>The XIAO ESP32-C5 is a drop-in replacement for the S3 on the same board, with the same pads and peripherals, and it adds 5 GHz scanning. Those builds are in testing and live under the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps WiFi and BLE to record which devices were present at that moment.</p>
+  <p>The XIAO ESP32-C5 is a drop-in replacement for the S3 on the same board, with the same pads and peripherals, and it adds 5 GHz scanning. Those builds are in testing and live under the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment.</p>
 </div>
 
 <div class="sec">
@@ -621,7 +621,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>Screen off</b> and <b>LED off</b> removes the visual signature and saves power. Physically removing the Heltec screen saves more.</li>
     <li><b>BLE off</b> on the radio removes its Bluetooth signature. Set a pairing PIN first if you intend to turn it back on later.</li>
-    <li><b>Headless firmware</b> on the node gives no WiFi AP at all.</li>
+    <li><b>Headless firmware</b> on the node gives no Wi-Fi AP at all.</li>
   </ul>
 
   <h3>7.5 Addressing and node IDs</h3>
@@ -634,7 +634,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>7.6 Reaching the mesh from a phone, TAK or MQTT</h3>
   <p>Commands and detections are ordinary Meshtastic text messages, so anything that talks to the mesh talks to your nodes:</p>
   <ul>
-    <li><b>Phone.</b> Pair the radio to the Meshtastic app over Bluetooth or WiFi and send <span class="mono">@node COMMAND</span> messages from anywhere in mesh range. No AP, no server.</li>
+    <li><b>Phone.</b> Pair the radio to the Meshtastic app over Bluetooth or Wi-Fi and send <span class="mono">@node COMMAND</span> messages from anywhere in mesh range. No AP, no server.</li>
     <li><b>TAK / ATAK.</b> The Meshtastic ATAK plugin and TAK server integration bridge the whole mesh, node traffic included.</li>
     <li><b>MQTT.</b> A Meshtastic MQTT gateway node forwards mesh traffic to a broker for logging, Home Assistant or Node-RED.</li>
   </ul>
@@ -662,7 +662,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>8.3 Scan presets</h3>
   <p>Presets set the whole timing profile in one click. Start on Balanced.</p>
   <table class="tight">
-    <tr><th>Preset</th><th>WiFi chan time</th><th>WiFi scan int</th><th>BLE scan int</th><th>BLE scan dur</th><th>RSSI</th><th>Use case</th></tr>
+    <tr><th>Preset</th><th>Wi-Fi chan time</th><th>Wi-Fi scan int</th><th>BLE scan int</th><th>BLE scan dur</th><th>RSSI</th><th>Use case</th></tr>
     <tr><td>Relaxed</td><td>300 ms</td><td>5000 ms</td><td>6000 ms</td><td>3000 ms</td><td>−80 dBm</td><td>Low power</td></tr>
     <tr><td>Balanced</td><td>160 ms</td><td>3000 ms</td><td>4000 ms</td><td>2000 ms</td><td>−95 dBm</td><td>General use (default)</td></tr>
     <tr><td>Aggressive</td><td>110 ms</td><td>1500 ms</td><td>2000 ms</td><td>1000 ms</td><td>−100 dBm</td><td>Fast detection, high coverage</td></tr>
@@ -671,23 +671,23 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h4>What each parameter does</h4>
   <ul>
-    <li><b>WiFi channel time</b>, 50 to 300 ms. Dwell per channel. It must clear the ~100 ms beacon interval to catch every AP on a channel. Shorter covers the band faster but risks missing beacons.</li>
-    <li><b>WiFi scan interval</b>, 1000 to 10000 ms. How often the all-channel AP discovery scan runs. Between scans the node captures frames passively while hopping.</li>
+    <li><b>Wi-Fi channel time</b>, 50 to 300 ms. Dwell per channel. It must clear the ~100 ms beacon interval to catch every AP on a channel. Shorter covers the band faster but risks missing beacons.</li>
+    <li><b>Wi-Fi scan interval</b>, 1000 to 10000 ms. How often the all-channel AP discovery scan runs. Between scans the node captures frames passively while hopping.</li>
     <li><b>BLE scan interval</b>, 1000 to 10000 ms. Time between BLE cycles.</li>
     <li><b>BLE scan duration</b>, 1000 to 5000 ms. Active BLE scanning per cycle.</li>
     <li><b>RSSI threshold</b>, −100 to −10 dBm. Global signal filter. Triangulation ignores it.</li>
-    <li><b>WiFi channels.</b> Comma-separated, <span class="mono">1,6,11</span>, or a range, <span class="mono">1..14</span>. Default is 1 to 11.</li>
+    <li><b>Wi-Fi channels.</b> Comma-separated, <span class="mono">1,6,11</span>, or a range, <span class="mono">1..14</span>. Default is 1 to 11.</li>
   </ul>
 
   <div class="box"><span class="t">One radio, two jobs</span>
-    <p>WiFi and BLE share a single 2.4 GHz radio and the scan loop is single-threaded. A BLE scan holds the radio for its full duration, and WiFi capture is off-air for that time. BLE scan duration is literally the fraction of each cycle WiFi is dark. The presets split it evenly by setting BLE duration to half the BLE interval.</p>
+    <p>Wi-Fi and BLE share a single 2.4 GHz radio and the scan loop is single-threaded. A BLE scan holds the radio for its full duration, and Wi-Fi capture is off-air for that time. BLE scan duration is literally the fraction of each cycle Wi-Fi is dark. The presets split it evenly by setting BLE duration to half the BLE interval.</p>
   </div>
 
   <h3>8.4 Field controls worth knowing now</h3>
   <ul>
     <li><b>Privacy Mode.</b> One click blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
-    <li><b>Battery Saver.</b> Stops WiFi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
+    <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
     <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — and of the Sentinel banners. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
   </ul>
@@ -705,12 +705,12 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>9.1 Target Scan</h3>
   <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
-@ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=WiFi 1=BLE 2=both : seconds : channels</span></pre>
+@ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
   <p>Alert: <span class="mono">NODE: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]</span></p>
   <figure class="third"><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results.</figcaption></figure>
 
   <h3>9.2 Device Scanner</h3>
-  <p>Captures everything nearby, WiFi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
+  <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE   <span class="c"># +PROBE also fills the probe database</span></pre>
 
   <h3>9.3 Probe Request Scanner</h3>
@@ -725,7 +725,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
-  <figure class="half"><img src="../img/baseline.jpg" alt=""><figcaption>Baseline in its learning phase: WiFi and BLE device counts, frames seen, and the running anomaly total.</figcaption></figure>
+  <figure class="half"><img src="../img/baseline.jpg" alt=""><figcaption>Baseline in its learning phase: Wi-Fi and BLE device counts, frames seen, and the running anomaly total.</figcaption></figure>
 
   <h3>9.5 MAC Randomization Correlation</h3>
   <p>Modern phones rotate their MAC address to defeat tracking. This mode links rotating MACs back to one persistent identity using behavioral signatures, and reports the identity rather than the address.</p>
@@ -754,7 +754,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">mesh</span></td><td>mesh_guard</td></tr>
     <tr><td><span class="mono">all</span></td><td>every member above</td></tr>
   </table>
-  <p>Deauth, beacon and auth detection are always on and have no toggle. <span class="mono">SENTINEL_MODE:defend</span> pins one channel. On Headless there is no AP to pin to, so use <span class="mono">scan</span>. Sentinel is WiFi only. BLE and drone detection are separate modes.</p>
+  <p>Deauth, beacon and auth detection are always on and have no toggle. <span class="mono">SENTINEL_MODE:defend</span> pins one channel. On Headless there is no AP to pin to, so use <span class="mono">scan</span>. Sentinel is Wi-Fi only. BLE and drone detection are separate modes.</p>
   <div class="box"><span class="t">Karma bait</span>
     <p>Karma bait is the only part of the firmware that transmits: a probe request every 8 seconds to bait a karma AP into responding. It is off by default. Enable it deliberately with <span class="mono">GROUP:rogue:on</span> and only where transmitting is appropriate.</p>
   </div>
@@ -768,7 +768,7 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h3>9.8 Drone Remote ID</h3>
-  <p>Identifies drones broadcasting Remote ID (ODID / ASTM F3411, and French ID) over both WiFi beacon/NAN and BLE. Reports the serial or CAA registration, position, altitude and speed, and the operator's location when the aircraft broadcasts it.</p>
+  <p>Identifies drones broadcasting Remote ID (ODID / ASTM F3411, and French ID) over both Wi-Fi beacon/NAN and BLE. Reports the serial or CAA registration, position, altitude and speed, and the operator's location when the aircraft broadcasts it.</p>
   <pre>@ALL DRONE_START:300</pre>
   <p><span class="mono">DRONE:</span> is sent once per appearance. A drone that stays in range is not re-announced. <span class="mono">DRONE_LOST:</span> follows 120 s after the last beacon.</p>
 
@@ -780,11 +780,11 @@ python3 scripts/meshtastic_config.py</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
   <h3>9.10 Packet Capture</h3>
-  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
+  <p>Records raw traffic to SD as a standard pcap. Wi-Fi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
-  <p>Arguments are radio, seconds, band. Radio 0 WiFi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, and a management-frames-only filter.</p>
+  <p>Arguments are radio, seconds, band. Radio 0 Wi-Fi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, and a management-frames-only filter.</p>
   <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab, in the sentinel auto-response panel, or over mesh.</p>
   <pre>@ALL PCAP_LIMITS:150
 @ALL PCAP_LIMITS</pre>
@@ -929,7 +929,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
-  <p>Mode is 0 WiFi, 1 BLE, 2 both. PCAP radio 0 WiFi / 1 BLE; band is 2.4 GHz on this build.</p>
+  <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. PCAP radio 0 Wi-Fi / 1 BLE; band is 2.4 GHz on this build.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">
@@ -962,7 +962,7 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL STOP                            <span class="c"># stop everything, everywhere</span>
 @AH01 CONFIG_NODEID:GATE1            <span class="c"># name a node</span>
 @ALL CONFIG_TARGETS:AA:BB:CC|MyWiFi  <span class="c"># set the watchlist</span>
-@ALL SCAN_START:2:600:1..11          <span class="c"># 10 min watchlist scan, WiFi + BLE</span>
+@ALL SCAN_START:2:600:1..11          <span class="c"># 10 min watchlist scan, Wi-Fi + BLE</span>
 @ALL DEVICE_SCAN_START:2:300         <span class="c"># survey everything nearby</span>
 @ALL BASELINE_START:900              <span class="c"># learn the site for 15 min</span>
 @ALL SENTINEL_ON                     <span class="c"># attacker-tool detection</span>
@@ -1035,7 +1035,7 @@ docker compose up -d --build</pre>
     <li><b>Height helps more than power.</b> Get the node above metal, vehicles and crowds. A few metres of elevation beats any antenna change.</li>
     <li><b>Antennas vertical</b>, and clear of the enclosure's own metalwork and of each other.</li>
     <li><b>GPS wants sky.</b> The helix or patch needs a clear upward view. Indoors it may never lock, and without a fix your detections carry no coordinates and triangulation cannot run.</li>
-    <li><b>Keep LoRa and WiFi antennas apart</b> as far as the enclosure allows.</li>
+    <li><b>Keep LoRa and Wi-Fi antennas apart</b> as far as the enclosure allows.</li>
     <li>For multi-node triangulation, spread nodes around the area rather than in a line, and give each one a clear GPS fix. Matched antennas on every node.</li>
   </ul>
   <figure class="half"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds. The enclosure changes. The node does not.</figcaption></figure>
@@ -1080,7 +1080,7 @@ docker compose up -d --build</pre>
   <h3>14.1 Symptom table</h3>
   <table>
     <tr><th style="width:26%">Symptom</th><th>Likely cause</th><th>What to do</th></tr>
-    <tr><td>No <span class="mono">Antihunter</span> WiFi network</td><td>Headless firmware flashed, or the AP name and password were changed</td><td>Check over serial which build is running. Reflash Full if you need the UI.</td></tr>
+    <tr><td>No <span class="mono">Antihunter</span> Wi-Fi network</td><td>Headless firmware flashed, or the AP name and password were changed</td><td>Check over serial which build is running. Reflash Full if you need the UI.</td></tr>
     <tr><td>Web UI will not load</td><td>Not connected to the node's own AP, or using https</td><td>Join the node's AP, then open <b>http://192.168.4.1</b> exactly.</td></tr>
     <tr><td>Flashing fails or the port never appears</td><td>Charge-only USB cable, a serial monitor still holding the port, both USB ports connected, or the wrong browser</td><td>Use a data cable, close other serial tools, unplug the radio, use Chrome or Edge.</td></tr>
     <tr><td>SD card not detected</td><td>Not FAT32, a 32 GB or larger card, or not seated</td><td>Reformat FAT32 on a card under 32 GB. Reseating means opening the enclosure.</td></tr>
@@ -1093,7 +1093,7 @@ docker compose up -d --build</pre>
     <tr><td>Settings gone after flashing</td><td>Erase Device was ticked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
     <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
     <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behavior. Position is only attached when the fix is valid.</td></tr>
-    <tr><td>Weak GPS, LoRa or WiFi signal</td><td>The SMA joint on the pigtail is loose. Some pigtails are two-piece and the connector screws onto the bulkhead, and they ship loose from the factory</td><td>Hold the bulkhead and tighten the pigtail's SMA joint, then re-check the U.FL end and the antenna. Check every pigtail, not only the one that looks wrong.</td></tr>
+    <tr><td>Weak GPS, LoRa or Wi-Fi signal</td><td>The SMA joint on the pigtail is loose. Some pigtails are two-piece and the connector screws onto the bulkhead, and they ship loose from the factory</td><td>Hold the bulkhead and tighten the pigtail's SMA joint, then re-check the U.FL end and the antenna. Check every pigtail, not only the one that looks wrong.</td></tr>
   </table>
 
   <h3>14.2 Routine maintenance</h3>
@@ -1167,7 +1167,7 @@ docker compose up -d --build</pre>
   <ul class="small">
     <li>1× AntiHunter DIGI PCB, 82 mm, 2-layer</li>
     <li>1× Seeed XIAO ESP32-S3, 8 MB flash minimum, or XIAO ESP32-C5 for 2.4 and 5 GHz</li>
-    <li>1× Heltec WiFi LoRa 32 V3.2, T114 also compatible</li>
+    <li>1× Heltec Wi-Fi LoRa 32 V3.2, T114 also compatible</li>
     <li>1× ATGM336H GPS module</li>
     <li>1× DS3231 RTC module</li>
     <li>1× SW-420 vibration sensor</li>
@@ -1215,16 +1215,16 @@ docker compose up -d --build</pre>
   <h2>Appendix C · Defaults, addresses and files</h2>
   <table class="tight">
     <tr><th>Item</th><th>Default</th><th></th></tr>
-    <tr><td>WiFi AP name</td><td><span class="mono">Antihunter</span></td><td><b>change it</b></td></tr>
-    <tr><td>WiFi AP password</td><td><span class="mono">antihunt3r123</span></td><td><b>change it</b></td></tr>
-    <tr><td>WiFi AP hidden</td><td>off, SSID beacons</td><td>optional, see §8.1 before turning it on</td></tr>
+    <tr><td>Wi-Fi AP name</td><td><span class="mono">Antihunter</span></td><td><b>change it</b></td></tr>
+    <tr><td>Wi-Fi AP password</td><td><span class="mono">antihunt3r123</span></td><td><b>change it</b></td></tr>
+    <tr><td>Wi-Fi AP hidden</td><td>off, SSID beacons</td><td>optional, see §8.1 before turning it on</td></tr>
     <tr><td>Web UI</td><td><span class="mono">http://192.168.4.1</span></td><td>Full firmware only</td></tr>
     <tr><td>Erase PSK</td><td>not set</td><td><b>set it</b> if using erase or factory reset</td></tr>
     <tr><td>Meshtastic serial</td><td>TEXTMSG, 115200</td><td>pre-configured on tiers 1 and 3, you set it on 2 and 4</td></tr>
     <tr><td>LoRa region</td><td><span class="mono">UNSET</span>, receive only</td><td><b>set it</b></td></tr>
     <tr><td>Meshtastic channel</td><td>public default</td><td><b>replace with your own encrypted channel</b></td></tr>
     <tr><td>Scan preset</td><td>Balanced</td><td></td></tr>
-    <tr><td>WiFi channels</td><td>1 to 11</td><td></td></tr>
+    <tr><td>Wi-Fi channels</td><td>1 to 11</td><td></td></tr>
     <tr><td>Mesh dedup TTL</td><td>300 s</td><td>0 disables</td></tr>
     <tr><td>Vibration alerts</td><td>enabled</td><td>rate-limited to one per 3 s</td></tr>
     <tr><td>Vibrations required for tamper</td><td>3</td><td>range 2 to 5</td></tr>
@@ -1259,7 +1259,7 @@ docker compose up -d --build</pre>
     <tr><td><b>Remote ID</b></td><td>The broadcast identification a drone emits under ASTM F3411 and equivalent rules.</td></tr>
     <tr><td><b>RSSI</b></td><td>Received signal strength, in dBm. Less negative is stronger.</td></tr>
     <tr><td><b>NVS</b></td><td>Non-volatile storage on the ESP32 where settings persist across reboots.</td></tr>
-    <tr><td><b>SoftAP</b></td><td>The WiFi access point the Full firmware hosts for its web UI.</td></tr>
+    <tr><td><b>SoftAP</b></td><td>The Wi-Fi access point the Full firmware hosts for its web UI.</td></tr>
     <tr><td><b>U.FL / IPX</b></td><td>The miniature snap-on RF connector on each module.</td></tr>
   </table>
 </div>

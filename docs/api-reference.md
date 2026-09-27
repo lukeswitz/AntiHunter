@@ -12,7 +12,7 @@ Back to the [README](../README.md).
 |----------|--------|-------------|
 | `/` | GET | Web interface |
 | `/diag` | GET | System diagnostics |
-| `/stop` | GET | Fast-abort every scan/task: aborts in-flight WiFi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
+| `/stop` | GET | Fast-abort every scan/task: aborts in-flight Wi-Fi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
 | `/config` | GET/POST | System configuration (JSON) |
 | `/clear-results` | POST | Clear all scan results |
 
@@ -149,7 +149,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/rf-config` | POST | `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | Full custom config |
 | `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
 | `/rf-config` | POST | `bandMode` (0-2) | **C5 only.** Band: 0=2.4GHz, 1=5GHz, 2=both. Also returned by GET, and accepted on `/config` GET/POST and in the serial `CONFIG:` JSON |
-| `/wifi-config` | GET | - | WiFi AP settings (JSON) |
+| `/wifi-config` | GET | - | Wi-Fi AP settings (JSON) |
 | `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty), `auth` (0=WPA2/WPA3, 1=WPA2), `hidden` (0/1) | Update AP credentials and mode (triggers reboot). `hidden=1` stops the SSID beacon; clients must then enter the SSID manually and will probe for it by name, so the network name travels with them. Auth remains the access control |
 
 </details>
