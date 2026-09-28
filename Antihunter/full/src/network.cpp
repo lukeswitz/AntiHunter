@@ -1478,14 +1478,12 @@ void registerRemainingRoutes() {
             setPcapConfig(radio, band, pcapCh, dwell, req->hasParam("pcapMgmtOnly", true));
 
             stopRequested = false;
-            if (!ahStartScanTask(pcapCaptureTask, "pcap", 8192, secs, forever, &workerTaskHandle)) {
+            if (!ahStartScanTask(pcapCaptureTask, "pcap", 8192, secs, false, &workerTaskHandle)) {
                 scanSetCountdown(0, false);
                 req->send(500, "text/plain", "Failed to start packet capture task");
                 return;
             }
-            req->send(200, "text/plain",
-                      forever ? "Packet capture starting (forever)"
-                              : ("Packet capture starting for " + String(secs) + "s"));
+            req->send(200, "text/plain", "Packet capture starting for " + String(secs) + "s");
 
         } else {
             req->send(400, "text/plain", "Unknown detection mode");

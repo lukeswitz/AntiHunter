@@ -678,7 +678,7 @@ static void handlePcapStart(const String &command)
 
   setPcapConfig(radio, band, channels, 250, false);
   stopRequested = false;
-  if (!meshStartScanTask(pcapCaptureTask, "pcap", 8192, secs, forever, &workerTaskHandle)) {
+  if (!meshStartScanTask(pcapCaptureTask, "pcap", 8192, secs, false, &workerTaskHandle)) {
     sendToSerial1(nodeId + ": PCAP_ACK:FAILED", true);
     return;
   }
