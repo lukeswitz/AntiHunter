@@ -31,6 +31,7 @@ std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 std::atomic<uint32_t> csiSolicitMs{0};
+std::atomic<uint32_t> csiMeshGapS{0};
 std::atomic<uint8_t> csiNoTx{1};
 std::atomic<uint8_t> csiAllowRandom{1};
 std::atomic<uint32_t> csiZGateMilli{500};
@@ -142,6 +143,8 @@ static uint32_t g_areaSinceMs = 0;
 static uint32_t g_areaLastMotionMs = 0;
 static uint8_t g_areaPeakLinks = 0;
 static float g_areaPeakScore = 0.0f;
+static uint32_t g_motionTxMs = 0;
+static bool g_motionTxHeld = false;
 
 static const uint8_t CSI_EPISODES = 24;
 struct CsiEpisode {
@@ -1265,6 +1268,8 @@ void csiMotionTask(void *pv) {
     g_areaDutyPos = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
+    g_motionTxMs = 0;
+    g_motionTxHeld = false;
     csiEpisodesReset();
     g_heatLen = 0;
     g_heatSec = 60;
@@ -1479,16 +1484,22 @@ void csiMotionTask(void *pv) {
                 if (g_areaMotion) {
                     g_areaSinceMs = g_areaCandSince;
                     csiEpisodeOpen(getFormattedTimestamp());
-                    if (meshEnabled) {
+                    const uint32_t gapMs = csiMeshGapS.load() * 1000UL;
+                    g_motionTxHeld = gapMs && g_motionTxMs && (now - g_motionTxMs) < gapMs;
+                    if (g_motionTxHeld) {
+                        Serial.printf("[CSI] mesh CSI_MOTION held - %us since last send, gap %us\n",
+                                      (unsigned)((now - g_motionTxMs) / 1000), (unsigned)csiMeshGapS.load());
+                    } else if (meshEnabled) {
                         meshEnqueuePrio(getNodeId() + ": CSI_MOTION: CH=" + String(g_csiActiveChannel) +
                                         " N=" + String((int)g_areaPeakLinks) +
                                         " S=" + String(g_areaPeakScore, 2), PRIO_EVENT);
+                        g_motionTxMs = now;
                     }
                     Serial.printf("[CSI] AREA MOTION (held %us)\n", CSI_AREA_DEBOUNCE_MS / 1000);
                 } else {
                     const uint32_t dwell = (g_areaCandSince - g_areaSinceMs) / 1000;
                     csiEpisodeClose(dwell);
-                    if (meshEnabled) {
+                    if (meshEnabled && !g_motionTxHeld) {
                         meshEnqueuePrio(getNodeId() + ": CSI_CLEAR: CH=" + String(g_csiActiveChannel) +
                                         " D=" + String(dwell) + "s", PRIO_EVENT);
                     }

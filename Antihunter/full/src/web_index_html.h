@@ -748,6 +748,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   Coverage is not confined to this room. Movement through a wall reports too.
                   If a room reads wrong, change this before touching Advanced.
                 </div>
+                <label style="font-size:11px;margin-top:8px;display:block;" title="Minimum seconds between CSI_MOTION messages sent over mesh. 0 sends every alert.">Mesh alert gap (s, 0 = every alert)</label>
+                <input type="number" name="csiMeshGap" id="csiMeshGap" min="0" max="3600" value="0">
                 <details style="margin-top:4px;">
                   <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">

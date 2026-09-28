@@ -1522,6 +1522,9 @@ void registerRemainingRoutes() {
                 uint32_t c = (uint32_t)req->getParam("csiConsec", true)->value().toInt();
                 if (c >= 1 && c <= 50) csiCons = c;
             }
+            if (req->hasParam("csiMeshGap", true)) {
+                csiMeshGapS.store((uint32_t)constrain(req->getParam("csiMeshGap", true)->value().toInt(), 0, 3600));
+            }
             const bool csiTelemReq = req->hasParam("csiTelem", true) || csiTelemetry.load();
             setCsiConfig(csiCh, csiThr, csiHold, csiCons,
                          req->hasParam("csiRaw", true),
