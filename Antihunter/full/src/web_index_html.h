@@ -4673,7 +4673,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const lvl = Math.max(0, Math.min(1, (heat[i] || 0) / 255));
           const hot = hotArr.length > i && !!hotArr[i];
           const ev = evArr.length > i ? (evArr[i] || 0) : (hot ? 1 : 0);
-          const shade = (lvl > 0 || ev > 0) ? Math.max(1, Math.min(7, Math.round(lvl * 7))) : 0;
+          const shade = lvl > 0 ? Math.min(7, 1 + Math.ceil(lvl * 6)) : (ev > 0 ? 1 : 0);
           const pct = Math.round(lvl * 100);
           const evTxt = ev ? ev + (ev === 1 ? ' event' : ' events') : 'quiet';
           const tip = evTxt + ' · ' + pct + '%';
