@@ -705,7 +705,7 @@ static void handlePcapStart(const String &command)
   stopRequested = false;
   scanning = true;
   if (ahCreateTask(pcapCaptureTask, "pcap", 8192,
-                   reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                   reinterpret_cast<void*>(static_cast<intptr_t>(secs)), 1, &workerTaskHandle, 1) != pdPASS) {
     scanning = false;
     workerTaskHandle = nullptr;
     scanSetCountdown(0, false);

@@ -772,7 +772,6 @@ void pcapCaptureTask(void *pv) {
         pcapAbort("Packet capture needs a duration in seconds - forever is not allowed");
         return;
     }
-    bool forever = (duration <= 0);
 
     if (!SafeSD::isAvailable()) {
         pcapAbort("No SD card - packet capture needs SD storage");
@@ -865,26 +864,25 @@ void pcapCaptureTask(void *pv) {
     scanning = true;
     stopRequested = false;
     scanStopPending.store(false);
-    scanSetCountdown(duration, forever);
+    scanSetCountdown(duration, false);
     g_active = true;
 
-    Serial.printf("[PCAP] Started %s -> %s %s\n",
+    Serial.printf("[PCAP] Started %s -> %s for %ds\n",
                   g_radio == PCAP_RADIO_BLE ? "BLE" : "WiFi",
                   getPcapFilePath().c_str(),
-                  forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
+                  duration);
 
     if (meshEnabled) {
         meshEnqueue(getNodeId() + ": PCAP_START: " +
                     String(g_radio == PCAP_RADIO_BLE ? "BLE" : "WIFI") +
-                    " D=" + String(forever ? 0 : duration));
+                    " D=" + String(duration));
     }
 
     uint32_t lastHop = millis();
     uint32_t lastFlush = millis();
     uint32_t lastResults = 0;
 
-    while ((forever && !stopRequested) ||
-           (!forever && (int)(millis() - g_startMs) < duration * 1000 && !stopRequested)) {
+    while ((int)(millis() - g_startMs) < duration * 1000 && !stopRequested) {
 
         for (int i = 0; i < 2 && pcapDrain(f); i++) {}
 

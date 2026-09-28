@@ -1601,7 +1601,7 @@ void registerRemainingRoutes() {
             bool pcapStarted = false;
             if (!workerTaskHandle) {
                 scanning = true;
-                if (ahCreateTask(pcapCaptureTask, "pcap", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                if (ahCreateTask(pcapCaptureTask, "pcap", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(secs)), 1, &workerTaskHandle, 1) != pdPASS) {
                     scanning = false;
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
@@ -1616,9 +1616,7 @@ void registerRemainingRoutes() {
                           workerTaskHandle ? "Radio busy - stop the running scan"
                                            : "Packet capture failed to start");
             } else {
-                req->send(200, "text/plain",
-                          forever ? "Packet capture starting (forever)"
-                                  : ("Packet capture starting for " + String(secs) + "s"));
+                req->send(200, "text/plain", "Packet capture starting for " + String(secs) + "s");
             }
 
         } else {
