@@ -801,10 +801,9 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `DRONE_START` | Watch for drone Remote ID | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap. `CH` takes a comma list of channels to hop; without it the node uses its configured channels for the band | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:2:CH36,40,149` |
-| `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
-
-| `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:2:CH36,40,149` |
+| `PCAP_LIMITS` | Set or read the file size cap | `[MB]`, 8-300 | `@ALL PCAP_LIMITS:150` |
+| `SD_REPAIR` | Rebuild an unmountable SD card; erases it | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 
 > [!WARNING]
 > Stop a capture before cutting power or resetting the node. FAT has no power-fail
@@ -818,7 +817,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:0:FOREVER` |
+| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>]` | `@ALL CSI_MOTION_START:0:FOREVER:GAP60` |
 | `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
 | `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |

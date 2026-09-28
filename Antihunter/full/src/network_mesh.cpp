@@ -915,6 +915,7 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
     else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
+    else if (tok.startsWith("GAP")) csiMeshGapS.store((uint32_t)constrain(tok.substring(3).toInt(), 0, 3600));
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     else if (tok == "MGMTONLY") csiMgmtOnly.store(1);
     else if (tok == "MGMTDATA") csiMgmtOnly.store(0);

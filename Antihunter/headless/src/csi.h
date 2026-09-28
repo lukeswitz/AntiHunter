@@ -37,6 +37,7 @@ extern std::atomic<uint32_t> csiAreaRadiosNeeded;
 void setCsiAreaConfig(uint32_t dutyMinS, uint32_t radiosNeeded);
 extern std::atomic<uint32_t> csiConsecNeeded;
 extern std::atomic<uint32_t> csiSolicitMs;
+extern std::atomic<uint32_t> csiMeshGapS;
 extern std::atomic<uint8_t> csiNoTx;
 extern std::atomic<uint8_t> csiAllowRandom;
 void setCsiNoTx(bool noTx);
