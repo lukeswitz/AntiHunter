@@ -788,6 +788,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `CONFIG_DEDUP_TTL` | Set cross-scan MAC dedup | Seconds 0-3600, `0` disables | `@ALL CONFIG_DEDUP_TTL:300` |
 | `CONFIG_SESSION_DEDUP` | Toggle per-session dedup | `0`/`1` | `@ALL CONFIG_SESSION_DEDUP:1` |
 | `MESH_DEDUP_CLEAR` | Clear the dedup cache | None | `@ALL MESH_DEDUP_CLEAR` |
+| `DEVICE_DB_CLEAR` | Clear the discovered-device DB, headless only | None | `@AH01 DEVICE_DB_CLEAR` |
 
 ### Scanning
 
@@ -818,12 +819,12 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
 | `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>][:LISTEN_ONLY\|ALLOW_TRANSMIT][:MGMTONLY\|MGMTDATA][:SOLICIT<ms>]` | `@ALL CSI_MOTION_START:600:GAP60` |
-| `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
+| `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `REQUIRE_CE=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
 | `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Clear a saved threshold; use the preset | None | `@ALL CSI_RECAL` |
 
-`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` picks).
+`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 2) · `BROADCAST=ON|OFF` (default OFF) · `ALLOW_RANDOM=ON|OFF` (default ON) · `REQUIRE_CE=ON|OFF` (default OFF) · `CH=<n>` (`0` picks).
 
 On the first CSI start after boot each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
 
