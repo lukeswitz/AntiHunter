@@ -657,6 +657,12 @@ static void handlePcapStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
+  if (forever || secs == 0) {
+    Serial.println("[MESH] PCAP_START needs a duration, rejecting");
+    sendToSerial1(nodeId + ": PCAP_ACK:FAILED", true);
+    return;
+  }
+
   if (!SafeSD::isAvailable()) {
     Serial.println("[MESH] No SD, rejecting PCAP_START");
     sendToSerial1(nodeId + ": PCAP_ACK:NOSD", true);
