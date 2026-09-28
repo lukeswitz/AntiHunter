@@ -1291,7 +1291,19 @@ static void csiForceHt20() {
     bw.ghz_2g = WIFI_BW_HT20;
     bw.ghz_5g = WIFI_BW_HT20;
     const esp_err_t sta = esp_wifi_set_bandwidths(WIFI_IF_STA, &bw);
-    const esp_err_t ap = esp_wifi_set_bandwidths(WIFI_IF_AP, &bw);
+    wifi_bandwidths_t apBw = {};
+    const esp_err_t apGet = esp_wifi_get_bandwidths(WIFI_IF_AP, &apBw);
+    const int clients = WiFi.softAPgetStationNum();
+    const bool apHt20 = apGet == ESP_OK && apBw.ghz_2g == WIFI_BW_HT20 && apBw.ghz_5g == WIFI_BW_HT20;
+    esp_err_t ap = ESP_OK;
+    if (apHt20) {
+        ap = ESP_OK;
+    } else if (clients > 0) {
+        Serial.printf("[CSI] AP bandwidth left at 2g=%d 5g=%d - %d client(s) connected\n",
+                      (int)apBw.ghz_2g, (int)apBw.ghz_5g, clients);
+    } else {
+        ap = esp_wifi_set_bandwidths(WIFI_IF_AP, &bw);
+    }
     Serial.printf("[CSI] bandwidth HT20 sta=%s ap=%s\n",
                   esp_err_to_name(sta), esp_err_to_name(ap));
 }
@@ -1430,6 +1442,11 @@ void csiMotionTask(void *pv) {
     bool forever = (duration <= 0);
     uint8_t ch = csiPinnedChannel.load();
     const bool autoChannel = (ch == 0);
+    const bool skipSurvey = autoChannel && WiFi.softAPgetStationNum() > 0;
+    if (skipSurvey) {
+        ch = (uint8_t)AP_CHANNEL;
+        Serial.printf("[CSI] AP client connected - skipping survey, staying on ch%u\n", ch);
+    }
 
     Serial.printf("[CSI] Starting motion detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
@@ -1506,7 +1523,7 @@ void csiMotionTask(void *pv) {
     scanStopPending.store(false);
     scanSetCountdown(duration, forever);
 
-    if (autoChannel) {
+    if (autoChannel && !skipSurvey) {
         uint8_t picked = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
         if (picked != 0 && csiIsPeer(g_surveyPickMac)) {
             Serial.printf("[CSI] ch%u was won by peer node %s - surveying again\n",
