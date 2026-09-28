@@ -5699,6 +5699,10 @@ R"HTML(
           document.getElementById('baselineMonitorDuration').disabled = true;
         }
         document.getElementById('forever3').disabled = document.getElementById('detectionDuration').disabled;
+        const isPcap = selectedMethod === 'pcap';
+        if (isPcap) document.getElementById('forever3').checked = false;
+        document.getElementById('forever3').parentElement.style.display = isPcap ? 'none' : '';
+        document.getElementById('detectionDuration').min = isPcap ? 1 : 0;
         document.getElementById('foreverBaseline').disabled = document.getElementById('baselineMonitorDuration').disabled;
       });
 

@@ -40,7 +40,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
-| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap. `CH` takes a comma list of channels to hop; without it the node uses its configured channels | `radio:secs:band[:CH<list>][:FOREVER]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap. `CH` takes a comma list of channels to hop; without it the node uses its configured channels | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
 | `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
 | `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 

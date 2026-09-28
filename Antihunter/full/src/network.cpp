@@ -1450,6 +1450,11 @@ void registerRemainingRoutes() {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
+            if (forever || secs == 0) {
+                req->send(400, "text/plain", "Packet capture needs a duration in seconds");
+                return;
+            }
+
             if (!SafeSD::isAvailable()) {
                 req->send(409, "text/plain", "No SD card - packet capture needs SD storage");
                 return;

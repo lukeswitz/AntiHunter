@@ -743,6 +743,10 @@ void pcapCaptureTask(void *pv) {
     sentinel_yieldAndWait(1500);
 
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int *>(pv)));
+    if (duration <= 0) {
+        pcapAbort("Packet capture needs a duration in seconds - forever is not allowed");
+        return;
+    }
     bool forever = (duration <= 0);
 
     if (!SafeSD::isAvailable()) {

@@ -12,7 +12,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 
 - **Packet capture to SD.** Wireshark-ready pcap, Wi-Fi and BLE.
   - Start from the Scan tab, vibration, or `PCAP_START`.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it.
+  - `PCAP_START:radio:secs:band[:CH<list>]`; `PCAP_STOP` ends it.
   - Size cap 8–300 MB, default 100 (`PCAP_LIMITS:<MB>`).
   - Also stops at the free-space floor or repeated write failures.
   - The stop line lists the channels visited.
