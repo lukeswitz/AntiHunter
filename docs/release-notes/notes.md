@@ -1,6 +1,6 @@
 # AntiHunter v1.0.3
 
-CSI motion, packet capture, Sentinel response, local time, fixes.
+Scan tab redesign, scan scheduler, CSI motion, packet capture, Sentinel response, local time, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -10,6 +10,22 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 
 ## New
 
+- **Scan tab redesign.** One panel for every scan.
+  - Scan picker grid across the top; icons colored by group (Recon, Detection, Capture).
+  - Options on the left, schedule on the right.
+  - Targets and Allow list share one editor with tabs.
+  - On a phone the picker is a 3-column grid and Start stays at the bottom of the screen.
+- **Scan scheduler.** Runs any scan at set times, with the page closed.
+  - Scan tab → pick a scan → Schedule this scan → Start, Duration, Repeat.
+  - Repeat: once, hourly, every 6 h, every 12 h, daily, weekly.
+  - Start is node local time from the GPS zone, shown as its abbreviation (MST, MDT).
+  - Daily and weekly blocks keep their clock time across daylight saving.
+  - Up to 8 blocks, kept in NVS across reboots.
+  - A block that comes due while the radio is busy runs when it frees.
+- **Interrupt scheduled scans** (vibration auto-scan). Off by default.
+  - System tab → Vibration Auto-Scan, or the `VIBSCAN_SET` 5th field.
+  - On: the vibration scan stops the scheduled scan, runs, then the scheduled scan resumes for its remaining time.
+  - The scheduler never takes the radio while a triggered scan waits for it.
 - **Packet capture to SD.** Wireshark-ready pcap, Wi-Fi and BLE.
   - Start from the Scan tab, vibration, or `PCAP_START`.
   - `PCAP_START:radio:secs:band[:CH<list>]`; `PCAP_STOP` ends it.
@@ -49,7 +65,9 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 | `PCAP_LIMITS` | `[MB]`, 8-300 | all | New |
 | `SD_REPAIR` | `ON\|OFF\|NOW` | all | New |
 | `MESH_TX_CANCEL` | none | all | New |
-| `VIBSCAN_SET` / `VIBSCAN_STATUS` | `en:mode:dur[:cooldown]` | all | New on stable; mode `8` is packet capture |
+| `VIBSCAN_SET` / `VIBSCAN_STATUS` | `en:mode:dur[:cooldown[:interrupt]]` | all | New on stable; mode `8` is packet capture; `interrupt` lets it stop a scheduled scan |
+| `SCHED_ADD` | `YYYY-MM-DDTHH:MM\|repeat s\|path\|body` | all | New |
+| `SCHED_LIST` / `SCHED_DEL` | none / `<block number>` | all | New; list prints to serial |
 | `SCAN_START` | `mode:secs[:channels][:FOREVER]` | all | `FOREVER` accepted without channels |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER][:+PROBE]` | all | `+PROBE` added |
 | `CONFIG_ERASE_PSK` | `<new>:<hmac>` | all | Needs HMAC from the current PSK; can't be cleared |
@@ -72,7 +90,11 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 > [!IMPORTANT]
 > **Listen-only by default.** `ALLOW_TRANSMIT` or `BROADCAST=ON` sends probes, which are visible. Check local law.
 
+- **Sentinel attack response can interrupt scheduled scans.** Off by default.
+  - Sentinel tab → On confirmed attack → Interrupt scheduled scans.
+  - Same stop, run and resume as vibration.
 - **CSI movement view** (web UI): state, log, heat strip.
+- CSI sensitivity labels: Low (Fewest False Alarms), Medium (More Sensitive), High (Most Sensitive).
 - Accent colors also cover movement hits.
 - Headless: discovered devices persist across scans.
 - Task-creation failures log the free and largest block.
@@ -87,6 +109,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
   - Detects less cleanly than an S3.
   - Details: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
 - **Packet capture band:** 2.4 GHz, 5 GHz, or both.
+- CSI presets matched to the S3 night alert rate: Low and Medium 0.500, High 0.400.
 
 ## Fixed
 
@@ -143,6 +166,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 - Flasher script: a blank AP password keeps the firmware default.
 - AP MAC randomization fix.
 - `memcpy` length guard against a Wi-Fi driver underflow.
+- Dropdown arrows no longer tile across the box in Safari.
 
 ## Hardware
 
