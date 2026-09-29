@@ -720,7 +720,7 @@ static int schedPost(const String &path, const String &body) {
   lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   lwip_setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
   char resp[128] = {0};
-  if (lwip_connect(s, (struct sockaddr *)&a, sizeof(a)) == 0) {
+  if (lwip_connect(s, reinterpret_cast<struct sockaddr *>(&a), sizeof(a)) == 0) {
     String req = "POST " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\n"
                  "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: " +
                  String(body.length()) + "\r\nConnection: close\r\n\r\n" + body;
