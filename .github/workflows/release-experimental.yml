@@ -135,7 +135,7 @@ jobs:
       run: |
         cd release
         sha256sum *.factory.bin *.elf > "SHA256SUMS-${GITHUB_REF_NAME}.txt"
-        cat SHA256SUMS.txt
+        cat "SHA256SUMS-${GITHUB_REF_NAME}.txt"
 
     - name: Publish bins and manifests to main
       run: |
