@@ -711,9 +711,9 @@ static bool schedPathOk(const String &p) {
   return p == "/scan" || p == "/sniffer" || p == "/drone";
 }
 
-static void schedPost(const String &path, const String &body) {
+static int schedPost(const String &path, const String &body) {
   int s = lwip_socket(AF_INET, SOCK_STREAM, 0);
-  if (s < 0) { Serial.println("[SCHED] socket failed"); return; }
+  if (s < 0) { Serial.println("[SCHED] socket failed"); return 0; }
   struct sockaddr_in a = {};
   a.sin_family = AF_INET;
   a.sin_port = htons(80);
@@ -733,6 +733,9 @@ static void schedPost(const String &path, const String &body) {
   char *eol = strchr(resp, '\r');
   if (eol) *eol = 0;
   Serial.printf("[SCHED] %s -> %s\n", path.c_str(), resp[0] ? resp : "no response");
+  int code = 0;
+  if (sscanf(resp, "HTTP/%*d.%*d %d", &code) != 1) code = 0;
+  return code;
 }
 
 void scheduleTick() {
@@ -742,12 +745,12 @@ void scheduleTick() {
   if (scanBusy() || triangulationActive) return;
   time_t now = schedNow();
   if (!now) return;
-  String firePath, fireBody;
+  String fireLine;
   {
     std::lock_guard<std::mutex> lk(s_schedMutex);
     if (!s_sched.length()) return;
     String out;
-    bool changed = false;
+    bool dropped = false;
     int p = 0;
     while (p < (int)s_sched.length()) {
       int nl = s_sched.indexOf('\n', p);
@@ -755,25 +758,42 @@ void scheduleTick() {
       String ln = s_sched.substring(p, nl);
       p = nl + 1;
       int a = ln.indexOf('|'), b = ln.indexOf('|', a + 1), c = ln.indexOf('|', b + 1);
-      if (a < 0 || b < 0 || c < 0) { changed = true; continue; }
-      time_t next = (time_t)ln.substring(0, a).toInt();
-      uint32_t period = (uint32_t)ln.substring(a + 1, b).toInt();
-      if (!firePath.length() && next <= now) {
-        firePath = ln.substring(b + 1, c);
-        fireBody = ln.substring(c + 1);
-        changed = true;
-        if (!period) continue;
-        while (next <= now) next = (period % 86400 == 0) ? nodeLocalAddDays(next, period / 86400) : next + period;
-        ln = String((uint32_t)next) + ln.substring(a);
-      }
+      if (a < 0 || b < 0 || c < 0 || !schedPathOk(ln.substring(b + 1, c))) { dropped = true; continue; }
+      if (!fireLine.length() && (time_t)ln.substring(0, a).toInt() <= now) fireLine = ln;
       out += ln + "\n";
     }
-    if (changed) {
+    if (dropped) {
       s_sched = out;
       prefs.putString("sched", s_sched);
     }
   }
-  if (firePath.length() && schedPathOk(firePath)) schedPost(firePath, fireBody);
+  if (!fireLine.length()) return;
+  int a = fireLine.indexOf('|'), b = fireLine.indexOf('|', a + 1), c = fireLine.indexOf('|', b + 1);
+  int code = schedPost(fireLine.substring(b + 1, c), fireLine.substring(c + 1));
+  if (code == 0 || code == 409) return;
+  std::lock_guard<std::mutex> lk(s_schedMutex);
+  String out;
+  bool done = false;
+  int p = 0;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    if (!done && ln == fireLine) {
+      done = true;
+      time_t next = (time_t)ln.substring(0, a).toInt();
+      uint32_t period = (uint32_t)ln.substring(a + 1, b).toInt();
+      if (!period) continue;
+      while (next <= now) next = (period % 86400 == 0) ? nodeLocalAddDays(next, period / 86400) : next + period;
+      ln = String((uint32_t)next) + ln.substring(a);
+    }
+    out += ln + "\n";
+  }
+  if (done) {
+    s_sched = out;
+    prefs.putString("sched", s_sched);
+  }
 }
 
 void registerRemainingRoutes() {
