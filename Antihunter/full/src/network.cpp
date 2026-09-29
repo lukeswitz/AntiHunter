@@ -689,7 +689,177 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 }
 
 
+static std::mutex s_schedMutex;
+static String s_sched;
+static int64_t s_schedClockOff = 0;
+
+static time_t schedNow() {
+  time_t e = getRTCEpoch();
+  if (e > 1609459200) return e;
+  return s_schedClockOff ? (time_t)(s_schedClockOff + esp_timer_get_time() / 1000000) : 0;
+}
+
+static void schedLearnClock(AsyncWebServerRequest *req) {
+  const AsyncWebParameter *p = req->hasParam("now", true) ? req->getParam("now", true)
+                             : req->hasParam("now") ? req->getParam("now") : nullptr;
+  if (!p) return;
+  int64_t e = p->value().toInt();
+  if (e > 1609459200) s_schedClockOff = e - esp_timer_get_time() / 1000000;
+}
+
+static bool schedPathOk(const String &p) {
+  return p == "/scan" || p == "/sniffer" || p == "/drone";
+}
+
+static void schedPost(const String &path, const String &body) {
+  int s = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  if (s < 0) { Serial.println("[SCHED] socket failed"); return; }
+  struct sockaddr_in a = {};
+  a.sin_family = AF_INET;
+  a.sin_port = htons(80);
+  a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  struct timeval tv = {3, 0};
+  lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  lwip_setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  char resp[128] = {0};
+  if (lwip_connect(s, (struct sockaddr *)&a, sizeof(a)) == 0) {
+    String req = "POST " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                 "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: " +
+                 String(body.length()) + "\r\nConnection: close\r\n\r\n" + body;
+    lwip_send(s, req.c_str(), req.length(), 0);
+    lwip_recv(s, resp, sizeof(resp) - 1, 0);
+  }
+  lwip_close(s);
+  char *eol = strchr(resp, '\r');
+  if (eol) *eol = 0;
+  Serial.printf("[SCHED] %s -> %s\n", path.c_str(), resp[0] ? resp : "no response");
+}
+
+void scheduleTick() {
+  static uint32_t last = 0;
+  if (millis() - last < 5000) return;
+  last = millis();
+  if (scanBusy() || triangulationActive) return;
+  time_t now = schedNow();
+  if (!now) return;
+  String firePath, fireBody;
+  {
+    std::lock_guard<std::mutex> lk(s_schedMutex);
+    if (!s_sched.length()) return;
+    String out;
+    bool changed = false;
+    int p = 0;
+    while (p < (int)s_sched.length()) {
+      int nl = s_sched.indexOf('\n', p);
+      if (nl < 0) nl = s_sched.length();
+      String ln = s_sched.substring(p, nl);
+      p = nl + 1;
+      int a = ln.indexOf('|'), b = ln.indexOf('|', a + 1), c = ln.indexOf('|', b + 1);
+      if (a < 0 || b < 0 || c < 0) { changed = true; continue; }
+      time_t next = (time_t)ln.substring(0, a).toInt();
+      uint32_t period = (uint32_t)ln.substring(a + 1, b).toInt();
+      if (!firePath.length() && next <= now) {
+        firePath = ln.substring(b + 1, c);
+        fireBody = ln.substring(c + 1);
+        changed = true;
+        if (!period) continue;
+        while (next <= now) next = (period % 86400 == 0) ? nodeLocalAddDays(next, period / 86400) : next + period;
+        ln = String((uint32_t)next) + ln.substring(a);
+      }
+      out += ln + "\n";
+    }
+    if (changed) {
+      s_sched = out;
+      prefs.putString("sched", s_sched);
+    }
+  }
+  if (firePath.length() && schedPathOk(firePath)) schedPost(firePath, fireBody);
+}
+
 void registerRemainingRoutes() {
+  {
+    std::lock_guard<std::mutex> lk(s_schedMutex);
+    s_sched = prefs.getString("sched", "");
+  }
+
+  server->on("/schedule", HTTP_GET, [](AsyncWebServerRequest *req) {
+      schedLearnClock(req);
+      time_t now = schedNow();
+      String out = (now ? nodeLocalString(now) : String("")) + "|" + nodeTZAbbrev(now) + "\n";
+      {
+        std::lock_guard<std::mutex> lk(s_schedMutex);
+        int p = 0;
+        while (p < (int)s_sched.length()) {
+          int nl = s_sched.indexOf('\n', p);
+          if (nl < 0) nl = s_sched.length();
+          String ln = s_sched.substring(p, nl);
+          p = nl + 1;
+          out += nodeLocalString((time_t)ln.substring(0, ln.indexOf('|')).toInt()) + "|" + ln + "\n";
+        }
+      }
+      req->send(200, "text/plain", out);
+  });
+
+  server->on("/schedule", HTTP_POST, [](AsyncWebServerRequest *req) {
+      schedLearnClock(req);
+      std::lock_guard<std::mutex> lk(s_schedMutex);
+      if (req->hasParam("del", true)) {
+        String del = req->getParam("del", true)->value();
+        String out;
+        bool found = false;
+        int p = 0;
+        while (p < (int)s_sched.length()) {
+          int nl = s_sched.indexOf('\n', p);
+          if (nl < 0) nl = s_sched.length();
+          String ln = s_sched.substring(p, nl);
+          p = nl + 1;
+          if (!found && ln == del) { found = true; continue; }
+          out += ln + "\n";
+        }
+        if (!found) {
+          req->send(404, "text/plain", "Block changed since the list loaded - refresh and retry");
+          return;
+        }
+        s_sched = out;
+        prefs.putString("sched", s_sched);
+        req->send(200, "text/plain", "Block removed");
+        return;
+      }
+      if (!req->hasParam("at", true) || !req->hasParam("period", true) ||
+          !req->hasParam("path", true) || !req->hasParam("body", true)) {
+        req->send(400, "text/plain", "Missing at, period, path or body");
+        return;
+      }
+      int y, mo, d, h, mi;
+      if (sscanf(req->getParam("at", true)->value().c_str(), "%d-%d-%dT%d:%d", &y, &mo, &d, &h, &mi) != 5 ||
+          mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59) {
+        req->send(400, "text/plain", "Invalid start time");
+        return;
+      }
+      long next = (long)nodeLocalToEpoch(y, mo, d, h, mi);
+      long period = req->getParam("period", true)->value().toInt();
+      String path = req->getParam("path", true)->value();
+      String body = req->getParam("body", true)->value();
+      if (next < 1609459200 || period < 0 || (period > 0 && period < 600) || period > 2678400) {
+        req->send(400, "text/plain", "Invalid start time or repeat");
+        return;
+      }
+      if (!schedPathOk(path) || body.indexOf('\n') >= 0 || body.indexOf('|') >= 0 || body.length() > 1024) {
+        req->send(400, "text/plain", "Invalid scan request");
+        return;
+      }
+      String ln = String((uint32_t)next) + "|" + String(period) + "|" + path + "|" + body + "\n";
+      int count = 0;
+      for (unsigned i = 0; i < s_sched.length(); i++) if (s_sched[i] == '\n') count++;
+      if (count >= 8 || s_sched.length() + ln.length() > 3800) {
+        req->send(413, "text/plain", "Schedule full: 8 blocks or 3800 bytes of NVS per schedule");
+        return;
+      }
+      s_sched += ln;
+      prefs.putString("sched", s_sched);
+      req->send(200, "text/plain", "Block added");
+  });
+
   server->on("/api/time", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("epoch", true)) {
           req->send(400, "text/plain", "Missing epoch");
