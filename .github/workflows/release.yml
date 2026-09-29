@@ -67,12 +67,11 @@ jobs:
         # bootloader + partitions MUST come from the fresh build (IDF/core version must match the app)
         cp .pio/build/AntiHunter-full/bootloader.bin release/
         cp .pio/build/AntiHunter-full/partitions.bin release/
+        cp .pio/build/AntiHunter-full/firmware.elf "release/antihunter-full-${VERSION}.elf"
 
         pio run -e AntiHunter-headless
         test -f .pio/build/AntiHunter-headless/firmware.bin
         cp .pio/build/AntiHunter-headless/firmware.bin "release/antihunter-headless-${VERSION}.bin"
-
-        cp .pio/build/AntiHunter-full/firmware.elf "release/antihunter-full-${VERSION}.elf"
         cp .pio/build/AntiHunter-headless/firmware.elf "release/antihunter-headless-${VERSION}.elf"
 
         cp Dist/flashAntihunter.sh release/
