@@ -674,7 +674,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL DEAUTH_START:300</pre>
   <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
 
-  <h3>9.7 Sentinel counter-intelligence</h3>
+  <h3>9.7 Sentinel counter-intelligence <span style="font-size:.7em;opacity:.7">(beta)</span></h3>
   <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
@@ -716,7 +716,7 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL TRIANGULATE_STOP</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
-  <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental)</span></h3>
+  <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, beta firmware only)</span></h3>
   <p>Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.</p>
   <p><b>How it works.</b> Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.</p>
   <p><b>Start it:</b> Scan tab → CSI Motion Detection → Start Scan. Over mesh:</p>
