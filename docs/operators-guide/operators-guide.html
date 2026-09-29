@@ -166,7 +166,7 @@
     <div><span class="n">6</span> Staying up to date<span class="s">Release channels, GitHub notifications, rollback</span></div>
     <div><span class="n">7</span> Mesh radio setup<span class="s">Region, encrypted channel, quiet-ops settings</span></div>
     <div><span class="n">8</span> First configuration<span class="s">Credentials, node ID, scan presets, privacy</span></div>
-    <div><span class="n">9</span> Using the node<span class="s">Every detector, what it finds, how to run it</span></div>
+    <div><span class="n">9</span> Using the node<span class="s">Every detector, what it finds, how to run it, scheduling</span></div>
     <div><span class="n">10</span> Vibration sensor and tamper<span class="s">How it works, tuning the trimpot, auto-erase</span></div>
     <div><span class="n">11</span> Mesh command reference<span class="s">Everything you can send from a phone</span></div>
     <div><span class="n">12</span> Command Center (C2)<span class="s">Quick install, first login, connecting a radio</span></div>
@@ -637,7 +637,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h2><span class="num">9</span>Using the node</h2>
   <p class="lead">Every capability runs on the node itself and reports to the web UI, the mesh and the Command Center alike. One scan mode runs at a time.</p>
 
-  <figure><img src="../img/node-photo.jpg" alt=""><figcaption>The Scan tab on the Full firmware: watchlist and scan mode on the left, detection method on the right. Every one of these runs from a mesh command too.</figcaption></figure>
+  <figure><img src="../img/scan-tab.jpg" alt=""><figcaption>The Scan tab on the Full firmware: pick a scan in the top row, set its options on the left, schedule it on the right. Every scan also runs from a mesh command.</figcaption></figure>
 
   <h3>9.1 Target Scan</h3>
   <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
@@ -736,7 +736,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Trigger level</td><td>Lower catches smaller movement</td><td>set by sensitivity</td></tr>
     <tr><td>Listen only, never transmit</td><td>The node never sends probes. Turn off only if it sees too little Wi-Fi</td><td>On</td></tr>
     <tr><td>Include randomized-MAC devices</td><td>Also listen to phones and watches, not just routers</td><td>On</td></tr>
-    <tr><td>Mesh alert gap</td><td>Wait at least this many seconds between alerts sent over mesh</td><td>0 (off)</td></tr>
+    <tr><td>Min. seconds between mesh motion alerts</td><td>Wait at least this many seconds between motion alerts sent over mesh</td><td>0 (no limit)</td></tr>
   </table>
   <p><b>Getting false alarms with nobody there?</b> Turn on "Per-packet score to serial", watch the <span class="mono">sig</span> numbers while the room is empty, and set Trigger level just above the highest one.</p>
   <div class="box"><span class="t">Can transmit</span>
@@ -766,7 +766,31 @@ python3 scripts/meshtastic_config.py</pre>
     <p><span class="mono">NOW</span> repairs once without changing the setting. With repair off, a failed mount says so once a minute and the SD line in Diagnostics shows how many times it has failed.</p>
   </div>
 
-  <h3>9.12 Reading the results</h3>
+  <h3>9.12 Scheduling scans</h3>
+  <p>The Schedule panel on the Scan tab runs any scan at set times. The node runs it, so the web page can be closed.</p>
+  <ol>
+    <li>Pick the scan in the top row and set its options.</li>
+    <li>Press <b>Schedule this scan</b>.</li>
+    <li>Set <b>Start</b>, <b>Duration</b> in minutes and <b>Repeat</b>, then press <b>Add</b>.</li>
+  </ol>
+  <p>The block keeps the options that were set when you added it. Changing the scan's options later does not change the block. Delete it and add it again instead.</p>
+  <table class="tight">
+    <tr><th>Setting</th><th>Values</th></tr>
+    <tr><td>Start</td><td>Date and time in the node's local time, shown with its zone, for example MST</td></tr>
+    <tr><td>Duration</td><td>1 to 1440 minutes</td></tr>
+    <tr><td>Repeat</td><td>Once, hourly, every 6 hours, every 12 hours, daily, weekly</td></tr>
+  </table>
+  <ul>
+    <li><b>Time zone.</b> The node picks its zone from the GPS fix, daylight saving included. Daily and weekly blocks keep the same clock time across a daylight saving change. With no GPS fix, or outside the zone table, times are UTC.</li>
+    <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot.</li>
+    <li><b>Limits.</b> 8 blocks. They are kept in NVS and survive reboots.</li>
+    <li><b>Baseline blocks.</b> Adding one saves the baseline settings on the Scan tab to the node, and each run uses the baseline settings saved at that time.</li>
+  </ul>
+  <div class="box"><span class="t">Clock</span>
+    <p>Schedules need the clock from §4.3. On a node without a working RTC, blocks wait until the web UI is opened once after boot, which gives the node the time.</p>
+  </div>
+
+  <h3>9.13 Reading the results</h3>
   <ul>
     <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, packet captures in <span class="mono">/pcap</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
     <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
