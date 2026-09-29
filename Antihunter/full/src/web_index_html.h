@@ -1288,8 +1288,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
               </div>
             </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+              <label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Interrupt scheduled scans; the schedule resumes after</span>
+            </div>
             <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
-            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver</div>
+            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver, unless the running scan is scheduled and Interrupt is on</div>
           </div>
       </div>
       </div>
@@ -1802,6 +1806,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <span class="ar-name">Drone RID</span>
                 <input type="number" id="arSecDrone" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Interrupt scheduled scans; the schedule resumes after</span>
               </div>
               <div class="ar-row ar-limits">
                 <span class="ar-name">Auto-capture budget</span>
@@ -3813,6 +3821,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('vibScanMode').value = d.mode;
           document.getElementById('vibScanDur').value = d.duration;
           document.getElementById('vibScanCd').value = d.cooldown;
+          document.getElementById('vibScanPre').checked = !!d.preempt;
         } catch(e){ console.warn('vibscan load failed', e); }
       }
       async function saveVibScanConfig() {
@@ -3821,6 +3830,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         fd.append('mode', document.getElementById('vibScanMode').value);
         fd.append('duration', document.getElementById('vibScanDur').value);
         fd.append('cooldown', document.getElementById('vibScanCd').value);
+        fd.append('preempt', document.getElementById('vibScanPre').checked ? 1 : 0);
         try {
           const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
           toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
@@ -7492,7 +7502,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(at)at.checked=_detCfg.attacker_trilat===true;
         arLoad();
       }
-      const AR_BITS={arPcap:0x02,arDevice:0x04,arProbe:0x08,arDrone:0x10};
+      const AR_BITS={arPcap:0x02,arDevice:0x04,arProbe:0x08,arDrone:0x10,arPreempt:0x20};
       function arLoad(){
         const m=_detCfg.attack_resp_mask||0;
         for(const id in AR_BITS){

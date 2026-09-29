@@ -82,6 +82,7 @@ uint8_t vibAutoScanMode = 0;
 uint16_t vibAutoScanDuration = 60;
 uint32_t vibAutoScanCooldownMs = 60000;
 volatile bool vibAutoScanPending = false;
+bool vibAutoScanPreempt = false;
 unsigned long lastVibAutoScanFire = 0;
 
 // Diagnostics & Config
@@ -536,6 +537,7 @@ void syncSettingsToNVS() {
     prefs.putUChar("vibScanMode", vibAutoScanMode);
     prefs.putUShort("vibScanDur", vibAutoScanDuration);
     prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    prefs.putBool("vibScanPre", vibAutoScanPreempt);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -595,6 +597,7 @@ static uint32_t configSignature() {
     mix(&vibAutoScanMode, sizeof(vibAutoScanMode));
     mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
     mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
+    mix(&vibAutoScanPreempt, 1);
     mixStr(prefsGetString("apPass", AP_PASS));
     return h;
 }
@@ -702,6 +705,7 @@ void saveConfiguration() {
     cw.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
     cw.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
     cw.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
+    cw.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
     cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
     cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
@@ -746,6 +750,7 @@ void loadConfiguration() {
         vibAutoScanMode = prefs.getUChar("vibScanMode", 0);
         vibAutoScanDuration = prefs.getUShort("vibScanDur", 60);
         vibAutoScanCooldownMs = prefs.getUInt("vibScanCd", 60000);
+        vibAutoScanPreempt = prefs.getBool("vibScanPre", false);
         return;
     }
 
@@ -1039,6 +1044,11 @@ void loadConfiguration() {
     if (doc.containsKey("vibScanCooldown")) {
         vibAutoScanCooldownMs = doc["vibScanCooldown"].as<uint32_t>();
         prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    }
+
+    if (doc.containsKey("vibScanPreempt")) {
+        vibAutoScanPreempt = doc["vibScanPreempt"].as<bool>();
+        prefs.putBool("vibScanPre", vibAutoScanPreempt);
     }
 
     if (doc.containsKey("meshEnabled")) {

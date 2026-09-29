@@ -151,6 +151,7 @@ extern uint8_t vibAutoScanMode;
 extern uint16_t vibAutoScanDuration;
 extern uint32_t vibAutoScanCooldownMs;
 extern volatile bool vibAutoScanPending;
+extern bool vibAutoScanPreempt;
 extern unsigned long lastVibAutoScanFire;
 
 void initializeHardware();
