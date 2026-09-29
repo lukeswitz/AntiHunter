@@ -721,28 +721,32 @@ python3 scripts/meshtastic_config.py</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
   <h3>9.10 CSI Motion Detection</h3>
-  <p>Detects movement through walls from the Wi-Fi around it. Indoor only.</p>
+  <p>Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.</p>
+  <p><b>How it works.</b> Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.</p>
+  <p><b>Start it:</b> Scan tab → CSI Motion Detection → Start Scan. Over mesh:</p>
   <pre>@ALL CSI_MOTION_START:0:FOREVER</pre>
-  <p>Leave the channel at 0; the node picks one and moves if it goes quiet. One <span class="mono">CSI_MOTION:</span> when movement starts, one <span class="mono">CSI_CLEAR:</span> when it stops.</p>
-  <p>Scan tab → CSI Motion → Advanced:</p>
+  <p><b>Pick a sensitivity:</b></p>
+  <ul>
+    <li><b>Low</b> (default): fewest false alarms. Two devices must see the movement.</li>
+    <li><b>Medium</b>: more sensitive. Two devices, or one device seeing a very strong change (4× the trigger).</li>
+    <li><b>High</b>: most sensitive. Same as Medium with a lower trigger and a shorter wait. More false alarms.</li>
+  </ul>
+  <p><b>Settings</b> (Scan tab → CSI Motion Detection; most are under Advanced):</p>
   <table>
-    <tr><th>Option</th><th>Does</th><th>Range</th></tr>
-    <tr><td>Movement needed before alerting</td><td>Seconds of movement before an alert</td><td>2–60 s</td></tr>
-    <tr><td>Stillness before all-clear</td><td>Seconds of quiet before clearing</td><td>1–120 s</td></tr>
-    <tr><td>Devices that must agree</td><td>Devices moving at once to alert</td><td>1–12</td></tr>
-    <tr><td>Trigger level</td><td>Lower is more sensitive</td><td>0.005–20</td></tr>
-    <tr><td>Packets in a row before alerting</td><td>Filters single-packet spikes</td><td>1–50</td></tr>
-    <tr><td>Listen only, never transmit</td><td>Stops probing; needs busy Wi-Fi nearby</td><td>off</td></tr>
-    <tr><td>Include randomized-MAC devices</td><td>Adds phones and watches</td><td>off</td></tr>
-    <tr><td>Per-packet score / Raw CSI to serial</td><td>Debug output</td><td>off</td></tr>
+    <tr><th>Setting</th><th>What it means</th><th>Default</th></tr>
+    <tr><td>Movement needed before alerting</td><td>How long someone must move before you get an alert</td><td>8 s</td></tr>
+    <tr><td>Stillness before all-clear</td><td>How long it must be quiet before the alert clears</td><td>5 s</td></tr>
+    <tr><td>Devices that must agree</td><td>How many devices must see the movement at the same time</td><td>2</td></tr>
+    <tr><td>Trigger level</td><td>Lower catches smaller movement</td><td>set by sensitivity</td></tr>
+    <tr><td>Listen only, never transmit</td><td>The node never sends probes. Turn off only if it sees too little Wi-Fi</td><td>On</td></tr>
+    <tr><td>Include randomized-MAC devices</td><td>Also listen to phones and watches, not just routers</td><td>On</td></tr>
+    <tr><td>Mesh alert gap</td><td>Wait at least this many seconds between alerts sent over mesh</td><td>0 (off)</td></tr>
   </table>
-  <p>A preset fills trigger, movement and devices. Mesh uses <span class="mono">CSI_CFG</span> (§11).</p>
-  <div class="box"><span class="t">Transmit</span>
-    <p>On by default: probes quiet devices, up to 5 a second. Anyone nearby can see it. Check local law.</p>
+  <p><b>Getting false alarms with nobody there?</b> Turn on "Per-packet score to serial", watch the <span class="mono">sig</span> numbers while the room is empty, and set Trigger level just above the highest one.</p>
+  <div class="box"><span class="t">Can transmit</span>
+    <p>Off by default. If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.</p>
   </div>
-  <div class="box"><span class="t">S3 and C5</span>
-    <p>Presets differ per board; never copy numbers across. C5: Low 0.077 / Medium 0.052 / High 0.040.</p>
-  </div>
+  <p>Mesh commands: §11.</p>
 
   <h3>9.11 Packet Capture</h3>
   <p>Records raw traffic to SD as a standard pcap. Wi-Fi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
