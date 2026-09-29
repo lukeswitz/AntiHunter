@@ -279,10 +279,6 @@
     <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
   </div>
 
-  <p><b>UPS board LEDs.</b> Two indicators sit on the UPS board, visible with the back cover off or through the USB opening in the assembled case. The tiny red LED is lit whenever the UPS has power and stays on; its draw is negligible. The blue LED means the board is charging, so the cells were below full. It goes out once they are fully charged.</p>
-
-  <p>Do not leave the cells flat for long. A discharged lithium cell left sitting keeps self-discharging and can fall below the voltage at which it can be safely recharged. Charge the node back up after it runs down, and top up stored cells periodically.</p>
-
   <h3>1.4 Thermal</h3>
   <p>The ESP32 runs warm under load and the GPS module gets noticeably hot while it searches for satellites. Both are normal. Neither the fan nor the thermal switch is required for the node to work.</p>
   <ul>
@@ -678,7 +674,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL DEAUTH_START:300</pre>
   <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
 
-  <h3>9.7 Sentinel counter-intelligence</h3>
+  <h3>9.7 Sentinel counter-intelligence <span style="font-size:.7em;opacity:.7">(beta)</span></h3>
   <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
@@ -720,7 +716,7 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL TRIANGULATE_STOP</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
-  <h3>9.10 CSI Motion Detection</h3>
+  <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, beta firmware only)</span></h3>
   <p>Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.</p>
   <p><b>How it works.</b> Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.</p>
   <p><b>Start it:</b> Scan tab → CSI Motion Detection → Start Scan. Over mesh:</p>
@@ -753,7 +749,8 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
-  <p>Arguments are radio, seconds, band. Radio 0 Wi-Fi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, a management-frames-only filter, and the maximum file size.</p>
+  <p>Arguments are radio, seconds, band. Radio 0 Wi-Fi, 1 BLE, one at a time; there is no both, and any other value, including 2, is taken as Wi-Fi. Unlike the <span class="mono">mode</span> field of the other scan commands, 2 does not mean both here. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, a management-frames-only filter, and the maximum file size.</p>
+  <p>The mesh reply names the radio that actually started, <span class="mono">PCAP_START: WIFI</span> or <span class="mono">PCAP_START: BLE</span>. Getting <span class="mono">WIFI</span> back from a command you meant as BLE means the radio field was wrong. A capture started by a vibration trigger or a Sentinel attack response is always Wi-Fi on 2.4 GHz; BLE is a manual choice only.</p>
   <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab or over mesh.</p>
   <pre>@ALL PCAP_LIMITS:150
 @ALL PCAP_LIMITS</pre>
@@ -932,7 +929,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
-  <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP radio 0 Wi-Fi / 1 BLE, band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
+  <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP is the exception: its radio field is 0 Wi-Fi / 1 BLE only, one radio per capture, and 2 is taken as Wi-Fi rather than both. PCAP band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">
