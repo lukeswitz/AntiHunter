@@ -628,6 +628,11 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         resetBaselineDetection();
         req->send(200, "text/plain", "Baseline reset complete"); });
 
+  server->on("/baseline/mark", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (baselineSetMarker()) req->send(200, "text/plain", "A/B marker set");
+        else req->send(409, "text/plain", "Baseline scan not running"); });
+
   server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
              {
     String gpsInfo = "GPS Data: " + getGPSData() + "\n";

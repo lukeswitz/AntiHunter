@@ -33,6 +33,24 @@ struct AnomalyHit {
     bool isBLE{};
     uint32_t timestamp{};
     String reason{};
+    char cls[24]{};
+    float lat{};
+    float lon{};
+    bool haveLoc{};
+    uint16_t sig{0xFFFF};
+};
+
+struct BaselineTag {
+    uint16_t sig{0xFFFF};
+    uint8_t slices{};
+    int8_t rssiA{};
+    int8_t rssiB{};
+    char cls[24]{};
+    float firstLat{};
+    float firstLon{};
+    float lastLat{};
+    float lastLon{};
+    bool haveLoc{};
 };
 
 struct BaselineStats {
@@ -104,10 +122,11 @@ void baselineDetectionTask(void *pv);
 void resetBaselineDetection();
 bool isDeviceInBaseline(const uint8_t *mac);
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
-void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel, const char *cls = nullptr);
 void cleanupBaselineMemory();
 String getBaselineResults();
 void updateBaselineStats();
+bool baselineSetMarker();
 
 // Baseline configuration getters/setters
 int8_t getBaselineRssiThreshold();
