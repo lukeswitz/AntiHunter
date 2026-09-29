@@ -105,6 +105,19 @@
   .toc .n { color: var(--accent); font-weight: 700; display: inline-block; width: 8mm; }
   .toc .s { color: var(--mut); font-size: 8.4pt; padding-left: 8mm; display: block; }
   .qref { border: 2px solid var(--accent); border-radius: 4px; padding: 4mm 5mm; }
+  .qref h3 { margin: 4mm 0 1.5mm; }
+  .qref h3:first-child { margin-top: 0; }
+  .qref li { margin-bottom: .5mm; }
+  .qref td { padding: 1.2mm 2mm; }
+  table.gloss td { padding: .9mm 2mm; }
+  .box:not(.long) { break-inside: avoid; }
+  thead { display: table-header-group; }
+  figure.half, figure.third { float: right; margin: 0 0 3mm 5mm; }
+  figure.half { width: 40%; }
+  figure.third { width: 34%; }
+  figure.solo { float: none; width: 52%; margin: 0 0 4mm; }
+  h2, h3, table, .row, pre { clear: both; }
+  .box { display: flow-root; }
   .small { font-size: 8.2pt; color: var(--mut); }
   .legal { font-size: 7.6pt; line-height: 1.4; color: #3a3f47; }
   .legal p { margin-bottom: 2mm; }
@@ -307,7 +320,7 @@
     <p>On an enclosed build, decide which bulkhead carries LoRa and which carries Wi-Fi, then wire every node you build the same way. It does not matter which you choose. It matters that a spare antenna always fits the port you expect in the field.</p>
   </div>
 
-  <figure class="half"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centered between them.</figcaption></figure>
+  <figure class="half solo"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centered between them.</figcaption></figure>
 
   <div class="box warn">
     <span class="t">Match your antennas across nodes</span>
@@ -644,7 +657,6 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
   <p>Alert: <span class="mono">NODE: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]</span></p>
-  <figure class="third"><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results.</figcaption></figure>
 
   <h3>9.2 Device Scanner</h3>
   <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
@@ -655,14 +667,17 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL PROBE_START:2:300:+ALL     <span class="c"># +ALL broadcasts every probe, not just watchlist hits</span></pre>
   <p>Hits: <span class="mono">NODE: PROBE_HIT MAC [Randomized|Vendor] RSSI=dBm CH=N [SSID="net" [GHOST]]</span></p>
   <p><b>Ghost SSID detection</b> flags a probed SSID with no matching AP responding nearby: a network the device remembers but that is not here.</p>
-  <figure class="half"><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices seen, probe requests captured, distinct SSIDs, and saved records.</figcaption></figure>
 
   <h3>9.4 Baseline Anomaly Detection</h3>
   <p>Learn, then alert. The node observes a site for a set period and records what belongs there. Afterwards it reports what is new, what has gone, and what has changed signal.</p>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
-  <figure class="half"><img src="../img/baseline.jpg" alt=""><figcaption>Baseline in its learning phase: Wi-Fi and BLE device counts, frames seen, and the running anomaly total.</figcaption></figure>
+  <div class="row">
+    <figure><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results (§9.1).</figcaption></figure>
+    <figure><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices, probes, SSIDs and saved records (§9.3).</figcaption></figure>
+    <figure><img src="../img/baseline.jpg" alt=""><figcaption>Baseline learning phase: device counts and the anomaly total (§9.4).</figcaption></figure>
+  </div>
 
   <h3>9.5 MAC Randomization Correlation</h3>
   <p>Modern phones rotate their MAC address to defeat tracking. This mode links rotating MACs back to one persistent identity using behavioral signatures, and reports the identity rather than the address.</p>
@@ -695,9 +710,9 @@ python3 scripts/meshtastic_config.py</pre>
   <div class="box"><span class="t">Karma bait</span>
     <p>Karma bait is the only Sentinel detector that transmits: a probe request every 8 seconds to bait a karma AP into responding. It is off by default. Enable it deliberately with <span class="mono">GROUP:rogue:on</span> and only where transmitting is appropriate.</p>
   </div>
-  <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
 
   <h4>Acting on a confirmed attack</h4>
+  <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
   <p>The <b>On confirmed attack</b> panel picks what runs when a detector confirms an attack with a source MAC: triangulate, packet capture, device discovery, probe sweep, drone RID, each with its own duration. Only one can hold the radio, so several ticked run in that order, one at a time, as it frees up. The queue is dropped after 15 minutes if the radio never frees.</p>
   <p>Same panel sets the auto-capture budget. Captures made this way are <span class="mono">auto_</span> files, pruned oldest-first to stay inside the budget and keep the card's free-space floor. Manual captures are never touched.</p>
   <div class="box warn"><span class="t">A response is a scan</span>
@@ -841,7 +856,7 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h3>10.3 Vibration auto-scan</h3>
   <p>Movement can start a scan automatically. This suits a node used as a trip sensor rather than a continuous monitor.</p>
-  <pre>@AH01 VIBSCAN_SET:1:2:60:60:1  <span class="c"># enable : mode : duration s : cooldown s : interrupt scheduled scans</span>
+  <pre>@AH01 VIBSCAN_SET:1:2:60:60:1  <span class="c"># on : mode : secs : cooldown s : interrupt schedule</span>
 @AH01 VIBSCAN_STATUS</pre>
   <table class="tight">
     <tr><th>Mode</th><th>Scan started</th><th>Mode</th><th>Scan started</th></tr>
@@ -1032,6 +1047,7 @@ docker compose up -d --build</pre>
   <h2><span class="num">13</span>Deployment</h2>
 
   <h3>13.1 Siting</h3>
+  <figure class="third"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds. The enclosure changes. The node does not.</figcaption></figure>
   <ul>
     <li><b>Height helps more than power.</b> Get the node above metal, vehicles and crowds. A few metres of elevation beats any antenna change.</li>
     <li><b>Antennas vertical</b>, and clear of the enclosure's own metalwork and of each other.</li>
@@ -1039,7 +1055,6 @@ docker compose up -d --build</pre>
     <li><b>Keep LoRa and Wi-Fi antennas apart</b> as far as the enclosure allows.</li>
     <li>For multi-node triangulation, spread nodes around the area rather than in a line, and give each one a clear GPS fix. Matched antennas on every node.</li>
   </ul>
-  <figure class="half"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds. The enclosure changes. The node does not.</figcaption></figure>
 
   <h3>13.2 Sealing and mounting</h3>
   <ul>
@@ -1130,7 +1145,7 @@ docker compose up -d --build</pre>
   <h3>15.6 Experimental features</h3>
   <p>Modes marked beta or experimental, including Sentinel, Triangulation and MAC Randomization Correlation, are unvalidated, may produce inaccurate or misleading output, and must not be relied on for operational, evidentiary, investigative or safety decisions.</p>
 
-  <div class="box warn" style="margin-top:8mm">
+  <div class="box warn long" style="margin-top:8mm">
     <span class="t">Disclaimer</span>
     <div class="legal">
       <p>THE PROJECT, INCLUDING SOFTWARE, FIRMWARE, HARDWARE DESIGNS AND DOCUMENTATION, IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, DETECTION EFFICACY OR UNINTERRUPTED OPERATION. This supplements and does not limit the warranty disclaimer and liability limitation in sections 15 to 17 of the GNU Affero General Public License v3.0.</p>
@@ -1246,7 +1261,7 @@ docker compose up -d --build</pre>
   </table>
 
   <h2 style="margin-top:10mm">Appendix D · Glossary</h2>
-  <table class="tight">
+  <table class="tight gloss">
     <tr><td style="width:26%"><b>BSSID</b></td><td>The MAC address of an access point.</td></tr>
     <tr><td><b>OUI</b></td><td>The first three bytes of a MAC address, identifying the manufacturer. Watchlisting an OUI matches a whole vendor.</td></tr>
     <tr><td><b>Probe request</b></td><td>A frame a device sends looking for networks it knows. Reveals remembered SSIDs.</td></tr>
@@ -1263,7 +1278,7 @@ docker compose up -d --build</pre>
   </table>
 </div>
 
-<div class="sec">
+<div class="sec" style="break-before:page">
   <h2>Appendix E · Quick reference</h2>
   <p class="small">Print this page and keep it with the node.</p>
 
@@ -1313,11 +1328,18 @@ docker compose up -d --build</pre>
     </ol>
   </div>
 
-  <p class="small" style="margin-top:8mm; text-align:center; color:var(--mut)">
-    AntiHunter DIGI NODE Operator's Guide · revision 1.0 · 14 August 2026<br>
-    Open source under the GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
+  <p class="small" style="margin-top:3mm; text-align:center; color:var(--mut)">
+    AntiHunter DIGI NODE Operator's Guide · revision 1.0 · 14 August 2026 · GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
   </p>
 </div>
 
+<script>
+document.querySelectorAll('table').forEach(function (t) {
+  var r = t.rows[0];
+  if (!r || !r.querySelector('th') || t.tHead) return;
+  var h = t.createTHead();
+  h.appendChild(r);
+});
+</script>
 </body>
 </html>
