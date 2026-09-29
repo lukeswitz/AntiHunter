@@ -4,6 +4,8 @@
 #include "network.h"
 #include "main.h"
 #include "detect.h"
+#include "ble_class.h"
+#include "sig_match.h"
 #include <algorithm>
 #include <iterator>
 #include <ArduinoJson.h>
@@ -49,6 +51,78 @@ static inline void blUnkey(uint64_t v, uint8_t *m) {
     for (int i = 5; i >= 0; i--) { m[i] = (uint8_t)(v & 0xFF); v >>= 8; }
 }
 
+static PsramMap<uint64_t, BaselineTag> baselineTags;
+static uint32_t baselineMarkerMs = 0;
+static const uint8_t SLICE_A = 0x01;
+static const uint8_t SLICE_B = 0x02;
+
+static bool baselineResultsDirty = false;
+
+bool baselineSetMarker() {
+    if (!baselineDetectionEnabled) return false;
+    uint32_t sinceStart;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineMarkerMs = millis();
+        if (baselineMarkerMs == 0) baselineMarkerMs = 1;
+        for (auto &e : baselineTags) e.second.slices &= SLICE_A;
+        sinceStart = (baselineMarkerMs - baselineStartTime) / 1000;
+    }
+    baselineResultsDirty = true;
+    Serial.printf("[BASELINE] A/B marker set at %us\n", sinceStart);
+    logToSD("[BASELINE] A/B marker set at " + String(sinceStart) + "s");
+    return true;
+}
+
+static bool baselineReadGps(float &lat, float &lon) {
+    if (!gpsValid || gpsMutex == nullptr) return false;
+    if (xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    lat = gpsLat;
+    lon = gpsLon;
+    xSemaphoreGive(gpsMutex);
+    return true;
+}
+
+static void baselineTagDevice(const Hit &h) {
+    float lat = 0, lon = 0;
+    bool have = baselineReadGps(lat, lon);
+    uint64_t k = blKey(h.mac);
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    if (baselineCache.find(k) == baselineCache.end()) return;
+    bool isNew = baselineTags.find(k) == baselineTags.end();
+    BaselineTag &t = baselineTags[k];
+    if (h.sig != SIG_NONE) t.sig = h.sig;
+    else if (isNew && !h.isBLE) t.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
+    if (h.cls[0]) {
+        strncpy(t.cls, h.cls, sizeof(t.cls) - 1);
+        t.cls[sizeof(t.cls) - 1] = '\0';
+    }
+    if (baselineMarkerMs == 0) { t.slices |= SLICE_A; t.rssiA = h.rssi; }
+    else { t.slices |= SLICE_B; t.rssiB = h.rssi; }
+    if (have) {
+        if (!t.haveLoc) { t.firstLat = lat; t.firstLon = lon; t.haveLoc = true; }
+        t.lastLat = lat;
+        t.lastLon = lon;
+    }
+}
+
+static void appendTagTokens(String &out, uint16_t sig, const char *cls, bool haveLoc, float lat, float lon) {
+    if (cls && cls[0]) out += " C=" + String(cls);
+    if (sig != SIG_NONE) out += " SIG=" + String(sigFleetKind(sig)) + ":" + sigFleetName(sig);
+    if (haveLoc) out += " LOC=" + String(lat, 6) + "," + String(lon, 6);
+}
+
+static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
+    if (cls && cls[0]) {
+        strncpy(hit.cls, cls, sizeof(hit.cls) - 1);
+        hit.cls[sizeof(hit.cls) - 1] = '\0';
+    }
+    hit.haveLoc = baselineReadGps(hit.lat, hit.lon);
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    auto it = baselineTags.find(blKey(hit.mac));
+    if (it != baselineTags.end()) hit.sig = it->second.sig;
+}
+
 // RAM SD Cache
 PsramMap<uint64_t, bool> sdLookupCache;
 std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
@@ -65,7 +139,6 @@ static std::recursive_mutex baselineSDMutex;
 BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
-static bool baselineResultsDirty = false;
 uint32_t baselineStartTime = 0;
 uint32_t baselineDuration = 300000;
 PsramMap<uint64_t, BaselineDevice> baselineCache;
@@ -139,6 +212,8 @@ void resetBaselineDetection() {
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         baselineCache.clear();
+        baselineTags.clear();
+        baselineMarkerMs = 0;
         anomalyLog.clear();
         sdDeviceIndex.clear();
         lruList.clear();
@@ -208,6 +283,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
                         }
 
                         baselineCache.erase(evictKey);
+                        baselineTags.erase(evictKey);
                         lruMap.erase(evictKey);
                         lruList.pop_front();
                     }
@@ -302,6 +378,16 @@ static void appendCacheDeviceLines(String& out) {
         if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
             out += " \"" + String(dev.name) + "\"";
         }
+        {
+            auto tIt = baselineTags.find(entry.first);
+            if (tIt != baselineTags.end()) {
+                const BaselineTag &t = tIt->second;
+                appendTagTokens(out, t.sig, t.cls, t.haveLoc, t.firstLat, t.firstLon);
+                if (t.haveLoc && (t.lastLat != t.firstLat || t.lastLon != t.firstLon)) {
+                    out += " LAST=" + String(t.lastLat, 6) + "," + String(t.lastLon, 6);
+                }
+            }
+        }
         { const char *dv = lookupOuiVendor(dev.mac); if (dv) out += " V=" + String(dv); }
         out += "\n";
     }
@@ -335,6 +421,7 @@ String getBaselineResults() {
                 results += " \"" + String(anomaly.name) + "\"";
             }
             results += " - " + anomaly.reason;
+            appendTagTokens(results, anomaly.sig, anomaly.cls, anomaly.haveLoc, anomaly.lat, anomaly.lon);
             { const char *av = lookupOuiVendor(anomaly.mac); if (av) results += " V=" + String(av); }
             results += "\n";
         }
@@ -350,6 +437,43 @@ String getBaselineResults() {
 
         results += "\n=== BASELINE DEVICES (Cached in RAM) ===\n";
         appendCacheDeviceLines(results);
+    }
+
+    if (baselineMarkerMs != 0) {
+        uint32_t onlyA = 0, onlyB = 0, both = 0;
+        String lines;
+        for (const auto &e : baselineTags) {
+            const BaselineTag &t = e.second;
+            auto dIt = baselineCache.find(e.first);
+            if (dIt == baselineCache.end()) continue;
+            const BaselineDevice &dev = dIt->second;
+            const char *kind = nullptr;
+            int delta = 0;
+            if (t.slices == SLICE_A) { onlyA++; kind = "SLICE-GONE"; }
+            else if (t.slices == SLICE_B) { onlyB++; kind = "SLICE-NEW"; }
+            else if (t.slices == (SLICE_A | SLICE_B)) {
+                both++;
+                delta = (int)t.rssiB - (int)t.rssiA;
+                if (abs(delta) >= significantRssiChange) kind = "SLICE-MOVED";
+            }
+            if (!kind) continue;
+            lines += String(kind) + " " + String(dev.isBLE ? "BLE " : "WiFi") + " " + macFmt6(dev.mac);
+            if (t.slices & SLICE_A) lines += " A:" + String(t.rssiA) + "dBm";
+            if (t.slices & SLICE_B) lines += " B:" + String(t.rssiB) + "dBm";
+            if (kind[6] == 'M') lines += " Delta:" + String(delta > 0 ? "+" : "") + String(delta);
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
+                lines += " \"" + String(dev.name) + "\"";
+            }
+            appendTagTokens(lines, t.sig, t.cls, false, 0, 0);
+            { const char *sv = lookupOuiVendor(dev.mac); if (sv) lines += " V=" + String(sv); }
+            lines += "\n";
+        }
+        results += "\n=== SLICE A/B ===\n";
+        results += "Marker: " + String((baselineMarkerMs - baselineStartTime) / 1000) + "s after start (RAM-cached devices)\n";
+        results += "Only before: " + String(onlyA) + "\n";
+        results += "Only after: " + String(onlyB) + "\n";
+        results += "Both: " + String(both) + "\n";
+        results += lines;
     }
 
     return results;
@@ -465,6 +589,8 @@ void baselineDetectionTask(void *pv) {
         baselineEstablished = false;
         anomalyLog.clear();
         anomalyCount = 0;
+        baselineMarkerMs = 0;
+        for (auto &e : baselineTags) e.second.slices = 0;
     }
     deviceHistory.clear();
     baselineStartTime = millis();
@@ -597,6 +723,7 @@ void baselineDetectionTask(void *pv) {
                             evictedDirty.push_back(oldestDevice);
                         }
                         baselineCache.erase(oldestKey);
+                        baselineTags.erase(oldestKey);
                         lruMap.erase(oldestKey);
                         lruList.pop_front();
                     }
@@ -655,7 +782,12 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    
+                    {
+                        std::vector<uint8_t> pl = device->getPayload();
+                        bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
+                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
+                    }
+
                     safeMacQueueSend(&bh, 0);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 }  else {
@@ -673,6 +805,7 @@ void baselineDetectionTask(void *pv) {
                 continue;
             }
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+            baselineTagDevice(h);
         }
 
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
@@ -806,6 +939,11 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
+                    {
+                        std::vector<uint8_t> pl = device->getPayload();
+                        bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
+                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
+                    }
 
                     safeMacQueueSend(&bh, 0);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
@@ -825,10 +963,11 @@ void baselineDetectionTask(void *pv) {
             }
 
             if (baselineEstablished) {
-                checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+                checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch, h.cls);
             }
 
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+            baselineTagDevice(h);
         }
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
@@ -1034,6 +1173,7 @@ void cleanupBaselineMemory() {
                     lruMap.erase(lruIt);
                 }
                 baselineCache.erase(key);
+                baselineTags.erase(key);
             }
 
             if (!toRemove.empty()) {
@@ -1586,7 +1726,7 @@ bool isDeviceInBaseline(const uint8_t *mac) {
     return inSD;
 }
 
-void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel, const char *cls) {
     if (rssi < baselineRssiThreshold) {
         return;
     }
@@ -1630,6 +1770,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.isBLE = isBLE;
         hit.timestamp = now;
         hit.reason = "New device (not in baseline)";
+        fillAnomalyTag(hit, cls);
 
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         {
@@ -1646,6 +1787,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
             alert += " Name:" + String(name);
         }
+        if (cls && cls[0]) alert += " Class:" + String(cls);
         if (gpsValid) {
             if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                 alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
@@ -1681,6 +1823,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
+            fillAnomalyTag(hit, cls);
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {
@@ -1728,6 +1871,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
+            fillAnomalyTag(hit, cls);
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {
