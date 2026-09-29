@@ -418,6 +418,7 @@ void loop() {
         sentinel_resumeAfterScan();
     }
     s_scanWasBusy = scanBusyNow;
+    scheduleTick();
 
     static bool s_bleUserWasBusy = false;
     bool bleUserNow = scanning.load() || workerTaskHandle || triangulationActive.load();

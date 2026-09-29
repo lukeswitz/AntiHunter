@@ -2429,15 +2429,58 @@ void updateLocalTZFromGPS() {
     g_localTZPosix = "";
 }
 
+static void applyNodeTZ() {
+    const char *want = g_localTZKnown ? g_localTZPosix.c_str() : "UTC0";
+    const char *have = getenv("TZ");
+    if (!have || strcmp(have, want) != 0) {
+        setenv("TZ", want, 1);
+        tzset();
+    }
+}
+
+String nodeTZAbbrev(time_t epoch) {
+    applyNodeTZ();
+    struct tm t;
+    localtime_r(&epoch, &t);
+    char b[16];
+    if (!strftime(b, sizeof(b), "%Z", &t) || !b[0]) return String("UTC");
+    return String(b);
+}
+
+time_t nodeLocalToEpoch(int year, int month, int day, int hour, int minute) {
+    applyNodeTZ();
+    struct tm t = {};
+    t.tm_year = year - 1900;
+    t.tm_mon = month - 1;
+    t.tm_mday = day;
+    t.tm_hour = hour;
+    t.tm_min = minute;
+    t.tm_isdst = -1;
+    return mktime(&t);
+}
+
+time_t nodeLocalAddDays(time_t epoch, int days) {
+    applyNodeTZ();
+    struct tm t;
+    localtime_r(&epoch, &t);
+    t.tm_mday += days;
+    t.tm_isdst = -1;
+    return mktime(&t);
+}
+
+String nodeLocalString(time_t epoch) {
+    applyNodeTZ();
+    struct tm t;
+    localtime_r(&epoch, &t);
+    char b[20];
+    snprintf(b, sizeof(b), "%04d-%02d-%02dT%02d:%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min);
+    return String(b);
+}
+
 static String formatEpochLocalOrUTC(time_t epoch) {
     struct tm tmResult;
     if (g_localTZKnown) {
-        static String appliedTZ;
-        if (appliedTZ != g_localTZPosix) {
-            setenv("TZ", g_localTZPosix.c_str(), 1);
-            tzset();
-            appliedTZ = g_localTZPosix;
-        }
+        applyNodeTZ();
         localtime_r(&epoch, &tmResult);
     } else {
         gmtime_r(&epoch, &tmResult);
