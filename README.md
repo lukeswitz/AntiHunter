@@ -61,7 +61,7 @@
 > Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
 
 <p align="center">
-<img width="1200" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
+<img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
 </p>
 
 ## Features
