@@ -785,7 +785,8 @@ python3 scripts/meshtastic_config.py</pre>
   </table>
   <ul>
     <li><b>Time zone.</b> The node picks its zone from the GPS fix, daylight saving included. Daily and weekly blocks keep the same clock time across a daylight saving change. With no GPS fix, or outside the zone table, times are UTC.</li>
-    <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot.</li>
+    <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot. If a mesh command or another start takes the radio at the same moment, the block is not lost; it tries again 5 seconds later.</li>
+    <li><b>Battery Saver.</b> Schedules pause while Battery Saver is on. A block that came due runs once when it ends.</li>
     <li><b>Limits.</b> 8 blocks. They are kept in NVS and survive reboots.</li>
     <li><b>Baseline blocks.</b> Adding one saves the baseline settings on the Scan tab to the node, and each run uses the baseline settings saved at that time.</li>
   </ul>
