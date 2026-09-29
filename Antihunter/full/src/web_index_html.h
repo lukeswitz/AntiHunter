@@ -34,7 +34,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .card:hover{box-shadow:var(--shad-hover);border-color:var(--bord-focus);transform:translateY(-2px)}
       .card:hover::before{opacity:0.6}
       label{display:block;margin:10px 0 8px;color:var(--mut);font-size:13px;font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
-      input,select,textarea{width:100%;background:var(--surf);border:2px solid var(--bord);border-radius:8px;color:var(--txt);padding:12px 16px;font:inherit;font-size:14px;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:inset 0 1px 3px rgba(0,0,0,0.05)}
+      input,select,textarea{width:100%;background-color:var(--surf);border:2px solid var(--bord);border-radius:8px;color:var(--txt);padding:12px 16px;font:inherit;font-size:14px;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:inset 0 1px 3px rgba(0,0,0,0.05)}
       input:hover,select:hover,textarea:hover{border-color:var(--bord-focus)}
       input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px var(--accbg),var(--glow);transform:translateY(-1px)}
       input::placeholder{color:var(--mut);opacity:0.6}
@@ -261,6 +261,52 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #r .res-mac,#r .res-ident:not(.name),#r .res-row>span:first-child{cursor:copy;border-radius:5px;transition:background .12s,box-shadow .12s}
       #r .res-mac:hover,#r .res-ident:not(.name):hover,#r .res-row>span:first-child:hover{background:var(--accbg);box-shadow:0 0 0 4px var(--accbg)}
       #r .res-copied{background:var(--accbg);box-shadow:0 0 0 4px var(--accbg);color:var(--acc)}
+      .scan-panel{background:var(--surf);border:1px solid var(--bord);border-radius:12px;overflow:hidden;box-shadow:var(--shad);margin-bottom:16px}
+      .picker{display:grid;gap:1px;background:var(--bord);border-bottom:1px solid var(--bord)}
+      .pick{background:var(--surf);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 6px;min-height:92px;text-align:center;font-size:12.5px;font-weight:600;line-height:1.25;color:var(--mut);cursor:pointer;position:relative;user-select:none}
+      .pick:hover{color:var(--txt);background:var(--surf-hover)}
+      .pick.on{color:var(--acc);background:var(--accbg)}
+      .pick.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--acc)}
+      .pick svg,.card-ico svg,.icon-btn svg,.sched-add svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .pick svg{width:24px;height:24px}
+      .scan-work{display:grid;grid-template-columns:minmax(0,1fr) 340px}
+      .scan-opts{padding:18px 20px;min-width:0}
+      .scan-title{font-size:16px;font-weight:600;margin:0 0 4px}
+      .scan-run{padding:18px 20px;border-left:1px solid var(--bord);background:var(--surf-hover);display:flex;flex-direction:column;gap:12px;min-width:0}
+      .scan-run>*{min-width:0}
+      .sched-head{display:flex;align-items:center;gap:10px;font-size:15px}
+      .card-ico{width:30px;height:30px;border-radius:8px;background:var(--accbg);color:var(--acc);display:inline-grid;place-items:center;flex-shrink:0}
+      .card-ico svg{width:17px;height:17px}
+      .wl{margin-top:16px;padding-top:14px;border-top:1px solid var(--bord)}
+      .wl-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+      .seg{display:inline-flex;border:2px solid var(--bord);border-radius:8px;overflow:hidden}
+      .seg button{border:0;background:none;color:var(--mut);font:inherit;font-size:13px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap}
+      .seg button.on{background:var(--accbg);color:var(--acc)}
+      .wl-foot{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--mut);font-size:12px}
+      .wl-foot span{margin-right:auto}
+      .btn.icon-btn{padding:8px}
+      .icon-btn svg{width:16px;height:16px}
+      .tile-src{display:none}
+      .sched-add{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border:2px dashed var(--bord);border-radius:10px;background:var(--surf);color:var(--acc);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+      .sched-add svg{width:16px;height:16px}
+      .sched-sheet{display:flex;flex-direction:column;gap:2px;border:2px solid var(--acc);border-radius:10px;padding:12px;background:var(--surf)}
+      .sched-sheet input[type="datetime-local"]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:44px}
+      .sched-lbl{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut)}
+      .sched-empty{font-size:12px;color:var(--mut)}
+      .sched-row{display:grid;grid-template-columns:30px 1fr auto;gap:2px 10px;align-items:center;padding:8px 10px;border:1px solid var(--bord);border-radius:10px;margin-bottom:6px;background:var(--surf)}
+      .sched-row .card-ico{grid-row:1/3}
+      .sched-row b{font-size:13px;min-width:0}
+      .sched-row small{grid-column:2;color:var(--mut);font-size:12px}
+      .sched-row .btn{grid-row:1/3;grid-column:3}
+      @media(max-width:899px){
+        .scan-work{grid-template-columns:1fr}
+        .scan-run{border-left:0;border-top:1px solid var(--bord)}
+        .scan-opts,.scan-run{padding:14px}
+        .pick{min-height:80px;font-size:11px;padding:10px 4px}
+        .pick svg{width:22px;height:22px}
+        body:has(#page-scan.active){padding-bottom:76px}
+        #page-scan .scan-go,#page-scan #startDetectionBtn{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));width:auto!important;z-index:50}      }
+      .det-desc{font-size:12px;color:var(--mut);line-height:1.5;margin-top:8px;padding-left:11px;border-left:2px solid var(--acc);max-width:70ch}
       .res-line{font-size:14px;color:var(--mut);line-height:1.5}
       .res-line strong{color:var(--txt);font-weight:600}
       .res-metric{text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-left:auto}
@@ -565,58 +611,23 @@ R"HTML(
     <div class="container">
       <div class="page-tab active" id="page-scan">
 
-      <!-- Scanning & Targets + Detection Grid -->
-      <div class="grid-2" style="margin-bottom:16px;">
-        
-        <!-- Scanning & Targets -->
-        <div class="card">
-          <div class="card-header" onclick="toggleCollapse('scanCard')">
-            <h3>Scanning & Targets</h3>
-            <span class="collapse-icon open" id="scanCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="scanCardBody">
-            
-            <!-- Target List -->
-            <details open>
-              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Target List</summary>
-              <form id="f" method="POST" action="/save">
-                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
-                <div id="targetCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 targets</div>
-                <div style="display:flex;gap:8px;">
-                  <button class="btn primary" type="submit">Save</button>
-                  <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
-                </div>
-              </form>
-            </details>
-            
-            <!-- Allowlist -->
-            <details style="margin-top:12px;">
-              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Allow List</summary>
-              <form id="af" method="POST" action="/allowlist-save">
-                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
-                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 allowlisted</div>
-                <div style="display:flex;gap:8px;">
-                  <button class="btn primary" type="submit">Save</button>
-                  <a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
-                </div>
-              </form>
-            </details>
-            
-            <!-- Scan Controls -->
+      <div class="scan-panel">
+        <div class="picker" id="scanPicker"></div>
+        <div class="scan-work">
+          <div class="scan-opts">
+            <h2 class="scan-title" id="scanTitle">Device Discovery</h2>
+            <div id="paneTarget" style="display:none;">
+            <div class="det-desc" style="margin:0 0 10px;">Scans for the MACs, OUIs and SSIDs in the Targets list below.</div>
             <form id="s" method="POST" action="/scan">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                <div>
-                  <label style="font-size:11px;">Mode</label>
-                  <select name="mode">
-                    <option value="0">Wi-Fi</option>
-                    <option value="1">BLE</option>
-                    <option value="2" selected>Wi-Fi+BLE</option>
-                  </select>
-                </div>
-                <div>
-                  <label style="font-size:11px;">Duration (s)</label>
-                  <input type="number" name="secs" min="0" max="86400" value="60">
-                </div>
+              <label style="font-size:11px;">Mode</label>
+              <select name="mode" id="scanModeSel">
+                <option value="0">Wi-Fi</option>
+                <option value="1">BLE</option>
+                <option value="2" selected>Wi-Fi+BLE</option>
+              </select>
+              <div style="margin-bottom:8px;">
+                <label style="font-size:11px;">Duration (s)</label>
+                <input type="number" name="secs" min="0" max="86400" value="60">
               </div>
               
               <div style="display:flex;gap:16px;margin-bottom:12px;">
@@ -655,21 +666,36 @@ R"HTML(
                 <p style="font-size:9px;color:var(--mut);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
               </div>
               
-              <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
+              <button class="btn primary scan-go" type="submit" style="width:100%;">Start Scan</button>
             </form>
-          </div>
-        </div>
-        
-        <!-- Detection & Analysis -->
-        <div class="card">
-          <div class="card-header" onclick="toggleCollapse('detectionCard')">
-            <h3>Recon & Detection</h3>
-            <span class="collapse-icon open" id="detectionCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detectionCardBody"> <!-- Add this wrapper -->
+            <div class="wl">
+              <div class="wl-head">
+                <div class="seg" id="wlSeg">
+                  <button type="button" class="on" onclick="wlTab('f',this)">Targets</button>
+                  <button type="button" onclick="wlTab('af',this)">Allow list</button>
+                </div>
+              </div>
+              <form id="f" method="POST" action="/save">
+                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
+                <div class="wl-foot">
+                  <span id="targetCount">0 targets</span>
+                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
+                  <a class="btn icon-btn" href="/export" download="targets.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
+                </div>
+              </form>
+              <form id="af" method="POST" action="/allowlist-save" style="display:none;">
+                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
+                <div class="wl-foot">
+                  <span id="allowlistCount">0 allowlisted</span>
+                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
+                  <a class="btn icon-btn" href="/allowlist-export" download="allowlist.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
+                </div>
+              </form>
+            </div>
+            </div>
+            <div id="paneRecon">
             <form id="sniffer" method="POST" action="/sniffer">
-              <label>Method</label>
-              <select name="detection" id="detectionMode">
+              <select name="detection" id="detectionMode" class="tile-src">
                 <optgroup label="Recon">
                   <option value="device-scan" selected>Device Discovery</option>
                   <option value="probe-scan">Probe Request Scanner</option>
@@ -843,8 +869,35 @@ R"HTML(
                   <div id="pcapFileList" class="pcap-list"></div>
                 </div>
               </div>
-             
+
             </form>
+            </div>
+          </div>
+          <div class="scan-run">
+            <div class="sched-head"><span class="card-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><b>Schedule</b></div>
+            <div class="det-desc" style="margin:0;">Runs the selected scan at set times on the node, with this page closed, using the options set on the left.</div>
+            <button type="button" class="sched-add" id="schedAddBtn" onclick="schedOpen(true)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="schedAddLbl">Schedule this scan</span></button>
+            <div class="sched-sheet" id="schedSheet" style="display:none;">
+              <input type="hidden" id="schScan">
+              <div><label style="font-size:11px;">Start (<span id="schTz">UTC</span>)</label><input type="datetime-local" id="schAt"></div>
+              <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="schDur" min="1" max="1440" value="10" placeholder="10"></div>
+              <div><label style="font-size:11px;">Repeat</label>
+                <select id="schRep">
+                  <option value="0">Once</option>
+                  <option value="3600">Hourly</option>
+                  <option value="21600">Every 6 hours</option>
+                  <option value="43200">Every 12 hours</option>
+                  <option value="86400" selected>Daily</option>
+                  <option value="604800">Weekly</option>
+                </select>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button type="button" class="btn" onclick="schedOpen(false)">Cancel</button>
+                <button type="button" class="btn primary" onclick="schedAdd()">Add</button>
+              </div>
+            </div>
+            <div class="sched-lbl">Scheduled</div>
+            <div id="schedList"><div class="sched-empty">Nothing scheduled.</div></div>
           </div>
         </div>
       </div>
@@ -1126,8 +1179,12 @@ R"HTML(
                 <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
               </div>
             </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+              <label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Interrupt scheduled scans; the schedule resumes after</span>
+            </div>
             <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
-            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver</div>
+            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver, unless the running scan is scheduled and Interrupt is on</div>
           </div>
       </div>
       </div>
@@ -1651,6 +1708,10 @@ R"HTML(
                 <span class="ar-name">Drone RID</span>
                 <input type="number" id="arSecDrone" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Interrupt scheduled scans; the schedule resumes after</span>
               </div>
               <div class="ar-row ar-limits">
                 <span class="ar-name">Auto-capture budget</span>
@@ -3629,6 +3690,7 @@ R"HTML(
           document.getElementById('vibScanMode').value = d.mode;
           document.getElementById('vibScanDur').value = d.duration;
           document.getElementById('vibScanCd').value = d.cooldown;
+          document.getElementById('vibScanPre').checked = !!d.preempt;
         } catch(e){ console.warn('vibscan load failed', e); }
       }
       async function saveVibScanConfig() {
@@ -3637,6 +3699,7 @@ R"HTML(
         fd.append('mode', document.getElementById('vibScanMode').value);
         fd.append('duration', document.getElementById('vibScanDur').value);
         fd.append('cooldown', document.getElementById('vibScanCd').value);
+        fd.append('preempt', document.getElementById('vibScanPre').checked ? 1 : 0);
         try {
           const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
           toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
@@ -5829,6 +5892,176 @@ R"HTML(
         }
       });
 
+      const TILE_ICONS = {
+        'target': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+        'device-scan': '<rect x="3" y="4" width="13" height="10" rx="1.5"/><rect x="15" y="9" width="6" height="11" rx="1.5"/><path d="M6 18h6"/>',
+        'probe-scan': '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/><path d="M8.5 11a2.5 2.5 0 0 1 5 0"/>',
+        'randomization-detection': '<path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
+        'drone-detection': '<circle cx="5" cy="5" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M7 7l2 2M17 7l-2 2M7 17l2-2M17 17l-2-2"/>',
+        'baseline': '<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>',
+        'deauth': '<path d="M12 2l9 4v6c0 5-4 9-9 10-5-1-9-5-9-10V6z"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6"/>',
+        'csi-motion': '<path d="M2 12h3l2-6 4 12 3-9 2 3h6"/>',
+        'pcap': '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>'
+      };
+      let scanPick = document.getElementById('detectionMode').value;
+      const SCAN_ITEMS = [{ v: 'target', n: 'Target Scan' }].concat(
+        [...document.getElementById('detectionMode').options].map(o => ({ v: o.value, n: o.textContent })));
+      function selectScan(v) {
+        scanPick = v;
+        const tgt = v === 'target';
+        document.getElementById('paneTarget').style.display = tgt ? '' : 'none';
+        document.getElementById('paneRecon').style.display = tgt ? 'none' : '';
+        if (!tgt) {
+          const dm = document.getElementById('detectionMode');
+          if (dm.value !== v) { dm.value = v; dm.dispatchEvent(new Event('change')); }
+        }
+        document.getElementById('scanTitle').textContent = (SCAN_ITEMS.find(i => i.v === v) || {}).n || '';
+        document.querySelectorAll('#scanPicker .pick').forEach(t => t.classList.toggle('on', t.dataset.v === v));
+        schedOpen(false);
+      }
+      (function () {
+        const p = document.getElementById('scanPicker');
+        SCAN_ITEMS.forEach(it => {
+          const t = document.createElement('div');
+          t.className = 'pick';
+          t.setAttribute('role', 'button');
+          t.tabIndex = 0;
+          t.dataset.v = it.v;
+          t.innerHTML = '<svg viewBox="0 0 24 24">' + (TILE_ICONS[it.v] || '') + '</svg>';
+          t.appendChild(document.createTextNode(it.n));
+          t.addEventListener('click', () => selectScan(it.v));
+          t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectScan(it.v); } });
+          p.appendChild(t);
+        });
+        const lay = () => {
+          const n = SCAN_ITEMS.length;
+          p.style.gridTemplateColumns = 'repeat(' + (innerWidth >= 900 ? n : (n % 3 === 0 ? 3 : 4)) + ',1fr)';
+        };
+        lay();
+        addEventListener('resize', lay);
+        document.getElementById('detectionMode').addEventListener('change', e => {
+          if (scanPick !== 'target' && scanPick !== e.target.value) selectScan(e.target.value);
+        });
+      })();
+
+      function wlTab(id, btn) {
+        ['f', 'af'].forEach(f => { document.getElementById(f).style.display = f === id ? '' : 'none'; });
+        document.querySelectorAll('#wlSeg button').forEach(b => b.classList.toggle('on', b === btn));
+      }
+
+      const SCHED_REP = { 0: 'Once', 3600: 'Hourly', 21600: 'Every 6 hours', 43200: 'Every 12 hours', 86400: 'Daily', 604800: 'Weekly' };
+      const SCHED_TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/></svg>';
+      let schedNodeNow = '';
+      function schedLocalFmt(s) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || '');
+        if (!m) return s || '';
+        const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
+        return d.toLocaleString([], { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      }
+      function schedOpen(on) {
+        if (on) {
+          document.getElementById('schScan').value = scanPick;
+          const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(schedNodeNow);
+          if (m) {
+            const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + 5 * 60000);
+            document.getElementById('schAt').value = d.toISOString().slice(0, 16);
+          }
+        }
+        document.getElementById('schedSheet').style.display = on ? '' : 'none';
+        document.getElementById('schedAddBtn').style.display = on ? 'none' : '';
+      }
+      function schedLabel(path, q) {
+        if (path === '/scan') return 'Target Scan' + (q.get('triangulate') === '1' ? ' (Triangulate)' : '');
+        const v = path === '/drone' ? 'drone-detection' : q.get('detection');
+        const o = [...document.getElementById('detectionMode').options].find(x => x.value === v);
+        return o ? o.textContent : String(v);
+      }
+      async function schedLoad() {
+        let t;
+        try {
+          const r = await fetch('/schedule?now=' + Math.floor(Date.now() / 1000));
+          if (!r.ok) return;
+          t = await r.text();
+        } catch (e) { return; }
+        const lines = t.split('\n');
+        const head = (lines[0] || '').split('|');
+        schedNodeNow = head[0] || '';
+        document.getElementById('schTz').textContent = head[1] || 'UTC';
+        const box = document.getElementById('schedList');
+        box.innerHTML = '';
+        const rows = lines.slice(1).filter(Boolean);
+        if (!rows.length) box.innerHTML = '<div class="sched-empty">Nothing scheduled.</div>';
+        rows.forEach(full => {
+          const cut = full.indexOf('|');
+          const local = full.slice(0, cut);
+          const ln = full.slice(cut + 1);
+          const p = ln.split('|');
+          const q = new URLSearchParams(p[3] || '');
+          const key = p[2] === '/scan' ? 'target' : p[2] === '/drone' ? 'drone-detection' : q.get('detection');
+          const row = document.createElement('div');
+          row.className = 'sched-row';
+          row.innerHTML = '<span class="card-ico"><svg viewBox="0 0 24 24">' + (TILE_ICONS[key] || '') + '</svg></span><b></b><small></small>' +
+            '<button type="button" class="btn icon-btn" title="Remove" aria-label="Remove">' + SCHED_TRASH + '</button>';
+          row.querySelector('b').textContent = schedLabel(p[2], q) + ' · ' + Math.round((+q.get('secs') || 0) / 60) + ' min';
+          row.querySelector('small').textContent = (SCHED_REP[p[1]] || ('Every ' + Math.round(+p[1] / 3600) + ' hours')) + ' · Next ' + schedLocalFmt(local);
+          row.querySelector('button').addEventListener('click', () => schedDel(ln));
+          box.appendChild(row);
+        });
+      }
+      async function schedDel(ln) {
+        const r = await fetch('/schedule', { method: 'POST', body: new URLSearchParams({ now: Math.floor(Date.now() / 1000), del: ln }) });
+        toast(await r.text(), r.ok ? 'success' : 'error');
+        schedLoad();
+      }
+      async function schedAdd() {
+        const kind = document.getElementById('schScan').value;
+        const mins = parseInt(document.getElementById('schDur').value, 10);
+        const at = document.getElementById('schAt').value.slice(0, 16);
+        if (!(mins >= 1 && mins <= 1440)) { toast('Duration must be 1 to 1440 minutes', 'error'); return; }
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)) { toast('Pick a start date and time', 'error'); return; }
+        if (schedNodeNow && at < schedNodeNow.slice(0, 16)) { toast('Pick a start time in the future', 'error'); return; }
+        let path, fd;
+        if (kind === 'target') {
+          path = '/scan';
+          fd = new FormData(document.getElementById('s'));
+          if (fd.get('triangulate') === '1') {
+            const tgt = String(fd.get('targetMac') || '').trim() || firstTriangulatableTarget();
+            if (!isTriangulateTarget(tgt)) {
+              toast('Triangulate is on: enter a target MAC, or add a full MAC to the Target List', 'error');
+              return;
+            }
+            fd.set('targetMac', tgt);
+          }
+        } else {
+          path = '/sniffer';
+          fd = new FormData(document.getElementById('sniffer'));
+          fd.set('detection', kind);
+          const _wc = document.getElementById('wifiChannels');
+          if (_wc && _wc.value.trim()) fd.set('ch', _wc.value.trim());
+          if (kind === 'drone-detection') { path = '/drone'; fd.delete('detection'); }
+          if (kind === 'baseline') {
+            const v = id => encodeURIComponent(document.getElementById(id).value);
+            await fetch('/baseline/config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `rssiThreshold=${v('baselineRssiThreshold')}&baselineDuration=${v('baselineDuration')}&ramCacheSize=${v('baselineRamSize')}&sdMaxDevices=${v('baselineSdMax')}&absenceThreshold=${v('absenceThreshold')}&reappearanceWindow=${v('reappearanceWindow')}&rssiChangeDelta=${v('rssiChangeDelta')}`
+            }).catch(() => {});
+          }
+        }
+        fd.delete('forever');
+        fd.set('secs', String(mins * 60));
+        const body = new URLSearchParams(fd).toString();
+        const r = await fetch('/schedule', {
+          method: 'POST',
+          body: new URLSearchParams({ now: Math.floor(Date.now() / 1000), at, period: document.getElementById('schRep').value, path, body })
+        });
+        toast(await r.text(), r.ok ? 'success' : 'error');
+        if (r.ok) { schedOpen(false); schedLoad(); }
+      }
+      selectScan(scanPick);
+      schedLoad();
+      setInterval(() => { if (pageActive('scan')) schedLoad(); }, 30000);
+
       document.addEventListener('click', e => {
         const a = e.target.closest('a[href="/stop"]');
         if (!a) return;
@@ -6886,7 +7119,7 @@ R"HTML(
         if(at)at.checked=_detCfg.attacker_trilat===true;
         arLoad();
       }
-      const AR_BITS={arPcap:0x02,arDevice:0x04,arProbe:0x08,arDrone:0x10};
+      const AR_BITS={arPcap:0x02,arDevice:0x04,arProbe:0x08,arDrone:0x10,arPreempt:0x20};
       function arLoad(){
         const m=_detCfg.attack_resp_mask||0;
         for(const id in AR_BITS){

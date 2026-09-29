@@ -166,7 +166,7 @@
     <div><span class="n">6</span> Staying up to date<span class="s">Release channels, GitHub notifications, rollback</span></div>
     <div><span class="n">7</span> Mesh radio setup<span class="s">Region, encrypted channel, quiet-ops settings</span></div>
     <div><span class="n">8</span> First configuration<span class="s">Credentials, node ID, scan presets, privacy</span></div>
-    <div><span class="n">9</span> Using the node<span class="s">Every detector, what it finds, how to run it</span></div>
+    <div><span class="n">9</span> Using the node<span class="s">Every detector, what it finds, how to run it, scheduling</span></div>
     <div><span class="n">10</span> Vibration sensor and tamper<span class="s">How it works, tuning the trimpot, auto-erase</span></div>
     <div><span class="n">11</span> Mesh command reference<span class="s">Everything you can send from a phone</span></div>
     <div><span class="n">12</span> Command Center (C2)<span class="s">Quick install, first login, connecting a radio</span></div>
@@ -700,7 +700,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h2><span class="num">9</span>Using the node</h2>
   <p class="lead">Every capability runs on the node itself and reports to the web UI, the mesh and the Command Center alike. One scan mode runs at a time.</p>
 
-  <figure><img src="../img/node-photo.jpg" alt=""><figcaption>The Scan tab on the Full firmware: watchlist and scan mode on the left, detection method on the right. Every one of these runs from a mesh command too.</figcaption></figure>
+  <figure><img src="../img/scan-tab.jpg" alt=""><figcaption>The Scan tab on the Full firmware: pick a scan in the top row, set its options on the left, schedule it on the right. Every scan also runs from a mesh command.</figcaption></figure>
 
   <h3>9.1 Target Scan</h3>
   <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
@@ -799,7 +799,34 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL SD_REPAIR:OFF</pre>
   </div>
 
-  <h3>9.11 Reading the results</h3>
+  <h3>9.11 Scheduling scans</h3>
+  <p>The Schedule panel on the Scan tab runs any scan at set times. The node runs it, so the web page can be closed.</p>
+  <ol>
+    <li>Pick the scan in the top row and set its options.</li>
+    <li>Press <b>Schedule this scan</b>.</li>
+    <li>Set <b>Start</b>, <b>Duration</b> in minutes and <b>Repeat</b>, then press <b>Add</b>.</li>
+  </ol>
+  <p>The block keeps the options that were set when you added it. Changing the scan's options later does not change the block. Delete it and add it again instead.</p>
+  <table class="tight">
+    <tr><th>Setting</th><th>Values</th></tr>
+    <tr><td>Start</td><td>Date and time in the node's local time, shown with its zone, for example MST</td></tr>
+    <tr><td>Duration</td><td>1 to 1440 minutes</td></tr>
+    <tr><td>Repeat</td><td>Once, hourly, every 6 hours, every 12 hours, daily, weekly</td></tr>
+  </table>
+  <ul>
+    <li><b>Time zone.</b> The node picks its zone from the GPS fix, daylight saving included. Daily and weekly blocks keep the same clock time across a daylight saving change. With no GPS fix, or outside the zone table, times are UTC.</li>
+    <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot. If a mesh command or another start takes the radio at the same moment, the block is not lost; it tries again 5 seconds later.</li>
+    <li><b>Vibration scans.</b> By default a vibration auto-scan is skipped while a scheduled scan runs. Turn on <b>Interrupt scheduled scans</b> in Vibration Auto-Scan (System tab) to let it stop the scheduled scan, run, and then resume the scheduled scan for its remaining time. A resumed Baseline starts its learning phase again. A scheduled block never takes the radio while a vibration scan is waiting for it.</li>
+    <li><b>Over mesh.</b> <span class="mono">SCHED_ADD:2026-09-30T02:00|86400|/sniffer|detection=device-scan&amp;deviceScanMode=2&amp;secs=600</span> adds a daily block. <span class="mono">SCHED_LIST</span> prints the blocks to serial, <span class="mono">SCHED_DEL:2</span> deletes the second one.</li>
+    <li><b>Battery Saver.</b> Schedules pause while Battery Saver is on. A block that came due runs once when it ends.</li>
+    <li><b>Limits.</b> 8 blocks. They are kept in NVS and survive reboots.</li>
+    <li><b>Baseline blocks.</b> Adding one saves the baseline settings on the Scan tab to the node, and each run uses the baseline settings saved at that time.</li>
+  </ul>
+  <div class="box"><span class="t">Clock</span>
+    <p>Schedules need the clock from §4.3. On a node without a working RTC, blocks wait until the web UI is opened once after boot, which gives the node the time.</p>
+  </div>
+
+  <h3>9.12 Reading the results</h3>
   <ul>
     <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, packet captures in <span class="mono">/pcap</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
     <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
@@ -847,7 +874,7 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h3>10.3 Vibration auto-scan</h3>
   <p>Movement can start a scan automatically. This suits a node used as a trip sensor rather than a continuous monitor.</p>
-  <pre>@AH01 VIBSCAN_SET:1:2:60:60    <span class="c"># enable : mode : duration s : cooldown s</span>
+  <pre>@AH01 VIBSCAN_SET:1:2:60:60:1  <span class="c"># enable : mode : duration s : cooldown s : interrupt scheduled scans</span>
 @AH01 VIBSCAN_STATUS</pre>
   <table class="tight">
     <tr><th>Mode</th><th>Scan started</th><th>Mode</th><th>Scan started</th></tr>
@@ -950,7 +977,8 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown</span></td></tr>
     <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td>None</td></tr>
     <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>Enable, disable, report the sensor</td><td>None</td></tr>
-    <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown]</span></td></tr>
+    <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown[:interrupt]]</span></td></tr>
+    <tr><td><span class="mono">SCHED_ADD</span>, <span class="mono">SCHED_LIST</span>, <span class="mono">SCHED_DEL</span></td><td>Add, list or delete a schedule block</td><td><span class="mono">at|repeat s|path|body</span>, none, block number</td></tr>
     <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node, needs the key</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;erase PSK&gt;</span></td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Drop to low power</td><td>Minutes, 1 to 30, default 5</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>Return to normal, or report</td><td>None</td></tr>

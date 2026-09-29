@@ -696,7 +696,267 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 }
 
 
+static std::mutex s_schedMutex;
+static String s_sched;
+static int64_t s_schedClockOff = 0;
+
+static time_t schedNow() {
+  time_t e = getRTCEpoch();
+  if (e > 1609459200) return e;
+  return s_schedClockOff ? (time_t)(s_schedClockOff + esp_timer_get_time() / 1000000) : 0;
+}
+
+static void schedLearnClock(AsyncWebServerRequest *req) {
+  const AsyncWebParameter *p = req->hasParam("now", true) ? req->getParam("now", true)
+                             : req->hasParam("now") ? req->getParam("now") : nullptr;
+  if (!p) return;
+  int64_t e = p->value().toInt();
+  if (e > 1609459200) s_schedClockOff = e - esp_timer_get_time() / 1000000;
+}
+
+static bool schedPathOk(const String &p) {
+  return p == "/scan" || p == "/sniffer" || p == "/drone";
+}
+
+static int schedPost(const String &path, const String &body) {
+  int s = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  if (s < 0) { Serial.println("[SCHED] socket failed"); return 0; }
+  struct sockaddr_in a = {};
+  a.sin_family = AF_INET;
+  a.sin_port = htons(80);
+  a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  struct timeval tv = {3, 0};
+  lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  lwip_setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  char resp[128] = {0};
+  if (lwip_connect(s, (struct sockaddr *)&a, sizeof(a)) == 0) {
+    String req = "POST " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                 "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: " +
+                 String(body.length()) + "\r\nConnection: close\r\n\r\n" + body;
+    lwip_send(s, req.c_str(), req.length(), 0);
+    lwip_recv(s, resp, sizeof(resp) - 1, 0);
+  }
+  lwip_close(s);
+  char *eol = strchr(resp, '\r');
+  if (eol) *eol = 0;
+  Serial.printf("[SCHED] %s -> %s\n", path.c_str(), resp[0] ? resp : "no response");
+  int code = 0;
+  if (sscanf(resp, "HTTP/%*d.%*d %d", &code) != 1) code = 0;
+  return code;
+}
+
+static uint32_t schedBodyGetSecs(const String &body) {
+  int p = body.startsWith("secs=") ? 0 : body.indexOf("&secs=");
+  if (p < 0) return 0;
+  p += body.startsWith("secs=") ? 5 : 6;
+  return (uint32_t)body.substring(p).toInt();
+}
+
+static String schedBodySetSecs(const String &body, uint32_t secs) {
+  String out;
+  int p = 0;
+  while (p <= (int)body.length()) {
+    int amp = body.indexOf('&', p);
+    if (amp < 0) amp = body.length();
+    String kv = body.substring(p, amp);
+    if (kv.length() && !kv.startsWith("secs=")) out += (out.length() ? "&" : "") + kv;
+    p = amp + 1;
+  }
+  return out + (out.length() ? "&" : "") + "secs=" + String(secs);
+}
+
+int schedAddBlock(const String &at, long period, const String &path, const String &body, String &msg) {
+  int y, mo, d, h, mi;
+  if (sscanf(at.c_str(), "%d-%d-%dT%d:%d", &y, &mo, &d, &h, &mi) != 5 ||
+      mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59) {
+    msg = "Invalid start time";
+    return 400;
+  }
+  long next = (long)nodeLocalToEpoch(y, mo, d, h, mi);
+  if (next < 1609459200 || period < 0 || (period > 0 && period < 600) || period > 2678400) {
+    msg = "Invalid start time or repeat";
+    return 400;
+  }
+  if (!schedPathOk(path) || body.indexOf('\n') >= 0 || body.indexOf('|') >= 0 || body.length() > 1024) {
+    msg = "Invalid scan request";
+    return 400;
+  }
+  String ln = String((uint32_t)next) + "|" + String(period) + "|" + path + "|" + body + "\n";
+  std::lock_guard<std::mutex> lk(s_schedMutex);
+  int count = 0;
+  for (unsigned i = 0; i < s_sched.length(); i++) if (s_sched[i] == '\n') count++;
+  if (count >= 8 || s_sched.length() + ln.length() > 3800) {
+    msg = "Schedule full: 8 blocks or 3800 bytes of NVS per schedule";
+    return 413;
+  }
+  s_sched += ln;
+  prefs.putString("sched", s_sched);
+  msg = "Block added";
+  return 200;
+}
+
+bool schedDelLine(const String &del) {
+  std::lock_guard<std::mutex> lk(s_schedMutex);
+  String out;
+  bool found = false;
+  int p = 0;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    if (!found && ln == del) { found = true; continue; }
+    out += ln + "\n";
+  }
+  if (!found) return false;
+  s_sched = out;
+  prefs.putString("sched", s_sched);
+  return true;
+}
+
+String schedListText() {
+  std::lock_guard<std::mutex> lk(s_schedMutex);
+  return s_sched;
+}
+
+static String s_runPath, s_runBody, s_resumePath, s_resumeBody;
+static uint32_t s_runEndMs = 0;
+
+bool schedulerYieldRadio(const char *who) {
+  if (!s_runEndMs || !scanBusy()) return false;
+  int32_t left = (int32_t)(s_runEndMs - millis()) / 1000;
+  s_runEndMs = 0;
+  if (left >= 10) {
+    s_resumePath = s_runPath;
+    s_resumeBody = schedBodySetSecs(s_runBody, (uint32_t)left);
+  }
+  Serial.printf("[SCHED] %s interrupts scheduled scan, %lds left%s\n", who, (long)left, left >= 10 ? ", resumes after" : "");
+  stopAllScans();
+  return true;
+}
+
+static void schedMarkRunning(const String &path, const String &body) {
+  s_runPath = path;
+  s_runBody = body;
+  uint32_t secs = schedBodyGetSecs(body);
+  s_runEndMs = millis() + (secs ? secs : 60) * 1000UL;
+  if (!s_runEndMs) s_runEndMs = 1;
+}
+
+void scheduleTick() {
+  static uint32_t last = 0;
+  if (millis() - last < 5000) return;
+  last = millis();
+  if (s_runEndMs && !scanBusy()) s_runEndMs = 0;
+  if (scanBusy() || triangulationActive) return;
+  if (attack_responsePending() || vibAutoScanWaiting()) return;
+  if (s_resumePath.length()) {
+    int rc = schedPost(s_resumePath, s_resumeBody);
+    if (rc == 0 || rc == 409) return;
+    if (rc >= 200 && rc < 300) schedMarkRunning(s_resumePath, s_resumeBody);
+    s_resumePath = "";
+    s_resumeBody = "";
+    return;
+  }
+  time_t now = schedNow();
+  if (!now) return;
+  String fireLine;
+  {
+    std::lock_guard<std::mutex> lk(s_schedMutex);
+    if (!s_sched.length()) return;
+    String out;
+    bool dropped = false;
+    int p = 0;
+    while (p < (int)s_sched.length()) {
+      int nl = s_sched.indexOf('\n', p);
+      if (nl < 0) nl = s_sched.length();
+      String ln = s_sched.substring(p, nl);
+      p = nl + 1;
+      int a = ln.indexOf('|'), b = ln.indexOf('|', a + 1), c = ln.indexOf('|', b + 1);
+      if (a < 0 || b < 0 || c < 0 || !schedPathOk(ln.substring(b + 1, c))) { dropped = true; continue; }
+      if (!fireLine.length() && (time_t)ln.substring(0, a).toInt() <= now) fireLine = ln;
+      out += ln + "\n";
+    }
+    if (dropped) {
+      s_sched = out;
+      prefs.putString("sched", s_sched);
+    }
+  }
+  if (!fireLine.length()) return;
+  int a = fireLine.indexOf('|'), b = fireLine.indexOf('|', a + 1), c = fireLine.indexOf('|', b + 1);
+  int code = schedPost(fireLine.substring(b + 1, c), fireLine.substring(c + 1));
+  if (code == 0 || code == 409) return;
+  if (code >= 200 && code < 300) schedMarkRunning(fireLine.substring(b + 1, c), fireLine.substring(c + 1));
+  std::lock_guard<std::mutex> lk(s_schedMutex);
+  String out;
+  bool done = false;
+  int p = 0;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    if (!done && ln == fireLine) {
+      done = true;
+      time_t next = (time_t)ln.substring(0, a).toInt();
+      uint32_t period = (uint32_t)ln.substring(a + 1, b).toInt();
+      if (!period) continue;
+      while (next <= now) next = (period % 86400 == 0) ? nodeLocalAddDays(next, period / 86400) : next + period;
+      ln = String((uint32_t)next) + ln.substring(a);
+    }
+    out += ln + "\n";
+  }
+  if (done) {
+    s_sched = out;
+    prefs.putString("sched", s_sched);
+  }
+}
+
 void registerRemainingRoutes() {
+  {
+    std::lock_guard<std::mutex> lk(s_schedMutex);
+    s_sched = prefs.getString("sched", "");
+  }
+
+  server->on("/schedule", HTTP_GET, [](AsyncWebServerRequest *req) {
+      schedLearnClock(req);
+      time_t now = schedNow();
+      String out = (now ? nodeLocalString(now) : String("")) + "|" + nodeTZAbbrev(now) + "\n";
+      {
+        std::lock_guard<std::mutex> lk(s_schedMutex);
+        int p = 0;
+        while (p < (int)s_sched.length()) {
+          int nl = s_sched.indexOf('\n', p);
+          if (nl < 0) nl = s_sched.length();
+          String ln = s_sched.substring(p, nl);
+          p = nl + 1;
+          out += nodeLocalString((time_t)ln.substring(0, ln.indexOf('|')).toInt()) + "|" + ln + "\n";
+        }
+      }
+      req->send(200, "text/plain", out);
+  });
+
+  server->on("/schedule", HTTP_POST, [](AsyncWebServerRequest *req) {
+      schedLearnClock(req);
+      if (req->hasParam("del", true)) {
+        if (!schedDelLine(req->getParam("del", true)->value())) {
+          req->send(404, "text/plain", "Block changed since the list loaded - refresh and retry");
+          return;
+        }
+        req->send(200, "text/plain", "Block removed");
+        return;
+      }
+      if (!req->hasParam("at", true) || !req->hasParam("period", true) ||
+          !req->hasParam("path", true) || !req->hasParam("body", true)) {
+        req->send(400, "text/plain", "Missing at, period, path or body");
+        return;
+      }
+      String msg;
+      int code = schedAddBlock(req->getParam("at", true)->value(), req->getParam("period", true)->value().toInt(),
+                               req->getParam("path", true)->value(), req->getParam("body", true)->value(), msg);
+      req->send(code, "text/plain", msg);
+  });
+
   server->on("/api/time", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("epoch", true)) {
           req->send(400, "text/plain", "Missing epoch");
@@ -946,7 +1206,8 @@ void registerRemainingRoutes() {
         j += "\"enabled\":" + String(vibAutoScanEnabled ? "true" : "false") + ",";
         j += "\"mode\":" + String(vibAutoScanMode) + ",";
         j += "\"duration\":" + String(vibAutoScanDuration) + ",";
-        j += "\"cooldown\":" + String(vibAutoScanCooldownMs / 1000);
+        j += "\"cooldown\":" + String(vibAutoScanCooldownMs / 1000) + ",";
+        j += "\"preempt\":" + String(vibAutoScanPreempt ? "true" : "false");
         j += "}";
         req->send(200, "application/json", j); });
 
@@ -974,10 +1235,15 @@ void registerRemainingRoutes() {
             if (c > 86400) c = 86400;
             vibAutoScanCooldownMs = (uint32_t)c * 1000UL;
         }
+        if (req->hasParam("preempt", true)) {
+            String e = req->getParam("preempt", true)->value();
+            vibAutoScanPreempt = (e == "true" || e == "1" || e == "on");
+        }
         lastSaveTime = 0;
         saveConfiguration();
-        Serial.printf("[VIBSCAN] Config set via web UI: en=%d mode=%u dur=%u cd=%ums\n",
-                      vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration, vibAutoScanCooldownMs);
+        Serial.printf("[VIBSCAN] Config set via web UI: en=%d mode=%u dur=%u cd=%ums preempt=%d\n",
+                      vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration, vibAutoScanCooldownMs,
+                      vibAutoScanPreempt ? 1 : 0);
         req->send(200, "text/plain", "Vibration auto-scan saved"); });
 
   server->on("/mesh-hb", HTTP_POST, [](AsyncWebServerRequest *req)

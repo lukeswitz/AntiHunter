@@ -492,7 +492,7 @@ static char g_arType[24] = {0};
 static constexpr uint32_t AR_STALE_MS = 900000;
 
 void attack_responseArm(const uint8_t *mac, const char *attackType) {
-    const uint8_t mask = g_attackRespMask.load();
+    const uint8_t mask = (uint8_t)(g_attackRespMask.load() & ~AR_PREEMPT);
     if (mask == 0) return;
     if (mac) memcpy(g_arMac, mac, 6);
     strncpy(g_arType, attackType ? attackType : "?", sizeof(g_arType) - 1);
@@ -518,7 +518,10 @@ void attack_responsePump() {
         Serial.println("[SENTINEL] Attack response expired before the radio freed up");
         return;
     }
-    if (::scanning.load() || ::workerTaskHandle || ::blueTeamTaskHandle || ::triangulationActive.load()) return;
+    if (::scanning.load() || ::workerTaskHandle || ::blueTeamTaskHandle || ::triangulationActive.load()) {
+        if (g_attackRespMask.load() & AR_PREEMPT) schedulerYieldRadio("Attack response");
+        return;
+    }
 
     const uint8_t bit = (uint8_t)(pending & (uint8_t)(-(int8_t)pending));
     g_arPending.store((uint8_t)(pending & ~bit));
@@ -584,7 +587,7 @@ void attack_responsePump() {
 void attacker_kick(const uint8_t *mac, const char *attackType) {
     if (!mac) return;
     const bool trilatOn = g_attackerTrilatEnabled.load();
-    if (!trilatOn && g_attackRespMask.load() == 0) return;
+    if (!trilatOn && (g_attackRespMask.load() & ~AR_PREEMPT) == 0) return;
     uint64_t k = packMac(mac);
     uint32_t now = millis();
     bool startTrilat = false;

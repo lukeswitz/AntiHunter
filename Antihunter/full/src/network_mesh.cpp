@@ -1053,6 +1053,7 @@ static void handleVibScanSet(const String &command)
   int d1 = p.indexOf(':');
   int d2 = (d1 >= 0) ? p.indexOf(':', d1 + 1) : -1;
   int d3 = (d2 >= 0) ? p.indexOf(':', d2 + 1) : -1;
+  int d4 = (d3 >= 0) ? p.indexOf(':', d3 + 1) : -1;
   if (d1 < 0 || d2 < 0) {
     sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID", true);
     return;
@@ -1060,7 +1061,8 @@ static void handleVibScanSet(const String &command)
   int en = p.substring(0, d1).toInt();
   int mode = p.substring(d1 + 1, d2).toInt();
   int dur = (d3 >= 0) ? p.substring(d2 + 1, d3).toInt() : p.substring(d2 + 1).toInt();
-  int cd = (d3 >= 0) ? p.substring(d3 + 1).toInt() : -1;
+  int cd = (d3 >= 0) ? ((d4 >= 0) ? p.substring(d3 + 1, d4).toInt() : p.substring(d3 + 1).toInt()) : -1;
+  if (d4 >= 0) vibAutoScanPreempt = (p.substring(d4 + 1).toInt() != 0);
   if (mode < 0 || mode > 8) {
     sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID_MODE", true);
     return;
@@ -1078,9 +1080,9 @@ static void handleVibScanSet(const String &command)
   lastSaveTime = 0;
   saveConfiguration();
   char buf[96];
-  snprintf(buf, sizeof(buf), ": VIBSCAN_ACK:OK En:%d Mode:%u Dur:%us Cd:%us",
+  snprintf(buf, sizeof(buf), ": VIBSCAN_ACK:OK En:%d Mode:%u Dur:%us Cd:%us Pre:%d",
            vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration,
-           (unsigned)(vibAutoScanCooldownMs / 1000));
+           (unsigned)(vibAutoScanCooldownMs / 1000), vibAutoScanPreempt ? 1 : 0);
   sendToSerial1(nodeId + String(buf), true);
 }
 
@@ -1088,10 +1090,54 @@ static void handleVibScanStatus(const String &command)
 {
   (void)command;
   char buf[128];
-  snprintf(buf, sizeof(buf), ": VIBSCAN_STATUS: En:%d Mode:%u Dur:%us Cd:%us",
+  snprintf(buf, sizeof(buf), ": VIBSCAN_STATUS: En:%d Mode:%u Dur:%us Cd:%us Pre:%d",
            vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration,
-           (unsigned)(vibAutoScanCooldownMs / 1000));
+           (unsigned)(vibAutoScanCooldownMs / 1000), vibAutoScanPreempt ? 1 : 0);
   sendToSerial1(nodeId + String(buf), true);
+}
+
+static void handleSchedAdd(const String &command)
+{
+  String p = command.substring(10);
+  int a = p.indexOf('|'), b = p.indexOf('|', a + 1), c = p.indexOf('|', b + 1);
+  if (a < 0 || b < 0 || c < 0) {
+    sendToSerial1(nodeId + ": SCHED_ACK:INVALID", true);
+    return;
+  }
+  String msg;
+  int code = schedAddBlock(p.substring(0, a), p.substring(a + 1, b).toInt(), p.substring(b + 1, c), p.substring(c + 1), msg);
+  Serial.printf("[SCHED] SCHED_ADD -> %d %s\n", code, msg.c_str());
+  sendToSerial1(nodeId + ": SCHED_ACK:" + (code == 200 ? String("OK") : String("ERR ") + msg), true);
+}
+
+static void handleSchedList()
+{
+  String s = schedListText();
+  int p = 0, i = 1;
+  while (p < (int)s.length()) {
+    int nl = s.indexOf('\n', p);
+    if (nl < 0) nl = s.length();
+    String ln = s.substring(p, nl);
+    p = nl + 1;
+    int a = ln.indexOf('|');
+    Serial.printf("[SCHED] %d next=%s %s\n", i++, nodeLocalString((time_t)ln.substring(0, a).toInt()).c_str(), ln.c_str());
+  }
+  sendToSerial1(nodeId + ": SCHED_LIST:" + String(i - 1), true);
+}
+
+static void handleSchedDel(const String &command)
+{
+  int want = command.substring(10).toInt();
+  String s = schedListText();
+  int p = 0, i = 1;
+  bool ok = false;
+  while (p < (int)s.length() && want > 0) {
+    int nl = s.indexOf('\n', p);
+    if (nl < 0) nl = s.length();
+    if (i++ == want) { ok = schedDelLine(s.substring(p, nl)); break; }
+    p = nl + 1;
+  }
+  sendToSerial1(nodeId + (ok ? ": SCHED_ACK:DELETED" : ": SCHED_ACK:NOT_FOUND"), true);
 }
 
 static void handleAttackerTrilat(const String &command)
@@ -2047,6 +2093,15 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SCAN_START:"))           handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))       handleBaselineStart(command);
   else if (command == "BASELINE_STATUS")                handleBaselineStatus(command);
+#if AH_SELFTEST
+  else if (command == "SELFTEST_VIBSCAN") {
+      vibAutoScanPending = true;
+  }
+  else if (command == "SELFTEST_ATTACK") {
+      const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+      attack_responseArm(m, "SELFTEST");
+  }
+#endif
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
@@ -2080,6 +2135,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "VIBRATION_OFF")                  handleVibrationOff(command);
   else if (command.startsWith("VIBSCAN_SET:"))          handleVibScanSet(command);
   else if (command == "VIBSCAN_STATUS")                 handleVibScanStatus(command);
+  else if (command.startsWith("SCHED_ADD:"))            handleSchedAdd(command);
+  else if (command == "SCHED_LIST")                     handleSchedList();
+  else if (command.startsWith("SCHED_DEL:"))            handleSchedDel(command);
   else if (command == "ATTACKER_TRILAT_STATUS")         handleAttackerTrilatStatus(command);
   else if (command.startsWith("ATTACKER_TRILAT:"))      handleAttackerTrilat(command);
   else if (command.startsWith("TRIANGULATE_START:"))    handleTriangulateStart(command, targetId);
@@ -2117,15 +2175,28 @@ static String buildVibAutoScanCommand(uint8_t mode, uint16_t durSecs)
   }
 }
 
+static uint32_t s_vibWaitSince = 0;
+
+bool vibAutoScanWaiting() { return s_vibWaitSince != 0; }
+
 void serviceVibrationAutoScan()
 {
   if (!vibAutoScanPending) return;
   vibAutoScanPending = false;
-  if (!vibAutoScanEnabled || vibAutoScanMode == 0) return;
+  if (!vibAutoScanEnabled || vibAutoScanMode == 0) { s_vibWaitSince = 0; return; }
   if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    if (s_vibWaitSince && millis() - s_vibWaitSince < 30000) { vibAutoScanPending = true; return; }
+    if (!s_vibWaitSince && vibAutoScanPreempt && schedulerYieldRadio("Vibration auto-scan")) {
+      s_vibWaitSince = millis();
+      if (!s_vibWaitSince) s_vibWaitSince = 1;
+      vibAutoScanPending = true;
+      return;
+    }
+    s_vibWaitSince = 0;
     Serial.println("[VIBSCAN] Auto-scan skipped: scan already running");
     return;
   }
+  s_vibWaitSince = 0;
   unsigned long now = millis();
   if (lastVibAutoScanFire != 0 && (now - lastVibAutoScanFire) < vibAutoScanCooldownMs) {
     Serial.println("[VIBSCAN] Auto-scan skipped: cooldown");

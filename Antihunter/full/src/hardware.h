@@ -103,6 +103,10 @@ time_t getRTCEpoch();
 uint32_t getEventTimestamp();
 bool setRTCTimeFromEpoch(time_t epoch);
 void updateLocalTZFromGPS();
+String nodeTZAbbrev(time_t epoch);
+time_t nodeLocalToEpoch(int year, int month, int day, int hour, int minute);
+time_t nodeLocalAddDays(time_t epoch, int days);
+String nodeLocalString(time_t epoch);
 
 // Sensors and GPS
 extern bool sdAvailable;
@@ -126,6 +130,7 @@ extern uint8_t vibAutoScanMode;
 extern uint16_t vibAutoScanDuration;
 extern uint32_t vibAutoScanCooldownMs;
 extern volatile bool vibAutoScanPending;
+extern bool vibAutoScanPreempt;
 extern unsigned long lastVibAutoScanFire;
 
 void initializeHardware();
