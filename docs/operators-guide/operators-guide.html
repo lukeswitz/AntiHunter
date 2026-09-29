@@ -136,7 +136,7 @@
 
   <div class="box warn">
     <span class="t">Read before applying power: three rules</span>
-    <p><b>1. Regulated 5 V only.</b> Power the PCB from USB, a bench supply set to 5 V, a proper DC-DC regulator, or the UPS board. Never connect 18650 batteries, a battery pack, or a vehicle supply directly to the PCB. Unregulated input permanently damages the modules. Voltages under 4.5 V cause instability.</p>
+    <p><b>1. Regulated 5 V only.</b> Power the PCB from USB, a bench supply set to 5 V, a proper DC-DC regulator, or the UPS board. Never connect 18650 cells, a battery pack, or a vehicle supply directly to the board. Unregulated input permanently damages the modules. Voltages under 4.5 V cause instability.</p>
     <p><b>2. Never power the LoRa radio without its antenna.</b> Transmitting into an open port can destroy the radio's PA. Fit the LoRa antenna, or the U.FL pigtail plus antenna, before the node is energised.</p>
     <p><b>3. One USB cable at a time.</b> The ESP32 and the Meshtastic radio share the PCB's power rails. With both USB ports plugged in, one board back-feeds the other. Plug in one board, do your work, unplug it, then plug in the other.</p>
   </div>
@@ -144,7 +144,7 @@
   <h3>What you are holding</h3>
   <table>
     <tr><th style="width:26%">Tier</th><th>What is in the box</th><th style="width:32%">What you still have to do</th></tr>
-    <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two flat-top 18650 batteries, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
+    <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two 18650 cells, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
     <tr><td><b>2 · Complete Parts Kit</b></td><td>Every part on the bill of materials, unassembled, as it comes from the supplier. Passive GPS antenna. Nothing is soldered and nothing is flashed.</td><td>Solder and assemble it (§3), flash Meshtastic on the radio (§7.1), then flash AntiHunter (§5) and configure.</td></tr>
     <tr><td><b>3 · Populated PCB</b></td><td>A fully assembled PCB. Core modules soldered, bench-tested, 8 GB SD card fitted. Factory U.FL antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Attach the antennas (§2), supply power over USB or 18650s, build the housing if you want one, flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
     <tr><td><b>4 · Bare PCB</b></td><td>One 82 mm board, unpopulated.</td><td>Source the BOM, solder the modules, flash Meshtastic on the radio, fit an SD card, then follow this guide from §3.</td></tr>
@@ -152,13 +152,13 @@
 
   <div class="box tier">
     <span class="t">Tiers 1 and 3: the radio is already done</span>
-    <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. The screen is also set to blank after one second and the status LED is off, so a dark radio on first power-up is expected, not a fault. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
+    <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
     <p>On the Complete Parts Kit and the Bare PCB you flash the radio yourself first. §7.1 has the settings. The ESP32 ships empty on <i>every</i> tier, so you always flash AntiHunter yourself and know exactly what is on it.</p>
   </div>
 
   <h3>Contents</h3>
   <div class="toc">
-    <div><span class="n">1</span> Unboxing and inventory<span class="s">Tier checklists, what you supply, power and thermal, first steps by tier</span></div>
+    <div><span class="n">1</span> Unboxing and inventory<span class="s">Tier checklists, tools you supply, power and thermal</span></div>
     <div><span class="n">2</span> Antennas<span class="s">U.FL seating, SMA fitting, which port is which</span></div>
     <div><span class="n">3</span> Assembly<span class="s">Tiers 2 and 4: where the assembly manual takes over</span></div>
     <div><span class="n">4</span> First power-on<span class="s">Boot signs, SD card, GPS, real-time clock</span></div>
@@ -195,35 +195,36 @@
   </div>
 
   <div class="box tier long"><span class="t">Tier 2: Complete Parts Kit</span>
-  <p style="margin-bottom:2mm">Every part needed to build a finished node. Nothing is soldered and nothing is flashed. You supply two flat-top 18650 batteries, an active SMA GPS antenna and soldering tools.</p>
+  <p style="margin-bottom:2mm">Every part needed to build a finished node. Nothing is soldered and nothing is flashed. The two 18650 cells are the only thing you supply.</p>
   <ul class="check" style="margin-bottom:0">
-    <li>1× DIGI NODE PCB, 82 mm, 2-layer</li>
-    <li>1× Seeed XIAO ESP32-S3, with its U.FL antenna</li>
-    <li>1× Heltec Wi-Fi LoRa 32 V3.2, with its U.FL antenna</li>
-    <li>1× ATGM336H GPS module, with its U.FL ceramic antenna</li>
-    <li>1× DS3231 RTC module</li>
-    <li>1× SW-420 vibration sensor</li>
-    <li>1× micro SD reader module</li>
-    <li>1× 8 GB micro SD card, FAT32</li>
-    <li>1× 6 dBi 2.4 GHz SMA antenna</li>
-    <li>1× 6 dBi LoRa SMA antenna for your region</li>
-    <li>3× U.FL-to-SMA bulkhead pigtail</li>
-    <li>1× 2S 18650 UPS power board</li>
-    <li>5× JST 2.54 2-pin female terminals, 3 used in the build</li>
-    <li>2× JST 2.54 male power cables, for the switch and the UPS board</li>
-    <li>1× KSD9700 normally-open on-wire thermal switch, 40 °C</li>
-    <li>1× toggle switch with waterproof cap</li>
-    <li>1× waterproof USB-C input connector, with mounting nut and cap</li>
-    <li>1× 30 × 7 mm dual-bearing fan, prewired with a JST 2.54 male lead</li>
-    <li>1× 3D-printed enclosure, unassembled</li>
-    <li>1× TPU seal set: housing, USB, GPS base</li>
-    <li>1× ¼"-20 tripod insert</li>
-    <li>2× M3 15 mm brass standoffs, PCB underside to case lid</li>
-    <li>14× M3×4-6 mm hex head screws</li>
+    <li>Bare 82 mm PCB</li>
+    <li>XIAO ESP32-S3</li>
+    <li>Heltec V3.2 LoRa radio (or T114)</li>
+    <li>ATGM336H GPS module</li>
+    <li>DS3231 RTC module</li>
+    <li>SW-420 vibration sensor</li>
+    <li>Micro SD reader module</li>
+    <li>8 GB SD card</li>
+    <li>Pin headers for every module</li>
+    <li>3D-printed enclosure: main PCB housing, battery housing, front cover, back cover</li>
+    <li>TPU seals for the housing, GPS and USB-C port</li>
+    <li>3× U.FL-to-SMA pigtail cables</li>
+    <li>SMA bulkheads</li>
+    <li>2.4 GHz Wi-Fi/BLE antenna, 6 dBi</li>
+    <li>LoRa antenna for your region</li>
+    <li>Passive ceramic GPS antenna, the one supplied with the GPS module</li>
+    <li>30 mm 5 V fan with JST lead</li>
+    <li>KSD9700 normally-open thermal switch, 40 °C</li>
+    <li>3-pin mini on/off switch with rubber cover</li>
+    <li>Waterproof Type-C female chassis jack, 2-pin 22 AWG leads, panel nut and dust cap</li>
+    <li>Type-C 15 W 3 A 5 V UPS charger board, dual 18650</li>
+    <li>6× JST 2.54 2-pin terminals</li>
+    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>M3 heat-set inserts, plus 4× M2 for the power board</li>
+    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
     <li>2× M2.5 screws, supplied with the fan</li>
-    <li>10× M3 melt-in inserts for the lid and PCB</li>
-    <li>4× M2×4-6 mm hex head screws for the power board, optional, bare M3 works instead</li>
-    <li>4× M2 melt-in inserts for the power board, optional, bare M3 works instead</li>
+    <li>2× 15 mm brass standoffs</li>
+    <li>¼"-20 tripod insert</li>
   </ul>
   </div>
 
@@ -246,9 +247,8 @@
 
   <h3>1.2 What you supply</h3>
   <ul>
-    <li><b>Power.</b> Tiers 1 and 2 take two 18650 batteries in the UPS board. Tier 3 runs from USB or from your own regulated 5 V supply. Batteries are never supplied on any tier.</li>
-    <li><b>18650 batteries.</b> Flat top. Brand new, same brand, same capacity, never mixed old with new. Do not connect batteries directly to the PCB, they go in the UPS board only. Sourcing, charging, storage and disposal are your responsibility.</li>
-    <li><b>An active GPS antenna</b> on the Complete Parts Kit, the Populated PCB and the Bare PCB. The kit does not include an external GPS helix. Supply your own active SMA GPS antenna with L1 coverage. The ceramic patch that ships with the GPS module works for bench testing and is not a deployment antenna.</li>
+    <li><b>Power.</b> Tiers 1 and 2 take two 18650 cells in the UPS board. Tier 3 runs from USB or from your own regulated 5 V supply. Cells are never supplied on any tier.</li>
+    <li><b>18650 cells.</b> Brand new, same brand, same capacity, never mixed old with new. Sourcing, charging, storage and disposal are your responsibility.</li>
     <li><b>A micro SD card</b>, only on the Bare PCB tier. Every other tier ships with an 8 GB card. A replacement must be FAT32, and 32 GB or larger is not recommended.</li>
     <li><b>A USB-C data cable.</b> Charge-only cables will not flash the board.</li>
     <li><b>A computer running Chrome or Edge</b> for the web flasher, or a terminal for the CLI installer.</li>
@@ -272,82 +272,25 @@
   </div>
 
   <h3>1.3 Power</h3>
-  <p>The node draws roughly 160 mA idle and 600 mA while actively scanning. Inside the enclosure the UPS board provides the regulated 5 V and the batteries are never connected to the PCB directly. Outside the enclosure, use a USB-C adapter, a bench supply set to 5.0 V on the 5 V input, or a proper DC-DC regulator.</p>
+  <p>The node draws roughly 160 mA idle and 600 mA while actively scanning. Inside the enclosure the UPS board provides the regulated 5 V and the cells are never connected to the PCB directly. Outside the enclosure, use a USB-C adapter, a bench supply set to 5.0 V on the 5 V input, or a proper DC-DC regulator.</p>
 
   <div class="box warn">
     <span class="t">Power rules</span>
-    <p>Do not connect batteries directly to the PCB. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
+    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
   </div>
 
   <h3>1.4 Thermal</h3>
   <p>The ESP32 runs warm under load and the GPS module gets noticeably hot while it searches for satellites. Both are normal. Neither the fan nor the thermal switch is required for the node to work.</p>
   <ul>
-    <li>The 30 × 7 mm dual-bearing fan plugs into the FAN JST output on its prewired JST 2.54 male lead.</li>
+    <li>The 30 mm fan plugs into the FAN JST output.</li>
     <li>The sticker side is not always the exhaust side. Run the fan for a second and feel which way it blows before you screw it down. The Fully Assembled Unit ships with the fan set to exhaust.</li>
     <li>The KSD9700 normally-open thermal switch, 40 °C, wires to the THERMO JST and switches the fan on when the enclosure heats up.</li>
     <li>To run the fan continuously instead, jump the THERMO input or supply 5 V straight to the fan port.</li>
   </ul>
-
-  <h3>1.5 First steps, by tier</h3>
-  <p>The short version of the whole guide. Each step names the section that covers it in full.</p>
-
-  <div class="box tier"><span class="t">Tier 1: Fully Assembled Unit</span>
-  <ol style="margin-bottom:0">
-    <li>Remove the back cover and fit two flat-top 18650 batteries the right way round. A small red LED on the UPS board lights when batteries are present.</li>
-    <li>Screw on the antennas: Wi-Fi left, LoRa right, GPS center. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
-    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
-    <li>Set the LoRa region on the radio. It defaults to UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
-    <li>Change the Bluetooth pairing pin on the radio. Every unit has the same default one. §7.4</li>
-    <li>Make your own encrypted Meshtastic channel primary and turn the public default off. §7.3</li>
-    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
-    <li>Watch the serial log on the first boot. Hardware faults always show up there, and shipping can unseat the SD card. §4</li>
-    <li>Fit the USB seal before outdoor use. The supplied GPS antenna has its own rubber seal. §13</li>
-  </ol>
-  </div>
-
-  <div class="box tier"><span class="t">Tier 2: Complete Parts Kit</span>
-  <ol style="margin-bottom:0">
-    <li>Inventory the kit against §1.1 before you heat the iron.</li>
-    <li>Modify two modules first: the RTC ships with female headers, and some vibration sensors ship with inverted 90° headers. Assembly manual, page 6.</li>
-    <li>Solder and assemble it with the illustrated assembly manual, end to end. §3</li>
-    <li>Fit the SD card before you close the case. The slot is unreachable once the PCB is mounted. §3</li>
-    <li>Fit the U.FL pigtails and the SMA bulkheads, then the antennas. §2.2, §2.3</li>
-    <li>Flash Meshtastic on the Heltec, then set the serial module: Enabled, TEXTMSG, 115200, pins 19 RX / 20 TX. §7.1</li>
-    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
-    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
-    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
-    <li>Fit two flat-top 18650 batteries in the UPS board, and your own active SMA GPS antenna. §1.2</li>
-  </ol>
-  </div>
-
-  <div class="box tier"><span class="t">Tier 3: Populated PCB</span>
-  <ol style="margin-bottom:0">
-    <li>Fit the three U.FL antennas: ceramic patch to the GPS module, coiled whip to the LoRa radio, film antenna to the XIAO. Press straight down until it clicks, never at an angle. §2.2</li>
-    <li>Never power the node with the LoRa antenna missing.</li>
-    <li>Power it from USB or your own regulated 5 V. §1.3</li>
-    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
-    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
-    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
-    <li>Build a housing if you want one. STLs are in <span class="mono">hw/Prototype_STL_Files/</span>. §13</li>
-  </ol>
-  </div>
-
-  <div class="box tier"><span class="t">Tier 4: Bare PCB</span>
-  <ol style="margin-bottom:0">
-    <li>Source the parts from the bill of materials in Appendix B, including an SD card and an active SMA GPS antenna.</li>
-    <li>Modify two modules first: the RTC ships with female headers, and some vibration sensors ship with inverted 90° headers. Assembly manual, page 6.</li>
-    <li>Solder and assemble it with the illustrated assembly manual. §3</li>
-    <li>Fit the SD card before you close the case. §3</li>
-    <li>Flash Meshtastic on the Heltec V3.2 or T114, then set the serial module: Enabled, TEXTMSG, 115200, pins 19 RX / 20 TX on Heltec, 10 RX / 9 TX on T114. §7.1</li>
-    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
-    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
-    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
-  </ol>
-  </div>
 </div>
 
 <div class="sec">
-  <h2 id="s2"><span class="num">2</span>Antennas</h2>
+  <h2><span class="num">2</span>Antennas</h2>
   <p class="lead">More nodes are damaged fitting antennas than in any other step. The U.FL connectors are small, fragile and unforgiving of a crooked press. Take your time here.</p>
 
   <h3>2.1 Which antenna goes where</h3>
@@ -425,16 +368,10 @@
     <p>Work through it end to end, then come back here at §4 to power the node up for the first time.</p>
   </div>
 
-  <div class="box warn"><span class="t">Two modules need a header modification first</span>
-    <p>Covered on page 6 of the assembly manual. Do both before anything is soldered to the board.</p>
-    <p><b>RTC module.</b> Ships with female headers. Trim and reuse the existing pins, or desolder them and fit males.</p>
-    <p><b>Vibration sensor.</b> Some units ship with inverted 90° headers. Bend them straight, reheat the joints, push through and trim the excess, or desolder and replace with standard pins.</p>
-  </div>
-
 </div>
 
 <div class="sec">
-  <h2 id="s4"><span class="num">4</span>First power-on</h2>
+  <h2><span class="num">4</span>First power-on</h2>
 
   <h3>4.1 What a healthy boot looks like</h3>
   <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialize says so by name.</p>
@@ -653,7 +590,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
-  <h3 id="s8-2">8.2 Identity</h3>
+  <h3>8.2 Identity</h3>
   <ul>
     <li><b>Node ID.</b> Set it in the web UI or with <span class="mono">@AH01 CONFIG_NODEID:AH02</span>. It prefixes every mesh message the node sends, so make it meaningful.</li>
     <li><b>Clock.</b> See §4.3. Everything is timestamped UTC.</li>
@@ -688,7 +625,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Privacy Mode.</b> One click blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
     <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
-    <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — and of the Sentinel banners. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
+    <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — of the Sentinel banners and of the movement hit color. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
   </ul>
 
@@ -737,7 +674,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL DEAUTH_START:300</pre>
   <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
 
-  <h3>9.7 Sentinel counter-intelligence</h3>
+  <h3>9.7 Sentinel counter-intelligence <span style="font-size:.7em;opacity:.7">(beta)</span></h3>
   <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
@@ -756,7 +693,7 @@ python3 scripts/meshtastic_config.py</pre>
   </table>
   <p>Deauth, beacon and auth detection are always on and have no toggle. <span class="mono">SENTINEL_MODE:defend</span> pins one channel. On Headless there is no AP to pin to, so use <span class="mono">scan</span>. Sentinel is Wi-Fi only. BLE and drone detection are separate modes.</p>
   <div class="box"><span class="t">Karma bait</span>
-    <p>Karma bait is the only part of the firmware that transmits: a probe request every 8 seconds to bait a karma AP into responding. It is off by default. Enable it deliberately with <span class="mono">GROUP:rogue:on</span> and only where transmitting is appropriate.</p>
+    <p>Karma bait is the only Sentinel detector that transmits: a probe request every 8 seconds to bait a karma AP into responding. It is off by default. Enable it deliberately with <span class="mono">GROUP:rogue:on</span> and only where transmitting is appropriate.</p>
   </div>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
 
@@ -779,27 +716,57 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL TRIANGULATE_STOP</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
-  <h3>9.10 Packet Capture</h3>
+  <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, beta firmware only)</span></h3>
+  <p>Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.</p>
+  <p><b>How it works.</b> Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.</p>
+  <p><b>Start it:</b> Scan tab → CSI Motion Detection → Start Scan. Over mesh:</p>
+  <pre>@ALL CSI_MOTION_START:0:FOREVER</pre>
+  <p><b>Pick a sensitivity:</b></p>
+  <ul>
+    <li><b>Low</b> (default): fewest false alarms. Two devices must see the movement.</li>
+    <li><b>Medium</b>: more sensitive. Two devices, or one device seeing a very strong change (4× the trigger).</li>
+    <li><b>High</b>: most sensitive. Same as Medium with a lower trigger and a shorter wait. More false alarms.</li>
+  </ul>
+  <p><b>Settings</b> (Scan tab → CSI Motion Detection; most are under Advanced):</p>
+  <table>
+    <tr><th>Setting</th><th>What it means</th><th>Default</th></tr>
+    <tr><td>Movement needed before alerting</td><td>How long someone must move before you get an alert</td><td>8 s</td></tr>
+    <tr><td>Stillness before all-clear</td><td>How long it must be quiet before the alert clears</td><td>5 s</td></tr>
+    <tr><td>Devices that must agree</td><td>How many devices must see the movement at the same time</td><td>2</td></tr>
+    <tr><td>Trigger level</td><td>Lower catches smaller movement</td><td>set by sensitivity</td></tr>
+    <tr><td>Listen only, never transmit</td><td>The node never sends probes. Turn off only if it sees too little Wi-Fi</td><td>On</td></tr>
+    <tr><td>Include randomized-MAC devices</td><td>Also listen to phones and watches, not just routers</td><td>On</td></tr>
+    <tr><td>Min. seconds between mesh motion alerts</td><td>Wait at least this many seconds between motion alerts sent over mesh</td><td>0 (no limit)</td></tr>
+  </table>
+  <p><b>Getting false alarms with nobody there?</b> Turn on "Per-packet score to serial", watch the <span class="mono">sig</span> numbers while the room is empty, and set Trigger level just above the highest one.</p>
+  <div class="box"><span class="t">Can transmit</span>
+    <p>Off by default. If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.</p>
+  </div>
+  <p>Mesh commands: §11.</p>
+
+  <h3>9.11 Packet Capture</h3>
   <p>Records raw traffic to SD as a standard pcap. Wi-Fi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
-  <p>Arguments are radio, seconds, band. Radio 0 Wi-Fi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, and a management-frames-only filter.</p>
-  <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab, in the sentinel auto-response panel, or over mesh.</p>
+  <p>Arguments are radio, seconds, band. Radio 0 Wi-Fi, 1 BLE, one at a time; there is no both, and any other value, including 2, is taken as Wi-Fi. Unlike the <span class="mono">mode</span> field of the other scan commands, 2 does not mean both here. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, a management-frames-only filter, and the maximum file size.</p>
+  <p>The mesh reply names the radio that actually started, <span class="mono">PCAP_START: WIFI</span> or <span class="mono">PCAP_START: BLE</span>. Getting <span class="mono">WIFI</span> back from a command you meant as BLE means the radio field was wrong. A capture started by a vibration trigger or a Sentinel attack response is always Wi-Fi on 2.4 GHz; BLE is a manual choice only.</p>
+  <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab or over mesh.</p>
   <pre>@ALL PCAP_LIMITS:150
 @ALL PCAP_LIMITS</pre>
   <div class="box warn"><span class="t">Captures are large and carry everything</span>
     <p>A busy channel fills megabytes per minute. Check free space before a long run, and treat the file as a raw intercept.</p>
   </div>
   <div class="box warn"><span class="t">Stop the capture before you cut power</span>
-    <p>FAT has no power-fail protection. Resetting or unplugging a node while a capture is writing can leave the card unreadable until it is reformatted, and the node then runs with no storage at all. Stop the capture first.</p>
-    <p>A node can rebuild its own card rather than waiting for someone with a card reader. Off by default, because rebuilding erases the card.</p>
+    <p>FAT has no power-fail protection. Resetting or unplugging a node while a capture is writing can leave the card unreadable until it is reformatted, and the node then runs with no storage at all: no logging, no baseline, no captures. Stop the capture first.</p>
+    <p>A node can rebuild its own card instead of waiting for someone with a card reader. This is off by default because rebuilding erases everything on the card.</p>
     <pre>@ALL SD_REPAIR:ON
 @ALL SD_REPAIR:NOW
 @ALL SD_REPAIR:OFF</pre>
+    <p><span class="mono">NOW</span> repairs once without changing the setting. With repair off, a failed mount says so once a minute and the SD line in Diagnostics shows how many times it has failed.</p>
   </div>
 
-  <h3>9.11 Scheduling scans</h3>
+  <h3>9.12 Scheduling scans</h3>
   <p>The Schedule panel on the Scan tab runs any scan at set times. The node runs it, so the web page can be closed.</p>
   <ol>
     <li>Pick the scan in the top row and set its options.</li>
@@ -816,7 +783,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>Time zone.</b> The node picks its zone from the GPS fix, daylight saving included. Daily and weekly blocks keep the same clock time across a daylight saving change. With no GPS fix, or outside the zone table, times are UTC.</li>
     <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot. If a mesh command or another start takes the radio at the same moment, the block is not lost; it tries again 5 seconds later.</li>
-    <li><b>Vibration scans.</b> By default a vibration auto-scan is skipped while a scheduled scan runs. Turn on <b>Interrupt scheduled scans</b> in Vibration Auto-Scan (System tab) to let it stop the scheduled scan, run, and then resume the scheduled scan for its remaining time. A resumed Baseline starts its learning phase again. A scheduled block never takes the radio while a vibration scan is waiting for it.</li>
+    <li><b>Vibration and attack scans.</b> By default they wait for a scheduled scan: a vibration auto-scan is skipped, an attack response runs when the scan ends. Turn on <b>Interrupt scheduled scans</b> in Vibration Auto-Scan (System tab) or in the attack-response panel (Sentinel tab) to let that trigger stop the scheduled scan, run, and then resume the scheduled scan for its remaining time. A resumed Baseline starts its learning phase again. A scheduled block never takes the radio while a vibration or attack scan is waiting for it.</li>
     <li><b>Over mesh.</b> <span class="mono">SCHED_ADD:2026-09-30T02:00|86400|/sniffer|detection=device-scan&amp;deviceScanMode=2&amp;secs=600</span> adds a daily block. <span class="mono">SCHED_LIST</span> prints the blocks to serial, <span class="mono">SCHED_DEL:2</span> deletes the second one.</li>
     <li><b>Battery Saver.</b> Schedules pause while Battery Saver is on. A block that came due runs once when it ends.</li>
     <li><b>Limits.</b> 8 blocks. They are kept in NVS and survive reboots.</li>
@@ -826,7 +793,7 @@ python3 scripts/meshtastic_config.py</pre>
     <p>Schedules need the clock from §4.3. On a node without a working RTC, blocks wait until the web UI is opened once after boot, which gives the node the time.</p>
   </div>
 
-  <h3>9.12 Reading the results</h3>
+  <h3>9.13 Reading the results</h3>
   <ul>
     <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, packet captures in <span class="mono">/pcap</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
     <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
@@ -853,7 +820,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Alerts are rate-limited to one every 3 seconds, so continuous shaking produces a steady trickle rather than a flood. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
   <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the toggle in the web UI's Sensor Alerts card. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
 
-  <h3 id="s10-2">10.2 Tuning the trimpot</h3>
+  <h3>10.2 Tuning the trimpot</h3>
   <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends entirely on where the node is mounted. A pole in the wind is not a shelf indoors. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
   <ol>
     <li>Power the node and watch the sensor's own indicator LED, or open a serial monitor and watch for <span class="mono">[VIBRATION]</span> lines.</li>
@@ -952,11 +919,17 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW][:GAP&lt;s&gt;][:LISTEN_ONLY|ALLOW_TRANSMIT][:MGMTONLY|MGMTDATA][:SOLICIT&lt;ms&gt;]</span></td></tr>
+    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger</td><td><span class="mono">trigger:hold_ms:consec:channel</span> or <span class="mono">SENSITIVITY=LOW|MEDIUM|HIGH</span>, <span class="mono">MIN_MOTION=</span>, <span class="mono">CLEAR_AFTER=</span>, <span class="mono">SPOTS=</span>, <span class="mono">BROADCAST=ON|OFF</span>, <span class="mono">ALLOW_RANDOM=ON|OFF</span></td></tr>
+    <tr><td><span class="mono">CSI_STATUS</span> and <span class="mono">CSI_JSON</span></td><td>Dump motion state to serial</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_RECAL</span></td><td>Drop a saved trigger</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_EXCLUDE</span></td><td>Ignore one MAC for motion</td><td><span class="mono">&lt;MAC&gt;</span> or <span class="mono">NONE</span></td></tr>
+    <tr><td><span class="mono">MESH_TX_CANCEL</span></td><td>Drop queued mesh traffic, keep scanning</td><td>None</td></tr>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:CH&lt;list&gt;]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
-  <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. PCAP radio 0 Wi-Fi / 1 BLE; band is 2.4 GHz on this build.</p>
+  <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP is the exception: its radio field is 0 Wi-Fi / 1 BLE only, one radio per capture, and 2 is taken as Wi-Fi rather than both. PCAP band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">
@@ -999,7 +972,7 @@ python3 scripts/meshtastic_config.py</pre>
 </div>
 
 <div class="sec">
-  <h2 id="s12"><span class="num">12</span>Command Center</h2>
+  <h2><span class="num">12</span>Command Center</h2>
   <p class="lead">One node needs no server. A fleet benefits from one: AntiHunter Command &amp; Control PRO aggregates every node's detections onto a live map, with TAK, MQTT and ADS-B integration and a Sentinel console.</p>
 
   <figure><img src="../img/architecture.png" alt=""><figcaption>Nodes operate independently and coordinate over the mesh. The Command Center aggregates.</figcaption></figure>
@@ -1056,7 +1029,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2 id="s13"><span class="num">13</span>Deployment</h2>
+  <h2><span class="num">13</span>Deployment</h2>
 
   <h3>13.1 Siting</h3>
   <ul>
@@ -1103,7 +1076,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2 id="s14"><span class="num">14</span>Maintenance and troubleshooting</h2>
+  <h2><span class="num">14</span>Maintenance and troubleshooting</h2>
 
   <h3>14.1 Symptom table</h3>
   <table>
@@ -1121,13 +1094,12 @@ docker compose up -d --build</pre>
     <tr><td>Settings gone after flashing</td><td>Erase Device was ticked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
     <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
     <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behavior. Position is only attached when the fix is valid.</td></tr>
-    <tr><td>Weak GPS, LoRa or Wi-Fi signal</td><td>The SMA joint on the pigtail is loose. Some pigtails are two-piece and the connector screws onto the bulkhead, and they ship loose from the factory</td><td>Hold the bulkhead and tighten the pigtail's SMA joint, then re-check the U.FL end and the antenna. Check every pigtail, not only the one that looks wrong.</td></tr>
   </table>
 
   <h3>14.2 Routine maintenance</h3>
   <ul>
     <li>Pull the SD card periodically and archive the logs, then clear them, so a lost node carries less.</li>
-    <li>Check the batteries. A swollen or damaged 18650 is retired immediately, never recharged.</li>
+    <li>Check the cells. A swollen or damaged 18650 is retired immediately, never recharged.</li>
     <li>Re-check antenna tightness and seal condition after any period in the field.</li>
     <li>Reflash on the same channel to pick up fixes. Read the release notes first.</li>
   </ul>
@@ -1172,7 +1144,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2 id="appendix-a">Appendix A · Pinout</h2>
+  <h2>Appendix A · Pinout</h2>
   <p>XIAO ESP32-S3 on the DIGI NODE board. Pin assignments may change with board revisions. Verify against your revision.</p>
   <table class="tight">
     <tr><th>Function</th><th>GPIO</th><th>Notes</th></tr>
@@ -1205,32 +1177,31 @@ docker compose up -d --build</pre>
   </ul>
   <h4>Connectors and fasteners</h4>
   <ul class="small">
-    <li>5× JST 2.54 2-pin female terminals, 3 used in the build</li>
-    <li>2× JST 2.54 male power cables, for the switch and the UPS board</li>
-    <li>10× M3 melt-in inserts for the lid and PCB</li>
-    <li>4× M2 melt-in inserts for the power board, optional, bare M3 works instead</li>
+    <li>6× JST 2.54 2-pin terminals</li>
+    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>10× M3 heat-set inserts</li>
+    <li>4× M2 heat-set inserts for the power board</li>
     <li>2× M3 15 mm brass standoffs</li>
-    <li>14× M3×4-6 mm hex head screws for the PCB and enclosure lids</li>
+    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
     <li>2× M2.5 screws, supplied with the fan</li>
-    <li>4× M2×4-6 mm hex head screws for the power board, optional, bare M3 works instead</li>
     <li>1× ¼"-20 tripod insert</li>
   </ul>
   <h4>Antenna and cabling</h4>
   <ul class="small">
-    <li>3× U.FL to SMA bulkhead pigtail, 10 to 20 cm</li>
+    <li>3× U.FL to SMA pigtail, 10 to 20 cm</li>
+    <li>SMA bulkheads</li>
     <li>1× 6 dBi 2.4 GHz antenna</li>
     <li>1× 6 dBi LoRa antenna for your region</li>
     <li>1× GPS antenna. Passive ceramic patch on the kit and populated PCB, active helix on the assembled unit</li>
-    <li>1× active SMA GPS antenna with L1 coverage, never supplied with the kit, populated PCB or bare PCB</li>
   </ul>
   <h4>Power and thermal</h4>
   <ul class="small">
-    <li>1× 30 × 7 mm dual-bearing 5 V fan, prewired with a JST 2.54 male lead</li>
-    <li>1× toggle switch with waterproof cap</li>
-    <li>1× waterproof USB-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
-    <li>1× 2S 18650 UPS power board, Type-C 15 W 3 A 5 V</li>
+    <li>1× 30 mm 5 V fan with JST lead</li>
+    <li>1× 3-pin mini on/off switch</li>
+    <li>1× waterproof Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
+    <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
     <li>1× 2 A fast-blow fuse, recommended, not supplied</li>
-    <li>2× 18650 batteries, flat top, never supplied with any tier</li>
+    <li>2× 18650 cells, protected flat-top, never supplied with any tier</li>
   </ul>
   <h4>Enclosure</h4>
   <ul class="small">
