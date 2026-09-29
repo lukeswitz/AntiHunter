@@ -129,7 +129,7 @@ Pick whichever suits you:
 ## What It Detects
 
 <p align="center">
-<img width="880" alt="AntiHunter node" src="docs/img/node-photo.jpg" />
+<img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
 </p>
 
 | Feature | What it does | Scan modes |
