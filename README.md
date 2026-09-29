@@ -324,54 +324,39 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (beta)
 
-Device-free motion sensing. The node reads the channel state of Wi-Fi frames already in the air and alerts when a body moves through the space. Uses no baseline, **for indoor use**.
+Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
+**How it works.** Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.
 
-- **Set the trigger where the node is setup.** The node measures how much the Wi-Fi signal is shifting around, shown as `sig` in the status line. A body moving makes it shift more. The trigger is the line between "normal" and "someone moved", and normal is different in every room, on every channel. Use the settings to make it work for your environment
-     - TX probes for low RF weather
-     - Ignore randomizing device links
-     - Change the trigger preset
-     - Tweak the advanced settings 
+**Start it:** Scan tab → CSI Motion Detection → Start Scan. Over mesh: `@ALL CSI_MOTION_START:0:FOREVER`
 
-> Watch `sig` with nobody in the space, then set the trigger above the highest value you see. Two nodes in one house settled on 0.080 and 0.045. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+**Pick a sensitivity:**
+- **Low** (default): fewest false alarms. Two devices must see the movement.
+- **Medium**: more sensitive. Two devices, or one device seeing a very strong change (4× the trigger).
+- **High**: most sensitive. Same as Medium with a lower trigger and a shorter wait. More false alarms.
 
-- **Re-measure after a channel change.** A node picks its channel at startup if not serving AP (ch6 default) and moves on its own if that channel turns out to carry too little traffic to detect on. Watch for `STARVED` or `taking ch<n> instead`. 
-- **Alerts need agreement.** An area alert needs several access points moving at once, then 8-12 seconds of that inside a rolling 60-second window, then a hold before the state changes. One link crossing once has to be very strong to trigger, single only works in Low preset. 
-- The Movement view shows live strength, the links tracked, and a session heat strip. Cells start at one minute and widen as the session runs - 5, 15, 30 minutes, then hours - so the strip always covers the whole session
+**Settings** (Scan tab → CSI Motion Detection; most are under Advanced):
+
+| Setting | What it means | Default |
+|---|---|---|
+| Movement needed before alerting | How long someone must move before you get an alert | 8 s |
+| Stillness before all-clear | How long it must be quiet before the alert clears | 5 s |
+| Devices that must agree | How many devices must see the movement at the same time | 2 |
+| Trigger level | Lower catches smaller movement | set by sensitivity |
+| Listen only, never transmit | The node never sends probes. Turn off only if it sees too little Wi-Fi | On |
+| Include randomized-MAC devices | Also listen to phones and watches, not just routers | On |
+| Mesh alert gap | Wait at least this many seconds between alerts sent over mesh | 0 (off) |
+
+**Getting false alarms with nobody there?** Turn on "Per-packet score to serial", watch the `sig` numbers while the room is empty, and set Trigger level just above the highest one.
 
 > [!WARNING]
-> **CSI motion can transmit. Every other scan is receive-only; this one can TX if set to.**
-> When fewer than 15 CSI frames arrive in a second, the node sends one broadcast probe request to pull traffic out of the air, at most once per second. On a channel with normal traffic it never needs to. The frame is a standard 802.11 probe request with a locally-administered source address (`02:00:00:00:00:01`), not the node's own MAC. `tx=` in the serial status line is the running count of frames sent.
->
-> **Silent by default:** tick **Listen only, never transmit** under Advanced, or send `CSI_CFG:BROADCAST=OFF` over mesh (`BROADCAST=ON` allows it again, and the current state comes back in `CSI_CFG_ACK`). The choice persists across reboots. A silent node can only detect movement while other traffic is already in the air.
+> **This mode can transmit if you enable it.** Off by default. If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.
 
-> Sending a probe request is ordinary unlicensed Wi-Fi client behavior, not blocking or deauthentication. Rules differ by country and by site - check before deploying where transmitting is restricted.
-
-> [!IMPORTANT]
-> It detects **movement**, not presence by design and is highly sensitive.
-
-> [!NOTE]
-> **Indoor only.** Coverage indoors is the whole house because multipath is rich. Outdoors there are few reflectors and the sensitive region collapses to a narrow zone on the line between node and transmitter - a tripwire, not area cover.
-Outdoor detection needs RadarNode (in development) for truly reliable detection. 
-
-
-> **Web UI** &nbsp;Scan tab -> CSI Motion Detection
->
-> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
->
-> **Settings**
-> - Sensitivity `@ALL CSI_CFG:SENSITIVITY=MEDIUM` - also `LOW`, `HIGH`, or a number
-> - Add any of `MIN_MOTION=<s>` (movement before it alerts), `CLEAR_AFTER=<s>` (stillness before all-clear), `SPOTS=<n>` (access points that must agree), `BROADCAST=OFF` (never transmit)
-> - Trigger, hold, consecutive hits and channel `@ALL CSI_CFG:0.10:5000:3:0`
-> - Start silent `@ALL CSI_MOTION_START:0:FOREVER:LISTEN_ONLY` - `ALLOW_TRANSMIT` undoes it
-> - Reset the trigger to the compiled default `@ALL CSI_RECAL`
-
-Full detail, including the C5 differences, is in
-[docs/ESP32-C5.md on `feat/c5`](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
+Mesh commands for all of this: [docs/mesh-commands.md](docs/mesh-commands.md).
 
 ---
 
