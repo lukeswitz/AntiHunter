@@ -1573,6 +1573,8 @@ void snifferScanTask(void *pv)
 
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
                                             " RSSI: " + String(rssi) + "dBm";
+                            if (h.cls[0]) logEntry += " Class: " + String(h.cls);
+                            if (h.sig != SIG_NONE) logEntry += " Sig: " + String(sigFleetKind(h.sig)) + ":" + sigFleetName(h.sig);
 
                             if (gpsValid)
                             {
@@ -1945,6 +1947,9 @@ void snifferScanTask(void *pv)
                 }
             }
 
+            if (hit.isBLE && hit.isApple) results += " APPLE";
+            if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
+            if (hit.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(hit.sig) + ":" + sigFleetName(hit.sig);
             { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
