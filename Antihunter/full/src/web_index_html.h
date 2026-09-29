@@ -959,6 +959,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
+                <button class="btn alt" type="button" onclick="markBaseline()" style="display:none;" id="markBaselineBtn" title="Split the running baseline into before (A) and after (B) this moment">Mark A/B</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
               </div>
@@ -3259,6 +3260,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      async function markBaseline() {
+        try {
+          const response = await fetch('/baseline/mark', { method: 'POST' });
+          toast(await response.text(), response.ok ? 'success' : 'error');
+        } catch (error) {
+          toast('Error setting marker: ' + error, 'error');
+        }
+      }
+
       function clearResults() {
         if (!confirm('Clear scan results?')) return;
         
@@ -4345,13 +4355,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseBaselineResults(text) {
-        function makeDeviceCard(type, mac, rssi, channel, name, vendor) {
+        function tagBadges(line) {
+          let t = '';
+          const cm = line.match(/\sC=(\S+)/);
+          if (cm) t += '<span class="res-badge" title="BLE device class from advertisement payload">' + cm[1] + '</span>';
+          const sm = line.match(/\sSIG=([A-Z_]+):(\S+)/);
+          if (sm) t += '<span class="res-badge target" title="Signature catalog match (' + sm[1] + ')">' + sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') + '</span>';
+          const lm = line.match(/\sLOC=([-\d.]+),([-\d.]+)/);
+          if (lm) t += '<span class="res-badge muted" title="Node GPS when first seen">@ ' + lm[1] + ',' + lm[2] + '</span>';
+          const la = line.match(/\sLAST=([-\d.]+),([-\d.]+)/);
+          if (la) t += '<span class="res-badge muted" title="Node GPS when last seen">last ' + la[1] + ',' + la[2] + '</span>';
+          return t;
+        }
+
+        function makeDeviceCard(type, mac, rssi, channel, name, vendor, line) {
           let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
           c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
           c += '<div class="res-meta">';
           if (name && name !== 'Unknown') c += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
+          if (line) c += tagBadges(line);
           if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
           c += '</div>';
           c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -4372,7 +4396,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             const bv = line.match(/\sV=([^"\n]+)$/);
-            if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '');
+            if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '', line);
           });
           return html;
         }
@@ -4395,11 +4419,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               let anomVendor = '';
               const av = reason.match(/\sV=([^"\n]+)$/);
               if (av) { anomVendor = av[1].trim(); reason = reason.slice(0, av.index).trim(); }
+              const tagAt = reason.search(/\s(C|SIG|LOC)=/);
+              if (tagAt >= 0) reason = reason.slice(0, tagAt).trim();
               html += '<div class="res-card alert device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
               html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
               html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
               if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
               if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
+              html += tagBadges(line);
               if (anomVendor) html += '<span class="res-badge">' + anomVendor + '</span>';
               html += '</div>';
               html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -4411,6 +4438,33 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += _resEmpty('No anomalies detected.', 'ok');
         }
 
+        const sliceSection = text.split('=== SLICE A/B ===')[1];
+        if (sliceSection) {
+          const sl = sliceSection.split('\n');
+          const num = re => { const m = sliceSection.match(re); return m ? m[1] : '0'; };
+          const markerM = sliceSection.match(/Marker: (\d+)s/);
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">A/B Slice' + (markerM ? ' (marker at ' + markerM[1] + 's)' : '') + '</div></div>';
+          html += '<div class="res-stats">' + _resStat('Only before', num(/Only before: (\d+)/)) + _resStat('Only after', num(/Only after: (\d+)/), 'danger') + _resStat('Both', num(/Both: (\d+)/)) + '</div></div>';
+          sl.filter(l => /^SLICE-(NEW|GONE|MOVED)\s/.test(l)).forEach(line => {
+            const m = line.match(/^SLICE-(NEW|GONE|MOVED)\s+(WiFi|BLE)\s+([A-F0-9:]+)(?:\s+A:([-\d]+)dBm)?(?:\s+B:([-\d]+)dBm)?(?:\s+Delta:([-+\d]+))?(?:\s+"([^"]+)")?/);
+            if (!m) return;
+            const [_, kind, type, mac, a, b, delta, name] = m;
+            const sv = line.match(/\sV=([^"\n]+)$/);
+            const label = kind === 'NEW' ? 'NEW AFTER MARK' : (kind === 'GONE' ? 'GONE AFTER MARK' : 'MOVED ' + delta + ' dB');
+            html += '<div class="res-card device-card' + (kind === 'NEW' ? ' alert' : '') + '" data-type="' + type + '">';
+            html += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
+            html += '<div class="res-meta"><span class="res-badge ' + (kind === 'NEW' ? 'target' : 'muted') + '">' + label + '</span>';
+            html += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
+            if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
+            html += tagBadges(line);
+            if (sv) html += '<span class="res-badge">' + sv[1].trim() + '</span>';
+            html += '</div>';
+            const shown = b || a;
+            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(shown) + '">' + shown + '<small> dBm</small></span><span class="res-metric-lab">' + (a && b ? 'A ' + a + ' / B' : (b ? 'B' : 'A')) + '</span></div>';
+            html += '</div></div>';
+          });
+        }
+
         const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
         if (baselineSection) {
           const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
@@ -4419,7 +4473,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             deviceLines.forEach(line => {
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
               const bv = line.match(/\sV=([^"\n]+)$/);
-              if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '');
+              if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '', line);
             });
             html += '</div></details>';
           }
@@ -5149,6 +5203,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (isTarget) card += '<span class="res-badge target">TARGET</span>';
           card += mac + randBadge(mac);
           if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
+          const clsMatch = line.match(/\sC=(\S+)/);
+          if (clsMatch) card += '<span class="res-badge" title="BLE device class from advertisement payload">' + clsMatch[1] + '</span>';
+          const sigMatchL = line.match(/\sSIG=([A-Z_]+):(\S+)/);
+          if (sigMatchL) card += '<span class="res-badge target" title="Signature catalog match (' + sigMatchL[1] + ')">' + sigMatchL[1].replace(/_/g, ' ') + ': ' + sigMatchL[2].replace(/_/g, ' ') + '</span>';
+          const trendMatch = line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
+          if (trendMatch) {
+            const tCls = trendMatch[1] === 'CLOSING' ? 'res-badge target' : 'res-badge muted';
+            card += '<span class="' + tCls + '" title="RSSI trend: fast minus slow moving average (dB). CLOSING = getting closer, OPENING = moving away">' + trendMatch[1] + (trendMatch[2] ? ' ' + trendMatch[2] : '') + '</span>';
+          }
           card += '</span>';
           card += '<div class="res-meta">';
           if (name) card += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
@@ -6033,6 +6096,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         cacheBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
+        document.getElementById('markBaselineBtn').style.display = 'none';
         clearOldBtn.style.display = 'none';
         resetRandBtn.style.display = 'none';
         standardControls.style.display = 'none';
@@ -6066,6 +6130,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (selectedMethod === 'baseline') {
           baselineControls.style.display = 'block';
           resetBaselineBtn.style.display = 'inline-block';
+          document.getElementById('markBaselineBtn').style.display = 'inline-block';
           document.getElementById('detectionDuration').disabled = true;
           document.getElementById('baselineMonitorDuration').disabled = false;
           updateBaselineStatus();

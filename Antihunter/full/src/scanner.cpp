@@ -21,6 +21,8 @@
 #include "pcap.h"
 #include "scanner_internal.h"
 #include "oui_table.h"
+#include "ble_class.h"
+#include "sig_match.h"
 
 extern "C"
 {
@@ -1176,6 +1178,11 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
             h.name[sizeof(h.name) - 1] = '\0';
             h.isBLE = true;
+            {
+                std::vector<uint8_t> pl = advertisedDevice->getPayload();
+                bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+                h.sig = sigMatch(h.mac, true, h.name, pl.data(), pl.size());
+            }
 
             if (!safeMacQueueSend(&h, pdMS_TO_TICKS(10))) {
                 Serial.printf("[BLE] Queue full for %s\n", macStr.c_str());
@@ -1402,6 +1409,7 @@ void snifferScanTask(void *pv)
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
+                    h.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
 
                     if (hitsLog.size() < MAX_LOG_SIZE) {
                         hitsLog.push_back(h);
@@ -1463,6 +1471,7 @@ void snifferScanTask(void *pv)
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
+                    h.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
 
                     if (hitsLog.size() < MAX_LOG_SIZE) {
                         hitsLog.push_back(h);
@@ -1554,6 +1563,9 @@ void snifferScanTask(void *pv)
                             {
                                 std::string mfr = device->getManufacturerData();
                                 h.isApple = (mfr.size() >= 2 && (uint8_t)mfr[0] == 0x4C && (uint8_t)mfr[1] == 0x00);
+                                std::vector<uint8_t> pl = device->getPayload();
+                                bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+                                h.sig = sigMatch(h.mac, true, h.name, pl.data(), pl.size());
                             }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
                                 hitsLog.push_back(h);
@@ -1774,6 +1786,8 @@ void snifferScanTask(void *pv)
                     results += " \"" + std::string(hit.name) + "\"";
                 }
                 if (hit.isBLE && hit.isApple) results += " APPLE";
+                if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
+                if (hit.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(hit.sig) + ":" + sigFleetName(hit.sig);
                 { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
                 results += "\n";
             }
@@ -3486,6 +3500,35 @@ static String triModeStr(const String& selected) {
     return selected;
 }
 
+struct FoxTrack {
+    float fast = 0;
+    float slow = 0;
+    uint16_t n = 0;
+};
+
+static const float FOX_FAST_ALPHA = 0.5f;
+static const float FOX_SLOW_ALPHA = 0.15f;
+static const float FOX_TREND_DB = 3.0f;
+static const uint16_t FOX_MIN_SAMPLES = 4;
+
+static void foxUpdate(FoxTrack &t, int8_t rssi) {
+    if (t.n == 0) { t.fast = rssi; t.slow = rssi; }
+    else {
+        t.fast += (rssi - t.fast) * FOX_FAST_ALPHA;
+        t.slow += (rssi - t.slow) * FOX_SLOW_ALPHA;
+    }
+    if (t.n < UINT16_MAX) t.n++;
+}
+
+static std::string foxToken(const FoxTrack &t) {
+    if (t.n < FOX_MIN_SAMPLES) return " TREND=WAIT";
+    float d = t.fast - t.slow;
+    const char *s = d >= FOX_TREND_DB ? "CLOSING" : (d <= -FOX_TREND_DB ? "OPENING" : "STEADY");
+    char b[40];
+    snprintf(b, sizeof(b), " TREND=%s(%+.1f)", s, d);
+    return b;
+}
+
 void listScanTask(void *pv) {
     sentinel_kill();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
@@ -3590,6 +3633,7 @@ void listScanTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     std::map<String, uint32_t> localDeviceLastSeen;
+    std::map<std::string, FoxTrack> foxTracks;
     const uint32_t LOCAL_DEDUPE_WINDOW = 3000;
     uint32_t lastBLEScan = 0;
     uint32_t lastWiFiScan = 0;
@@ -3677,6 +3721,7 @@ void listScanTask(void *pv) {
                     wh.isBLE = false;
 
                     if (isMatch) {
+                        wh.sig = sigMatch(wh.mac, false, wh.name, nullptr, 0);
                         if (!safeMacQueueSend(&wh, pdMS_TO_TICKS(10))) {
                             Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
                         }
@@ -3744,6 +3789,11 @@ void listScanTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
+                    {
+                        std::vector<uint8_t> pl = device->getPayload();
+                        bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
+                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
+                    }
                     if (!safeMacQueueSend(&bh, pdMS_TO_TICKS(10))) {
                         Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
                     }
@@ -3780,12 +3830,18 @@ void listScanTask(void *pv) {
                 totalHits = totalHits + 1;
             }
 
+            FoxTrack &fox = foxTracks[std::string(macStr.c_str())];
+            foxUpdate(fox, h.rssi);
+
             String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macStrOrig +
                               " RSSI=" + String(h.rssi) + "dBm";
             if (!h.isBLE && h.ch > 0) logEntry += " CH=" + String(h.ch);
             if (strlen(h.name) > 0 && strcmp(h.name, "WiFi") != 0 && strcmp(h.name, "Unknown") != 0) {
                 logEntry += " Name=" + String(h.name);
             }
+            if (h.cls[0]) logEntry += " Class=" + String(h.cls);
+            if (h.sig != SIG_NONE) logEntry += " Sig=" + String(sigFleetKind(h.sig)) + ":" + sigFleetName(h.sig);
+            logEntry += foxToken(fox).c_str();
             if (gpsValid) {
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                     logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
@@ -4101,6 +4157,9 @@ void listScanTask(void *pv) {
                 if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
+                if (sh.isBLE && sh.cls[0]) pr += std::string(" C=") + sh.cls;
+                if (sh.sig != SIG_NONE) pr += std::string(" SIG=") + sigFleetKind(sh.sig) + ":" + sigFleetName(sh.sig);
+                { auto ft = foxTracks.find(mb); if (ft != foxTracks.end()) pr += foxToken(ft->second); }
                 { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
                 pr += "\n";
             }
@@ -4171,6 +4230,9 @@ void listScanTask(void *pv) {
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
             }
+            if (e.isBLE && e.cls[0]) results += std::string(" C=") + e.cls;
+            if (e.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(e.sig) + ":" + sigFleetName(e.sig);
+            { String up = macOut; up.toUpperCase(); auto ft = foxTracks.find(std::string(up.c_str())); if (ft != foxTracks.end()) results += foxToken(ft->second); }
             { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
