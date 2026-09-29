@@ -314,6 +314,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .pick.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--acc)}
       .pick svg,.card-ico svg,.icon-btn svg,.sched-add svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
       .pick svg{width:24px;height:24px}
+      .pick.g-recon svg{color:#5f9e9a}
+      .pick.g-detection svg{color:#c2924e}
+      .pick.g-capture svg{color:#8f7cc2}
       .scan-work{display:grid;grid-template-columns:minmax(0,1fr) 340px}
       .scan-opts{padding:18px 20px;min-width:0}
       .scan-title{font-size:16px;font-weight:600;margin:0 0 4px}
@@ -6259,8 +6262,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'pcap': '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>'
       };
       let scanPick = document.getElementById('detectionMode').value;
-      const SCAN_ITEMS = [{ v: 'target', n: 'Target Scan' }].concat(
-        [...document.getElementById('detectionMode').options].map(o => ({ v: o.value, n: o.textContent })));
+      const SCAN_ITEMS = [{ v: 'target', n: 'Target Scan', g: 'recon' }].concat(
+        [...document.getElementById('detectionMode').options].map(o => ({ v: o.value, n: o.textContent, g: (o.parentElement.label || '').toLowerCase() })));
       function selectScan(v) {
         scanPick = v;
         const tgt = v === 'target';
@@ -6278,7 +6281,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const p = document.getElementById('scanPicker');
         SCAN_ITEMS.forEach(it => {
           const t = document.createElement('div');
-          t.className = 'pick';
+          t.className = 'pick' + (it.g ? ' g-' + it.g : '');
           t.setAttribute('role', 'button');
           t.tabIndex = 0;
           t.dataset.v = it.v;
