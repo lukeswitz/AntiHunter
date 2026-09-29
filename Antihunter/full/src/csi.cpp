@@ -728,7 +728,11 @@ static float csiTriggerRatio(float gateStat) {
 }
 
 static float csiLinkRatio(const CsiLink &l) {
-    const float r = csiTriggerRatio(l.sc.sigVar);
+    float r = csiTriggerRatio(l.sc.sigVar);
+    if (l.sc.shlen >= CSI_ACF_MIN_HIST && l.sc.sigVar >= CSI_REL_MIN_SIG && l.sc.sigFloor > 0.0f) {
+        const float rr = l.sc.sigVar / (CSI_REL_FLOOR_K * l.sc.sigFloor);
+        if (rr > r) r = rr;
+    }
     float z = l.sc.sigZ / CSI_SIG_Z_GATE;
     if (z < 0.0f) z = 0.0f;
     return (z < r) ? z : r;
@@ -934,7 +938,9 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const bool sigAbove = l.sc.psiValid && l.sc.sigVar >= gateEta && l.sc.sigZ >= CSI_SIG_Z_GATE;
+        const bool relAbove = l.sc.shlen >= CSI_ACF_MIN_HIST && l.sc.sigVar >= CSI_REL_MIN_SIG &&
+                              l.sc.sigVar >= CSI_REL_FLOOR_K * l.sc.sigFloor;
+        const bool sigAbove = l.sc.psiValid && (l.sc.sigVar >= gateEta || relAbove) && l.sc.sigZ >= CSI_SIG_Z_GATE;
 
         if (sigAbove) {
             l.lastAboveMs = now;
