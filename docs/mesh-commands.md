@@ -27,6 +27,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `CONFIG_DEDUP_TTL` | Set cross-scan MAC dedup | Seconds 0-3600, 0 disables | `@ALL CONFIG_DEDUP_TTL:300` |
 | `CONFIG_SESSION_DEDUP` | Toggle per-session dedup | `0`/`1` | `@ALL CONFIG_SESSION_DEDUP:1` |
 | `MESH_DEDUP_CLEAR` | Clear the dedup cache | None | `@ALL MESH_DEDUP_CLEAR` |
+| `DEVICE_DB_CLEAR` | Clear the discovered-device DB, headless only | None | `@AH01 DEVICE_DB_CLEAR` |
 
 ### Scanning
 
@@ -40,9 +41,9 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
-| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap. `CH` takes a comma list of channels to hop; without it the node uses its configured channels | `radio:secs:band[:CH<list>][:FOREVER]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
-| `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
-| `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
+| `PCAP_LIMITS` | Set or read the file size cap | `[MB]`, 8-300 | `@ALL PCAP_LIMITS:150` |
+| `SD_REPAIR` | Rebuild an unmountable SD card; erases it | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 
 > [!WARNING]
 > Stop a capture before cutting power or resetting the node. FAT has no power-fail
@@ -80,14 +81,14 @@ Headless has no SoftAP. `defend` pins to whatever channel the radio last used, s
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `CSI_MOTION_START` | Start detection; `0` + `FOREVER` runs until `STOP` | `secs[:CH<n>][:FOREVER]` | `@ALL CSI_MOTION_START:0:FOREVER` |
+| `CSI_MOTION_START` | Start detection | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>][:LISTEN_ONLY\|ALLOW_TRANSMIT][:MGMTONLY\|MGMTDATA][:SOLICIT<ms>]` | `@ALL CSI_MOTION_START:600:GAP60` |
 | `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
 | `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
 | `CSI_STATUS` | Links, channel, settings | None | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | Same as JSON | None | `@AH01 CSI_JSON` |
 | `CSI_RECAL` | Clear a saved threshold; use the preset | None | `@ALL CSI_RECAL` |
 
-`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 1) · `BROADCAST=ON|OFF` (default ON: probes quiet devices) · `ALLOW_RANDOM=ON|OFF` (default OFF) · `CH=<n>` (`0` lets it choose).
+`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 2) · `BROADCAST=ON|OFF` (default OFF; ON probes quiet devices) · `ALLOW_RANDOM=ON|OFF` (default ON) · `CH=<n>` (`0` lets it choose).
 
 On the first CSI start after boot each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
 
@@ -172,7 +173,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N`, plus ` GPS=lat,lon CONF=pct URL=<maps link>` when trilateration solved |
 | Triangulation Cycle Start | `@ALL TRI_CYCLE_START:<ms>:<node,node,...>` - the coordinating node broadcasts it so every node in the run reports in its own slot. Sent by the firmware, not something you issue |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` - vendor token omitted entirely when unknown |
-| Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` means the capture runs until stopped |
+| Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` |
 | Packet Capture Done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped` - `D` counts frames the SD writer could not keep up with |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE\|IDLE Hits:N Temp:XX.XC Up:HH:MM:SS [GPS:lat,lon HDOP=X.X]` |

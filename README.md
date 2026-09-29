@@ -315,49 +315,39 @@ Watches for deauthentication and disassociation frames in real time.
 
 ### Detection: CSI Motion (beta)
 
-> **Experimental beta on the ESP32-S3; in testing on the ESP32-C5.** It needs a fixed Wi-Fi device in range. Read [Limitations](#csi-limitations) before relying on it.
-
-Detects people moving through a space using the Wi-Fi already in the air. Nothing worn, no network joined, no transmitter installed — it watches how a body disturbs the signals from the fixed Wi-Fi devices around it.
+Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.
 
 <p align="center">
   <img width="880" alt="CSI Motion" src="https://github.com/user-attachments/assets/3a8dbabf-d626-4daf-9eee-ce2789e026ce" />
 </p>
 
-- **Sensitivity.** Low, Medium, High. Low by default.
-- **Raising an alert.** One device disturbed for seconds is enough.
-- **Fixed devices only.** Randomized MACs, mostly phones and watches, are ignored.
-- **Blind means blind.** Too little traffic reads blind, then moves channel.
-- **Coverage.** Follows each node-to-device path, not a circle.
-- **Transmits when it has to.** Probes quiet devices, up to 5/s.
+**How it works.** Wi-Fi signals bounce around a room. When a person moves, the bounces change. The node listens to the Wi-Fi routers and phones around it and alerts when several of their signals change at once.
+
+**Start it:** Scan tab → CSI Motion Detection → Start Scan. Over mesh: `@ALL CSI_MOTION_START:0:FOREVER`
+
+**Pick a sensitivity:**
+- **Low** (default): fewest false alarms. Two devices must see the movement.
+- **Medium**: more sensitive. Two devices, or one device seeing a very strong change (4× the trigger).
+- **High**: most sensitive. Same as Medium with a lower trigger and a shorter wait. More false alarms.
+
+**Settings** (Scan tab → CSI Motion Detection; most are under Advanced):
+
+| Setting | What it means | Default |
+|---|---|---|
+| Movement needed before alerting | How long someone must move before you get an alert | 8 s |
+| Stillness before all-clear | How long it must be quiet before the alert clears | 5 s |
+| Devices that must agree | How many devices must see the movement at the same time | 2 |
+| Trigger level | Lower catches smaller movement | set by sensitivity |
+| Listen only, never transmit | The node never sends probes. Turn off only if it sees too little Wi-Fi | On |
+| Include randomized-MAC devices | Also listen to phones and watches, not just routers | On |
+| Mesh alert gap | Wait at least this many seconds between alerts sent over mesh | 0 (off) |
+
+**Getting false alarms with nobody there?** Turn on "Per-packet score to serial", watch the `sig` numbers while the room is empty, and set Trigger level just above the highest one.
 
 > [!WARNING]
-> **Transmit is on by default.** The probe is the kind a phone sends looking for networks. Anyone watching the channel sees it. Legality varies by country and site. To stay silent, check "Listen only, never transmit" or send `BROADCAST=OFF`; the node then needs a busy access point nearby.
+> **This mode can transmit if you enable it.** Off by default. If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.
 
-
-> [!IMPORTANT]
-> One setting cannot separate "here but still" from "moving". Expect a still occupant to land
-> between empty and moving, and set sensitivity for the question you care about.
-
-> [!NOTE]
-> **Indoor only.** Outdoors nothing bounces the signal, so coverage shrinks to the line between node and transmitter. Outdoors needs RadarNode (in development).
-
-<a id="csi-limitations"></a>
-#### Limitations
-
-- **Let it choose the channel.** Start it without one; it picks, and moves if that one goes quiet.
-- **Weak access points may not answer.** Ones at the edge of range often ignore the probe.
-- **Set sensitivity in the room it will live in.** Sensitivity is per receiver, not per site. Two chips side by side settle at different levels and each needs its own value.
-- **Defaults come from one room.** Re-check on site.
-- **Experimental beta on the ESP32-S3.** Not your only sensor.
-- **In testing on the ESP32-C5.** It runs, but separates movement from background less cleanly than an S3 in the same room. Prefer an S3 where detection matters.
-
-> **Web UI** &nbsp;Scan tab -> CSI Motion Detection
->
-> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300`
->
-> **Settings** &nbsp;all CSI mesh commands: [mesh commands](docs/mesh-commands.md#csi-motion-beta-version-only)
->
-> A node that cannot hear enough traffic moves to a better channel by itself after a few minutes.
+Mesh commands for all of this: [mesh commands](docs/mesh-commands.md#csi-motion-beta-version-only).
 
 ---
 

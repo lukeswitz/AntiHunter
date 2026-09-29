@@ -12,7 +12,7 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 
 - **Packet capture to SD.** Wireshark-ready pcap, Wi-Fi and BLE.
   - Start from the Scan tab, vibration, or `PCAP_START`.
-  - `PCAP_START:radio:secs:band[:CH<list>][:FOREVER]`; `PCAP_STOP` ends it.
+  - `PCAP_START:radio:secs:band[:CH<list>]`; `PCAP_STOP` ends it.
   - Size cap 8–300 MB, default 100 (`PCAP_LIMITS:<MB>`).
   - Also stops at the free-space floor or repeated write failures.
   - The stop line lists the channels visited.
@@ -41,28 +41,36 @@ CSI motion, packet capture, Sentinel response, local time, fixes.
 - Boot prints a `[MEM]` ladder; `[HEAP]` every 30 s.
 - The web flasher and script `-c` set all of these.
 
+### Mesh commands, new or changed since v1.0.2
+
+| Command | Syntax | Channels | Change |
+|---|---|---|---|
+| `PCAP_START` / `PCAP_STOP` | `radio:secs:band[:CH<list>]` | all | New |
+| `PCAP_LIMITS` | `[MB]`, 8-300 | all | New |
+| `SD_REPAIR` | `ON\|OFF\|NOW` | all | New |
+| `MESH_TX_CANCEL` | none | all | New |
+| `VIBSCAN_SET` / `VIBSCAN_STATUS` | `en:mode:dur[:cooldown]` | all | New on stable; mode `8` is packet capture |
+| `SCAN_START` | `mode:secs[:channels][:FOREVER]` | all | `FOREVER` accepted without channels |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER][:+PROBE]` | all | `+PROBE` added |
+| `CONFIG_ERASE_PSK` | `<new>:<hmac>` | all | Needs HMAC from the current PSK; can't be cleared |
+| `ERASE_FORCE` / `AUTOERASE_ENABLE` | `...:<hmac>` | all | PSK HMAC only; plain token removed |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>][:LISTEN_ONLY\|ALLOW_TRANSMIT][:MGMTONLY\|MGMTDATA][:SOLICIT<ms>]` | beta, C5 | New |
+| `CSI_CFG` | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=`; C5 also `REQUIRE_CE=` | beta, C5 | New |
+| `CSI_EXCLUDE` | `<MAC>\|NONE` | beta, C5 | New |
+| `CSI_STATUS` / `CSI_JSON` | none | beta, C5 | New |
+| `CSI_RECAL` | none | beta, C5 | New |
+| `DEVICE_DB_CLEAR` | none | beta, C5 headless | New |
+| `CONFIG_BAND` | `0\|1\|2` | C5 | New |
+
 ### Beta and C5
 
 - **CSI motion detection** (S3 beta, C5 testing).
   - Detects people moving, through walls.
-  - Scan tab → CSI Motion, or the mesh commands below.
-  - Ignores randomized MACs by default.
-
-| Command | Does |
-|---|---|
-| `CSI_MOTION_START:secs[:CH<n>][:FOREVER]` | Start |
-| `CSI_CFG:SENSITIVITY=LOW\|MEDIUM\|HIGH` | Sensitivity |
-| `CSI_CFG:BROADCAST=OFF` | Stop probing |
-| `CSI_CFG:ALLOW_RANDOM=ON` | Use randomized MACs |
-| `CSI_CFG:SPOTS=<n>` | Devices needed to alert |
-| `CSI_CFG:MIN_MOTION=<s>` / `CLEAR_AFTER=<s>` | Alert and clear timing |
-| `CSI_CFG:CH=<n>` | Pin a channel; `0` picks |
-| `CSI_EXCLUDE:<MAC>` | Ignore a MAC until reboot |
-| `CSI_STATUS` / `CSI_JSON` | Report |
-| `CSI_RECAL` | Clear a saved threshold |
+  - Scan tab → CSI Motion, or the mesh commands above.
+  - Uses randomized MACs by default; `ALLOW_RANDOM=OFF` ignores them.
 
 > [!IMPORTANT]
-> **Transmits by default.** Probes are visible. Check local law.
+> **Listen-only by default.** `ALLOW_TRANSMIT` or `BROADCAST=ON` sends probes, which are visible. Check local law.
 
 - **CSI movement view** (web UI): state, log, heat strip.
 - Accent colors also cover movement hits.
