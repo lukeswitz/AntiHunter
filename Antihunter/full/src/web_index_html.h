@@ -4357,10 +4357,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function parseBaselineResults(text) {
         function tagBadges(line) {
           let t = '';
-          const cm = line.match(/\sC=(\S+)/);
-          if (cm) t += '<span class="res-badge" title="BLE device class from advertisement payload">' + cm[1] + '</span>';
-          const sm = line.match(/\sSIG=([A-Z_]+):(\S+)/);
-          if (sm) t += '<span class="res-badge target" title="Signature catalog match (' + sm[1] + ')">' + sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') + '</span>';
+          t += sigClassBadge(line);
           const lm = line.match(/\sLOC=([-\d.]+),([-\d.]+)/);
           if (lm) t += '<span class="res-badge muted" title="Node GPS when first seen">@ ' + lm[1] + ',' + lm[2] + '</span>';
           const la = line.match(/\sLAST=([-\d.]+),([-\d.]+)/);
@@ -5147,6 +5144,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return tokens.some(t => t.length >= 17 ? m === t : m.startsWith(t + ':'));
       }
 
+      function sigClassBadge(line) {
+        const cm = line.match(/\sC=(\S+)/);
+        const sm = line.match(/\sSIG=([A-Z_]+):(\S+)/);
+        if (!cm && !sm) return '';
+        const parts = [];
+        if (sm) parts.push(sm[2].replace(/_/g, ' '));
+        if (cm) parts.push(cm[1]);
+        const title = (sm ? 'Catalog: ' + sm[1].replace(/_/g, ' ') + '. ' : '') + (cm ? 'Class from advertisement payload.' : '');
+        return '<span class="res-badge' + (sm ? ' target' : '') + '" title="' + title + '">' + parts.join(' &middot; ') + '</span>';
+      }
+
       function parseDeviceScanResults(text) {
         let html = '';
 
@@ -5202,11 +5210,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           card += '<span class="res-mac">';
           if (isTarget) card += '<span class="res-badge target">TARGET</span>';
           card += mac + randBadge(mac);
-          if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
-          const clsMatch = line.match(/\sC=(\S+)/);
-          if (clsMatch) card += '<span class="res-badge" title="BLE device class from advertisement payload">' + clsMatch[1] + '</span>';
-          const sigMatchL = line.match(/\sSIG=([A-Z_]+):(\S+)/);
-          if (sigMatchL) card += '<span class="res-badge target" title="Signature catalog match (' + sigMatchL[1] + ')">' + sigMatchL[1].replace(/_/g, ' ') + ': ' + sigMatchL[2].replace(/_/g, ' ') + '</span>';
+          const idBadge = sigClassBadge(line);
+          if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
+          card += idBadge;
           const trendMatch = line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
           if (trendMatch) {
             const tCls = trendMatch[1] === 'CLOSING' ? 'res-badge target' : 'res-badge muted';
