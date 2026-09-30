@@ -3192,7 +3192,11 @@ void radioStartSTA() {
 
     if (CHANNELS.empty()) CHANNELS = DEFAULT_CHANNELS;
     rebuildActiveChannels();
-    esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
+    if (WiFi.softAPgetStationNum() > 0) {
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    } else {
+        esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
+    }
 
     // Setup channel hopping
     if (hopTimer) {
