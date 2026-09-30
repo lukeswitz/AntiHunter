@@ -5117,9 +5117,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const KIND_NOUN = {HACKING:'hacking tool', SURVEILLANCE:'surveillance', LAW_ENFORCEMENT:'police', DRONE:'drone', CAMERA:'camera', FINDER:'tracker', GLASSES:'smart glasses', VEHICLE:'vehicle', LOCK:'lock', WEARABLE:'wearable', AUDIO:'audio', PHONE:'phone', HEALTH:'health', HOME:'smart home', THERMOSTAT:'thermostat', MESH:'mesh radio', SIGNAGE:'sign', BEACON:'beacon'};
         const noun = sm ? (KIND_NOUN[sm[1]] || '') : '';
         const namedNoun = /camera|tracker|tpms|lock|glasses|thermostat|beacon|pendant|sign|label|audio|tag\b/i.test(sigName);
-        const sigLabel = sigName && noun && !namedNoun && !sigName.toLowerCase().includes(noun) ? sigName + ' ' + noun : sigName;
+        const notable = sm && /^(HACKING|SURVEILLANCE|LAW_ENFORCEMENT|DRONE|CAMERA|FINDER|GLASSES)$/.test(sm[1]);
+        const sigLabel = notable && noun && !namedNoun && !sigName.toLowerCase().includes(noun) ? sigName + ' ' + noun : sigName;
         const label = (cls.startsWith('iPhone') || !sigName) ? cls : sigLabel;
         const title = [sm ? sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') : '', cls ? 'Advertises ' + cls : ''].filter(Boolean).join(' / ');
+        if (!notable && !cls.startsWith('iPhone')) return '<span class="res-badge" title="' + title + '">' + label + '</span>';
         return '<span class="res-badge acc" title="' + title + '">' + label + '</span>';
       }
 
@@ -5193,7 +5195,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
           if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
           const vendName = vendMatch ? vendMatch[1].trim() : '';
-          if (vendName && !(isApple && /^apple/i.test(vendName))) card += '<span class="res-badge">' + vendName + '</span>';
+          if (vendName && !(isApple && /^apple/i.test(vendName)) && !idBadge.toLowerCase().includes('>' + vendName.toLowerCase())) card += '<span class="res-badge">' + vendName + '</span>';
           card += '</div>';
           card += '<div class="res-metric">';
           card += '<span class="res-metric-val" style="color:' + rssiColor + '">' + rssi + '<small> dBm</small></span>';
