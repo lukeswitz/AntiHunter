@@ -69,7 +69,6 @@ static void appleContinuity(const uint8_t *m, size_t n, char *out, size_t outLen
             }
             break;
         case 0x12: s = "FindMy"; break;
-        case 0x16: s = "AirTag-pair"; break;
         default: snprintf(out, outLen, "Apple-%02X", m[2]); return;
     }
     snprintf(out, outLen, "%s", s);
