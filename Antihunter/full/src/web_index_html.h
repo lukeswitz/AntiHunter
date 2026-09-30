@@ -5114,7 +5114,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!cm && !sm) return '';
         const cls = cm ? cm[1] : '';
         const sigName = sm ? sm[2].replace(/_/g, ' ').replace(/ (Device|Trackers|hotspot)$/i, '').replace(/^Apple AirTags$/, 'AirTag').replace(/Tags$/, 'Tag') : '';
-        const label = (cls.startsWith('iPhone') || !sigName) ? cls : sigName;
+        const KIND_NOUN = {HACKING:'hacking tool', SURVEILLANCE:'surveillance', LAW_ENFORCEMENT:'police', DRONE:'drone', CAMERA:'camera', FINDER:'tracker', GLASSES:'smart glasses', VEHICLE:'vehicle', LOCK:'lock', WEARABLE:'wearable', AUDIO:'audio', PHONE:'phone', HEALTH:'health', HOME:'smart home', THERMOSTAT:'thermostat', MESH:'mesh radio', SIGNAGE:'sign', BEACON:'beacon'};
+        const noun = sm ? (KIND_NOUN[sm[1]] || '') : '';
+        const namedNoun = /camera|tracker|tpms|lock|glasses|thermostat|beacon|pendant|sign|label|audio|tag\b/i.test(sigName);
+        const sigLabel = sigName && noun && !namedNoun && !sigName.toLowerCase().includes(noun) ? sigName + ' ' + noun : sigName;
+        const label = (cls.startsWith('iPhone') || !sigName) ? cls : sigLabel;
         const title = [sm ? sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') : '', cls ? 'Advertises ' + cls : ''].filter(Boolean).join(' / ');
         return '<span class="res-badge acc" title="' + title + '">' + label + '</span>';
       }
