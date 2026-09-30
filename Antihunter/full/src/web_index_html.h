@@ -4225,10 +4225,6 @@ R"HTML(
         function tagBadges(line) {
           let t = '';
           t += sigClassBadge(line);
-          const lm = line.match(/\sLOC=([-\d.]+),([-\d.]+)/);
-          if (lm) t += '<span class="res-badge muted" title="Node GPS when first seen">@ ' + lm[1] + ',' + lm[2] + '</span>';
-          const la = line.match(/\sLAST=([-\d.]+),([-\d.]+)/);
-          if (la) t += '<span class="res-badge muted" title="Node GPS when last seen">last ' + la[1] + ',' + la[2] + '</span>';
           return t;
         }
 
