@@ -4800,11 +4800,11 @@ R"HTML(
         const cm = line.match(/\sC=(\S+)/);
         const sm = line.match(/\sSIG=([A-Z_]+):(\S+)/);
         if (!cm && !sm) return '';
-        const parts = [];
-        if (sm) parts.push(sm[2].replace(/_/g, ' '));
-        if (cm) parts.push(cm[1]);
-        const title = (sm ? 'Catalog: ' + sm[1].replace(/_/g, ' ') + '. ' : '') + (cm ? 'Class from advertisement payload.' : '');
-        return '<span class="res-badge' + (sm ? ' target' : '') + '" title="' + title + '">' + parts.join(' &middot; ') + '</span>';
+        const cls = cm ? cm[1] : '';
+        const sigName = sm ? sm[2].replace(/_/g, ' ').replace(/ (Device|Trackers|hotspot)$/i, '').replace(/^Apple AirTags$/, 'AirTag').replace(/Tags$/, 'Tag') : '';
+        const label = (cls.startsWith('iPhone') || !sigName) ? cls : sigName;
+        const title = [sm ? sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') : '', cls ? 'Advertises ' + cls : ''].filter(Boolean).join(' / ');
+        return '<span class="res-badge acc" title="' + title + '">' + label + '</span>';
       }
 
       function parseDeviceScanResults(text) {
