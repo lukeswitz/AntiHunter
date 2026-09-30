@@ -109,7 +109,6 @@ static void baselineTagDevice(const Hit &h) {
 static void appendTagTokens(String &out, uint16_t sig, const char *cls, bool haveLoc, float lat, float lon) {
     if (cls && cls[0]) out += " C=" + String(cls);
     if (sig != SIG_NONE) out += " SIG=" + String(sigFleetKind(sig)) + ":" + sigFleetName(sig);
-    if (haveLoc) out += " LOC=" + String(lat, 6) + "," + String(lon, 6);
 }
 
 static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
@@ -383,9 +382,6 @@ static void appendCacheDeviceLines(String& out) {
             if (tIt != baselineTags.end()) {
                 const BaselineTag &t = tIt->second;
                 appendTagTokens(out, t.sig, t.cls, t.haveLoc, t.firstLat, t.firstLon);
-                if (t.haveLoc && (t.lastLat != t.firstLat || t.lastLon != t.firstLon)) {
-                    out += " LAST=" + String(t.lastLat, 6) + "," + String(t.lastLon, 6);
-                }
             }
         }
         { const char *dv = lookupOuiVendor(dev.mac); if (dv) out += " V=" + String(dv); }
