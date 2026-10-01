@@ -6400,7 +6400,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           row.innerHTML = '<span class="card-ico"><svg viewBox="0 0 24 24">' + (TILE_ICONS[key] || '') + '</svg></span><b></b><small></small>' +
             '<button type="button" class="btn icon-btn" title="Remove" aria-label="Remove">' + SCHED_TRASH + '</button>';
           row.querySelector('b').textContent = schedLabel(p[2], q) + ' · ' + Math.round((+q.get('secs') || 0) / 60) + ' min';
-          row.querySelector('small').textContent = (SCHED_REP[p[1]] || ('Every ' + Math.round(+p[1] / 3600) + ' hours')) + ' · Next ' + schedLocalFmt(local);
+          row.querySelector('small').textContent = (SCHED_REP[p[1]] || ('Every ' + Math.round(+p[1] / 3600) + ' hours')) + ' · ' + (local.slice(0, 10) === schedNodeNow.slice(0, 10) ? 'Today, ' : '') + schedLocalFmt(local);
           row.querySelector('button').addEventListener('click', () => schedDel(ln));
           box.appendChild(row);
         });
