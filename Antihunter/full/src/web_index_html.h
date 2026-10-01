@@ -3538,9 +3538,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
               const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
               
-              const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
-              const name = nameMatch ? nameMatch[1].trim() : '';
-              
+              const nameEl = child.querySelector('.res-ident.name');
+              const name = nameEl ? nameEl.textContent.trim() : '';
+
               const deviceType = child.getAttribute('data-type') || '';
               const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
               const isTarget = child.getAttribute('data-target') === '1';
@@ -5212,6 +5212,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           card += '<span class="res-mac">';
           if (isTarget) card += '<span class="res-badge target">TARGET</span>';
           card += mac + randBadge(mac);
+          if (name) card += '<strong class="res-ident name" style="color:var(--acch)">' + esc(name) + '</strong>';
           const idBadge = sigClassBadge(line);
           if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += idBadge;
@@ -5222,7 +5223,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           card += '</span>';
           card += '<div class="res-meta">';
-          if (name) card += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
           if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
