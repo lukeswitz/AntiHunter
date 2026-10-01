@@ -250,7 +250,7 @@ void setup() {
     Serial.println("[SENTINEL] Not built into this firmware (stable channel)");
 #endif
 
-    if (ahCreateResidentTask(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
+    if (ahCreateTask(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
