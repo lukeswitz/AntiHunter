@@ -35,20 +35,30 @@
 
 ## What is AntiHunter?
 
-**AntiHunter is distributed Wi-Fi and BLE intelligence & attack detection. Control from its own Wi-Fi, or using LoRa radio commands.**
+**A sensor you leave at the edge of your property that catches whoever is hunting you.**
 
-Vibration-based scans and self-destruct option. Defensive by design. Knows the devices and networks around you, alerts when it matters. Integrates as far or close as you choose.
+The name is literal. It is for people being watched, followed, cased or attacked: someone sitting outside, a car that keeps coming back, a drone overhead, a stranger probing your Wi-Fi. Every phone, watch, car and tool they carry gives off Wi-Fi and Bluetooth. AntiHunter learns what normally belongs around you and tells you, over long-range LoRa radio, when something new shows up, keeps coming back, gets closer, or attacks your network. It detects; it does not attack, jam or deauth anything.
+
+- **Learn and alert.** A baseline learns your site, then flags new devices, returns and movement.
+- **Watchlist.** Put a phone, car or vendor on the list and get an alert, with its maker and GPS position, the moment it is in range.
+- **Attacks.** Deauth floods, evil twins, rogue access points and other Wi-Fi attacks (Sentinel, beta).
+- **Drones.** Remote ID with the operator's location.
+- **Set and forget.** Schedule scans by time of day, start one when the node is bumped, wipe the node if it is stolen.
+- **Many nodes, one picture.** Nodes share detections over Meshtastic LoRa and report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) map.
+
+**Scheduling a site** (Scan tab → Schedule this scan, or over mesh):
+
+```
+@AH01 SCHED_ADD:2026-10-05T21:00|86400|/sniffer|detection=baseline&secs=32400   # every night 9 pm-6 am
+@AH01 SCHED_ADD:2026-10-05T08:00|86400|/scan|mode=2&secs=36000&ch=1..11          # watchlist, business hours
+@AH01 SCHED_ADD:2026-10-05T06:00|86400|/drone|droneScanMode=2&secs=57600         # drones, daylight
+```
+
+More setups in the [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) §13.4 Playbooks.
+
+ESP32-S3 · Wi-Fi + BLE · GPS · SD · vibration sensor · LoRa mesh · [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) build adds 5 GHz. **Full** firmware has a web UI on its own Wi-Fi; **Headless** is serial and mesh only.
 
 *Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
-
-**At a glance**
-
-- ESP32-S3 · Wi-Fi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
-- Drop-in [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) build adds 5 GHz (beta)
-- Firmware options: full, with web UI over the node's own AP · **Headless**: serial + mesh only, no AP
-- Sentinel Wi-Fi attack mapping engine (beta)
-- Vibration & attack triggered actions for set and forget operation
-- Add nodes to cover more ground; they share detections and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
@@ -122,7 +132,7 @@ Pick whichever suits you:
 
 > [!WARNING]
 > - The AP default is `Antihunter` / `antihunt3r123`, published here and the same on every unit. Change both in RF Settings before you deploy.
-> - Set the erase PSK if you plan to use [Secure Data Destruction](#secure-data-destruction). Privacy Mode redacts the web UI only - exported logs and SD data still carry MACs, SSIDs and GPS.
+> - Record the erase PSK the node prints on USB serial at boot; [Secure Data Destruction](#secure-data-destruction) needs it. Privacy Mode redacts the web UI only - exported logs and SD data still carry MACs, SSIDs and GPS.
 
 *To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
 

@@ -400,7 +400,7 @@
   </ul>
 
   <h3>4.3 The clock</h3>
-  <p>Nothing to do. The DS3231 is set when you flash the firmware, and GPS disciplines it again on every fix. Its coin cell keeps it running across power cycles. All timestamps in this system are UTC.</p>
+  <p>Nothing to do. The DS3231 is set when you flash the firmware, and GPS disciplines it again on every fix. Its coin cell keeps it running across power cycles. The clock keeps UTC. Logs, capture file names, results and heartbeats show local time, with daylight saving, once a GPS fix places the node in a known zone: Hawaii, Alaska, Arizona, Saskatchewan, US/Canada Pacific, Mountain, Central and Eastern, UK/Ireland, Central Europe, Eastern Europe. Elsewhere, and until the first fix after boot, they show UTC.</p>
 
   <div class="box tip"><span class="t">Order of operations</span>
     <p>Flash the firmware first (§5), then set the clock and configure the radio. A fresh flash with "Erase Device" ticked clears saved settings, so do it before you spend time configuring.</p>
@@ -599,14 +599,14 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>RF Settings</b>.</li>
     <li><b>Hidden network.</b> Off by default. Turn it on under <b>RF Settings</b> and the node stops beaconing its SSID, so the AP does not appear in a scan of the area. It is not access control. A hidden SSID forces the client to send directed probe requests carrying the network name, so the phone or laptop you connect with advertises that name everywhere it goes afterwards. The WPA2/WPA3 passphrase is still what keeps people out. The node reboots on save and you type the SSID by hand to reconnect.</li>
-    <li><b>Erase PSK.</b> The pre-shared key that authorizes remote erase and factory reset. Set it if you plan to use secure data destruction (§10.4). Mesh: <span class="mono">@AH01 CONFIG_ERASE_PSK:yourkey</span>.</li>
+    <li><b>Erase PSK.</b> The key that authorizes every wipe, abort, auto-erase change and factory reset. The node makes a random one on first boot and prints it on USB serial at every boot (<span class="mono">[ERASE] PSK: …</span>). Record it. The web UI takes it in the Authorization field. Over mesh it is never sent in the clear: see §10.4. To change it: <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;hmac&gt;</span>.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
   <h3>8.2 Identity</h3>
   <ul>
     <li><b>Node ID.</b> Set it in the web UI or with <span class="mono">@AH01 CONFIG_NODEID:AH02</span>. It prefixes every mesh message the node sends, so make it meaningful.</li>
-    <li><b>Clock.</b> See §4.3. Everything is timestamped UTC.</li>
+    <li><b>Clock.</b> See §4.3. Timestamps are local time once GPS fixes the zone, UTC before that.</li>
   </ul>
 
   <h3>8.3 Scan presets</h3>
@@ -639,6 +639,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
     <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
     <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — of the Sentinel banners and of the movement hit color. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
+    <li><b>Fleet</b> (System tab, full). Lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers; <b>Clear</b> empties the list.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
   </ul>
 
@@ -657,10 +658,12 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
   <p>Alert: <span class="mono">NODE: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor]</span>. <span class="mono">V=</span> is the first word of the maker's name, sent when the MAC is not randomized.</p>
+  <p>In the web UI each target card shows whether its signal is getting stronger (<span class="mono">CLOSING</span>), weaker (<span class="mono">OPENING</span>) or holding (<span class="mono">STEADY</span>), from a fast and a slow moving average of RSSI. It shows <span class="mono">WAIT</span> until the target has been seen four times.</p>
 
   <h3>9.2 Device Scanner</h3>
   <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE   <span class="c"># +PROBE also fills the probe database</span></pre>
+  <p><b>What a BLE device is</b> (full firmware). Device, Target and Baseline results show a badge naming what the device advertises: an Apple service (AirDrop, Handoff, AirPods, Find My, iPhone activity state), or a class and maker read from its Bluetooth service or company ID, for example <span class="mono">Wearable-Garmin</span>, <span class="mono">Tag-Tile</span>, <span class="mono">Vehicle-Tesla</span>, <span class="mono">Drone-RemoteID</span>. The text results carry it as <span class="mono">C=</span>. Wi-Fi devices with a fixed MAC show their maker from the MAC prefix instead.</p>
 
   <h3>9.3 Probe Request Scanner</h3>
   <p>Passive sniffing of the probe requests devices emit while looking for networks they know. It reveals the SSIDs a device is searching for, which is often more identifying than the device itself.</p>
@@ -879,21 +882,26 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Erase delay</td><td>10 to 300 s</td><td>Countdown before destruction, your window to cancel</td></tr>
     <tr><td>Cooldown</td><td>5 to 60 min</td><td>Minimum time between tamper attempts, to blunt false triggers</td></tr>
   </table>
-  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300   <span class="c"># setup:erase:vibs:window:cooldown</span>
+  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;hmac&gt;   <span class="c"># setup:erase:vibs:window:cooldown:hmac</span>
 @AH01 AUTOERASE_STATUS
-@AH01 AUTOERASE_DISABLE
-@AH01 ERASE_CANCEL                       <span class="c"># abort a running countdown</span></pre>
+@AH01 AUTOERASE_DISABLE:&lt;hmac&gt;
+@AH01 ERASE_CANCEL:&lt;hmac&gt;                       <span class="c"># abort a running countdown</span></pre>
   <p>During the setup period the node still reports movement, so you can watch the arming from a distance: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When it triggers you get <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>.</p>
 
   <h4>Remote erase</h4>
-  <p>Two steps, so a single stray message cannot wipe a node. Request a token, then use it. The token expires in five minutes and is specific to that device.</p>
-  <pre>@AH01 ERASE_REQUEST
-@AH01 ERASE_FORCE:AH_12345678_87654321_00001234</pre>
+  <p>Two steps, so a single stray message cannot wipe a node and the PSK never crosses the mesh. Every command marked <span class="mono">&lt;hmac&gt;</span> in this section works the same way.</p>
+  <ol>
+    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span>.</li>
+    <li>The node answers on the mesh channel, in the Meshtastic app or Command Center log like any other reply: <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>. Copy the token, <span class="mono">AH_…</span> up to the space.</li>
+    <li>On your phone or laptop, sign the token with the node's erase PSK (§8.1): <span class="mono">printf '%s' 'AH_3F2A…' | openssl dgst -sha256 -hmac 'yourPSK'</span>. Copy the 64 hex characters after <span class="mono">=</span>. That is <span class="mono">&lt;hmac&gt;</span>.</li>
+    <li>Within 5 minutes send <span class="mono">@AH01 ERASE_FORCE:&lt;hmac&gt;</span> (or <span class="mono">ERASE_CANCEL</span>, <span class="mono">AUTOERASE_*</span>, <span class="mono">FACTORY_RESET</span>, <span class="mono">CONFIG_ERASE_PSK</span> with the same <span class="mono">&lt;hmac&gt;</span>). The token works only on the node that issued it and expires after 300 s; after that, request a new one.</li>
+  </ol>
+  <p>From the node's own web UI no token is needed: enter the PSK in the Authorization field.</p>
   <p>After a wipe the node plants a dummy IoT weather configuration in place of its own, so a recovered device does not obviously read as a sensor.</p>
 
   <h4>Factory reset</h4>
-  <pre>@AH01 FACTORY_RESET:FULL:yourEraseKey    <span class="c"># FULL | CONFIG | DATA</span></pre>
-  <p>Single node only, and it requires the erase PSK you set in §8.1. Without a PSK set, there is no credential to authorize it.</p>
+  <pre>@AH01 FACTORY_RESET:FULL:&lt;hmac&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
+  <p>Single node only. Request a token first, then answer with the HMAC as above.</p>
 
   <div class="box warn"><span class="t">Data destruction is irreversible</span>
     <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone, and the countdown is short by design.</p>
@@ -902,7 +910,7 @@ python3 scripts/meshtastic_config.py</pre>
 
 <div class="sec">
   <h2><span class="num">11</span>Mesh command reference</h2>
-  <p class="lead">Send these as ordinary text messages from the Meshtastic app, a Command Center, or any client on your channel. <span class="mono">@ALL</span> broadcasts. A node ID targets one node. All times UTC.</p>
+  <p class="lead">Send these as ordinary text messages from the Meshtastic app, a Command Center, or any client on your channel. <span class="mono">@ALL</span> broadcasts. A node ID targets one node. Times are the node's local time once GPS fixes the zone, UTC before that.</p>
 
   <h3>Core</h3>
   <table class="tight">
@@ -923,7 +931,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>Toggle per-session dedup</td><td>0 or 1</td></tr>
     <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td><td>None</td></tr>
     <tr><td><span class="mono">DEVICE_DB_CLEAR</span></td><td>Clear the discovered-device DB, headless, Beta and C5</td><td>None</td></tr>
-    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the key that authorizes a wipe</td><td>1 to 64 characters</td></tr>
+    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Change the key that authorizes a wipe</td><td><span class="mono">&lt;new&gt;:&lt;hmac&gt;</span>, key 1 to 64 characters, no <span class="mono">:</span></td></tr>
   </table>
 
   <h3>Scanning</h3>
@@ -966,13 +974,13 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>Security, power and heartbeat</h3>
   <table class="tight">
     <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Wipe the node, challenge flow</td><td>Token flow, §10.4</td></tr>
-    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown</span></td></tr>
-    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td>None</td></tr>
+    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Wipe the node, challenge flow</td><td>None, <span class="mono">&lt;hmac&gt;</span>, <span class="mono">&lt;hmac&gt;</span>; §10.4</td></tr>
+    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown:hmac</span></td></tr>
+    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td><span class="mono">&lt;hmac&gt;</span>, none</td></tr>
     <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>Enable, disable, report the sensor</td><td>None</td></tr>
     <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown[:interrupt]]</span></td></tr>
     <tr><td><span class="mono">SCHED_ADD</span>, <span class="mono">SCHED_LIST</span>, <span class="mono">SCHED_DEL</span></td><td>Add, list or delete a schedule block</td><td><span class="mono">at|repeat s|path|body</span>, none, block number</td></tr>
-    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node, needs the key</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;erase PSK&gt;</span></td></tr>
+    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;hmac&gt;</span></td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Drop to low power</td><td>Minutes, 1 to 30, default 5</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>Return to normal, or report</td><td>None</td></tr>
     <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default</td><td>Interval 1 to 60 min</td></tr>
@@ -1046,6 +1054,18 @@ docker compose up -d --build</pre>
 
   <h3>12.5 Updating</h3>
   <p>Use the in-app update page, or <span class="mono">git pull</span> in the project folder. Docker: <span class="mono">git pull &amp;&amp; docker compose up -d --build</span>. The backend re-applies migrations on boot.</p>
+
+  <h3>12.6 Reaching it from anywhere, and alerts to your phone</h3>
+  <p>The Command Center's <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/docs/INTERNET-CONNECTIVITY.md">Remote Connections guide</a> walks through each option with a check at every step:</p>
+  <table class="tight">
+    <tr><th style="width:45%">I want to…</th><th>Use</th></tr>
+    <tr><td>Run the map and console from my phone, away from site</td><td>Tailscale (private VPN between your own devices)</td></tr>
+    <tr><td>Let others in without installing an app</td><td>Cloudflare Tunnel with an email login</td></tr>
+    <tr><td>Get a message when a node detects something</td><td>Push, Signal, ntfy, Matrix, Discord, IFTTT, Home Assistant, email</td></tr>
+    <tr><td>See nodes and targets in ATAK, iTAK or WinTAK</td><td>TAK bridge</td></tr>
+    <tr><td>Feed detections to scripts, or link two sites</td><td>MQTTS broker and federation</td></tr>
+  </table>
+  <p>Never forward the Command Center's ports on your router. Set its admin password and two-factor first; the guide starts there.</p>
 </div>
 
 <div class="sec">
@@ -1081,7 +1101,46 @@ docker compose up -d --build</pre>
     <li>Never use the chassis USB input and the UPS fast-charge input at the same time.</li>
   </ul>
 
-  <h3>13.4 Before you walk away</h3>
+  <h3>13.4 Playbooks</h3>
+  <p>Set-and-forget setups for common situations. Schedule blocks run with the web page closed and survive reboots; set them in the Scan tab (pick the scan, then <b>Schedule this scan</b>) or over mesh with <span class="mono">SCHED_ADD</span> (full firmware). Times are the node's local time. Repeat <span class="mono">86400</span> is daily, <span class="mono">604800</span> weekly, <span class="mono">0</span> once.</p>
+
+  <h4>Overnight perimeter watch (home, shop, site)</h4>
+  <p>Learn what belongs, then flag anything new after dark. Pair with Sentinel for attacks on your Wi-Fi.</p>
+  <pre>@AH01 SCHED_ADD:2026-10-05T21:00|86400|/sniffer|detection=baseline&amp;secs=32400   <span class="c"># 9 h, nightly</span>
+@AH01 SENTINEL_BOOT:1                     <span class="c"># Beta: attack detection from power-on</span>
+@AH01 VIBRATION_ON</pre>
+  <p>You get <span class="mono">ANOMALY-NEW</span> for a device that was not there at dusk, and Sentinel alerts for deauth, evil twins and similar attacks.</p>
+
+  <h4>Someone casing the place</h4>
+  <p>The same phone or car showing up on different days is the tell. Run a device scan while they are around, put the MACs you care about on the watchlist, then hunt them on a schedule.</p>
+  <pre>@AH01 DEVICE_SCAN_START:2:600
+@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33
+@ALL SCAN_START:2:0:1..11:FOREVER                                   <span class="c"># or schedule it:</span>
+@AH01 SCHED_ADD:2026-10-05T08:00|86400|/scan|mode=2&amp;secs=36000&amp;ch=1..11</pre>
+  <p>A hit sends <span class="mono">Target: MAC RSSI Type Name GPS V=vendor</span> at once; the web UI shows CLOSING or OPENING as it moves.</p>
+
+  <h4>While you are away</h4>
+  <p>Start a baseline when you arrive. When you leave, press <b>Watch for changes from now</b> or send <span class="mono">@AH01 BASELINE_WATCH</span>. Back home, the results list what is new, what is gone, and what moved closer.</p>
+
+  <h4>Drones over the property</h4>
+  <pre>@AH01 SCHED_ADD:2026-10-05T06:00|86400|/drone|droneScanMode=2&amp;secs=57600   <span class="c"># daylight hours</span></pre>
+  <p>Each aircraft broadcasting Remote ID is reported once with its ID, position and operator location when sent.</p>
+
+  <h4>Your Wi-Fi is being attacked</h4>
+  <p>Most Wi-Fi attacks start by knocking clients off with deauthentication frames: to capture a handshake, push them onto an evil twin, or just jam. The Deauth scan catches that on every build; run it around the clock.</p>
+  <pre>@AH01 DEAUTH_START:0:FOREVER
+@AH01 SCHED_ADD:2026-10-05T00:00|86400|/sniffer|detection=deauth&amp;secs=86400   <span class="c"># or as a daily block</span>
+@AH01 SENTINEL_ON                          <span class="c"># Beta: also evil twins, karma, PMKID, floods</span></pre>
+  <p>Alerts name the source MAC and target. Sentinel can also start triangulation, a capture or a sweep on a confirmed attack (Sentinel tab → On confirmed attack).</p>
+
+  <h4>Unattended in a vehicle or camp</h4>
+  <pre>@AH01 VIBSCAN_SET:1:1:300:600              <span class="c"># a bump starts a 5 min device scan</span>
+@AH01 BATTERY_SAVER_START:10                <span class="c"># mesh stays reachable between events</span></pre>
+
+  <h4>Several sites, one screen</h4>
+  <p>Run the Command Center (§12) on a machine at one site with a Meshtastic radio on USB. Reach it from your phone over Tailscale and route alerts to Signal or push (§12.6).</p>
+
+  <h3>13.5 Before you walk away</h3>
   <ul class="check">
     <li>AP credentials changed, or Headless firmware flashed</li>
     <li>LoRa region set and your own encrypted channel primary, public channel off</li>
