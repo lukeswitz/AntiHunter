@@ -13,7 +13,7 @@ Apple services detection, BLE device class table, baseline A/B, v1.0.3 fixes.
 - Apple services detection: BLE Continuity type (AirDrop, Handoff, AirPods, Hey Siri, Tethering, iPhone activity state) or GAP appearance category, as a badge in Device scan, Target scan and Baseline results, and on baseline anomaly alerts (`Class:`).
 - BLE device class from 16-bit service UUID, service data or company ID (208 UUIDs, 108 companies, Bluetooth SIG assigned numbers): Phone, Wearable, Audio, Tag, Vehicle, Health, Home, Lock, Camera, Drone, Glasses, Radio, Beacon, Input, shown as `Class-Vendor` in the same badge. 4 KB flash, no RAM.
 - Target scan RSSI trend badge per target: `CLOSING`, `OPENING`, `STEADY` after 4 sightings, `WAIT` before.
-- Baseline A/B marker: Mark A/B button while a baseline runs; results add an A/B Slice section with devices new after the mark, gone after it, and moved by the RSSI threshold.
+- Baseline "Mark now": press it while a baseline runs; results add "Changes since your mark" listing devices that arrived, left, or moved closer/farther (by the RSSI threshold), with before/after signal.
 - Target mesh alerts end with `V=<vendor>` (first word of the OUI vendor, e.g. `V=NETGEAR`) when the MAC is not randomized. Full and headless.
 - Results: BLE blue, Wi-Fi green.
 
