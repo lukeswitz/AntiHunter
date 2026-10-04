@@ -40,7 +40,7 @@
 The name is literal. It is for people being watched, followed, cased or attacked: someone sitting outside, a car that keeps coming back, a drone overhead, a stranger probing your Wi-Fi. Every phone, watch, car and tool they carry gives off Wi-Fi and Bluetooth. AntiHunter learns what normally belongs around you and tells you, over long-range LoRa radio, when something new shows up, keeps coming back, gets closer, or attacks your network. It detects; it does not attack, jam or deauth anything.
 
 - **Learn and alert.** A baseline learns your site, then flags new devices, returns and movement.
-- **Watchlist.** Put a phone, car or vendor on the list and get an alert, with its maker and GPS position, the moment it is in range.
+- **Watchlist.** Put a phone, car or vendor on the list and get an alert, with its vendor and GPS position, the moment it is in range.
 - **Attacks.** Deauth floods, evil twins, rogue access points and other Wi-Fi attacks (Sentinel, beta).
 - **Drones.** Remote ID with the operator's location.
 - **Set and forget.** Schedule scans by time of day, start one when the node is bumped, wipe the node if it is stolen.

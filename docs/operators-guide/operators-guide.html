@@ -657,13 +657,13 @@ python3 scripts/meshtastic_config.py</pre>
   <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
-  <p>Alert: <span class="mono">NODE: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor]</span>. <span class="mono">V=</span> is the first word of the maker's name, sent when the MAC is not randomized.</p>
+  <p>Alert: <span class="mono">NODE: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor]</span>. <span class="mono">V=</span> is the first word of the vendor name, sent when the MAC is not randomized.</p>
   <p>In the web UI each target card shows whether its signal is getting stronger (<span class="mono">CLOSING</span>), weaker (<span class="mono">OPENING</span>) or holding (<span class="mono">STEADY</span>), from a fast and a slow moving average of RSSI. It shows <span class="mono">WAIT</span> until the target has been seen four times.</p>
 
   <h3>9.2 Device Scanner</h3>
   <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE   <span class="c"># +PROBE also fills the probe database</span></pre>
-  <p><b>What a BLE device is</b> (full firmware). Device, Target and Baseline results show a badge naming what the device advertises: an Apple service (AirDrop, Handoff, AirPods, Find My, iPhone activity state), or a class and maker read from its Bluetooth service or company ID, for example <span class="mono">Wearable-Garmin</span>, <span class="mono">Tag-Tile</span>, <span class="mono">Vehicle-Tesla</span>, <span class="mono">Drone-RemoteID</span>. The text results carry it as <span class="mono">C=</span>. Wi-Fi devices with a fixed MAC show their maker from the MAC prefix instead.</p>
+  <p><b>What a BLE device is</b> (full firmware). Device, Target and Baseline results show a badge naming what the device advertises: an Apple service (AirDrop, Handoff, AirPods, Find My, iPhone activity state), or a class and vendor read from its Bluetooth service or company ID, for example <span class="mono">Wearable-Garmin</span>, <span class="mono">Tag-Tile</span>, <span class="mono">Vehicle-Tesla</span>, <span class="mono">Drone-RemoteID</span>. The text results carry it as <span class="mono">C=</span>. Wi-Fi devices with a fixed MAC show their vendor from the MAC prefix instead.</p>
 
   <h3>9.3 Probe Request Scanner</h3>
   <p>Passive sniffing of the probe requests devices emit while looking for networks they know. It reveals the SSIDs a device is searching for, which is often more identifying than the device itself.</p>

@@ -4435,7 +4435,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           }
           html += '<div class="res-stats">' + _resStat('New', counts.New, 'danger') + _resStat('Returned', counts.Returned) + _resStat('Moved', counts.Moved) + '</div></div>';
-          html += '<div class="res-card" style="overflow-x:auto"><table class="res-tbl"><tr><th>Event</th><th>Device</th><th>Radio</th><th>Class / maker</th><th>dBm</th><th>Detail</th></tr>' + rows + '</table></div>';
+          html += '<div class="res-card" style="overflow-x:auto"><table class="res-tbl"><tr><th>Event</th><th>Device</th><th>Radio</th><th>Class / Vendor</th><th>dBm</th><th>Detail</th></tr>' + rows + '</table></div>';
         } else {
           html += _resEmpty('No anomalies detected.', 'ok');
         }
