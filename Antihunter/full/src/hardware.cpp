@@ -1271,6 +1271,7 @@ String getDiagnostics() {
     char boardBuffer[16];
     snprintf(boardBuffer, sizeof(boardBuffer), "%012llx", (unsigned long long)ESP.getEfuseMac());
     s += "Board: " + String(boardBuffer) + "\n";
+    s += "Build: " AH_GIT_SHA "\n";
     s += "Last reset: " + String(getResetReasonText()) + "\n";
     s += "Prev uptime: " + (prevBootUptimeKnown() ? String(getPrevBootUptimeSec()) + "s" : String("unknown")) + "\n";
     s += "Results restored: " + String(resultsWereRestored() ? "yes" : "no") + "\n";
