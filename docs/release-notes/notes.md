@@ -15,6 +15,10 @@ Apple services detection, BLE device class table, baseline "Watch for changes", 
 - Target scan RSSI trend badge per target: `CLOSING`, `OPENING`, `STEADY` after 4 sightings, `WAIT` before.
 - Baseline "Watch for changes from now": button or `@ALL BASELINE_WATCH` while a baseline runs; results add "Since <time>" listing devices new here, gone, or moving closer/away (by the RSSI threshold), with before → after signal.
 - Target mesh alerts end with `V=<vendor>` (first word of the OUI vendor, e.g. `V=NETGEAR`) when the MAC is not randomized. Full and headless.
+- Device classes each have their own color on every badge, light and dark themes.
+- Baseline anomalies as a table: New, Returned and Moved pills with counts, device, radio, class or maker, signal and detail.
+- Class summary table (devices per class, strongest signal) at the top of Device scan results and the cached baseline device list.
+- The web page reloads itself when the node runs new firmware.
 - Results: BLE blue, Wi-Fi green.
 
 ## Fixed
