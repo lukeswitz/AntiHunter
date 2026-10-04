@@ -857,7 +857,7 @@ R"HTML(
                 <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-                <button class="btn alt" type="button" onclick="markBaseline()" style="display:none;" id="markBaselineBtn" title="Split the running baseline into before (A) and after (B) this moment">Mark A/B</button>
+                <button class="btn alt" type="button" onclick="markBaseline()" style="display:none;" id="markBaselineBtn" title="Results will list what arrived, left or moved after this moment">Mark now</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
               </div>
@@ -3131,7 +3131,14 @@ R"HTML(
       async function markBaseline() {
         try {
           const response = await fetch('/baseline/mark', { method: 'POST' });
-          toast(await response.text(), response.ok ? 'success' : 'error');
+          const msg = await response.text();
+          if (response.ok) {
+            const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('markBaselineBtn').textContent = 'Marked ' + t + ' · mark again';
+            toast('Marked. Results now show what changes from here.', 'success');
+          } else {
+            toast(msg, 'error');
+          }
         } catch (error) {
           toast('Error setting marker: ' + error, 'error');
         }
@@ -4303,14 +4310,15 @@ R"HTML(
           const sl = sliceSection.split('\n');
           const num = re => { const m = sliceSection.match(re); return m ? m[1] : '0'; };
           const markerM = sliceSection.match(/Marker: (\d+)s/);
-          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">A/B Slice' + (markerM ? ' (marker at ' + markerM[1] + 's)' : '') + '</div></div>';
-          html += '<div class="res-stats">' + _resStat('Only before', num(/Only before: (\d+)/)) + _resStat('Only after', num(/Only after: (\d+)/), 'danger') + _resStat('Both', num(/Both: (\d+)/)) + '</div></div>';
+          const markAt = markerM ? Math.floor(markerM[1] / 60) + ':' + String(markerM[1] % 60).padStart(2, '0') : '';
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">Changes since your mark' + (markAt ? ' (' + markAt + ' into the scan)' : '') + '</div></div>';
+          html += '<div class="res-stats">' + _resStat('Arrived', num(/Only after: (\d+)/), 'danger') + _resStat('Left', num(/Only before: (\d+)/)) + _resStat('Stayed', num(/Both: (\d+)/)) + '</div></div>';
           sl.filter(l => /^SLICE-(NEW|GONE|MOVED)\s/.test(l)).forEach(line => {
             const m = line.match(/^SLICE-(NEW|GONE|MOVED)\s+(WiFi|BLE)\s+([A-F0-9:]+)(?:\s+A:([-\d]+)dBm)?(?:\s+B:([-\d]+)dBm)?(?:\s+Delta:([-+\d]+))?(?:\s+"([^"]+)")?/);
             if (!m) return;
             const [_, kind, type, mac, a, b, delta, name] = m;
             const sv = line.match(/\sV=([^"\n]+)$/);
-            const label = kind === 'NEW' ? 'NEW AFTER MARK' : (kind === 'GONE' ? 'GONE AFTER MARK' : 'MOVED ' + delta + ' dB');
+            const label = kind === 'NEW' ? 'ARRIVED' : (kind === 'GONE' ? 'LEFT' : (parseInt(delta) > 0 ? 'CLOSER ' : 'FARTHER ') + delta + ' dB');
             html += '<div class="res-card device-card' + (kind === 'NEW' ? ' alert' : '') + '" data-type="' + type + '">';
             html += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
             html += '<div class="res-meta"><span class="res-badge ' + (kind === 'NEW' ? 'target' : 'muted') + '">' + label + '</span>';
@@ -4320,7 +4328,7 @@ R"HTML(
             if (sv) html += '<span class="res-badge">' + sv[1].trim() + '</span>';
             html += '</div>';
             const shown = b || a;
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(shown) + '">' + shown + '<small> dBm</small></span><span class="res-metric-lab">' + (a && b ? 'A ' + a + ' / B' : (b ? 'B' : 'A')) + '</span></div>';
+            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(shown) + '">' + shown + '<small> dBm</small></span><span class="res-metric-lab">' + (a && b ? 'was ' + a + ', now' : (b ? 'after mark' : 'last seen')) + '</span></div>';
             html += '</div></div>';
           });
         }
