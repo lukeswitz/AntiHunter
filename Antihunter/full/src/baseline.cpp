@@ -5,7 +5,6 @@
 #include "main.h"
 #include "detect.h"
 #include "ble_class.h"
-#include "sig_match.h"
 #include <algorithm>
 #include <iterator>
 #include <ArduinoJson.h>
@@ -89,10 +88,7 @@ static void baselineTagDevice(const Hit &h) {
     uint64_t k = blKey(h.mac);
     std::lock_guard<std::mutex> lock(baselineMutex);
     if (baselineCache.find(k) == baselineCache.end()) return;
-    bool isNew = baselineTags.find(k) == baselineTags.end();
     BaselineTag &t = baselineTags[k];
-    if (h.sig != SIG_NONE) t.sig = h.sig;
-    else if (isNew && !h.isBLE) t.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
     if (h.cls[0]) {
         strncpy(t.cls, h.cls, sizeof(t.cls) - 1);
         t.cls[sizeof(t.cls) - 1] = '\0';
@@ -106,9 +102,8 @@ static void baselineTagDevice(const Hit &h) {
     }
 }
 
-static void appendTagTokens(String &out, uint16_t sig, const char *cls, bool haveLoc, float lat, float lon) {
+static void appendTagTokens(String &out, const char *cls, bool haveLoc, float lat, float lon) {
     if (cls && cls[0]) out += " C=" + String(cls);
-    if (sig != SIG_NONE) out += " SIG=" + String(sigFleetKind(sig)) + ":" + sigFleetName(sig);
 }
 
 static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
@@ -117,9 +112,6 @@ static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
         hit.cls[sizeof(hit.cls) - 1] = '\0';
     }
     hit.haveLoc = baselineReadGps(hit.lat, hit.lon);
-    std::lock_guard<std::mutex> lock(baselineMutex);
-    auto it = baselineTags.find(blKey(hit.mac));
-    if (it != baselineTags.end()) hit.sig = it->second.sig;
 }
 
 // RAM SD Cache
@@ -381,7 +373,7 @@ static void appendCacheDeviceLines(String& out) {
             auto tIt = baselineTags.find(entry.first);
             if (tIt != baselineTags.end()) {
                 const BaselineTag &t = tIt->second;
-                appendTagTokens(out, t.sig, t.cls, t.haveLoc, t.firstLat, t.firstLon);
+                appendTagTokens(out, t.cls, t.haveLoc, t.firstLat, t.firstLon);
             }
         }
         { const char *dv = lookupOuiVendor(dev.mac); if (dv) out += " V=" + String(dv); }
@@ -417,7 +409,7 @@ String getBaselineResults() {
                 results += " \"" + String(anomaly.name) + "\"";
             }
             results += " - " + anomaly.reason;
-            appendTagTokens(results, anomaly.sig, anomaly.cls, anomaly.haveLoc, anomaly.lat, anomaly.lon);
+            appendTagTokens(results, anomaly.cls, anomaly.haveLoc, anomaly.lat, anomaly.lon);
             { const char *av = lookupOuiVendor(anomaly.mac); if (av) results += " V=" + String(av); }
             results += "\n";
         }
@@ -460,7 +452,7 @@ String getBaselineResults() {
             if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
                 lines += " \"" + String(dev.name) + "\"";
             }
-            appendTagTokens(lines, t.sig, t.cls, false, 0, 0);
+            appendTagTokens(lines, t.cls, false, 0, 0);
             { const char *sv = lookupOuiVendor(dev.mac); if (sv) lines += " V=" + String(sv); }
             lines += "\n";
         }
@@ -784,7 +776,6 @@ void baselineDetectionTask(void *pv) {
                     {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
-                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
                     }
 
                     safeMacQueueSend(&bh, 0);
@@ -941,7 +932,6 @@ void baselineDetectionTask(void *pv) {
                     {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
-                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
                     }
 
                     safeMacQueueSend(&bh, 0);

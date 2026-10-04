@@ -22,7 +22,6 @@
 #include "scanner_internal.h"
 #include "oui_table.h"
 #include "ble_class.h"
-#include "sig_match.h"
 
 extern "C"
 {
@@ -1181,7 +1180,6 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             {
                 std::vector<uint8_t> pl = advertisedDevice->getPayload();
                 bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
-                h.sig = sigMatch(h.mac, true, h.name, pl.data(), pl.size());
             }
 
             if (!safeMacQueueSend(&h, pdMS_TO_TICKS(10))) {
@@ -1409,7 +1407,6 @@ void snifferScanTask(void *pv)
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
-                    h.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
 
                     if (hitsLog.size() < MAX_LOG_SIZE) {
                         hitsLog.push_back(h);
@@ -1471,7 +1468,6 @@ void snifferScanTask(void *pv)
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
-                    h.sig = sigMatch(h.mac, false, h.name, nullptr, 0);
 
                     if (hitsLog.size() < MAX_LOG_SIZE) {
                         hitsLog.push_back(h);
@@ -1565,7 +1561,6 @@ void snifferScanTask(void *pv)
                                 h.isApple = (mfr.size() >= 2 && (uint8_t)mfr[0] == 0x4C && (uint8_t)mfr[1] == 0x00);
                                 std::vector<uint8_t> pl = device->getPayload();
                                 bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
-                                h.sig = sigMatch(h.mac, true, h.name, pl.data(), pl.size());
                             }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
                                 hitsLog.push_back(h);
@@ -1574,7 +1569,6 @@ void snifferScanTask(void *pv)
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
                                             " RSSI: " + String(rssi) + "dBm";
                             if (h.cls[0]) logEntry += " Class: " + String(h.cls);
-                            if (h.sig != SIG_NONE) logEntry += " Sig: " + String(sigFleetKind(h.sig)) + ":" + sigFleetName(h.sig);
 
                             if (gpsValid)
                             {
@@ -1789,7 +1783,6 @@ void snifferScanTask(void *pv)
                 }
                 if (hit.isBLE && hit.isApple) results += " APPLE";
                 if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
-                if (hit.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(hit.sig) + ":" + sigFleetName(hit.sig);
                 { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
                 results += "\n";
             }
@@ -1949,7 +1942,6 @@ void snifferScanTask(void *pv)
 
             if (hit.isBLE && hit.isApple) results += " APPLE";
             if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
-            if (hit.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(hit.sig) + ":" + sigFleetName(hit.sig);
             { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
@@ -3731,7 +3723,6 @@ void listScanTask(void *pv) {
                     wh.isBLE = false;
 
                     if (isMatch) {
-                        wh.sig = sigMatch(wh.mac, false, wh.name, nullptr, 0);
                         if (!safeMacQueueSend(&wh, pdMS_TO_TICKS(10))) {
                             Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
                         }
@@ -3802,7 +3793,6 @@ void listScanTask(void *pv) {
                     {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
-                        bh.sig = sigMatch(bh.mac, true, bh.name, pl.data(), pl.size());
                     }
                     if (!safeMacQueueSend(&bh, pdMS_TO_TICKS(10))) {
                         Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
@@ -3850,7 +3840,6 @@ void listScanTask(void *pv) {
                 logEntry += " Name=" + String(h.name);
             }
             if (h.cls[0]) logEntry += " Class=" + String(h.cls);
-            if (h.sig != SIG_NONE) logEntry += " Sig=" + String(sigFleetKind(h.sig)) + ":" + sigFleetName(h.sig);
             logEntry += foxToken(fox).c_str();
             if (gpsValid) {
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -4168,7 +4157,6 @@ void listScanTask(void *pv) {
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
                 if (sh.isBLE && sh.cls[0]) pr += std::string(" C=") + sh.cls;
-                if (sh.sig != SIG_NONE) pr += std::string(" SIG=") + sigFleetKind(sh.sig) + ":" + sigFleetName(sh.sig);
                 { auto ft = foxTracks.find(mb); if (ft != foxTracks.end()) pr += foxToken(ft->second); }
                 { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
                 pr += "\n";
@@ -4241,7 +4229,6 @@ void listScanTask(void *pv) {
                 results += " \"" + std::string(e.name) + "\"";
             }
             if (e.isBLE && e.cls[0]) results += std::string(" C=") + e.cls;
-            if (e.sig != SIG_NONE) results += std::string(" SIG=") + sigFleetKind(e.sig) + ":" + sigFleetName(e.sig);
             { String up = macOut; up.toUpperCase(); auto ft = foxTracks.find(std::string(up.c_str())); if (ft != foxTracks.end()) results += foxToken(ft->second); }
             { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";

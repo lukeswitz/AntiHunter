@@ -2547,6 +2547,7 @@ struct BleAttackSig {
     uint8_t patLen;
     const char *tool;
     const char *family;
+    uint8_t anyLow2At;
 };
 // Verified 2026-05-22 against REAL source: Bruce src/modules/ble/ble_spam.cpp +
 // apple_spam.cpp (Samsung_Data/Google_Data/data_airpods*) and ESP32Marauder
@@ -2571,8 +2572,8 @@ static const BleAttackSig BLE_ATTACK_SIGS[] = {
     {{0xFF, 0x75, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x01, 0xFF}, 10, "Samsung_Spam", "samsung"},
     // Microsoft Swift Pair — mfg FF 06 00, CDP beacon 03 00 80
     {{0xFF, 0x06, 0x00, 0x03, 0x00, 0x80}, 6, "Microsoft_SwiftPair", "swiftpair"},
-    // Flipper — manufacturer ID 0x0FBA (FF BA 0F). Model/payload randomized → ID only.
-    {{0xFF, 0xBA, 0x0F}, 3, "Flipper_Spoof", "flipper"},
+    // Flipper Zero — 16-bit service UUID 0x3080 | hw color (flipperzero-firmware serial_profile.c). 0x0FBA is Cosonic, not Flipper.
+    {{0x03, 0x02, 0x80, 0x30}, 4, "Flipper_Zero", "flipper", 3},
     // Google Fast Pair — service-data AD (0x16) UUID 0xFE2C. Model is android_models[rand()] → UUID only.
     {{0x16, 0x2C, 0xFE}, 3, "FastPair", "fastpair"},
 };
@@ -2596,7 +2597,12 @@ static std::atomic<bool> g_bleAttackEnabled{false};  // off by default — BLE c
 static bool bleScanForSig(const uint8_t *payload, uint16_t len, const BleAttackSig &sig) {
     if (len < sig.patLen) return false;
     for (uint16_t i = 0; i + sig.patLen <= len; ++i) {
-        if (memcmp(payload + i, sig.pattern, sig.patLen) == 0) return true;
+        uint8_t j = 0;
+        for (; j < sig.patLen; ++j) {
+            uint8_t m = (j + 1 == sig.anyLow2At) ? 0xFC : 0xFF;
+            if ((payload[i + j] & m) != sig.pattern[j]) break;
+        }
+        if (j == sig.patLen) return true;
     }
     return false;
 }
