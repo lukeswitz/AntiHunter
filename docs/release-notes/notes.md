@@ -1,6 +1,6 @@
 # AntiHunter v1.0.4
 
-Apple services detection, Fieldwatch catalog, baseline A/B, v1.0.3 fixes.
+Apple services detection, BLE device class table, baseline A/B, v1.0.3 fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -11,7 +11,7 @@ Apple services detection, Fieldwatch catalog, baseline A/B, v1.0.3 fixes.
 ## New (full firmware)
 
 - Apple services detection: BLE Continuity type (AirDrop, Handoff, AirPods, Hey Siri, Tethering, iPhone activity state) or GAP appearance category, as a badge in Device scan, Target scan and Baseline results, and on baseline anomaly alerts (`Class:`).
-- Fieldwatch catalog v84 match (OUI, name, UUID, manufacturer and service data) in the same badge.
+- BLE device class from 16-bit service UUID, service data or company ID (208 UUIDs, 108 companies, Bluetooth SIG assigned numbers): Phone, Wearable, Audio, Tag, Vehicle, Health, Home, Lock, Camera, Drone, Glasses, Radio, Beacon, Input, shown as `Class-Vendor` in the same badge. 4 KB flash, no RAM.
 - Target scan RSSI trend badge per target: `CLOSING`, `OPENING`, `STEADY` after 4 sightings, `WAIT` before.
 - Baseline A/B marker: Mark A/B button while a baseline runs; results add an A/B Slice section with devices new after the mark, gone after it, and moved by the RSSI threshold.
 - Results: BLE blue, Wi-Fi green.
@@ -20,6 +20,7 @@ Apple services detection, Fieldwatch catalog, baseline A/B, v1.0.3 fixes.
 
 - Scan start no longer moves the radio off the softAP channel while a client is connected; the web UI stays up (full).
 - Deauth scan no longer starts BLE.
+- Sentinel BLE attack table: Flipper Zero matched by its service UUID 0x3080-0x3083; the old 0x0FBA company ID belongs to Cosonic.
 - Mesh RX task stack in internal RAM.
 - Device scan name shown after the MAC, HTML-escaped.
 - Schedule list: same-day blocks read "Today", not next week.

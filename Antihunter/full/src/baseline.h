@@ -37,11 +37,9 @@ struct AnomalyHit {
     float lat{};
     float lon{};
     bool haveLoc{};
-    uint16_t sig{0xFFFF};
 };
 
 struct BaselineTag {
-    uint16_t sig{0xFFFF};
     uint8_t slices{};
     int8_t rssiA{};
     int8_t rssiB{};

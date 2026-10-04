@@ -4224,7 +4224,7 @@ R"HTML(
       function parseBaselineResults(text) {
         function tagBadges(line) {
           let t = '';
-          t += sigClassBadge(line);
+          t += classBadge(line);
           return t;
         }
 
@@ -4279,7 +4279,7 @@ R"HTML(
               let anomVendor = '';
               const av = reason.match(/\sV=([^"\n]+)$/);
               if (av) { anomVendor = av[1].trim(); reason = reason.slice(0, av.index).trim(); }
-              const tagAt = reason.search(/\s(C|SIG|LOC)=/);
+              const tagAt = reason.search(/\sC=/);
               if (tagAt >= 0) reason = reason.slice(0, tagAt).trim();
               html += '<div class="res-card alert device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
               html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
@@ -4792,21 +4792,10 @@ R"HTML(
         return tokens.some(t => t.length >= 17 ? m === t : m.startsWith(t + ':'));
       }
 
-      function sigClassBadge(line) {
+      function classBadge(line) {
         const cm = line.match(/\sC=(\S+)/);
-        const sm = line.match(/\sSIG=([A-Z_]+):(\S+)/);
-        if (!cm && !sm) return '';
-        const cls = cm ? cm[1] : '';
-        const sigName = sm ? sm[2].replace(/_/g, ' ').replace(/ (Device|Trackers|hotspot)$/i, '').replace(/^Apple AirTags$/, 'AirTag').replace(/Tags$/, 'Tag') : '';
-        const KIND_NOUN = {HACKING:'hacking tool', SURVEILLANCE:'surveillance', LAW_ENFORCEMENT:'police', DRONE:'drone', CAMERA:'camera', FINDER:'tracker', GLASSES:'smart glasses', VEHICLE:'vehicle', LOCK:'lock', WEARABLE:'wearable', AUDIO:'audio', PHONE:'phone', HEALTH:'health', HOME:'smart home', THERMOSTAT:'thermostat', MESH:'mesh radio', SIGNAGE:'sign', BEACON:'beacon'};
-        const noun = sm ? (KIND_NOUN[sm[1]] || '') : '';
-        const namedNoun = /camera|tracker|tpms|lock|glasses|thermostat|beacon|pendant|sign|label|audio|tag\b/i.test(sigName);
-        const notable = sm && /^(HACKING|SURVEILLANCE|LAW_ENFORCEMENT|DRONE|CAMERA|FINDER|GLASSES)$/.test(sm[1]);
-        const sigLabel = notable && noun && !namedNoun && !sigName.toLowerCase().includes(noun) ? sigName + ' ' + noun : sigName;
-        const label = (cls.startsWith('iPhone') || !sigName) ? cls : sigLabel;
-        const title = [sm ? sm[1].replace(/_/g, ' ') + ': ' + sm[2].replace(/_/g, ' ') : '', cls ? 'Advertises ' + cls : ''].filter(Boolean).join(' / ');
-        if (!notable) return '<span class="res-badge" title="' + title + '">' + label + '</span>';
-        return '<span class="res-badge acc" title="' + title + '">' + label + '</span>';
+        if (!cm) return '';
+        return '<span class="res-badge" title="Advertises ' + cm[1] + '">' + cm[1] + '</span>';
       }
 
       function parseDeviceScanResults(text) {
@@ -4865,7 +4854,7 @@ R"HTML(
           if (isTarget) card += '<span class="res-badge target">TARGET</span>';
           card += mac + randBadge(mac);
           if (name) card += '<strong class="res-ident name" style="color:var(--acc)">' + esc(name) + '</strong>';
-          const idBadge = sigClassBadge(line);
+          const idBadge = classBadge(line);
           if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += idBadge;
           const trendMatch = line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
