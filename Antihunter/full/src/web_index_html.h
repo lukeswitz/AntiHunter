@@ -1036,6 +1036,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
             <button class="btn alt" type="button" onclick="clearResults()">Clear</button>
+            <label class="res-toolbar-lab" data-tip="Target scan: show Getting closer / Moving away"><input type="checkbox" id="trendToggle" onchange="setTrendShown(this.checked)"> Movement</label>
             <button class="btn privacy-toggle" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
@@ -3408,6 +3409,26 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return 'net#' + ((h >>> 0) & 0xFFFF).toString(16).padStart(4, '0');
       }
 
+      function trendShown() {
+        return ahPref('ahTrend') !== '0';
+      }
+
+      function setTrendShown(on) {
+        try { localStorage.setItem('ahTrend', on ? '1' : '0'); }
+        catch(storageErr){ console.warn('setTrendShown: localStorage write failed (private mode?)', storageErr); }
+        if (lastResultsText) renderResults(lastResultsText);
+      }
+
+      document.addEventListener('click', e => {
+        const t = e.target.closest && e.target.closest('[data-tip]');
+        if (t && e.target.tagName !== 'INPUT') toast(t.getAttribute('data-tip'), 'info');
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const cb = document.getElementById('trendToggle');
+        if (cb) cb.checked = trendShown();
+      });
+
       function cardClassOf(el) {
         const b = el.querySelector('.res-badge.cls[title]');
         return b ? b.getAttribute('title').split(':')[0] : '';
@@ -5288,9 +5309,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += idBadge;
           const trendMatch = line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
-          if (trendMatch) {
-            const tCls = trendMatch[1] === 'CLOSING' ? 'res-badge target' : 'res-badge muted';
-            card += '<span class="' + tCls + '" title="RSSI trend: fast minus slow moving average (dB). CLOSING = getting closer, OPENING = moving away">' + trendMatch[1] + (trendMatch[2] ? ' ' + trendMatch[2] : '') + '</span>';
+          if (trendShown() && trendMatch && (trendMatch[1] === 'CLOSING' || trendMatch[1] === 'OPENING')) {
+            const closer = trendMatch[1] === 'CLOSING';
+            card += '<span class="res-badge cls" style="--h:' + (closer ? 25 : 200) + '" data-tip="Signal ' + (closer ? 'rising' : 'falling') + ' ' + trendMatch[2] + ' dB over the last minute">' + (closer ? 'Getting closer' : 'Moving away') + '</span>';
           }
           card += '</span>';
           card += '<div class="res-meta">';

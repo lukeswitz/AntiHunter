@@ -3502,32 +3502,56 @@ static String triModeStr(const String& selected) {
     return selected;
 }
 
+static const uint8_t FOX_SLOTS = 12;
+static const uint32_t FOX_WINDOW_MS = 60000;
+static const uint8_t FOX_MIN_SAMPLES = 6;
+static const uint32_t FOX_MIN_SPAN_MS = 15000;
+static const float FOX_MIN_CHANGE_DB = 6.0f;
+static const float FOX_MIN_T = 3.0f;
+
 struct FoxTrack {
-    float fast = 0;
-    float slow = 0;
-    uint16_t n = 0;
+    uint32_t ms[FOX_SLOTS] = {};
+    int8_t rssi[FOX_SLOTS] = {};
+    uint8_t head = 0;
+    uint8_t count = 0;
 };
 
-static const float FOX_FAST_ALPHA = 0.5f;
-static const float FOX_SLOW_ALPHA = 0.15f;
-static const float FOX_TREND_DB = 3.0f;
-static const uint16_t FOX_MIN_SAMPLES = 4;
-
 static void foxUpdate(FoxTrack &t, int8_t rssi) {
-    if (t.n == 0) { t.fast = rssi; t.slow = rssi; }
-    else {
-        t.fast += (rssi - t.fast) * FOX_FAST_ALPHA;
-        t.slow += (rssi - t.slow) * FOX_SLOW_ALPHA;
-    }
-    if (t.n < UINT16_MAX) t.n++;
+    t.ms[t.head] = millis();
+    t.rssi[t.head] = rssi;
+    t.head = (t.head + 1) % FOX_SLOTS;
+    if (t.count < FOX_SLOTS) t.count++;
 }
 
 static std::string foxToken(const FoxTrack &t) {
-    if (t.n < FOX_MIN_SAMPLES) return " TREND=WAIT";
-    float d = t.fast - t.slow;
-    const char *s = d >= FOX_TREND_DB ? "CLOSING" : (d <= -FOX_TREND_DB ? "OPENING" : "STEADY");
+    uint32_t now = millis();
+    float xs[FOX_SLOTS], ys[FOX_SLOTS];
+    uint8_t n = 0;
+    uint32_t oldest = 0;
+    for (uint8_t i = 0; i < t.count; i++) {
+        uint32_t age = now - t.ms[i];
+        if (age > FOX_WINDOW_MS) continue;
+        xs[n] = -(float)age / 1000.0f;
+        ys[n] = t.rssi[i];
+        if (age > oldest) oldest = age;
+        n++;
+    }
+    if (n < FOX_MIN_SAMPLES || oldest < FOX_MIN_SPAN_MS) return " TREND=WAIT";
+    float mx = 0, my = 0;
+    for (uint8_t i = 0; i < n; i++) { mx += xs[i]; my += ys[i]; }
+    mx /= n; my /= n;
+    float sxx = 0, sxy = 0;
+    for (uint8_t i = 0; i < n; i++) { sxx += (xs[i] - mx) * (xs[i] - mx); sxy += (xs[i] - mx) * (ys[i] - my); }
+    float slope = sxy / sxx;
+    float sse = 0;
+    for (uint8_t i = 0; i < n; i++) { float r = ys[i] - (my + slope * (xs[i] - mx)); sse += r * r; }
+    float se = sqrtf((sse / (n - 2)) / sxx);
+    float tstat = se > 0 ? slope / se : (slope != 0 ? 1e6f : 0);
+    float change = slope * (oldest / 1000.0f);
+    const char *s = "STEADY";
+    if (fabsf(tstat) >= FOX_MIN_T && fabsf(change) >= FOX_MIN_CHANGE_DB) s = change > 0 ? "CLOSING" : "OPENING";
     char b[40];
-    snprintf(b, sizeof(b), " TREND=%s(%+.1f)", s, d);
+    snprintf(b, sizeof(b), " TREND=%s(%+.1f)", s, change);
     return b;
 }
 
