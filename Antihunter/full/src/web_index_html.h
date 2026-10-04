@@ -1968,7 +1968,7 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-      <div align="center" class="footer">v1.0.3 Stable | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.4 Stable | Node: <span id="footerNodeId">--</span></div>
     </div>
     
       <script>

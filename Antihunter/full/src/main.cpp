@@ -291,7 +291,7 @@ void setup() {
     delay(120);
     memMark("boot complete");
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.3 STABLE BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v1.0.4 STABLE BOOT COMPLETE =====");
 
     String currentSsid = prefsGetString("apSsid", AP_SSID);
     String currentPass = prefsGetString("apPass", AP_PASS);
