@@ -658,7 +658,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
   <p>Alert: <span class="mono">NODE: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor]</span>. <span class="mono">V=</span> is the first word of the vendor name, sent when the MAC is not randomized.</p>
-  <p>In the web UI each target card shows whether its signal is getting stronger (<span class="mono">CLOSING</span>), weaker (<span class="mono">OPENING</span>) or holding (<span class="mono">STEADY</span>), from a fast and a slow moving average of RSSI. It shows <span class="mono">WAIT</span> until the target has been seen four times.</p>
+  <p>In the web UI a target card shows <b>Getting closer</b> or <b>Moving away</b> when its signal has clearly risen or fallen over recent sightings. Nothing shows while the signal holds steady, or before the target has been seen four times.</p>
 
   <h3>9.2 Device Scanner</h3>
   <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
@@ -1117,7 +1117,7 @@ docker compose up -d --build</pre>
 @ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33
 @ALL SCAN_START:2:0:1..11:FOREVER                                   <span class="c"># or schedule it:</span>
 @AH01 SCHED_ADD:2026-10-05T08:00|86400|/scan|mode=2&amp;secs=36000&amp;ch=1..11</pre>
-  <p>A hit sends <span class="mono">Target: MAC RSSI Type Name GPS V=vendor</span> at once; the web UI shows CLOSING or OPENING as it moves.</p>
+  <p>A hit sends <span class="mono">Target: MAC RSSI Type Name GPS V=vendor</span> at once; the web UI shows Getting closer or Moving away as it moves.</p>
 
   <h4>While you are away</h4>
   <p>Start a baseline when you arrive. When you leave, press <b>Watch for changes from now</b> or send <span class="mono">@AH01 BASELINE_WATCH</span>. Back home, the results list what is new, what is gone, and what moved closer.</p>
