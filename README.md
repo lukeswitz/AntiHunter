@@ -302,6 +302,7 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > **Settings**
 > - Duration is the learning phase, 60s minimum
 > - Progress `@ALL BASELINE_STATUS`
+> - Watch for changes from now (full): Watch for changes from now button, or `@ALL BASELINE_WATCH`. Results show what is new here, gone, or moving closer/away since that moment.
 > - RSSI floor `@ALL CONFIG_RSSI:-80`
 
 ---
