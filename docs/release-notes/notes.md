@@ -12,7 +12,7 @@ Apple services detection, BLE device class table, baseline "Watch for changes", 
 
 - Apple services detection: BLE Continuity type (AirDrop, Handoff, AirPods, Hey Siri, Tethering, iPhone activity state) or GAP appearance category, as a badge in Device scan, Target scan and Baseline results, and on baseline anomaly alerts (`Class:`).
 - BLE device class from 16-bit service UUID, service data or company ID (208 UUIDs, 108 companies, Bluetooth SIG assigned numbers): Phone, Wearable, Audio, Tag, Vehicle, Health, Home, Lock, Camera, Drone, Glasses, Radio, Beacon, Input, shown as `Class-Vendor` in the same badge. 4 KB flash, no RAM.
-- Target scan RSSI trend badge per target: `CLOSING`, `OPENING`, `STEADY` after 4 sightings, `WAIT` before.
+- Target scan cards show **Getting closer** or **Moving away** when a target's signal clearly rises or falls over the last minute (line fit with a significance test); off with the Movement toggle.
 - Baseline "Watch for changes from now": button or `@ALL BASELINE_WATCH` while a baseline runs; results add "Since <time>" listing devices new here, gone, or moving closer/away (by the RSSI threshold), with before → after signal.
 - Target mesh alerts end with `V=<vendor>` (first word of the OUI vendor, e.g. `V=NETGEAR`) when the MAC is not randomized. Full and headless.
 - Device classes each have their own color on every badge, light and dark themes.
