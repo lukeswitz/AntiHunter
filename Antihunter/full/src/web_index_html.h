@@ -400,6 +400,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-badge.ident{color:#fff;background:var(--c-known);border-color:var(--c-known);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
       .res-badge.rand,.res-badge.ident{margin-left:6px}
       .res-mac>.res-badge,.res-meta .res-badge{margin-left:0}
+      .res-badge.cls{color:hsl(var(--h) 70% 34%);border-color:hsl(var(--h) 60% 45%);background:hsl(var(--h) 75% 50% / .12)}
+      [data-theme="dark"] .res-badge.cls,[data-theme="cyber"] .res-badge.cls{color:hsl(var(--h) 85% 72%);border-color:hsl(var(--h) 70% 55%);background:hsl(var(--h) 75% 50% / .16)}
+      .res-tbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+      .res-tbl th{text-align:left;padding:7px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord)}
+      .res-tbl td{padding:7px 10px;border-bottom:1px solid var(--bord);color:var(--txt);white-space:nowrap;vertical-align:middle}
+      .res-tbl td:first-child{font-weight:600}
+      .cls-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:hsl(var(--h) 70% 50%);margin-right:8px;vertical-align:middle}
       /* tags (SSIDs / probes) */
       .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
       .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
@@ -4394,6 +4401,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="res-stats">' + _resStat('Cataloged', deviceLines.length) + '</div></div>';
           html += '<div class="baseline-marker" style="display:none;"></div>';
           if (deviceLines.length === 0) return html + _resEmpty('Cataloging devices…');
+          html += deviceClassTable(deviceLines);
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             const bv = line.match(/\sV=([^"\n]+)$/);
@@ -4408,8 +4416,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (anomalyCount > 0) {
           html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
           html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Baseline Anomalies</div>' + _resScanPill(text) + '</div>';
-          html += '<div class="res-stats">' + _resStat('Anomalies', anomalyCount, 'danger') + '</div></div>';
-
+          const ANOM_KINDS = [['New', 200, /^New device/], ['Returned', 275, /^Device returned/], ['Moved', 25, /^Significant RSSI/]];
+          const counts = { New: 0, Returned: 0, Moved: 0 };
+          let rows = '';
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
           if (anomalySection) {
             anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies')).forEach(line => {
@@ -4422,19 +4431,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (av) { anomVendor = av[1].trim(); reason = reason.slice(0, av.index).trim(); }
               const tagAt = reason.search(/\sC=/);
               if (tagAt >= 0) reason = reason.slice(0, tagAt).trim();
-              html += '<div class="res-card alert device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
-              html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
-              html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
-              if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
-              if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
-              html += tagBadges(line);
-              if (anomVendor) html += '<span class="res-badge">' + anomVendor + '</span>';
-              html += '</div>';
-              html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
-              html += '</div>';
-              html += '<div class="res-note warn">' + reason + '</div></div>';
+              const k = ANOM_KINDS.find(x => x[2].test(reason)) || ['Anomaly', 0];
+              if (counts[k[0]] !== undefined) counts[k[0]]++;
+              const detail = k[0] === 'Moved' ? reason.replace(/^Significant RSSI change:\s*/, '') : (k[0] === 'Returned' ? reason.replace(/^Device returned after\s*/, 'after ') : '');
+              rows += '<tr><td><span class="res-badge cls" style="--h:' + k[1] + '">' + k[0] + '</span></td>';
+              rows += '<td>' + mac + randBadge(mac) + (name ? ' <strong class="res-ident name">' + name + '</strong>' : '') + '</td>';
+              rows += '<td><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>' + (channel ? ' CH ' + channel : '') + '</td>';
+              rows += '<td>' + tagBadges(line) + (anomVendor ? ' ' + anomVendor : '') + '</td>';
+              rows += '<td style="color:' + rssiColorFor(rssi) + '">' + rssi + '</td><td>' + detail + '</td></tr>';
             });
           }
+          html += '<div class="res-stats">' + _resStat('New', counts.New, 'danger') + _resStat('Returned', counts.Returned) + _resStat('Moved', counts.Moved) + '</div></div>';
+          html += '<div class="res-card" style="overflow-x:auto"><table class="res-tbl"><tr><th>Event</th><th>Device</th><th>Radio</th><th>Class / maker</th><th>dBm</th><th>Detail</th></tr>' + rows + '</table></div>';
         } else {
           html += _resEmpty('No anomalies detected.', 'ok');
         }
@@ -4455,7 +4463,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const label = kind === 'NEW' ? 'NEW HERE' : (kind === 'GONE' ? 'GONE' : (parseInt(delta) > 0 ? 'MOVING CLOSER' : 'MOVING AWAY'));
             html += '<div class="res-card device-card' + (kind === 'NEW' ? ' alert' : '') + '" data-type="' + type + '">';
             html += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
-            html += '<div class="res-meta"><span class="res-badge ' + (kind === 'NEW' ? 'target' : 'muted') + '">' + label + '</span>';
+            html += '<div class="res-meta"><span class="res-badge cls" style="--h:' + (kind === 'NEW' ? 200 : (kind === 'GONE' ? 220 : 25)) + (kind === 'GONE' ? ';filter:saturate(.2)' : '') + '">' + label + '</span>';
             html += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
             if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
             html += tagBadges(line);
@@ -4471,7 +4479,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (baselineSection) {
           const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
           if (deviceLines.length > 0) {
-            html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span>Baseline Devices (' + deviceLines.length + ' cached)</summary><div class="res-section-body">';
+            html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span>Baseline Devices (' + deviceLines.length + ' cached)</summary><div class="res-section-body">' + deviceClassTable(deviceLines);
             deviceLines.forEach(line => {
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
               const bv = line.match(/\sV=([^"\n]+)$/);
@@ -5149,10 +5157,59 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return tokens.some(t => t.length >= 17 ? m === t : m.startsWith(t + ':'));
       }
 
+      const DEV_CLASSES = [
+        ['Phone', 215, /^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP)/],
+        ['Tag', 45, /^(Tag|FindMy|SmartTag|Tile|Keyring)/],
+        ['Audio', 305, /^(Audio|AirPods|Samsung-Buds|MediaPlayer)/],
+        ['Wearable', 265, /^(Wearable|Watch|HeartRate|Cycling)/],
+        ['Vehicle', 0, /^(Vehicle|Auto$)/],
+        ['Drone', 330, /^Drone/],
+        ['Camera', 25, /^Camera/],
+        ['Radio', 12, /^Radio/],
+        ['Glasses', 285, /^(Glasses|EyeGlasses)/],
+        ['Health', 150, /^(Health|BP$)/],
+        ['Lock', 60, /^Lock/],
+        ['Home', 100, /^(Home|HomeKit|Apple-TV|AirPrint|Display|Clock|Sensor|Environment|Robotic|Toy)/],
+        ['Computer', 195, /^(Computer|Microsoft|MS-|SwiftPair)/],
+        ['Input', 235, /^(Input|HID|Remote|Logitech|Barcode)/],
+        ['Beacon', 175, /^(Beacon|iBeacon|Eddystone)/],
+      ];
+
+      function devClassOf(label) {
+        for (const c of DEV_CLASSES) if (c[2].test(label)) return { name: c[0], hue: c[1] };
+        return null;
+      }
+
       function classBadge(line) {
         const cm = line.match(/\sC=(\S+)/);
         if (!cm) return '';
-        return '<span class="res-badge" title="Advertises ' + cm[1] + '">' + cm[1] + '</span>';
+        const dc = devClassOf(cm[1]);
+        if (!dc) return '<span class="res-badge" title="Advertises ' + cm[1] + '">' + cm[1] + '</span>';
+        return '<span class="res-badge cls" style="--h:' + dc.hue + '" title="' + dc.name + ': advertises ' + cm[1] + '">' + cm[1] + '</span>';
+      }
+
+      function deviceClassTable(lines) {
+        const groups = {};
+        lines.forEach(line => {
+          const t = line.match(/^(WiFi|BLE)\s/);
+          if (!t) return;
+          const cm = line.match(/\sC=(\S+)/);
+          const dc = cm ? devClassOf(cm[1]) : null;
+          const key = dc ? dc.name : (t[1] === 'WiFi' ? 'Wi-Fi' : 'Unclassified BLE');
+          const r = line.match(/(?:Avg|RSSI):([-\d]+)dBm/);
+          const g = groups[key] || (groups[key] = { hue: dc ? dc.hue : -1, n: 0, best: -127 });
+          g.n++;
+          if (r && +r[1] > g.best) g.best = +r[1];
+        });
+        const keys = Object.keys(groups).sort((a, b) => groups[b].n - groups[a].n);
+        if (!keys.length) return '';
+        let h = '<div style="overflow-x:auto"><table class="res-tbl"><tr><th>Class</th><th>Devices</th><th>Strongest</th></tr>';
+        keys.forEach(k => {
+          const g = groups[k];
+          const dot = g.hue >= 0 ? '<span class="cls-dot" style="--h:' + g.hue + '"></span>' : '<span class="cls-dot" style="background:var(--mut)"></span>';
+          h += '<tr><td>' + dot + k + '</td><td>' + g.n + '</td><td style="color:' + rssiColorFor(g.best) + '">' + g.best + ' dBm</td></tr>';
+        });
+        return h + '</table></div>';
       }
 
       function parseDeviceScanResults(text) {
