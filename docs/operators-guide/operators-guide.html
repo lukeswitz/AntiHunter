@@ -135,7 +135,7 @@
       Covers all four tiers: <b>Fully Assembled Unit</b> · <b>Complete Parts Kit</b> · <b>Populated PCB</b> · <b>Bare PCB</b>
     </div>
     <div class="foot">
-      Guide revision 1.0 · 14 August 2026 · Written for the current Stable and Beta firmware channels<br>
+      Guide revision 1.1 · 4 October 2026 · Firmware v1.0.4 · Written for the current Stable and Beta firmware channels<br>
       github.com/lukeswitz/AntiHunter · Web flasher: lukeswitz.github.io/AntiHunter
     </div>
   </div>
@@ -656,7 +656,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=Wi-Fi 1=BLE 2=both : seconds : channels</span></pre>
-  <p>Alert: <span class="mono">NODE: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]</span></p>
+  <p>Alert: <span class="mono">NODE: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor]</span>. <span class="mono">V=</span> is the first word of the maker's name, sent when the MAC is not randomized.</p>
 
   <h3>9.2 Device Scanner</h3>
   <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
@@ -673,6 +673,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
+  <p><b>Watch for changes from now</b> (full firmware). While a baseline runs, press the button or send <span class="mono">@ALL BASELINE_WATCH</span>. Results then add a <i>Since</i> section: what is new here, what is gone, and what is moving closer or away since that moment. Use it when you leave a site and want to see what changed while you were away.</p>
   <div class="row">
     <figure><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results (§9.1).</figcaption></figure>
     <figure><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices, probes, SSIDs and saved records (§9.3).</figcaption></figure>
@@ -921,6 +922,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">CONFIG_DEDUP_TTL</span></td><td>Set cross-scan MAC dedup</td><td>0 to 3600 s, 0 disables</td></tr>
     <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>Toggle per-session dedup</td><td>0 or 1</td></tr>
     <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td><td>None</td></tr>
+    <tr><td><span class="mono">DEVICE_DB_CLEAR</span></td><td>Clear the discovered-device DB, headless, Beta and C5</td><td>None</td></tr>
     <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the key that authorizes a wipe</td><td>1 to 64 characters</td></tr>
   </table>
 
@@ -931,22 +933,25 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td>List everything in range</td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
     <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td>Collect probe requests</td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
     <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td>Learn the area, then flag changes</td><td><span class="mono">duration[:FOREVER]</span>, min 60 s</td></tr>
+    <tr><td><span class="mono">BASELINE_WATCH</span></td><td>Watch for changes from now, full firmware</td><td>None; baseline must be running</td></tr>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW][:GAP&lt;s&gt;][:LISTEN_ONLY|ALLOW_TRANSMIT][:MGMTONLY|MGMTDATA][:SOLICIT&lt;ms&gt;]</span></td></tr>
-    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger</td><td><span class="mono">trigger:hold_ms:consec:channel</span> or <span class="mono">SENSITIVITY=LOW|MEDIUM|HIGH</span>, <span class="mono">MIN_MOTION=</span>, <span class="mono">CLEAR_AFTER=</span>, <span class="mono">SPOTS=</span>, <span class="mono">BROADCAST=ON|OFF</span>, <span class="mono">ALLOW_RANDOM=ON|OFF</span></td></tr>
-    <tr><td><span class="mono">CSI_STATUS</span> and <span class="mono">CSI_JSON</span></td><td>Dump motion state to serial</td><td>None</td></tr>
-    <tr><td><span class="mono">CSI_RECAL</span></td><td>Drop a saved trigger</td><td>None</td></tr>
-    <tr><td><span class="mono">CSI_EXCLUDE</span></td><td>Ignore one MAC for motion</td><td><span class="mono">&lt;MAC&gt;</span> or <span class="mono">NONE</span></td></tr>
+    <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room, Beta and C5</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW][:GAP&lt;s&gt;][:LISTEN_ONLY|ALLOW_TRANSMIT][:MGMTONLY|MGMTDATA][:SOLICIT&lt;ms&gt;]</span></td></tr>
+    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger, Beta and C5</td><td><span class="mono">trigger:hold_ms:consec:channel</span> or <span class="mono">SENSITIVITY=LOW|MEDIUM|HIGH</span>, <span class="mono">MIN_MOTION=</span>, <span class="mono">CLEAR_AFTER=</span>, <span class="mono">SPOTS=</span>, <span class="mono">BROADCAST=ON|OFF</span>, <span class="mono">ALLOW_RANDOM=ON|OFF</span></td></tr>
+    <tr><td><span class="mono">CSI_STATUS</span> and <span class="mono">CSI_JSON</span></td><td>Dump motion state to serial, Beta and C5</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_RECAL</span></td><td>Drop a saved trigger, Beta and C5</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_EXCLUDE</span></td><td>Ignore one MAC for motion, Beta and C5</td><td><span class="mono">&lt;MAC&gt;</span> or <span class="mono">NONE</span></td></tr>
     <tr><td><span class="mono">MESH_TX_CANCEL</span></td><td>Drop queued mesh traffic, keep scanning</td><td>None</td></tr>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:CH&lt;list&gt;]</span></td></tr>
+    <tr><td><span class="mono">PCAP_LIMITS</span></td><td>Set or read the capture size cap</td><td><span class="mono">[MB]</span>, 8 to 300</td></tr>
+    <tr><td><span class="mono">SD_REPAIR</span></td><td>Rebuild an unmountable SD card; erases it</td><td><span class="mono">ON|OFF|NOW</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
   <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP is the exception: its radio field is 0 Wi-Fi / 1 BLE only, one radio per capture, and 2 is taken as Wi-Fi rather than both. PCAP band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
-  <h3>Sentinel</h3>
+  <h3>Sentinel (Beta and C5)</h3>
   <table class="tight">
     <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
     <tr><td><span class="mono">SENTINEL_ON</span>, <span class="mono">SENTINEL_OFF</span>, <span class="mono">SENTINEL_STATUS</span></td><td>Start, stop, report</td><td>None</td></tr>
