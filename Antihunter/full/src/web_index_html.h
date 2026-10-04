@@ -2064,7 +2064,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       <!-- ===== /DETECT TAB ===== -->
 
-      <div align="center" class="footer">v1.0.3-c5exp1 C5 | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.4-c5exp1 C5 | Node: <span id="footerNodeId">--</span></div>
     </div>
     
       <script>

@@ -1,185 +1,35 @@
-# AntiHunter v1.0.3
+# AntiHunter v1.0.4
 
-Scan tab redesign, scan scheduler, CSI motion, packet capture, Sentinel response, local time, fixes.
+Apple services detection, Fieldwatch catalog, baseline A/B, v1.0.3 fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
-| Stable | v1.0.3 | ESP32-S3 | v1.0.2 (2026-08-13) |
-| Beta | v1.0.3-beta1 | ESP32-S3 | v1.0.2-beta1 (2026-08-13) |
-| Experimental | v1.0.3-c5exp1 | XIAO ESP32-C5 | v1.0.2-c5exp1 (2026-08-13) |
+| Stable | v1.0.4 | ESP32-S3 | v1.0.3 (2026-09-29) |
+| Beta | v1.0.4-beta1 | ESP32-S3 | v1.0.3-beta1 (2026-09-29) |
+| Experimental | v1.0.4-c5exp1 | XIAO ESP32-C5 | v1.0.3-c5exp1 (2026-09-29) |
 
-## New
+## New (full firmware)
 
-- **Scan tab redesign.** One panel for every scan.
-  - Scan picker grid across the top; icons colored by group (Recon, Detection, Capture).
-  - Options on the left, schedule on the right.
-  - Targets and Allow list share one editor with tabs.
-  - On a phone the picker is a 3-column grid and Start stays at the bottom of the screen.
-- **Scan scheduler.** Runs any scan at set times, with the page closed.
-  - Scan tab → pick a scan → Schedule this scan → Start, Duration, Repeat.
-  - Repeat: once, hourly, every 6 h, every 12 h, daily, weekly.
-  - Start is node local time from the GPS zone, shown as its abbreviation (MST, MDT).
-  - Daily and weekly blocks keep their clock time across daylight saving.
-  - Up to 8 blocks, kept in NVS across reboots.
-  - A block that comes due while the radio is busy runs when it frees.
-- **Interrupt scheduled scans** (vibration auto-scan). Off by default.
-  - System tab → Vibration Auto-Scan, or the `VIBSCAN_SET` 5th field.
-  - On: the vibration scan stops the scheduled scan, runs, then the scheduled scan resumes for its remaining time.
-  - The scheduler never takes the radio while a triggered scan waits for it.
-- **Packet capture to SD.** Wireshark-ready pcap, Wi-Fi and BLE.
-  - Start from the Scan tab, vibration, or `PCAP_START`.
-  - `PCAP_START:radio:secs:band[:CH<list>]`; `PCAP_STOP` ends it.
-  - Size cap 8–300 MB, default 100 (`PCAP_LIMITS:<MB>`).
-  - Also stops at the free-space floor or repeated write failures.
-  - The stop line lists the channels visited.
-- **Sentinel attack response.** Runs your picks on a confirmed attack.
-  - Triangulate, capture, discovery, probe sweep, drone RID.
-  - Each runs for its own duration, one after another.
-- **Vibration auto-scan** (new on stable): a bump starts a scan.
-  - System tab → Sensor Alerts; packet capture included.
-  - Mesh: `VIBSCAN_SET`, `VIBSCAN_STATUS`.
-- **Local time.** Logs and capture names use your timezone.
-  - DST included. The RTC keeps time; GPS sets the zone.
-  - Shows UTC until the first fix after boot.
-- **SD self-repair.** Rebuilds an unmountable card. Off by default.
-  - System tab → Node Configuration, or `SD_REPAIR:ON`.
-  - "Repair now" runs it on demand. Rebuilding erases the card.
-- **Fleet roster** (System tab): nodes, radios, mode, uptime, temperature.
-- **Hidden SoftAP** (RF Settings): stops the beacon. Not access control.
-- **Accent colors** (System tab): five schemes for buttons and banners.
-- Captures list on the Scan tab: download, delete, delete-all.
-- Data Explorer privacy toggle.
-- Method dropdown regrouped: Recon, Detection, Capture.
-- `MESH_TX_CANCEL` clears the mesh queue; the scan keeps running.
-- A queued backlog no longer blocks starting a scan.
-- Mesh on/off is saved across reboots.
-- SD bus at 16 MHz; 4 MHz, 400 kHz fallbacks.
-- Boot prints a `[MEM]` ladder; `[HEAP]` every 30 s.
-- The web flasher and script `-c` set all of these.
-
-### Mesh commands, new or changed since v1.0.2
-
-| Command | Syntax | Channels | Change |
-|---|---|---|---|
-| `PCAP_START` / `PCAP_STOP` | `radio:secs:band[:CH<list>]` | all | New |
-| `PCAP_LIMITS` | `[MB]`, 8-300 | all | New |
-| `SD_REPAIR` | `ON\|OFF\|NOW` | all | New |
-| `MESH_TX_CANCEL` | none | all | New |
-| `VIBSCAN_SET` / `VIBSCAN_STATUS` | `en:mode:dur[:cooldown[:interrupt]]` | all | New on stable; mode `8` is packet capture; `interrupt` lets it stop a scheduled scan |
-| `SCHED_ADD` | `YYYY-MM-DDTHH:MM\|repeat s\|path\|body` | all | New |
-| `SCHED_LIST` / `SCHED_DEL` | none / `<block number>` | all | New; list prints to serial |
-| `SCAN_START` | `mode:secs[:channels][:FOREVER]` | all | `FOREVER` accepted without channels |
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER][:+PROBE]` | all | `+PROBE` added |
-| `CONFIG_ERASE_PSK` | `<new>:<hmac>` | all | Needs HMAC from the current PSK; can't be cleared |
-| `ERASE_FORCE` / `AUTOERASE_ENABLE` | `...:<hmac>` | all | PSK HMAC only; plain token removed |
-| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>][:LISTEN_ONLY\|ALLOW_TRANSMIT][:MGMTONLY\|MGMTDATA][:SOLICIT<ms>]` | beta, C5 | New |
-| `CSI_CFG` | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=`; C5 also `REQUIRE_CE=` | beta, C5 | New |
-| `CSI_EXCLUDE` | `<MAC>\|NONE` | beta, C5 | New |
-| `CSI_STATUS` / `CSI_JSON` | none | beta, C5 | New |
-| `CSI_RECAL` | none | beta, C5 | New |
-| `DEVICE_DB_CLEAR` | none | beta, C5 headless | New |
-| `CONFIG_BAND` | `0\|1\|2` | C5 | New |
-
-### Beta and C5
-
-- **CSI motion detection** (S3 beta, C5 testing).
-  - Detects people moving, through walls.
-  - Scan tab → CSI Motion, or the mesh commands above.
-  - Uses randomized MACs by default; `ALLOW_RANDOM=OFF` ignores them.
-
-> [!IMPORTANT]
-> **Listen-only by default.** `ALLOW_TRANSMIT` or `BROADCAST=ON` sends probes, which are visible. Check local law.
-
-- **Sentinel attack response can interrupt scheduled scans.** Off by default.
-  - Sentinel tab → On confirmed attack → Interrupt scheduled scans.
-  - Same stop, run and resume as vibration.
-- **CSI movement view** (web UI): state, log, heat strip.
-- CSI sensitivity labels: Low (Fewest False Alarms), Medium (More Sensitive), High (Most Sensitive).
-- Accent colors also cover movement hits.
-- Headless: discovered devices persist across scans.
-- Task-creation failures log the free and largest block.
-
-### C5 only
-
-> [!NOTE]
-> **Breadboard the C5 before soldering.**
-> A soldered C5 can't return to stable firmware.
-
-- **CSI motion, in testing on the C5.** Own presets.
-  - Detects less cleanly than an S3.
-  - Details: [docs/ESP32-C5.md](https://github.com/lukeswitz/AntiHunter/blob/feat/c5/docs/ESP32-C5.md).
-- **Packet capture band:** 2.4 GHz, 5 GHz, or both.
-- CSI presets matched to the S3 night alert rate: Low and Medium 0.500, High 0.400.
+- Apple services detection: BLE Continuity type (AirDrop, Handoff, AirPods, Hey Siri, Tethering, iPhone activity state) or GAP appearance category, as a badge in Device scan, Target scan and Baseline results, and on baseline anomaly alerts (`Class:`).
+- Fieldwatch catalog v84 match (OUI, name, UUID, manufacturer and service data) in the same badge.
+- Target scan RSSI trend badge per target: `CLOSING`, `OPENING`, `STEADY` after 4 sightings, `WAIT` before.
+- Baseline A/B marker: Mark A/B button while a baseline runs; results add an A/B Slice section with devices new after the mark, gone after it, and moved by the RSSI threshold.
+- Results: BLE blue, Wi-Fi green.
 
 ## Fixed
 
-- **Long BLE scans no longer abort in `fopen`.**
-  - NimBLE pools and small allocations moved to PSRAM.
-- **Baseline no longer reboots under dense RF.**
-  - Device history and task stacks moved to PSRAM.
-  - Task memory freed on exit.
-  - NimBLE scan cache capped.
-  - Two use-after-free windows closed.
-  - Exit stops promiscuous mode and the hop timer.
-- `STOP` no longer waits on a scan that can't finish.
-- `DEVICE_SCAN_START` honors `+PROBE` in any position.
-- `SCAN_START:mode:secs:FOREVER` runs without a channel list.
-- Baseline no longer runs forever from another panel's box.
-- Peer node reports are never run as commands.
-- Emoji-only Meshtastic sender names no longer drop commands (#31).
-- **Console output no longer feeds itself** (#32).
-  - The node discards inbound lines starting with `[`.
-  - Byte echo behind `AH_USB_ECHO`, off by default.
-  - `[DEBUG_RAW]` behind `AH_DEBUG_VERBOSE`, off by default.
-  - USB input logs as `[USB CMD]`.
-- `BATTERY_SAVER_STATUS` replies are recognized again (#32).
-- **Erase PSK always set.** Made on first boot.
-  - Printed on USB at boot.
-  - Every erase command and web wipe needs it.
-  - See README → Secure Data Destruction.
-- Rate-limiter log reads `barrel_free=`, not `barrel=` (#32).
-- Triangulation target MAC read atomically; RSSI reports no longer dropped.
-- Beta and C5: headless honors a stop during ACK waits.
-- Beta and C5: headless baseline queue uses the guarded path.
-- Beta and C5: the CSI channel survey runs again.
-  - `CSI_CFG:CH=` is a real token; the pin isn't saved.
-- Beta and C5: CSI arming no longer needs psiZ.
-- Beta and C5: CSI keeps routers' extra network IDs.
-- Beta and C5: nodes ignore each other's CSI (`CSI_PEER`).
-- Beta: S3 CSI defaults to Low (0.140/8s/1 spot).
-- Beta: web presets match the mesh presets.
-- Headless: `DEVICE_DB_CLEAR` clears the device database over mesh.
-- Results snapshot written atomically; a power cut can't corrupt it.
-- SD writes retry with backoff on a busy card.
-- A failed SD mount retries with a bus re-init.
-- SD chip-select is driven high before SPI starts.
-- Log file held open; reopened only after a failed write.
-- Scan Results page no longer freezes mid-scan.
-- `/results` streams from PSRAM and clears on a new scan.
-- The UI polls only the open tab.
-- Data tab loads SD logs a page at a time.
-- The page reloads when the browser lands on another node.
-- Baseline results rebuild every 2 s, only on change.
-- Theme toggle stays in the mobile scan header.
-- Diagnostics `Mesh TX` no longer sticks at draining.
-- Flasher script: the default preset now sends `1` (Balanced).
-- Flasher script: a blank AP password keeps the firmware default.
-- AP MAC randomization fix.
-- `memcpy` length guard against a Wi-Fi driver underflow.
-- Dropdown arrows no longer tile across the box in Safari.
-
-## Hardware
-
-- DIGINODE v2 single-body side-charge enclosure: `One-Piece-Housing-SideCharge-Version.stl`.
-- Revised side-charge housing: `FullSideChargeHousing.stl`.
-- Front cover with a hidden 10 mm fan: `FrontCover-Hidden-Fan-10mm.stl`.
-- Assembly manual, BOM links and welcome note updated.
+- Scan start no longer moves the radio off the softAP channel while a client is connected; the web UI stays up (full).
+- Deauth scan no longer starts BLE.
+- Mesh RX task stack in internal RAM.
+- Device scan name shown after the MAC, HTML-escaped.
+- Schedule list: same-day blocks read "Today", not next week.
+- Locally modified builds get a unique web UI ETag.
 
 ## Upgrade
 
 Settings and SD card files survive a flash.
 
-All three builds attach to the one v1.0.3 release.
+All three builds attach to the one v1.0.4 release.
 Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
 Also `bootloader`, `partitions` and `SHA256SUMS` per version.
 Builds are reproducible; verify with `shasum -a 256`.
@@ -233,10 +83,3 @@ cd AntiHunter
 pio run -e AntiHunter-c5-full -t upload
 pio run -e AntiHunter-c5-headless -t upload
 ```
-
-### Thanks
-
-- d3mocide (#31): emoji radio names made nodes ignore commands.
-- rcbm.: long BLE device scans crashed the node.
-- nconder (#32): console output fed back and flooded the log.
-- nconder: nodes had no erase PSK until one was set.
