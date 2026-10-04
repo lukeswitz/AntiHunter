@@ -5160,7 +5160,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const cm = line.match(/\sC=(\S+)/);
           const dc = cm ? devClassOf(cm[1]) : null;
           const key = dc ? dc.name : (t[1] === 'WiFi' ? 'Wi-Fi' : 'Unclassified BLE');
-          const r = line.match(/(?:Avg|RSSI):([-\d]+)dBm/);
+          const r = line.match(/(?:Avg|RSSI)[:=]([-\d]+)dBm/);
           const g = groups[key] || (groups[key] = { hue: dc ? dc.hue : -1, n: 0, best: -127 });
           g.n++;
           if (r && +r[1] > g.best) g.best = +r[1];
@@ -5199,6 +5199,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         const lines = text.split('\n');
+        const probeAt = lines.findIndex(l => l.startsWith('--- Probe Intelligence'));
+        html += deviceClassTable(probeAt >= 0 ? lines.slice(0, probeAt) : lines);
         let inProbeSection = false;
         let probeLines = [];
         const targetTokens = getTargetTokens();
@@ -5615,6 +5617,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
+          }
+          const buildMatch = diagText.match(/^Build: (\S+)/m);
+          if (buildMatch) {
+            if (window.__build && window.__build !== buildMatch[1]) { location.reload(); return; }
+            window.__build = buildMatch[1];
           }
           const boardMatch = diagText.match(/^Board: (\w+)/m);
           if (boardMatch) {
