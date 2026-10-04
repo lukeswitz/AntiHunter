@@ -1031,6 +1031,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="lastseen-asc">Last Seen (Recent)</option>
               <option value="name-asc">Name (A-Z)</option>
               <option value="type-asc">Type (Wi-Fi/BLE)</option>
+              <option value="class-asc">Device class</option>
               <option value="channel-asc">Channel (Low-High)</option>
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
@@ -3407,6 +3408,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return 'net#' + ((h >>> 0) & 0xFFFF).toString(16).padStart(4, '0');
       }
 
+      function cardClassOf(el) {
+        const b = el.querySelector('.res-badge.cls[title]');
+        return b ? b.getAttribute('title').split(':')[0] : '';
+      }
+
+      function cmpClass(x, y) {
+        return (!x) - (!y) || x.localeCompare(y);
+      }
+
       function toggleSortOrder() {
         sortReverse = !sortReverse;
         sortResultsDisplay();
@@ -3487,6 +3497,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               case 'name-asc': cmp = (nameOf(a) || macOf(a)).localeCompare(nameOf(b) || macOf(b)); break;
               case 'type-asc': cmp = (a.getAttribute('data-type') || '').localeCompare(b.getAttribute('data-type') || ''); break;
               case 'channel-asc': cmp = parseInt(a.getAttribute('data-channel') || '0') - parseInt(b.getAttribute('data-channel') || '0'); break;
+              case 'class-asc': cmp = cmpClass(cardClassOf(a), cardClassOf(b)); break;
               default: cmp = 0;
             }
             if (cmp === 0) cmp = macOf(a).localeCompare(macOf(b));
@@ -3562,7 +3573,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
               items.push({
                 element: child,
-                mac, rssi, name, deviceType, channel, isTarget,
+                mac, rssi, name, deviceType, channel, isTarget, devClass: cardClassOf(child),
                 sortKey: currentSort,
                 type: 'device'
               });
@@ -3605,10 +3616,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             case 'channel-asc':
               cmp = (a.channel || 0) - (b.channel || 0);
               break;
+            case 'class-asc':
+              cmp = cmpClass(a.devClass, b.devClass) || b.rssi - a.rssi;
+              break;
             default:
               cmp = 0;
           }
-          
+
           return sortReverse ? -cmp : cmp;
         });
         
