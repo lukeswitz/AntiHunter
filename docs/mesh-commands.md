@@ -44,6 +44,9 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
 | `PCAP_LIMITS` | Set or read the file size cap | `[MB]`, 8-300 | `@ALL PCAP_LIMITS:150` |
 | `SD_REPAIR` | Rebuild an unmountable SD card; erases it | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
+| `SCHED_ADD` | Schedule a scan block (full) | `YYYY-MM-DDTHH:MM\|repeat_secs\|path\|body`; path `/scan`, `/sniffer` or `/drone`; repeat `0` runs once | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/sniffer\|detection=device-scan&deviceScanMode=2&secs=600` |
+| `SCHED_LIST` | Print scheduled blocks to serial, reply with the count (full) | None | `@AH01 SCHED_LIST` |
+| `SCHED_DEL` | Delete a block by its `SCHED_LIST` number (full) | `<n>` | `@AH01 SCHED_DEL:1` |
 
 > [!WARNING]
 > Stop a capture before cutting power or resetting the node. FAT has no power-fail
@@ -76,6 +79,28 @@ These commands are only present on Beta firmware. On Stable they are not recogni
 `DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
 
 Headless has no SoftAP. `defend` pins to whatever channel the radio last used, so use `scan`.
+
+### CSI Motion (Beta version only)
+
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `CSI_MOTION_START` | Start detection | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:GAP<s>][:LISTEN_ONLY\|ALLOW_TRANSMIT][:MGMTONLY\|MGMTDATA][:SOLICIT<ms>]` | `@ALL CSI_MOTION_START:600:GAP60` |
+| `CSI_CFG` | Tune detection; tokens combine | `SENSITIVITY=`, `MIN_MOTION=`, `CLEAR_AFTER=`, `SPOTS=`, `BROADCAST=`, `ALLOW_RANDOM=`, `CH=` | `@ALL CSI_CFG:SENSITIVITY=LOW:BROADCAST=OFF` |
+| `CSI_EXCLUDE` | Ignore one MAC until reboot | MAC or `NONE` | `@AH01 CSI_EXCLUDE:NONE` |
+| `CSI_STATUS` | Links, channel, settings | None | `@AH01 CSI_STATUS` |
+| `CSI_JSON` | Same as JSON | None | `@AH01 CSI_JSON` |
+| `CSI_RECAL` | Clear a saved threshold; use the preset | None | `@ALL CSI_RECAL` |
+
+`CSI_CFG` tokens: `SENSITIVITY=LOW|MEDIUM|HIGH|<number>` · `MIN_MOTION=<s>` · `CLEAR_AFTER=<s>` · `SPOTS=<n>` (default 2) · `BROADCAST=ON|OFF` (default OFF; ON probes quiet devices) · `ALLOW_RANDOM=ON|OFF` (default ON) · `CH=<n>` (`0` lets it choose).
+
+On the first CSI start after boot each node sends `<NODE>: CSI_PEER:<AP MAC>`. Nodes that hear it ignore that MAC for CSI until reboot and answer with their own `CSI_PEER` the first time they hear a MAC. If the channel survey picks a channel whose best access point is a peer node, the survey runs again.
+
+### Other Beta and C5 commands
+
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `DEVICE_DB_CLEAR` | Clear the discovered-device DB (headless, Beta and C5) | None | `@AH01 DEVICE_DB_CLEAR` |
+| `CONFIG_BAND` | Wi-Fi band (C5 only) | `0` 2.4 GHz, `1` 5 GHz, `2` both | `@AH01 CONFIG_BAND:2` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -148,7 +173,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 
 | Alert Type | Format |
 |------------|--------|
-| Target Detected | `NODE_ID: Target: MAC RSSI:N Type:WiFi\|BLE [Name:name] [GPS=lat,lon]` |
+| Target Detected | `NODE_ID: Target: MAC RSSI:N Type:WiFi\|BLE [Name:name] [GPS=lat,lon] [V=vendor]` - `V=` is the first word of the OUI vendor, omitted for randomized or unknown MACs |
 | Baseline Anomaly | `NODE_ID: ANOMALY-NEW: TYPE MAC RSSI:N [Name:name]` · `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:NdBm [Name:name]` · `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:NdBm New:NdBm Delta:NdBm` · `NODE_ID: ANOMALY: TYPE MAC RSSI:N reason [N:name]` |
 | Deauth Attack | `NODE_ID: ATTACK: DEAUTH\|DISASSOC [BROADCAST\|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason [GPS:lat,lon]` |
 | Drone Detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` - sent once per appearance, Wi-Fi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
