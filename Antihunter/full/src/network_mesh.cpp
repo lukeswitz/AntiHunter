@@ -656,6 +656,13 @@ static void handleBaselineStatus(const String &command)
   sendToSerial1(String(status_msg), true);
 }
 
+static void handleBaselineWatch(const String &command)
+{
+  (void)command;
+  if (baselineSetMarker()) sendToSerial1(nodeId + ": BASELINE_ACK:WATCHING", true);
+  else sendToSerial1(nodeId + ": BASELINE_ACK:NOT_RUNNING", true);
+}
+
 static void handlePcapStart(const String &command)
 {
   String params = command.substring(11);
@@ -2292,6 +2299,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SCAN_START:"))           handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))       handleBaselineStart(command);
   else if (command == "BASELINE_STATUS")                handleBaselineStatus(command);
+  else if (command == "BASELINE_WATCH")                 handleBaselineWatch(command);
 #if AH_SELFTEST
   else if (command.startsWith("SELFTEST_SQUEEZE:")) {
       extern void selftestSqueezeInternal(uint32_t);
