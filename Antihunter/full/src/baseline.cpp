@@ -68,8 +68,8 @@ bool baselineSetMarker() {
         sinceStart = (baselineMarkerMs - baselineStartTime) / 1000;
     }
     baselineResultsDirty = true;
-    Serial.printf("[BASELINE] A/B marker set at %us\n", sinceStart);
-    logToSD("[BASELINE] A/B marker set at " + String(sinceStart) + "s");
+    Serial.printf("[BASELINE] Watching for changes from %us into the scan\n", sinceStart);
+    logToSD("[BASELINE] Watching for changes from " + String(sinceStart) + "s into the scan");
     return true;
 }
 
