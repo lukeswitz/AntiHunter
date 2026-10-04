@@ -2979,6 +2979,12 @@ void sendMeshNotification(const Hit &hit) {
         baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
 
+    if (const char *v = lookupOuiVendor(hit.mac)) {
+        String vs;
+        for (const char *p = v; *p && *p != ' ' && *p != '(' && *p != ',' && vs.length() < 16; ++p) vs += *p;
+        if (vs.length()) baseMsg += " V=" + vs;
+    }
+
     int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
 
     if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
