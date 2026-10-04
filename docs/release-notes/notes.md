@@ -1,6 +1,6 @@
 # AntiHunter v1.0.4
 
-Apple services detection, BLE device class table, baseline A/B, v1.0.3 fixes.
+Apple services detection, BLE device class table, baseline "Watch for changes", Target vendor tag, v1.0.3 fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -26,6 +26,7 @@ Apple services detection, BLE device class table, baseline A/B, v1.0.3 fixes.
 - Device scan name shown after the MAC, HTML-escaped.
 - Schedule list: same-day blocks read "Today", not next week.
 - Locally modified builds get a unique web UI ETag.
+- Docs: mesh command reference and Operator's Guide (rev 1.1, PDF) list every firmware command; Beta-only commands marked.
 
 ## Upgrade
 
