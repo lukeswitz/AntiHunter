@@ -280,7 +280,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .sched-head{display:flex;align-items:center;gap:10px;font-size:15px}
       .card-ico{width:30px;height:30px;border-radius:8px;background:var(--accbg);color:var(--acc);display:inline-grid;place-items:center;flex-shrink:0}
       .card-ico svg{width:17px;height:17px}
-      .wl{margin-top:16px;padding-top:14px;border-top:1px solid var(--bord)}
+      .wl{margin-bottom:14px}
       .wl-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
       .seg{display:inline-flex;border:2px solid var(--bord);border-radius:8px;overflow:hidden}
       .seg button{border:0;background:none;color:var(--mut);font:inherit;font-size:13px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap}
@@ -409,7 +409,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-coord{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
       .res-coord .res-kv-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px}
       /* results header toolbar (Sort / Clear / Privacy) — aligned to card system */
-      .res-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+      .res-toolbar{display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px;background:var(--bg);border:1px solid var(--bord);border-radius:11px}
+      .res-tb-sort,.res-tb-view{display:flex;gap:8px;align-items:center}
+      .res-tb-clear{margin-left:auto}
+      @media(max-width:600px){.res-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}.res-tb-sort{grid-column:1/-1}.res-tb-view{display:contents}.res-tb-clear{margin-left:0}.res-toolbar .btn{width:100%;padding:11px 8px}.res-tb-sort .btn{width:auto;padding:11px 13px}}
       .res-toolbar-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut)}
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
@@ -627,7 +630,31 @@ R"HTML(
           <div class="scan-opts">
             <h2 class="scan-title" id="scanTitle">Device Discovery</h2>
             <div id="paneTarget" style="display:none;">
-            <div class="det-desc" style="margin:0 0 10px;">Scans for the MACs, OUIs and SSIDs in the Targets list below.</div>
+            <div class="det-desc" style="margin:0 0 10px;">Scans for the MACs, OUIs and SSIDs in the Targets list.</div>
+            <div class="wl">
+              <div class="wl-head">
+                <div class="seg" id="wlSeg">
+                  <button type="button" class="on" onclick="wlTab('f',this)">Targets</button>
+                  <button type="button" onclick="wlTab('af',this)">Allow list</button>
+                </div>
+              </div>
+              <form id="f" method="POST" action="/save">
+                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
+                <div class="wl-foot">
+                  <span id="targetCount">0 targets</span>
+                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
+                  <a class="btn icon-btn" href="/export" download="targets.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
+                </div>
+              </form>
+              <form id="af" method="POST" action="/allowlist-save" style="display:none;">
+                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
+                <div class="wl-foot">
+                  <span id="allowlistCount">0 allowlisted</span>
+                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
+                  <a class="btn icon-btn" href="/allowlist-export" download="allowlist.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
+                </div>
+              </form>
+            </div>
             <form id="s" method="POST" action="/scan">
               <label style="font-size:11px;">Mode</label>
               <select name="mode" id="scanModeSel">
@@ -646,6 +673,9 @@ R"HTML(
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
                   <input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;" title="Tag hits as Getting closer, Moving away, Steady or Measuring">
+                  <input type="checkbox" id="trendToggle" onchange="setTrendShown(this.checked)">Movement
                 </label>
               </div>
               
@@ -678,30 +708,6 @@ R"HTML(
               
               <button class="btn primary scan-go" type="submit" style="width:100%;">Start Scan</button>
             </form>
-            <div class="wl">
-              <div class="wl-head">
-                <div class="seg" id="wlSeg">
-                  <button type="button" class="on" onclick="wlTab('f',this)">Targets</button>
-                  <button type="button" onclick="wlTab('af',this)">Allow list</button>
-                </div>
-              </div>
-              <form id="f" method="POST" action="/save">
-                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
-                <div class="wl-foot">
-                  <span id="targetCount">0 targets</span>
-                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
-                  <a class="btn icon-btn" href="/export" download="targets.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
-                </div>
-              </form>
-              <form id="af" method="POST" action="/allowlist-save" style="display:none;">
-                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
-                <div class="wl-foot">
-                  <span id="allowlistCount">0 allowlisted</span>
-                  <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
-                  <a class="btn icon-btn" href="/allowlist-export" download="allowlist.txt" data-ajax="false" title="Export" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></a>
-                </div>
-              </form>
-            </div>
             </div>
             <div id="paneRecon">
             <form id="sniffer" method="POST" action="/sniffer">
@@ -916,9 +922,9 @@ R"HTML(
 
       <div class="page-tab" id="page-results">
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-          <h3 style="margin:0;">Scan Results</h3>
-          <div class="res-toolbar">
+        <h3 style="margin:0 0 12px;">Scan Results</h3>
+        <div class="res-toolbar">
+          <div class="res-tb-sort">
             <span class="res-toolbar-lab">Sort</span>
             <select id="sortBy" onchange="applySorting()">
               <option value="default">Default</option>
@@ -932,11 +938,12 @@ R"HTML(
               <option value="class-asc">Device class</option>
               <option value="channel-asc">Channel (Low-High)</option>
             </select>
-            <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
-            <button class="btn alt" type="button" onclick="clearResults()">Clear</button>
-            <label class="res-toolbar-lab" data-tip="Target scan: show Getting closer / Moving away"><input type="checkbox" id="trendToggle" onchange="setTrendShown(this.checked)"> Movement</label>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort" aria-label="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
+          </div>
+          <div class="res-tb-view">
             <button class="btn privacy-toggle" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
           </div>
+          <button class="btn danger res-tb-clear" type="button" onclick="clearResults()">Clear</button>
         </div>
         <div id="baselineStatus" style="display:none;padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
           <div style="color:var(--mut);">No baseline data</div>
@@ -3284,7 +3291,14 @@ R"HTML(
       function setTrendShown(on) {
         try { localStorage.setItem('ahTrend', on ? '1' : '0'); }
         catch(storageErr){ console.warn('setTrendShown: localStorage write failed (private mode?)', storageErr); }
+        updateTrendBtn();
         if (lastResultsText) renderResults(lastResultsText);
+      }
+
+      function updateTrendBtn() {
+        const b = document.getElementById('trendToggle');
+        if (!b) return;
+        b.checked = trendShown();
       }
 
       document.addEventListener('click', e => {
@@ -3293,8 +3307,7 @@ R"HTML(
       });
 
       document.addEventListener('DOMContentLoaded', () => {
-        const cb = document.getElementById('trendToggle');
-        if (cb) cb.checked = trendShown();
+        updateTrendBtn();
       });
 
       function cardClassOf(el) {
@@ -4878,7 +4891,7 @@ R"HTML(
       function deviceClassTable(lines) {
         const groups = {};
         lines.forEach(line => {
-          const t = line.match(/^(WiFi|BLE)\s/);
+          const t = line.match(/^(WiFi|BLE)\s+[A-F0-9:]+\s+RSSI=/);
           if (!t) return;
           const cm = line.match(/\sC=(\S+)/);
           const dc = cm ? devClassOf(cm[1]) : null;
@@ -4964,6 +4977,10 @@ R"HTML(
           if (trendShown() && trendMatch && (trendMatch[1] === 'CLOSING' || trendMatch[1] === 'OPENING')) {
             const closer = trendMatch[1] === 'CLOSING';
             card += '<span class="res-badge cls" style="--h:' + (closer ? 25 : 200) + '" data-tip="Signal ' + (closer ? 'rising' : 'falling') + ' ' + trendMatch[2] + ' dB over the last minute">' + (closer ? 'Getting closer' : 'Moving away') + '</span>';
+          } else if (trendShown() && trendMatch && trendMatch[1] === 'STEADY') {
+            card += '<span class="res-badge" data-tip="Signal change ' + trendMatch[2] + ' dB over the last minute">Steady</span>';
+          } else if (trendShown() && trendMatch && trendMatch[1] === 'WAIT') {
+            card += '<span class="res-badge" data-tip="Needs 6 hits over 15 s before movement is known">Measuring</span>';
           }
           card += '</span>';
           card += '<div class="res-meta">';
