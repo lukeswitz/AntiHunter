@@ -2090,8 +2090,38 @@ String computeEraseHmac(const String &nonce) {
     return String(hex);
 }
 
+static bool eraseConstEq(const String &a, const String &b) {
+    if (a.length() != b.length()) return false;
+    uint8_t diff = 0;
+    for (size_t i = 0; i < a.length(); i++) diff |= (uint8_t)(a[i] ^ b[i]);
+    return diff == 0;
+}
+
+static bool validateEraseToken(const String &response);
+
 bool validateEraseResponse(const String &response) {
+    static uint8_t s_fails = 0;
+    static uint32_t s_lockUntil = 0;
+    if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {
+        Serial.println("[ERASE] Locked out after repeated wrong keys");
+        return false;
+    }
     if (erasePSK.length() == 0) return false;
+    bool ok = eraseConstEq(response, erasePSK) || validateEraseToken(response);
+    if (ok) {
+        s_fails = 0;
+        s_lockUntil = 0;
+        return true;
+    }
+    if (++s_fails >= 5) {
+        s_fails = 0;
+        s_lockUntil = millis() + 600000;
+        Serial.println("[ERASE] 5 wrong keys - erase commands locked for 10 min");
+    }
+    return false;
+}
+
+static bool validateEraseToken(const String &response) {
     if (tamperAuthToken.length() == 0) return false;
 
     int lastUnderscorePos = tamperAuthToken.lastIndexOf('_');
