@@ -418,6 +418,7 @@ static void handleConfigChannels(const String &command)
 static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
+  targets.replace("|", "\n");
   prefs.putString("maclist", targets);
   if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
       saveTargetsList(targets);
@@ -1679,7 +1680,11 @@ static void handleConfigErasePsk(const String &command)
   int lastColon = body.lastIndexOf(':');
   String key = (lastColon > 0) ? body.substring(0, lastColon) : "";
   String credential = (lastColon > 0) ? body.substring(lastColon + 1) : "";
-  if (key.length() == 0 || !validateEraseResponse(credential)) {
+  if (key.length() == 0 || key.length() > 64 || key.indexOf(':') >= 0) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:INVALID", true);
+    return;
+  }
+  if (!validateEraseResponse(credential)) {
     sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:DENIED", true);
     return;
   }
