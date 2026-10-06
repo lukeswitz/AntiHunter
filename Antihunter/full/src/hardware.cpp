@@ -902,6 +902,7 @@ void loadConfiguration() {
         String apPass = doc["apPass"].as<String>();
         if (apPass.length() >= 8) {
             prefs.putString("apPass", apPass);
+            ensureErasePSK();
         }
     }
 
@@ -2372,20 +2373,24 @@ String generateEraseToken() {
     return String(tokenBuffer);
 }
 
+static bool eraseKeyLooksGenerated(const String &k) {
+    if (k.length() != 32) return false;
+    for (size_t i = 0; i < k.length(); i++) {
+        if (!isxdigit(k[i]) || isupper(k[i])) return false;
+    }
+    return true;
+}
+
 void ensureErasePSK() {
-    erasePSK = prefsGetString("erasePSK", "");
-    if (erasePSK.length() > 0 && !prefs.isKey("erasePskUser")) {
-        prefs.putBool("erasePskUser", true);
+    String stored = prefsGetString("erasePSK", "");
+    if (stored.length() > 0 && !prefs.getBool("erasePskUser", false) && eraseKeyLooksGenerated(stored)) {
+        prefs.remove("erasePSK");
+        stored = "";
+        Serial.println("[ERASE] Dropped auto-generated erase key");
     }
-    if (erasePSK.length() == 0) {
-        char buf[33];
-        for (int i = 0; i < 4; i++) snprintf(buf + i * 8, 9, "%08x", (unsigned)esp_random());
-        setErasePSK(String(buf));
-        prefs.putBool("erasePskUser", false);
-        Serial.println("[ERASE] Generated placeholder erase key");
-    }
-    Serial.println(erasePskUserSet() ? "[ERASE] Erase key: set by user"
-                                     : "[ERASE] Erase key: not set - set it in the web UI or flasher");
+    erasePSK = stored.length() > 0 ? stored : prefsGetString("apPass", AP_PASS);
+    Serial.println(stored.length() > 0 ? "[ERASE] Erase key: custom"
+                                       : "[ERASE] Erase key: same as the AP password until you set one");
 }
 
 void setErasePSK(const String &key) {
@@ -2395,7 +2400,7 @@ void setErasePSK(const String &key) {
 }
 
 bool erasePskUserSet() {
-    return prefs.getBool("erasePskUser", false);
+    return prefsGetString("erasePSK", "").length() > 0;
 }
 
 bool erasePskValid(const String &key) {
