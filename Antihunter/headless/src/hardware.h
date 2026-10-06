@@ -213,6 +213,8 @@ void ensureErasePSK();
 String computeEraseHmac(const String &nonce);
 bool validateEraseResponse(const String &response);
 void setErasePSK(const String &key);
+bool erasePskUserSet();
+bool erasePskValid(const String &key);
 extern String erasePSK;
 
 // Battery Saver Functions

@@ -1126,6 +1126,17 @@ bool waitForInitialConfig() {
         }
     }
 
+    if (doc.containsKey("erasePSK")) {
+        String key = doc["erasePSK"].as<String>();
+        if (erasePskValid(key)) {
+            setErasePSK(key);
+            Serial.println("[CONFIG] Erase key set");
+        } else {
+            Serial.println("[CONFIG] Erase key rejected: needs 8-64 chars, no ':'");
+        }
+        doc.remove("erasePSK");
+    }
+
     uint16_t pushed = 0;
     for (JsonPair kv : doc.as<JsonObject>()) {
         merged[kv.key()] = kv.value();
@@ -2364,18 +2375,32 @@ String generateEraseToken() {
 
 void ensureErasePSK() {
     erasePSK = prefsGetString("erasePSK", "");
+    if (erasePSK.length() > 0 && !prefs.isKey("erasePskUser")) {
+        prefs.putBool("erasePskUser", true);
+    }
     if (erasePSK.length() == 0) {
         char buf[33];
         for (int i = 0; i < 4; i++) snprintf(buf + i * 8, 9, "%08x", (unsigned)esp_random());
         setErasePSK(String(buf));
-        Serial.println("[ERASE] Generated new erase PSK");
+        prefs.putBool("erasePskUser", false);
+        Serial.println("[ERASE] Generated placeholder erase key");
     }
-    Serial.printf("[ERASE] PSK: %s\n", erasePSK.c_str());
+    Serial.println(erasePskUserSet() ? "[ERASE] Erase key: set by user"
+                                     : "[ERASE] Erase key: not set - set it in the web flasher");
 }
 
 void setErasePSK(const String &key) {
     erasePSK = key;
     prefs.putString("erasePSK", key);
+    prefs.putBool("erasePskUser", true);
+}
+
+bool erasePskUserSet() {
+    return prefs.getBool("erasePskUser", false);
+}
+
+bool erasePskValid(const String &key) {
+    return key.length() >= 8 && key.length() <= 64 && key.indexOf(':') < 0;
 }
 
 String computeEraseHmac(const String &nonce) {
@@ -2403,15 +2428,20 @@ bool validateEraseResponse(const String &response) {
     if ((millis() / 1000 - nonceTime) >= 300) return false;
 
     String expected = computeEraseHmac(tamperAuthToken);
-    if (expected.length() == 0 || expected.length() != response.length()) return false;
+    String answer = response;
+    answer.toLowerCase();
+    if (answer.length() == 8) expected = expected.substring(0, 8);
+    if (expected.length() == 0 || expected.length() != answer.length()) {
+        tamperAuthToken = "";
+        return false;
+    }
 
     uint8_t diff = 0;
     for (size_t i = 0; i < expected.length(); i++) {
-        diff |= (uint8_t)(expected[i] ^ response[i]);
+        diff |= (uint8_t)(expected[i] ^ answer[i]);
     }
-    if (diff != 0) return false;
     tamperAuthToken = "";
-    return true;
+    return diff == 0;
 }
 
 bool initiateTamperErase() {
