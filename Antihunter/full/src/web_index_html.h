@@ -1337,8 +1337,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Enter your erase key. Required for wipe, abort and auto-erase changes.</label>
             <input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off">
             <div style="display:flex;gap:8px;margin-top:8px">
-              <input type="text" id="eraseNewPsk" placeholder="new erase key (8-64 chars)" autocomplete="off" style="flex:1">
-              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">CHANGE KEY</button>
+              <input type="text" id="eraseNewPsk" placeholder="new erase key (8-64 chars, no :)" autocomplete="off" style="flex:1" title="Type your current key in the field above, then the new key here. Short keys are easier to send from a mesh radio.">
+              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()" title="Over mesh: @NODE CONFIG_ERASE_PSK:<new key>:<current key>">SET NEW KEY</button>
             </div>
           </div>
 
@@ -5466,32 +5466,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       
       let _erasePskSet = false;
-      let _eraseUserSet = false;
       function refreshPskStatus() {
         fetch('/erase/psk-status').then(r => r.json()).then(d => {
           _erasePskSet = !!d.pskSet;
-          _eraseUserSet = !!d.userSet;
           const badge = document.getElementById('erasePskBadge');
           const hint = document.getElementById('eraseConfirmHint');
           const input = document.getElementById('eraseConfirm');
           const fwHint = document.getElementById('factoryWipeHint');
           const fwInput = document.getElementById('factoryWipeConfirm');
-          const keyBtn = document.getElementById('eraseKeyBtn');
-          if (_eraseUserSet) {
-            if (badge) { badge.textContent = 'ERASE KEY SET — auth required'; badge.className = 'psk-badge set'; }
-            if (hint) hint.textContent = 'Enter your erase key. Required for wipe, abort and auto-erase changes.';
-            if (input) { input.placeholder = 'erase key'; input.style.display = ''; }
-            if (fwHint) fwHint.textContent = 'Enter your erase key';
-            if (fwInput) fwInput.placeholder = 'erase key';
-            if (keyBtn) keyBtn.textContent = 'CHANGE KEY';
-          } else {
-            if (badge) { badge.textContent = 'ERASE KEY NOT SET'; badge.className = 'psk-badge unset'; }
-            if (hint) hint.textContent = d.apDefault
-              ? 'Change the AP password first (RF Settings), then set your erase key here.'
-              : 'Set your erase key below (8-64 characters). You need it to wipe the node.';
-            if (input) input.style.display = 'none';
-            if (keyBtn) keyBtn.textContent = 'SET ERASE KEY';
+          if (badge) {
+            badge.textContent = d.custom ? 'ERASE KEY: YOUR OWN' : (d.apDefault ? 'ERASE KEY: DEFAULT AP PASSWORD - CHANGE IT' : 'ERASE KEY: YOUR AP PASSWORD');
+            badge.className = 'psk-badge ' + (d.custom || !d.apDefault ? 'set' : 'unset');
+            badge.title = 'The erase key starts as the AP password. Set your own here, or over mesh: @NODE CONFIG_ERASE_PSK:<new key>:<current key>. Wipe over mesh: @NODE ERASE_FORCE:<key>. 5 wrong keys lock erase commands for 10 min.';
           }
+          if (hint) hint.textContent = d.custom
+            ? 'Enter your erase key. Needed to wipe, abort, change auto-erase, or set a new key.'
+            : 'Your erase key is the AP password until you set your own below. Needed to wipe, abort, change auto-erase, or set a new key.';
+          if (input) input.placeholder = d.custom ? 'erase key' : 'erase key (AP password)';
+          if (fwHint) fwHint.textContent = 'Enter your erase key';
+          if (fwInput) fwInput.placeholder = 'erase key';
         }).catch(()=>{});
       }
       function pollSecureState() {
@@ -5552,14 +5545,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function changeErasePsk() {
-        const newKey = encodeURIComponent(document.getElementById('eraseNewPsk').value);
-        const url = _eraseUserSet ? '/erase/psk' : '/erase/psk-claim';
-        const body = _eraseUserSet
-          ? 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) + '&key=' + newKey
-          : 'key=' + newKey;
-        fetch(url, {
+        const body = 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) +
+                     '&key=' + encodeURIComponent(document.getElementById('eraseNewPsk').value);
+        fetch('/erase/psk', {
           method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-AH-Request': '1'},
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
           body: body
         }).then(r => r.text().then(t => { toast(t, r.ok ? 'success' : 'error'); refreshPskStatus(); }))
           .catch(e => toast('PSK change error: ' + e, 'error'));

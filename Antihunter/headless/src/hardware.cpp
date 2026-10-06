@@ -2375,18 +2375,8 @@ String generateEraseToken() {
 
 void ensureErasePSK() {
     erasePSK = prefsGetString("erasePSK", "");
-    if (erasePSK.length() > 0 && !prefs.isKey("erasePskUser")) {
-        prefs.putBool("erasePskUser", true);
-    }
-    if (erasePSK.length() == 0) {
-        char buf[33];
-        for (int i = 0; i < 4; i++) snprintf(buf + i * 8, 9, "%08x", (unsigned)esp_random());
-        setErasePSK(String(buf));
-        prefs.putBool("erasePskUser", false);
-        Serial.println("[ERASE] Generated placeholder erase key");
-    }
-    Serial.println(erasePskUserSet() ? "[ERASE] Erase key: set by user"
-                                     : "[ERASE] Erase key: not set - set it in the web flasher");
+    Serial.println(erasePSK.length() > 0 ? "[ERASE] Erase key: set"
+                                         : "[ERASE] Erase key: not set - erase commands are refused until you set one in the web flasher");
 }
 
 void setErasePSK(const String &key) {
@@ -2396,7 +2386,7 @@ void setErasePSK(const String &key) {
 }
 
 bool erasePskUserSet() {
-    return prefs.getBool("erasePskUser", false);
+    return prefsGetString("erasePSK", "").length() > 0;
 }
 
 bool erasePskValid(const String &key) {
