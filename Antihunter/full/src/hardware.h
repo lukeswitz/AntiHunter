@@ -224,6 +224,7 @@ String generateEraseToken();
 void ensureErasePSK();
 String computeEraseHmac(const String &nonce);
 bool validateEraseResponse(const String &response);
+bool validateEraseKeyChange(const String &response);
 void setErasePSK(const String &key);
 bool erasePskUserSet();
 bool erasePskValid(const String &key);

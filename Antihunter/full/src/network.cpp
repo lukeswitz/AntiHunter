@@ -1036,9 +1036,9 @@ void registerRemainingRoutes() {
         return;
     }
 
-    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+    if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
         req->getParam("confirm", true)->value() != erasePSK) {
-        req->send(403, "text/plain", "Invalid erase PSK");
+        req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
 
@@ -1422,7 +1422,7 @@ void registerRemainingRoutes() {
     }
     
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = erasePSK.length() > 0 && confirm == erasePSK;
+    bool authed = erasePskUserSet() && confirm == erasePSK;
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirmation");
         return;
@@ -1451,9 +1451,9 @@ void registerRemainingRoutes() {
 
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+    if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
         req->getParam("confirm", true)->value() != erasePSK) {
-        req->send(403, "text/plain", "Invalid erase PSK");
+        req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
     cancelTamperErase();
@@ -1462,7 +1462,7 @@ void registerRemainingRoutes() {
   server->on("/erase/psk", HTTP_POST, [](AsyncWebServerRequest *req) {
     if (!req->hasParam("confirm", true) || !req->hasParam("key", true) || erasePSK.length() == 0 ||
         req->getParam("confirm", true)->value() != erasePSK) {
-        req->send(403, "text/plain", "Invalid erase PSK");
+        req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
     String key = req->getParam("key", true)->value();
@@ -1482,7 +1482,7 @@ void registerRemainingRoutes() {
         return;
     }
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = erasePSK.length() > 0 && confirm == erasePSK;
+    bool authed = erasePskUserSet() && confirm == erasePSK;
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirm code");
         return;
@@ -1526,9 +1526,9 @@ void registerRemainingRoutes() {
 
   server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-    if (!req->hasParam("confirm", true) || erasePSK.length() == 0 ||
+    if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
         req->getParam("confirm", true)->value() != erasePSK) {
-        req->send(403, "text/plain", "Invalid erase PSK");
+        req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
     cancelTamperErase();
