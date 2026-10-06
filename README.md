@@ -89,7 +89,7 @@ Set the LoRa region, and check the serial settings. See [Radio setup](#radio-set
 - Change the AP name and password under RF Settings. Every unit ships with the same published defaults, so anyone can join an unchanged node.
 - Set the node ID in the web UI, or with `CONFIG_NODEID` over mesh.
 - On the radio, set the region and a new BLE pairing pin: `python3 scripts/meshtastic_config.py --region US --pin 481920` (use your region and your own 6-digit pin). Then in the Meshtastic app, under Channels, make your own encrypted channel primary and turn the public channel off.
-- Set your erase key (8-64 characters). You need it to wipe the node. Beta: type it into the **Erase key** field in the web flasher, or on Full set it once under System → Secure Data Destruction after changing the AP password. Stable: the node makes a key on first boot and prints it on USB serial (`[ERASE] PSK: ...`). See [Secure data destruction](#secure-data-destruction).
+- Set your erase key. Wipe is off until you do. See [Secure data destruction](#secure-data-destruction).
 - For covert work, run Headless, which has no access point, and turn off the radio's screen, LED, and Bluetooth with the radio plugged in on its own USB: `python3 scripts/meshtastic_config.py --screen off --led off --ble off`
 - Privacy Mode hides MACs, SSIDs, and GPS in the web UI only. Exported logs and SD files still contain them, and GPS coordinates identify places. Check files before posting them.
 - Passive reception differs from interception, and the rules differ by country. Scan only where you have authority. See the [legal disclaimer](#legal-disclaimer).
@@ -138,7 +138,7 @@ Keep a watchlist of MAC addresses (full or vendor prefix) and SSIDs. On each sca
 **Start**
 - Web UI: add entries under Targets, then Scan tab → Target Scan → **Start Scan**
 - Mesh: `@ALL SCAN_START:2:300` scans Wi-Fi + BLE for 300 s
-- Mesh: `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|T-00A3|MyNetwork` replaces the watchlist with those three entries. On Stable the mesh form takes one entry per command; separating entries with `|` and hex identity IDs like `T-00A3` need Beta
+- Mesh: `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|T-00A3|MyNetwork` replaces the watchlist with those three entries
 
 **Good to know**
 - Full matches access points (BSSID or SSID) from active Wi-Fi scans, and BLE devices. Headless also sniffs Wi-Fi frames while hopping channels
@@ -375,7 +375,7 @@ Records raw traffic to SD as a standard pcap that Wireshark opens.
 - Stop: `@ALL PCAP_STOP` stops the capture and any other running scan. File size cap: `@ALL PCAP_LIMITS:150` (8-300 MB)
 
 **Good to know**
-- Wi-Fi frames carry a radiotap header with channel and RSSI, plus the rate on legacy frames. On Beta, 802.11n frames also carry the MCS index, bandwidth, guard interval, coding, and STBC. Both bands on C5
+- Wi-Fi frames carry a radiotap header with channel and RSSI, plus the rate on legacy frames and the MCS index on 802.11n frames. Both bands on C5
 - BLE saves the raw HCI events the Bluetooth controller reports, link type 187. HCI has no RF channel field, so the capture shows no channel
 - It sweeps the RF Settings channels, or a channel list and dwell set under Advanced. There's an optional management-frames-only filter
 - The Scan tab lists captures to download or delete. You can't delete the file in progress
@@ -485,38 +485,25 @@ The [mesh command reference](docs/mesh-commands.md) lists every parameter.
 
 Wipe the node's data if someone moves it, or on command.
 
-- **Erase key:** the secret that authorizes a wipe. Set it yourself (8-64 characters, no `:`):
-  - Web flasher: type it into the **Erase key** field before you flash (Beta, Full and Headless)
-  - Web UI (Full, Beta): System → Secure Data Destruction → **Set erase key**. Allowed once, and only after you change the AP password
-  - Stable: the node makes a key on first boot and prints it on USB serial (`[ERASE] PSK: ...`)
-- **Auto-erase on tamper:** off by default. After the setup delay, movement starts the erase countdown. On Beta the countdown starts once **Vibrations required** vibrations happen within the **Detection window**. On Stable one vibration starts it
-- **Setup delay:** a grace period after you turn it on, so you can place the node and walk away
-- **Manual wipe:** from the web UI, with your erase key
-- **Remote wipe:** over mesh with a one-time code (below)
-- **Decoy file:** after the wipe, the node erases its settings and SD files, then writes one file, `/weather-air-feed.txt`, containing a weather-monitor error message
+Wipe is off until you set your own erase key (8+ characters, no `:`).
+
+**Set your key**
+- Full: System → Secure Data Destruction. The current key is your AP password (change the default first). Or over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`
+- Headless: the **Erase key** field in the web flasher
+
+**Wipe**
+- Web UI: enter your key, press **WIPE NOW**
+- Mesh: `@AH01 ERASE_FORCE:<your key>`
+
+**Change your key:** `@AH01 CONFIG_ERASE_PSK:<new key>:<current key>`
+
+5 wrong keys lock erase commands for 10 minutes. The key travels over your mesh channel, so use your own encrypted channel.
+
+- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations required** vibrations within the **Detection window** start the erase countdown. Cancel with `@AH01 ERASE_CANCEL:<your key>`
+- **Decoy file:** after the wipe, the node erases its settings and SD files, then writes `/weather-air-feed.txt` with a weather-monitor error message
 
 > [!WARNING]
 > A wipe is permanent. You can't undo it.
-
-**How to wipe over mesh (Beta)**
-1. Send `@AH01 ERASE_REQUEST`. The node replies `ERASE_TOKEN:AH_...`.
-2. Open the [wipe code page](https://lukeswitz.github.io/AntiHunter/wipe-code.html), enter your erase key and the token, and it shows an 8-character code. The page works offline and can remember your key on that device.
-3. Send `@AH01 ERASE_FORCE:<code>`, for example `@AH01 ERASE_FORCE:1a2b3c4d`.
-
-Each token works once, and a wrong code uses it up. The node gives out at most one token every 20 seconds. The same code format works for `ERASE_CANCEL:<code>`, `AUTOERASE_DISABLE:<code>`, `AUTOERASE_ENABLE:<setup>:<erase>:<vibs>:<window>:<cooldown>:<code>`, and `CONFIG_ERASE_PSK:<new key>:<code>`.
-
-<details>
-<summary>Stable firmware and scripting</summary>
-
-On Stable, the reply to `ERASE_REQUEST` must be the full 64-character HMAC-SHA256 of the token, keyed with the erase key:
-
-```bash
-printf %s "AH_..." | openssl dgst -sha256 -hmac "<erase key>" | awk '{print $NF}'
-```
-
-On Stable, a correct answer can be replayed until the token expires (5 minutes). Beta also accepts the full HMAC, so scripts keep working. In the web UI, the wipe, abort, and auto-erase controls take the key in the Authorization field (`confirm=<key>`), and `POST /erase/psk` (`confirm=<key>`, `key=<new>`) changes it.
-
-</details>
 
 <details>
 <summary>Auto-erase settings</summary>
@@ -526,8 +513,8 @@ On Stable, a correct answer can be replayed until the token expires (5 minutes).
 | Setup delay | 30s - 10min | Grace period before auto-erase activates |
 | Erase delay | 10-300s | Countdown before destruction |
 | Cooldown period | 1-60min in the web UI, 5-60min over mesh | Shortest time between tamper attempts |
-| Vibrations required | 2-5 | Beta: vibrations needed within the detection window to start the countdown. Stable ignores it |
-| Detection window | 5-60s in the web UI, 10-60s over mesh | Beta: time window for counting vibrations. Stable ignores it |
+| Vibrations required | 2-5 | Vibrations needed to start the countdown |
+| Detection window | 5-60s in the web UI, 10-60s over mesh | Time window for counting vibrations |
 
 1. Turn on auto-erase in the web UI with a setup delay
 2. Place the node and leave during the setup delay

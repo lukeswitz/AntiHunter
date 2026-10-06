@@ -118,24 +118,23 @@ On the first CSI start after boot each node sends `<NODE>: CSI_PEER:<AP MAC>`. N
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `ERASE_REQUEST` | Ask to wipe, returns a challenge | None | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | Wipe with the answered challenge | `<hmac>` | `@AH02 ERASE_FORCE:<hmac>` |
-| `ERASE_CANCEL` | Abort a pending wipe | `<hmac>` | `@AH01 ERASE_CANCEL:<hmac>` |
-| `AUTOERASE_ENABLE` | Wipe if the node is moved | `setup:erase:vibs:window:cooldown:hmac` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300:<hmac>` |
-| `AUTOERASE_DISABLE` | Turn that off | `<hmac>` | `@AH01 AUTOERASE_DISABLE:<hmac>` |
+| `ERASE_FORCE` | Wipe now | `<key>` | `@AH02 ERASE_FORCE:<key>` |
+| `ERASE_CANCEL` | Abort a pending wipe | `<key>` | `@AH01 ERASE_CANCEL:<key>` |
+| `AUTOERASE_ENABLE` | Wipe if the node is moved | `setup:erase:vibs:window:cooldown:key` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300:<key>` |
+| `AUTOERASE_DISABLE` | Turn that off | `<key>` | `@AH01 AUTOERASE_DISABLE:<key>` |
 | `AUTOERASE_STATUS` | Report auto-erase state | None | `@AH01 AUTOERASE_STATUS` |
 | `VIBRATION_ON` / `VIBRATION_OFF` | Enable the movement sensor | None | `@AH01 VIBRATION_ON` |
 | `VIBRATION_STATUS` | Report sensor state | None | `@AH01 VIBRATION_STATUS` |
 | `VIBSCAN_SET` | Start a scan when moved | `en:mode:dur[:cooldown[:interrupt]]` | `@AH01 VIBSCAN_SET:1:2:60:60` |
 | `VIBSCAN_STATUS` | Report that setting | None | `@AH01 VIBSCAN_STATUS` |
-| `CONFIG_ERASE_PSK` | Change the key that authorizes a wipe | `<new>:<code>`, key 8-64 chars, no `:`. Reply `CONFIG_ACK:ERASE_PSK:SET`, `:DENIED`, or `:INVALID` (bad key format) | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<code>` |
-| `FACTORY_RESET` | Reset one node | `<FULL\|CONFIG\|DATA>:<hmac>` | `@AH01 FACTORY_RESET:FULL:<hmac>` |
+| `CONFIG_ERASE_PSK` | Set or change the erase key | `<new>:<current>`. 8+ chars, no `:`. Current is the AP password until you set one | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<current>` |
+| `FACTORY_RESET` | Reset one node | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:<key>` |
 
 `VIBSCAN_SET` modes: 0 off, 1 all-device, 2 probe-req, 3 rand-MAC, 4 list, 5 drone, 6 deauth, 7 baseline, 8 packet capture. Duration 0 runs until stopped, cooldown 5-86400s. Skipped if a scan is already running or in battery saver.
 
 `VIBSCAN_SET` `interrupt` `1` lets the triggered scan stop a scheduled scan, which resumes afterward.
 
-`<hmac>` / `<code>`: send `ERASE_REQUEST`; the node replies on the mesh channel `NODE: ERASE_TOKEN:AH_… Expires:300s`. Answer with HMAC-SHA256 of the token keyed with your erase key: either the first 8 hex characters (the [wipe code page](https://lukeswitz.github.io/AntiHunter/wipe-code.html) computes it) or all 64 (`printf '%s' 'AH_…' | openssl dgst -sha256 -hmac '<key>' | awk '{print $NF}'`). Each token takes one answer, right or wrong, and expires after 300 s. A second `ERASE_REQUEST` within 20 s gets `ERASE_TOKEN:RATE_LIMITED`. Set the erase key in the web flasher or once in the web UI; the boot log no longer prints it.
+Erase commands reply `ERASE_ACK:SET_KEY_FIRST` until you set your own key. 5 wrong keys lock them for 10 minutes. `CONFIG_ERASE_PSK` replies `SET`, `DENIED`, or `INVALID` (bad key format).
 
 `CONFIG_TARGETS`: separate entries with `|`. Hex identity IDs such as `T-00A3` are accepted.
 
