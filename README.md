@@ -69,7 +69,7 @@ Use it at home, on a fence line, at an event, or off the grid on battery and LoR
 
 ## Quick start
 
-The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** covers each step in more detail, with a printable quick-reference card. The **[Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** covers soldering and the enclosure.
+> The **[Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** covers the full build. The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** walks through each step in more detail
 
 **1. Attach all three antennas before powering on.**
 - SMA or U.FL, see [how to attach depending on tier](#deployment-steps-by-tier)
@@ -242,7 +242,15 @@ Learns which access points and BLE devices are normally present, then reports de
 - Check progress: `@ALL BASELINE_STATUS`
 
 **Operational notes**
-- **Watch for changes from now** (Full): press the button, or send `@ALL BASELINE_WATCH`. Results then show what is new, gone, or moving closer or away compared with everything seen before
+- **Watch for changes from now** - splits the learning phase into before and after a moment you pick. Send it while the node is still learning: press **Watch for changes from now** (Full), or send `@ALL BASELINE_WATCH`. The node replies `BASELINE_ACK:WATCHING`, or `BASELINE_ACK:NOT_RUNNING` if no baseline scan is running
+
+  | Result | Meaning |
+  |--------|---------|
+  | New | Heard only after you pressed it |
+  | Gone | Heard only before |
+  | Moving closer / away | Heard both times, signal changed by 20 dB or more |
+
+  Full shows it in Results. Headless prints the list to serial when the scan ends and sends `BASELINE_WATCH: New=<n> Gone=<n> Moved=<n> Both=<n>` over mesh
 - With an SD card, the baseline survives a reboot. Recent devices stay in memory, and the node moves the rest to SD
 - Baseline uses its own RSSI threshold (default −60 dBm), not the global RSSI floor
 
@@ -423,7 +431,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### Full vs Headless
 
-Both builds share the detectors and scan engine. Full adds a Wi-Fi access point with the web UI and [API](docs/api-reference.md), plus `BASELINE_WATCH`. Headless never starts the access point.
+Both builds share the detectors and scan engine. Full adds a Wi-Fi access point with the web UI and [API](docs/api-reference.md). Headless never starts the access point.
 
 | | Full | Headless |
 |---|---|---|
@@ -476,7 +484,18 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 
 - **Allowlist** - devices that Target Scan and Baseline ignore. Scan tab → **Allow list** tab next to Targets, one MAC per line.
 - **Privacy Mode** - the Privacy button (Results, System, and Data tabs) hides MACs, GPS, and SSIDs in the web UI for screenshots. Exported files keep them.
-- **Vibration trigger** - start a scan when someone moves the node. System tab → Sensor Alerts, or over mesh: `@AH01 VIBSCAN_SET:1:2:60:300` turns it on (`1`), runs a probe scan (mode `2`) for 60 s, then waits at least 300 s before the next trigger. Modes: `1` device discovery, `2` probe, `3` MAC tracer, `4` target, `5` drone, `6` deauth, `7` baseline, `8` packet capture. `@AH01 VIBSCAN_SET:0:0:0` turns it off.
+- **Vibration trigger** - starts a scan when the node is moved. Full: System tab → Sensor Alerts. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>`:
+
+  | Part | Value |
+  |------|-------|
+  | on | `1` on, `0` off |
+  | scan | `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target, `5` drone, `6` deauth, `7` baseline, `8` packet capture |
+  | secs | Scan length in seconds. `0` runs until `STOP` |
+  | cooldown | Seconds to wait before the next trigger, 5-86400 |
+
+  Examples:
+  - `@AH01 VIBSCAN_SET:1:2:60:300` - probe scan for 60 s when moved, then at most once per 5 min
+  - `@AH01 VIBSCAN_SET:0:0:0` - turns it off
 - **Scheduled scans** - Full: Scan tab → **Schedule this scan**. Both builds, over mesh, `SCHED_ADD:<start>|<repeat>|<scan>|<options>`:
 
   | Part | Value |
