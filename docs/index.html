@@ -310,6 +310,11 @@
               maxlength="5" pattern="[A-Za-z0-9]{2,5}">
           </div>
           <div>
+            <label>Erase key</label>
+            <input type="text" id="cfgErasePsk" placeholder="8-64 chars, no ':' - you need it to wipe the node"
+              maxlength="64" autocomplete="off">
+          </div>
+          <div>
             <label>Scan Mode</label>
             <select id="cfgScanMode">
               <option value="2" selected>Wi-Fi + BLE</option>
@@ -736,6 +741,11 @@ chmod +x flashAntihunter.sh
       if (nodeId) {
         if (!/^[A-Z0-9]{2,5}$/.test(nodeId)) throw new Error('Node ID must be 2-5 alphanumeric characters (A-Z, 0-9)');
         cfg.nodeId = nodeId;
+      }
+      const eraseKey = document.getElementById('cfgErasePsk').value;
+      if (eraseKey) {
+        if (eraseKey.length < 8 || eraseKey.length > 64 || eraseKey.includes(':')) throw new Error('Erase key must be 8-64 characters with no ":"');
+        cfg.erasePSK = eraseKey;
       }
       cfg.scanMode = parseInt(document.getElementById('cfgScanMode').value, 10);
       cfg.rfPreset = parseInt(document.getElementById('cfgRfPreset').value, 10);

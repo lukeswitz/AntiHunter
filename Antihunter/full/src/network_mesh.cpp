@@ -1888,7 +1888,7 @@ static void handleConfigErasePsk(const String &command)
   int lastColon = body.lastIndexOf(':');
   String key = (lastColon > 0) ? body.substring(0, lastColon) : "";
   String credential = (lastColon > 0) ? body.substring(lastColon + 1) : "";
-  if (key.length() == 0 || key.length() > 64 || key.indexOf(':') >= 0) {
+  if (!erasePskValid(key)) {
     sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:INVALID", true);
     return;
   }
@@ -1916,6 +1916,12 @@ static void handleEraseCancel(const String &command)
 static void handleEraseRequest(const String &command)
 {
   (void)command;
+  static uint32_t s_lastEraseRequest = 0;
+  if (s_lastEraseRequest != 0 && millis() - s_lastEraseRequest < 20000) {
+    sendToSerial1(nodeId + ": ERASE_TOKEN:RATE_LIMITED", true);
+    return;
+  }
+  s_lastEraseRequest = millis();
   tamperAuthToken = generateEraseToken();
   Serial.println("[ERASE] Challenge nonce issued (valid 300s)");
   sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
