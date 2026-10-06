@@ -676,7 +676,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
-  <p><b>Watch for changes from now</b> (full firmware). While a baseline runs, press the button or send <span class="mono">@ALL BASELINE_WATCH</span>. Results then add a <i>Since</i> section: what is new here, what is gone, and what is moving closer or away since that moment. Use it when you leave a site and want to see what changed while you were away.</p>
+  <p><b>Watch for changes from now</b>. While a baseline runs, press the button (full firmware) or send <span class="mono">@ALL BASELINE_WATCH</span>. The node replies <span class="mono">BASELINE_ACK:WATCHING</span>, or <span class="mono">BASELINE_ACK:NOT_RUNNING</span> if no baseline is running. When the baseline ends, it reports what is new here, what is gone, and what moved closer or away since that moment. Full firmware shows this in a <i>Since</i> section in Results. Headless prints the device list to serial and sends <span class="mono">BASELINE_WATCH: New=&lt;n&gt; Gone=&lt;n&gt; Moved=&lt;n&gt; Both=&lt;n&gt;</span> over mesh. Use it when you leave a site and want to see what changed while you were away.</p>
   <div class="row">
     <figure><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results (§9.1).</figcaption></figure>
     <figure><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices, probes, SSIDs and saved records (§9.3).</figcaption></figure>
@@ -941,7 +941,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td>List everything in range</td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
     <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td>Collect probe requests</td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
     <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td>Learn the area, then flag changes</td><td><span class="mono">duration[:FOREVER]</span>, min 60 s</td></tr>
-    <tr><td><span class="mono">BASELINE_WATCH</span></td><td>Watch for changes from now, full firmware</td><td>None; baseline must be running</td></tr>
+    <tr><td><span class="mono">BASELINE_WATCH</span></td><td>Watch for changes from now</td><td>None; baseline must be running</td></tr>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
