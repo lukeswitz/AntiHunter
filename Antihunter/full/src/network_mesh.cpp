@@ -1684,7 +1684,7 @@ static void handleConfigErasePsk(const String &command)
     sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:INVALID", true);
     return;
   }
-  if (!validateEraseResponse(credential)) {
+  if (!validateEraseKeyChange(credential)) {
     sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:DENIED", true);
     return;
   }
