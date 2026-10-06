@@ -2254,6 +2254,140 @@ static bool meshIsResponse(const String &payload)
   return false;
 }
 
+static String s_sched;
+static bool s_schedLoaded = false;
+
+static void schedLoad() {
+  if (s_schedLoaded) return;
+  s_sched = prefs.getString("sched", "");
+  s_schedLoaded = true;
+}
+
+static bool schedPathOk(const String &p) {
+  return p == "/scan" || p == "/sniffer" || p == "/drone";
+}
+
+static bool schedParam(const String &body, const char *key, String &out) {
+  String k = String(key) + "=";
+  int p = 0;
+  while (p <= (int)body.length()) {
+    int amp = body.indexOf('&', p);
+    if (amp < 0) amp = body.length();
+    String kv = body.substring(p, amp);
+    if (kv == key) { out = ""; return true; }
+    if (kv.startsWith(k)) { out = kv.substring(k.length()); return true; }
+    p = amp + 1;
+  }
+  return false;
+}
+
+static String schedArg(const String &body, const char *key, const String &def) {
+  String v;
+  return schedParam(body, key, v) && v.length() ? v : def;
+}
+
+static String schedCommand(const String &path, const String &body) {
+  String v;
+  bool forever = schedParam(body, "forever", v);
+  String secs = schedArg(body, "secs", "60");
+  String tail = forever ? String(":FOREVER") : String();
+  if (path == "/scan") {
+    String ch;
+    String chPart = schedParam(body, "ch", ch) && ch.length() ? ":" + ch : String();
+    return "SCAN_START:" + schedArg(body, "mode", "0") + ":" + secs + chPart + tail;
+  }
+  if (path == "/drone") return "DRONE_START:" + secs + tail;
+  String det = schedArg(body, "detection", "device-scan");
+  if (det == "device-scan") return "DEVICE_SCAN_START:" + schedArg(body, "deviceScanMode", "2") + ":" + secs + tail;
+  if (det == "probe-scan") return "PROBE_START:" + schedArg(body, "probeScanMode", "2") + ":" + secs + tail;
+  if (det == "randomization-detection") return "RANDOMIZATION_START:" + schedArg(body, "randomizationMode", "2") + ":" + secs + tail;
+  if (det == "deauth") return "DEAUTH_START:" + secs + tail;
+  if (det == "baseline") return "BASELINE_START:" + secs + tail;
+  return String();
+}
+
+static int schedAddBlock(const String &at, long period, const String &path, const String &body, String &msg) {
+  int y, mo, d, h, mi;
+  if (sscanf(at.c_str(), "%d-%d-%dT%d:%d", &y, &mo, &d, &h, &mi) != 5 ||
+      mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59) {
+    msg = "Invalid start time";
+    return 400;
+  }
+  long next = (long)nodeLocalToEpoch(y, mo, d, h, mi);
+  if (next < 1609459200 || period < 0 || (period > 0 && period < 600) || period > 2678400) {
+    msg = "Invalid start time or repeat";
+    return 400;
+  }
+  if (!schedPathOk(path) || body.indexOf('\n') >= 0 || body.indexOf('|') >= 0 || body.length() > 1024 ||
+      !schedCommand(path, body).length()) {
+    msg = "Invalid scan request";
+    return 400;
+  }
+  schedLoad();
+  String ln = String((uint32_t)next) + "|" + String(period) + "|" + path + "|" + body + "\n";
+  int count = 0;
+  for (unsigned i = 0; i < s_sched.length(); i++) if (s_sched[i] == '\n') count++;
+  if (count >= 8 || s_sched.length() + ln.length() > 3800) {
+    msg = "Schedule full: 8 blocks or 3800 bytes of NVS per schedule";
+    return 413;
+  }
+  s_sched += ln;
+  prefs.putString("sched", s_sched);
+  msg = "Block added";
+  return 200;
+}
+
+static void handleSchedAdd(const String &command)
+{
+  String p = command.substring(10);
+  int a = p.indexOf('|'), b = p.indexOf('|', a + 1), c = p.indexOf('|', b + 1);
+  if (a < 0 || b < 0 || c < 0) {
+    sendToSerial1(nodeId + ": SCHED_ACK:INVALID", true);
+    return;
+  }
+  String msg;
+  int code = schedAddBlock(p.substring(0, a), p.substring(a + 1, b).toInt(), p.substring(b + 1, c), p.substring(c + 1), msg);
+  Serial.printf("[SCHED] SCHED_ADD -> %d %s\n", code, msg.c_str());
+  sendToSerial1(nodeId + ": SCHED_ACK:" + (code == 200 ? String("OK") : String("ERR ") + msg), true);
+}
+
+static void handleSchedList()
+{
+  schedLoad();
+  int p = 0, i = 1;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    int a = ln.indexOf('|');
+    Serial.printf("[SCHED] %d next=%s %s\n", i++, nodeLocalString((time_t)ln.substring(0, a).toInt()).c_str(), ln.c_str());
+  }
+  sendToSerial1(nodeId + ": SCHED_LIST:" + String(i - 1), true);
+}
+
+static void handleSchedDel(const String &command)
+{
+  schedLoad();
+  int want = command.substring(10).toInt();
+  String out;
+  int p = 0, i = 1;
+  bool ok = false;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    if (i++ == want && !ok) { ok = true; continue; }
+    out += ln + "\n";
+  }
+  if (ok) {
+    s_sched = out;
+    prefs.putString("sched", s_sched);
+  }
+  sendToSerial1(nodeId + (ok ? ": SCHED_ACK:DELETED" : ": SCHED_ACK:NOT_FOUND"), true);
+}
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
   String command = commandRaw;
@@ -2277,6 +2411,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "DEVICE_DB_CLEAR")              handleDeviceDbClear();
   else if (command.startsWith("CONFIG_BAND:"))        handleConfigBand(command);
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
+  else if (command.startsWith("SCHED_ADD:"))          handleSchedAdd(command);
+  else if (command == "SCHED_LIST")                   handleSchedList();
+  else if (command.startsWith("SCHED_DEL:"))          handleSchedDel(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
   else if (command == "BASELINE_STATUS")              handleBaselineStatus(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
@@ -2371,6 +2508,47 @@ void serviceVibrationAutoScan()
   lastVibAutoScanFire = now;
   Serial.printf("[VIBSCAN] Vibration-triggered auto-scan (mode %u): %s\n", vibAutoScanMode, cmd.c_str());
   processCommand(cmd, "");
+}
+
+void scheduleTick()
+{
+  static uint32_t last = 0;
+  if (millis() - last < 5000) return;
+  last = millis();
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) return;
+  if (attack_responsePending() || vibAutoScanPending) return;
+  schedLoad();
+  if (!s_sched.length()) return;
+  time_t now = getRTCEpoch();
+  if (now < 1609459200) return;
+  String out, fireLine;
+  int p = 0;
+  while (p < (int)s_sched.length()) {
+    int nl = s_sched.indexOf('\n', p);
+    if (nl < 0) nl = s_sched.length();
+    String ln = s_sched.substring(p, nl);
+    p = nl + 1;
+    int a = ln.indexOf('|'), b = ln.indexOf('|', a + 1), c = ln.indexOf('|', b + 1);
+    if (a < 0 || b < 0 || c < 0 || !schedPathOk(ln.substring(b + 1, c))) continue;
+    if (!fireLine.length() && (time_t)ln.substring(0, a).toInt() <= now) {
+      fireLine = ln;
+      time_t next = (time_t)ln.substring(0, a).toInt();
+      uint32_t period = (uint32_t)ln.substring(a + 1, b).toInt();
+      if (!period) continue;
+      while (next <= now) next = (period % 86400 == 0) ? nodeLocalAddDays(next, period / 86400) : next + period;
+      ln = String((uint32_t)next) + ln.substring(a);
+    }
+    out += ln + "\n";
+  }
+  if (out != s_sched) {
+    s_sched = out;
+    prefs.putString("sched", s_sched);
+  }
+  if (!fireLine.length()) return;
+  int a = fireLine.indexOf('|'), b = fireLine.indexOf('|', a + 1), c = fireLine.indexOf('|', b + 1);
+  String cmd = schedCommand(fireLine.substring(b + 1, c), fireLine.substring(c + 1));
+  Serial.printf("[SCHED] Firing: %s\n", cmd.c_str());
+  if (cmd.length()) processCommand(cmd, "");
 }
 
 void sendMeshCommand(const String &command) {
