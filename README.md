@@ -69,7 +69,7 @@ Use it at home, on a fence line, at an event, or off the grid on battery and LoR
 
 ## Quick start
 
-The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** covers each step in more detail, with a printable quick-reference card. The **[Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** covers soldering and the enclosure.
+> The **[Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** covers the full build. The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** walks through each step in more detail
 
 **1. Attach all three antennas before powering on.**
 - SMA or U.FL, see [how to attach depending on tier](#deployment-steps-by-tier)
@@ -423,7 +423,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### Full vs Headless
 
-Both builds share the detectors and scan engine. Full adds a Wi-Fi access point with the web UI and [API](docs/api-reference.md), plus `BASELINE_WATCH`. Headless never starts the access point.
+Both builds share the detectors and scan engine. Full adds a Wi-Fi access point with the web UI and [API](docs/api-reference.md). Headless never starts the access point.
 
 | | Full | Headless |
 |---|---|---|
