@@ -1975,10 +1975,25 @@ void checkAndSendVibrationAlert() {
             millis() - lastVibrationTime < 1000 &&
             millis() - lastAutoEraseAttempt > autoEraseCooldown) {
 
-            Serial.println("[TAMPER] Device movement detected - auto-erase enabled");
-            tamperAuthToken = generateEraseToken();
-            initiateTamperErase();
-            lastAutoEraseAttempt = millis();
+            static uint32_t s_vibTimes[10];
+            static uint8_t s_vibCount = 0;
+            uint32_t now = millis();
+            uint8_t kept = 0;
+            for (uint8_t i = 0; i < s_vibCount; i++) {
+                if (now - s_vibTimes[i] <= detectionWindow) s_vibTimes[kept++] = s_vibTimes[i];
+            }
+            s_vibCount = kept;
+            if (s_vibCount < 10) s_vibTimes[s_vibCount++] = now;
+            Serial.printf("[TAMPER] Vibration %u/%u within %lus\n", (unsigned)s_vibCount,
+                          (unsigned)vibrationsRequired, (unsigned long)(detectionWindow / 1000));
+
+            if (s_vibCount >= vibrationsRequired) {
+                s_vibCount = 0;
+                Serial.println("[TAMPER] Device movement detected - auto-erase enabled");
+                tamperAuthToken = generateEraseToken();
+                initiateTamperErase();
+                lastAutoEraseAttempt = millis();
+            }
         }
 
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
@@ -2394,7 +2409,9 @@ bool validateEraseResponse(const String &response) {
     for (size_t i = 0; i < expected.length(); i++) {
         diff |= (uint8_t)(expected[i] ^ response[i]);
     }
-    return diff == 0;
+    if (diff != 0) return false;
+    tamperAuthToken = "";
+    return true;
 }
 
 bool initiateTamperErase() {

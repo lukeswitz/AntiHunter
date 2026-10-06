@@ -471,15 +471,17 @@ static bool parseMacLike(const String &ln, Target &out)
         // T-#### format
         bool validId = true;
         for (size_t i = 2; i < ln.length(); i++) {
-            if (!isdigit(ln[i])) {
+            if (!isxdigit(ln[i])) {
                 validId = false;
                 break;
             }
         }
-        
+
         if (validId) {
+            String idUpper = ln;
+            idUpper.toUpperCase();
             memset(&out, 0, sizeof(out));
-            strncpy(out.identityId, ln.c_str(), sizeof(out.identityId) - 1);
+            strncpy(out.identityId, idUpper.c_str(), sizeof(out.identityId) - 1);
             out.identityId[sizeof(out.identityId) - 1] = '\0';
             out.len = 0;  // 0 indicates identity ID, not MAC
             return true;

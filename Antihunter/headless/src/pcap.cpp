@@ -26,6 +26,7 @@ static uint8_t g_savedBandMode = 0xFF;
 #define PCAP_LT_BLE        187u
 #define PCAP_H4_EVT        0x04u
 #define PCAP_RADIOTAP_LEN  15u
+#define PCAP_RADIOTAP_MCS_LEN 3u
 #define PCAP_SNAPLEN       2324u
 #define PCAP_BUF_PSRAM     (16u * 1024u)
 #define PCAP_BUF_INTERNAL  (8u * 1024u)
@@ -253,7 +254,13 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     int len = pkt->rx_ctrl.sig_len;
     if (len > 4) len -= 4;
     if (len < 10) return;
-    if (len > (int)(PCAP_SNAPLEN - PCAP_RADIOTAP_LEN)) len = PCAP_SNAPLEN - PCAP_RADIOTAP_LEN;
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    const bool ht = false;
+#else
+    const bool ht = (pkt->rx_ctrl.sig_mode == 1);
+#endif
+    const uint16_t rtLen = PCAP_RADIOTAP_LEN + (ht ? PCAP_RADIOTAP_MCS_LEN : 0u);
+    if (len > (int)(PCAP_SNAPLEN - rtLen)) len = PCAP_SNAPLEN - rtLen;
 
     const uint8_t rateIdx = (uint8_t)pkt->rx_ctrl.rate;
 #if CONFIG_SOC_WIFI_HE_SUPPORT
@@ -280,12 +287,13 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
 
     uint32_t present = 0x0000002Au;
     if (rate500) present |= 0x00000004u;
+    if (ht) present |= 0x00080000u;
 
-    uint8_t rt[PCAP_RADIOTAP_LEN];
+    uint8_t rt[PCAP_RADIOTAP_LEN + PCAP_RADIOTAP_MCS_LEN];
     rt[0] = 0;
     rt[1] = 0;
-    rt[2] = (uint8_t)(PCAP_RADIOTAP_LEN & 0xFF);
-    rt[3] = (uint8_t)(PCAP_RADIOTAP_LEN >> 8);
+    rt[2] = (uint8_t)(rtLen & 0xFF);
+    rt[3] = (uint8_t)(rtLen >> 8);
     rt[4] = (uint8_t)(present & 0xFF);
     rt[5] = (uint8_t)((present >> 8) & 0xFF);
     rt[6] = (uint8_t)((present >> 16) & 0xFF);
@@ -297,8 +305,20 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     rt[12] = (uint8_t)(cflags & 0xFF);
     rt[13] = (uint8_t)(cflags >> 8);
     rt[14] = (uint8_t)pkt->rx_ctrl.rssi;
+#if !CONFIG_SOC_WIFI_HE_SUPPORT
+    if (ht) {
+        uint8_t mcsFlags = 0;
+        if (pkt->rx_ctrl.cwb) mcsFlags |= 0x01u;
+        if (pkt->rx_ctrl.sgi) mcsFlags |= 0x04u;
+        if (pkt->rx_ctrl.fec_coding) mcsFlags |= 0x10u;
+        mcsFlags |= (uint8_t)((pkt->rx_ctrl.stbc & 0x03u) << 5);
+        rt[15] = 0x01u | 0x02u | 0x04u | 0x10u | 0x20u;
+        rt[16] = mcsFlags;
+        rt[17] = (uint8_t)pkt->rx_ctrl.mcs;
+    }
+#endif
 
-    pcapAppend(rt, PCAP_RADIOTAP_LEN, pkt->payload, (uint32_t)len);
+    pcapAppend(rt, rtLen, pkt->payload, (uint32_t)len);
 }
 
 extern "C" int __real_ble_transport_to_hs_evt_impl(void *buf);
