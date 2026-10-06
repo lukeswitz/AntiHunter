@@ -35,6 +35,14 @@ struct AnomalyHit {
     String reason{};
 };
 
+struct BaselineTag {
+    uint8_t slices{};
+    int8_t rssiA{};
+    int8_t rssiB{};
+};
+
+bool baselineSetMarker();
+
 struct BaselineStats {
     uint32_t wifiDevices;
     uint32_t bleDevices;
