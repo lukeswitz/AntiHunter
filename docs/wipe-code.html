@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AntiHunter Wipe Code</title>
+<style>
+  :root { --bg:#0e1116; --fg:#e6e9ee; --mut:#8b93a1; --acc:#4fb3ff; --bord:#262c36; --err:#ff6b6b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f7f8fa; --fg:#14181f; --mut:#5d6573; --acc:#0a6fd1; --bord:#d6dbe3; --err:#c62828; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p { color:var(--mut); margin:0 0 16px; }
+  label { display:block; font-weight:600; margin:16px 0 6px; }
+  input, select { width:100%; box-sizing:border-box; padding:12px; font:16px ui-monospace, monospace; background:transparent; color:var(--fg); border:1px solid var(--bord); border-radius:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin-top:8px; color:var(--mut); font-size:14px; }
+  .row input { width:auto; }
+  button { margin-top:20px; width:100%; padding:14px; font-size:16px; font-weight:600; border:0; border-radius:8px; background:var(--acc); color:#fff; }
+  #out { margin-top:24px; padding:16px; border:1px solid var(--bord); border-radius:8px; display:none; }
+  #code { font:28px ui-monospace, monospace; letter-spacing:2px; }
+  #cmd { font:14px ui-monospace, monospace; color:var(--mut); word-break:break-all; margin-top:8px; }
+  .err { color:var(--err); }
+  ol { color:var(--mut); padding-left:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AntiHunter wipe code</h1>
+  <p>Turns your erase key and a node's token into the short code that wipes the node over the mesh. Runs in this browser only. Nothing is sent anywhere. Short codes need Beta firmware that includes erase-key support. Stable needs the full 64-character answer.</p>
+  <ol>
+    <li>Send <code>@NODE ERASE_REQUEST</code> from your Meshtastic app.</li>
+    <li>Paste the <code>AH_...</code> token from the reply below.</li>
+    <li>Send the command this page shows. The token works once and expires after 5 minutes.</li>
+  </ol>
+
+  <label for="node">Node ID</label>
+  <input id="node" placeholder="AH01" autocapitalize="characters" autocomplete="off">
+
+  <label for="key">Erase key</label>
+  <input id="key" type="password" autocomplete="off" placeholder="the key you set in the web UI or flasher">
+  <div class="row"><input id="remember" type="checkbox"><label for="remember" id="rememberLabel" style="margin:0;font-weight:400">Remember the key on this device</label></div>
+
+  <label for="token">Token</label>
+  <input id="token" placeholder="AH_XXXXXXXX_XXXXXXXX_XXXXXXXX" autocomplete="off" autocapitalize="characters">
+
+  <label for="action">Action</label>
+  <select id="action">
+    <option value="ERASE_FORCE">Wipe now (ERASE_FORCE)</option>
+    <option value="ERASE_CANCEL">Cancel a tamper countdown (ERASE_CANCEL)</option>
+    <option value="AUTOERASE_DISABLE">Turn off auto-erase (AUTOERASE_DISABLE)</option>
+  </select>
+
+  <button id="go" type="button">Make code</button>
+
+  <div id="out">
+    <div>Code</div>
+    <div id="code"></div>
+    <div id="cmd"></div>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function storage() {
+    try {
+      const s = window.localStorage;
+      s.setItem('ahProbe', '1');
+      s.removeItem('ahProbe');
+      return s;
+    } catch (e) {
+      $('remember').disabled = true;
+      $('rememberLabel').textContent = 'This browser blocks storage, so the key cannot be remembered here (' + e.name + ')';
+      return null;
+    }
+  }
+  const store = storage();
+  if (store) {
+    const saved = store.getItem('ahEraseKey');
+    if (saved) { $('key').value = saved; $('remember').checked = true; }
+    const node = store.getItem('ahEraseNode');
+    if (node) $('node').value = node;
+  }
+
+  async function hmacHex(key, msg) {
+    const enc = new TextEncoder();
+    const k = await crypto.subtle.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', k, enc.encode(msg));
+    return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  $('go').addEventListener('click', async () => {
+    $('out').style.display = 'block';
+    const key = $('key').value;
+    const match = $('token').value.trim().toUpperCase().match(/AH_[0-9A-F]{8}_[0-9A-F]{8}_[0-9A-F]{8}/);
+    const node = $('node').value.trim().toUpperCase() || 'NODE';
+    if (!key) { $('code').innerHTML = '<span class="err">Enter your erase key</span>'; $('cmd').textContent = ''; return; }
+    if (!match) { $('code').innerHTML = '<span class="err">Paste the AH_... token from the node</span>'; $('cmd').textContent = ''; return; }
+    if (!window.crypto || !crypto.subtle) { $('code').innerHTML = '<span class="err">This browser has no Web Crypto. Open the page over https or from a saved file.</span>'; return; }
+    if (store) {
+      if ($('remember').checked) store.setItem('ahEraseKey', key); else store.removeItem('ahEraseKey');
+      store.setItem('ahEraseNode', node);
+    }
+    const code = (await hmacHex(key, match[0])).slice(0, 8);
+    $('code').textContent = code;
+    $('cmd').textContent = '@' + node + ' ' + $('action').value + ':' + code;
+  });
+</script>
+</body>
+</html>
