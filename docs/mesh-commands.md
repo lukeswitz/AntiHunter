@@ -36,7 +36,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `DEVICE_SCAN_START` | List everything in range | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | Learn the area, then flag changes | `duration[:FOREVER]`, min 60s | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | Report baseline progress | None | `@ALL BASELINE_STATUS` |
-| `BASELINE_WATCH` | Watch for changes from now: results list devices new here, gone, or moving closer/away since this moment. Full firmware, baseline must be running | None | `@ALL BASELINE_WATCH` |
+| `BASELINE_WATCH` | Compare devices heard before and after this moment: new, gone, moving closer/away. Send during the learning phase. Replies `BASELINE_ACK:WATCHING` or `NOT_RUNNING` | None | `@ALL BASELINE_WATCH` |
 | `DRONE_START` | Watch for drone Remote ID | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
