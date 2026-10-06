@@ -612,6 +612,13 @@ static void handleBaselineStart(const String &command)
   }
 }
 
+static void handleBaselineWatch(const String &command)
+{
+  (void)command;
+  if (baselineSetMarker()) sendToSerial1(nodeId + ": BASELINE_ACK:WATCHING", true);
+  else sendToSerial1(nodeId + ": BASELINE_ACK:NOT_RUNNING", true);
+}
+
 static void handleBaselineStatus(const String &command)
 {
   char status_msg[MAX_MESH_SIZE];
@@ -2221,6 +2228,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SCHED_DEL:"))          handleSchedDel(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
   else if (command == "BASELINE_STATUS")              handleBaselineStatus(command);
+  else if (command == "BASELINE_WATCH")               handleBaselineWatch(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);

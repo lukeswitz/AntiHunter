@@ -98,6 +98,76 @@ const uint32_t MESH_NUM_SLOTS = 5;
 const uint32_t MESH_SLOT_DURATION_MS = MESH_SLOT_CYCLE_MS / MESH_NUM_SLOTS;
 static uint32_t meshCycleStartTime = 0;
 
+static PsramMap<uint64_t, BaselineTag> baselineTags;
+static uint32_t baselineMarkerMs = 0;
+static const uint8_t SLICE_A = 0x01;
+static const uint8_t SLICE_B = 0x02;
+
+bool baselineSetMarker() {
+    if (!baselineDetectionEnabled) return false;
+    uint32_t sinceStart;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineMarkerMs = millis();
+        if (baselineMarkerMs == 0) baselineMarkerMs = 1;
+        for (auto &e : baselineTags) e.second.slices &= SLICE_A;
+        sinceStart = (baselineMarkerMs - baselineStartTime) / 1000;
+    }
+    Serial.printf("[BASELINE] Watching for changes from %us into the scan\n", sinceStart);
+    logToSD("[BASELINE] Watching for changes from " + String(sinceStart) + "s into the scan");
+    return true;
+}
+
+static void baselineTagDevice(const Hit &h) {
+    uint64_t k = blKey(h.mac);
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    if (baselineCache.find(k) == baselineCache.end()) return;
+    BaselineTag &t = baselineTags[k];
+    if (baselineMarkerMs == 0) { t.slices |= SLICE_A; t.rssiA = h.rssi; }
+    else { t.slices |= SLICE_B; t.rssiB = h.rssi; }
+}
+
+static void baselineReportWatch() {
+    uint32_t onlyA = 0, onlyB = 0, both = 0, moved = 0, markerSecs;
+    String lines;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineMarkerMs == 0) return;
+        markerSecs = (baselineMarkerMs - baselineStartTime) / 1000;
+        for (const auto &e : baselineTags) {
+            const BaselineTag &t = e.second;
+            auto dIt = baselineCache.find(e.first);
+            if (dIt == baselineCache.end()) continue;
+            const BaselineDevice &dev = dIt->second;
+            const char *kind = nullptr;
+            int delta = 0;
+            if (t.slices == SLICE_A) { onlyA++; kind = "SLICE-GONE"; }
+            else if (t.slices == SLICE_B) { onlyB++; kind = "SLICE-NEW"; }
+            else if (t.slices == (SLICE_A | SLICE_B)) {
+                both++;
+                delta = (int)t.rssiB - (int)t.rssiA;
+                if (abs(delta) >= significantRssiChange) { moved++; kind = "SLICE-MOVED"; }
+            }
+            if (!kind) continue;
+            lines += String(kind) + " " + String(dev.isBLE ? "BLE " : "WiFi") + " " + macFmt6(dev.mac);
+            if (t.slices & SLICE_A) lines += " A:" + String(t.rssiA) + "dBm";
+            if (t.slices & SLICE_B) lines += " B:" + String(t.rssiB) + "dBm";
+            if (kind[6] == 'M') lines += " Delta:" + String(delta > 0 ? "+" : "") + String(delta);
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
+                lines += " \"" + String(dev.name) + "\"";
+            }
+            lines += "\n";
+        }
+    }
+    Serial.printf("[BASELINE] === SLICE A/B === Marker: %us after start\n", markerSecs);
+    Serial.printf("[BASELINE] Only before: %u, Only after: %u, Both: %u\n", onlyA, onlyB, both);
+    Serial.print(lines);
+    if (meshEnabled) {
+        meshEnqueue(getNodeId() + ": BASELINE_WATCH: New=" + String(onlyB) + " Gone=" + String(onlyA) +
+                    " Moved=" + String(moved) + " Both=" + String(both));
+    }
+}
+
 static uint8_t getNodeSlot() {
     String nodeId = getNodeId();
     uint32_t hash = 0;
@@ -166,6 +236,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
                         }
 
                         baselineCache.erase(evictKey);
+                        baselineTags.erase(evictKey);
                         lruMap.erase(evictKey);
                         lruList.pop_front();
                     }
@@ -353,6 +424,8 @@ void baselineDetectionTask(void *pv) {
         baselineEstablished = false;
         anomalyLog.clear();
         anomalyCount = 0;
+        baselineMarkerMs = 0;
+        for (auto &e : baselineTags) e.second.slices = 0;
     }
     deviceHistory.clear();
     baselineStartTime = millis();
@@ -468,6 +541,7 @@ void baselineDetectionTask(void *pv) {
                             evictedDirty.push_back(oldestDevice);
                         }
                         baselineCache.erase(oldestKey);
+                        baselineTags.erase(oldestKey);
                         lruMap.erase(oldestKey);
                         lruList.pop_front();
                     }
@@ -545,6 +619,7 @@ void baselineDetectionTask(void *pv) {
                 continue;
             }
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+            baselineTagDevice(h);
         }
 
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
@@ -776,6 +851,8 @@ void baselineDetectionTask(void *pv) {
         Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
     }
 
+    baselineReportWatch();
+
     if (meshEnabled && !stopRequested) {
         uint32_t snapDeviceCount;
         uint32_t snapAnomalyCount;
@@ -890,6 +967,7 @@ void cleanupBaselineMemory() {
                     lruMap.erase(lruIt);
                 }
                 baselineCache.erase(key);
+                baselineTags.erase(key);
             }
 
             if (!toRemove.empty()) {
