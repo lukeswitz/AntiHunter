@@ -1225,11 +1225,11 @@ R"HTML(
 
           <div style="margin-top:8px">
             <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
-            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Enter erase PSK (printed on the USB console at boot). Required for wipe, abort and auto-erase changes.</label>
+            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Enter your erase key. Required for wipe, abort and auto-erase changes.</label>
             <input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off">
             <div style="display:flex;gap:8px;margin-top:8px">
-              <input type="text" id="eraseNewPsk" placeholder="new PSK (1-64 chars)" autocomplete="off" style="flex:1">
-              <button class="btn alt" type="button" onclick="changeErasePsk()">CHANGE PSK</button>
+              <input type="text" id="eraseNewPsk" placeholder="new erase key (8-64 chars)" autocomplete="off" style="flex:1">
+              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">CHANGE KEY</button>
             </div>
           </div>
 
@@ -5118,22 +5118,31 @@ R"HTML(
       }
       
       let _erasePskSet = false;
+      let _eraseUserSet = false;
       function refreshPskStatus() {
         fetch('/erase/psk-status').then(r => r.json()).then(d => {
           _erasePskSet = !!d.pskSet;
+          _eraseUserSet = !!d.userSet;
           const badge = document.getElementById('erasePskBadge');
           const hint = document.getElementById('eraseConfirmHint');
           const input = document.getElementById('eraseConfirm');
           const fwHint = document.getElementById('factoryWipeHint');
           const fwInput = document.getElementById('factoryWipeConfirm');
-          if (_erasePskSet) {
-            if (badge) { badge.textContent = 'PSK SET — auth required'; badge.className = 'psk-badge set'; }
-            if (hint) hint.textContent = 'Enter erase PSK';
-            if (input) input.placeholder = 'erase PSK';
-            if (fwHint) fwHint.textContent = 'Enter erase PSK';
-            if (fwInput) fwInput.placeholder = 'erase PSK';
+          const keyBtn = document.getElementById('eraseKeyBtn');
+          if (_eraseUserSet) {
+            if (badge) { badge.textContent = 'ERASE KEY SET — auth required'; badge.className = 'psk-badge set'; }
+            if (hint) hint.textContent = 'Enter your erase key. Required for wipe, abort and auto-erase changes.';
+            if (input) { input.placeholder = 'erase key'; input.style.display = ''; }
+            if (fwHint) fwHint.textContent = 'Enter your erase key';
+            if (fwInput) fwInput.placeholder = 'erase key';
+            if (keyBtn) keyBtn.textContent = 'CHANGE KEY';
           } else {
-            if (badge) { badge.textContent = 'NO PSK — reboot to generate'; badge.className = 'psk-badge unset'; }
+            if (badge) { badge.textContent = 'ERASE KEY NOT SET'; badge.className = 'psk-badge unset'; }
+            if (hint) hint.textContent = d.apDefault
+              ? 'Change the AP password first (RF Settings), then set your erase key here.'
+              : 'Set your erase key below (8-64 characters). You need it to wipe the node.';
+            if (input) input.style.display = 'none';
+            if (keyBtn) keyBtn.textContent = 'SET ERASE KEY';
           }
         }).catch(()=>{});
       }
@@ -5205,11 +5214,14 @@ R"HTML(
       }
 
       function changeErasePsk() {
-        const body = 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) +
-                     '&key=' + encodeURIComponent(document.getElementById('eraseNewPsk').value);
-        fetch('/erase/psk', {
+        const newKey = encodeURIComponent(document.getElementById('eraseNewPsk').value);
+        const url = _eraseUserSet ? '/erase/psk' : '/erase/psk-claim';
+        const body = _eraseUserSet
+          ? 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) + '&key=' + newKey
+          : 'key=' + newKey;
+        fetch(url, {
           method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-AH-Request': '1'},
           body: body
         }).then(r => r.text().then(t => { toast(t, r.ok ? 'success' : 'error'); refreshPskStatus(); }))
           .catch(e => toast('PSK change error: ' + e, 'error'));
