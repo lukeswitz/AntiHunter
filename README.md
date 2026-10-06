@@ -651,7 +651,7 @@ No tier comes with AntiHunter firmware installed. That's for integrity and regul
 
 ### Core components
 
-- **Seeed XIAO ESP32-S3** (at least 8MB flash), or **XIAO ESP32-C5** for 2.4 + 5 GHz on the same board - [C5 page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) (testing)
+- **Seeed XIAO ESP32-S3** (at least 8MB flash), or **XIAO ESP32-C5** for 2.4 + 5 GHz on the same board - [C5 page](docs/ESP32-C5.md) (testing)
 - **Meshtastic board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions)
 - **GPS, SD card, vibration, and RTC modules**
 
@@ -783,8 +783,8 @@ pio run -e AntiHunter-full -t erase
 
 **Build environments:**
 - `AntiHunter-full` builds `Antihunter/full/src`: web UI on its own AP (ESPAsyncWebServer + AsyncTCP). `AntiHunter-headless` builds `Antihunter/headless/src`: serial and mesh only, no web libraries. The two are separate source trees.
-- ESP32-C5 (2.4 + 5 GHz, testing): `AntiHunter-c5-full` / `-c5-headless` on the `feat/c5` branch - see the [ESP32-C5 page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md).
-- RadarNode (24GHz radar, experimental): flash it from the web flasher's **Experimental** channel - see the [RadarNode page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md).
+- ESP32-C5 (2.4 + 5 GHz, testing): `AntiHunter-c5-full` / `-c5-headless` on the `feat/c5` branch - see the [ESP32-C5 page](docs/ESP32-C5.md).
+- RadarNode (24GHz radar, experimental): flash it from the web flasher's **Experimental** channel - see the [RadarNode page](docs/RADARNODE.md).
 
 ---
 
@@ -828,8 +828,8 @@ Three node types use the same PCB and mesh:
 | | Board | Sensor | Firmware | Status |
 |---|---|---|---|---|
 | **DIGI** | ESP32-S3 | Wi-Fi + BLE, 2.4 GHz | `AntiHunter-full` / `-headless` | stable |
-| **[DIGI C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md)** | ESP32-C5 | Wi-Fi + BLE, 2.4 **and** 5 GHz | `AntiHunter-c5-full` / `-c5-headless` | testing |
-| **[RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, Wi-Fi/BLE on trigger | web flasher, Experimental | experimental |
+| **[DIGI C5](docs/ESP32-C5.md)** | ESP32-C5 | Wi-Fi + BLE, 2.4 **and** 5 GHz | `AntiHunter-c5-full` / `-c5-headless` | testing |
+| **[RadarNode](docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, Wi-Fi/BLE on trigger | web flasher, Experimental | experimental |
 
 The C5 drops into the S3's place on the same board and adds 5 GHz. A RadarNode spots a moving target on radar, then sweeps Wi-Fi and BLE to record the devices present at that moment. Its `STATUS` reply carries `TYPE:RADAR`, so the RadarNode UI and Command Center can tell node types apart. You flash both from the [web flasher](https://lukeswitz.github.io/AntiHunter/) under the **Experimental** channel, which asks you to confirm they're test builds.
 
