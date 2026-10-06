@@ -2716,9 +2716,17 @@ void ensureErasePSK() {
         stored = "";
         Serial.println("[ERASE] Dropped auto-generated erase key");
     }
-    erasePSK = stored.length() > 0 ? stored : prefsGetString("apPass", AP_PASS);
-    Serial.println(stored.length() > 0 ? "[ERASE] Erase key: custom"
-                                       : "[ERASE] Erase key: same as the AP password until you set one");
+    String apPass = prefsGetString("apPass", AP_PASS);
+    if (stored.length() > 0) {
+        erasePSK = stored;
+        Serial.println("[ERASE] Erase key: custom");
+    } else if (apPass != AP_PASS) {
+        erasePSK = apPass;
+        Serial.println("[ERASE] Erase key: same as the AP password until you set one");
+    } else {
+        erasePSK = "";
+        Serial.println("[ERASE] Erase key: none - change the AP password or set a key; erase commands are refused until then");
+    }
 }
 
 void setErasePSK(const String &key) {

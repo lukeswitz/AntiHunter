@@ -5475,7 +5475,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const fwHint = document.getElementById('factoryWipeHint');
           const fwInput = document.getElementById('factoryWipeConfirm');
           if (badge) {
-            badge.textContent = d.custom ? 'ERASE KEY: YOUR OWN' : (d.apDefault ? 'ERASE KEY: DEFAULT AP PASSWORD - CHANGE IT' : 'ERASE KEY: YOUR AP PASSWORD');
+            badge.textContent = d.custom ? 'ERASE KEY: YOUR OWN' : (d.apDefault ? 'NO ERASE KEY - CHANGE THE AP PASSWORD' : 'ERASE KEY: YOUR AP PASSWORD');
             badge.className = 'psk-badge ' + (d.custom || !d.apDefault ? 'set' : 'unset');
             badge.title = 'The erase key starts as the AP password. Set your own here, or over mesh: @NODE CONFIG_ERASE_PSK:<new key>:<current key>. Wipe over mesh: @NODE ERASE_FORCE:<key>. 5 wrong keys lock erase commands for 10 min.';
           }
