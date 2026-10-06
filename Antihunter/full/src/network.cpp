@@ -1390,33 +1390,9 @@ void registerRemainingRoutes() {
 
   server->on("/erase/psk-status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = String("{\"pskSet\":") + (erasePSK.length() > 0 ? "true" : "false") +
-                    ",\"userSet\":" + (erasePskUserSet() ? "true" : "false") +
+                    ",\"custom\":" + (erasePskUserSet() ? "true" : "false") +
                     ",\"apDefault\":" + (prefsGetString("apPass", AP_PASS) == AP_PASS ? "true" : "false") + "}";
       req->send(200, "application/json", json);
-  });
-
-  server->on("/erase/psk-claim", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (!req->hasHeader("X-AH-Request")) {
-        req->send(403, "text/plain", "Missing request header");
-        return;
-    }
-    if (erasePskUserSet()) {
-        req->send(409, "text/plain", "Erase key already set - change it with the current key");
-        return;
-    }
-    if (prefsGetString("apPass", AP_PASS) == AP_PASS) {
-        req->send(403, "text/plain", "Change the AP password first");
-        return;
-    }
-    String key = req->hasParam("key", true) ? req->getParam("key", true)->value() : "";
-    if (!erasePskValid(key)) {
-        req->send(400, "text/plain", "Erase key must be 8-64 chars, no ':'");
-        return;
-    }
-    setErasePSK(key);
-    saveConfiguration();
-    Serial.println("[ERASE] Erase key set via web");
-    req->send(200, "text/plain", "Erase key set");
   });
 
   server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2623,6 +2599,7 @@ void registerRemainingRoutes() {
       prefs.putString("apSsid", ssid);
       if (pass.length() > 0) {
           prefs.putString("apPass", pass);
+          ensureErasePSK();
       }
       if (req->hasParam("auth", true)) {
           uint8_t auth = req->getParam("auth", true)->value().toInt() == 1 ? 1 : 0;
