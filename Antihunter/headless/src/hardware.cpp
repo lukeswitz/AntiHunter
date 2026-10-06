@@ -2418,6 +2418,15 @@ static bool eraseConstEq(const String &a, const String &b) {
 static bool validateEraseToken(const String &response);
 
 bool validateEraseResponse(const String &response) {
+    if (!erasePskUserSet()) {
+        Serial.println("[ERASE] Set your own erase key first");
+        sendToSerial1(getNodeId() + ": ERASE_ACK:SET_KEY_FIRST", true);
+        return false;
+    }
+    return validateEraseKeyChange(response);
+}
+
+bool validateEraseKeyChange(const String &response) {
     static uint8_t s_fails = 0;
     static uint32_t s_lockUntil = 0;
     if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {

@@ -1334,11 +1334,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           <div style="margin-top:8px">
             <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
-            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Enter your erase key. Required for wipe, abort and auto-erase changes.</label>
+            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Your erase key</label>
             <input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off">
             <div style="display:flex;gap:8px;margin-top:8px">
-              <input type="text" id="eraseNewPsk" placeholder="new erase key (8-64 chars, no :)" autocomplete="off" style="flex:1" title="Type your current key in the field above, then the new key here. Short keys are easier to send from a mesh radio.">
-              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()" title="Over mesh: @NODE CONFIG_ERASE_PSK:<new key>:<current key>">SET NEW KEY</button>
+              <input type="text" id="eraseNewPsk" placeholder="new key, 8+ chars" autocomplete="off" style="flex:1">
+              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">SET KEY</button>
             </div>
           </div>
 
@@ -5475,13 +5475,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const fwHint = document.getElementById('factoryWipeHint');
           const fwInput = document.getElementById('factoryWipeConfirm');
           if (badge) {
-            badge.textContent = d.custom ? 'ERASE KEY: YOUR OWN' : (d.apDefault ? 'NO ERASE KEY - CHANGE THE AP PASSWORD' : 'ERASE KEY: YOUR AP PASSWORD');
-            badge.className = 'psk-badge ' + (d.custom || !d.apDefault ? 'set' : 'unset');
-            badge.title = 'The erase key starts as the AP password. Set your own here, or over mesh: @NODE CONFIG_ERASE_PSK:<new key>:<current key>. Wipe over mesh: @NODE ERASE_FORCE:<key>. 5 wrong keys lock erase commands for 10 min.';
+            badge.textContent = d.custom ? 'KEY SET' : (d.apDefault ? 'CHANGE AP PASSWORD FIRST' : 'SET A KEY');
+            badge.className = 'psk-badge ' + (d.custom ? 'set' : 'unset');
+            badge.title = 'Wipe needs your own key. Mesh: CONFIG_ERASE_PSK:<new>:<current>, then ERASE_FORCE:<key>';
           }
-          if (hint) hint.textContent = d.custom
-            ? 'Enter your erase key. Needed to wipe, abort, change auto-erase, or set a new key.'
-            : 'Your erase key is the AP password until you set your own below. Needed to wipe, abort, change auto-erase, or set a new key.';
+          if (hint) hint.textContent = d.custom ? 'Your erase key' : 'Current key is the AP password';
           if (input) input.placeholder = d.custom ? 'erase key' : 'erase key (AP password)';
           if (fwHint) fwHint.textContent = 'Enter your erase key';
           if (fwInput) fwInput.placeholder = 'erase key';
