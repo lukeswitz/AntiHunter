@@ -44,9 +44,9 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
 | `PCAP_LIMITS` | Set or read the file size cap | `[MB]`, 8-300 | `@ALL PCAP_LIMITS:150` |
 | `SD_REPAIR` | Rebuild an unmountable SD card; erases it | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
-| `SCHED_ADD` | Schedule a scan block (full) | `YYYY-MM-DDTHH:MM\|repeat_secs\|path\|body`; path `/scan`, `/sniffer` or `/drone`; repeat `0` runs once | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/sniffer\|detection=device-scan&deviceScanMode=2&secs=600` |
-| `SCHED_LIST` | Print scheduled blocks to serial, reply with the count (full) | None | `@AH01 SCHED_LIST` |
-| `SCHED_DEL` | Delete a block by its `SCHED_LIST` number (full) | `<n>` | `@AH01 SCHED_DEL:1` |
+| `SCHED_ADD` | Schedule a scan | `<local YYYY-MM-DDTHH:MM>\|<repeat secs>\|<scan>\|<options>`; scan `/scan`, `/sniffer` or `/drone`; repeat `0` once, else 600+ | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/scan\|mode=2&secs=600` |
+| `SCHED_LIST` | Print scheduled scans to serial, reply with the count | None | `@AH01 SCHED_LIST` |
+| `SCHED_DEL` | Delete a scan by its `SCHED_LIST` number | `<n>` | `@AH01 SCHED_DEL:1` |
 
 > [!WARNING]
 > Stop a capture before cutting power or resetting the node. FAT has no power-fail
