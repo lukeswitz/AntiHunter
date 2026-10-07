@@ -1,95 +1,58 @@
 # Security Policy
 
-AntiHunter DIGI node firmware is currently in **beta** and has not completed formal security testing. The device operates as a standalone Wi-Fi access point without internet connectivity. We welcome responsible disclosure of security vulnerabilities.
+AntiHunter DIGI node firmware is operator-controlled firmware for a private, operator-run mesh. The device operates as a standalone Wi-Fi access point without internet connectivity. We welcome responsible disclosure of issues that are exploitable within the trust model below.
 
 ## Supported Versions
 
 | Version branch    | Supported? | Notes                                                    |
 | ----------------- | ---------- | -------------------------------------------------------- |
 | `main`            | ✅         | Actively developed; security fixes land here first       |
-| Release tags      | ⚠️         | Beta snapshots only; update to latest `main`             |
+| Release tags      | ⚠️         | Snapshots only; update to latest `main`                  |
 | Modified builds   | ❌         | Out of scope unless reproducible on unmodified firmware  |
 
-## Reporting a Vulnerability
+## Trust model
 
-1. **Open a private advisory** at the repository's [Security Advisories](https://github.com/lukeswitz/Antihunter/security/advisories) page or message `@lukeswitz` with subject `AHFW SECURITY REPORT`.
-2. Include: vulnerability description, impact assessment, reproduction steps, commit hash/version tested, hardware configuration.
-3. For encrypted communication, request PGP key via GitHub message.
-4. Response timeline: acknowledgment within **3 business days**, triage within **7 business days**.
-5. **Do not publicly disclose** until we confirm a fix or mutually agree on disclosure date (minimum 30 days).
+The scope below follows directly from how AntiHunter is deployed. Three boundaries define it:
 
-### What to Include
-
-- Concise description of the issue and potential impact (e.g., unauthorized device control, data disclosure, secure erase bypass).
-- Steps to reproduce or proof of concept.
-- Commit hash or release tag tested.
-- Hardware configuration (ESP32 variant, SD card, sensors).
-- Mesh radio hardware if testing mesh protocol vulnerabilities.
-- Any temporary mitigations observed.
+- **The encrypted mesh channel is the authentication boundary.** Operators configure their own encrypted Meshtastic channel and disable the public channel before deployment (see [Radio Setup](README.md#radio-setup)). Meshtastic does not decode or deliver text to a node on a channel it holds no key for. A party that can send a command to a deployed node therefore already holds the operator's channel key, and is treated as an authorized operator. Commands accepted from a keyed channel member are by design, not an authentication flaw.
+- **Physical and wired access implies device control.** The USB serial console, the mesh UART (Serial1), and the on-board microSD all require physical possession of the node — opening the enclosure, and in the SD's case removing a brass standoff to reach the card. Anyone with that access already controls the device; behavior reachable only by opening the case or touching those interfaces is not a vulnerability in this model.
+- **The default public channel is pre-deployment only.** A node still on the public channel is unconfigured. Securing the channel is the first deployment step; findings that assume an unconfigured node must say so.
 
 ## Scope
 
-**In scope:**
+**In scope** — reachable by a party that does **not** hold the operator's encrypted-channel key and does **not** have physical access to the node (no opened enclosure, no USB/UART, no SD):
 
-- Firmware code in this repository (`*.cpp`, `*.h` files, `platformio.ini`).
-- HTTP API endpoints.
-- Configuration file parsing and validation (`config.json` on SD card).
-- Mesh UART protocol security (Serial1 at 115200 baud).
-- Mesh command injection and authentication bypass.
-- Mesh message spoofing or replay attacks.
-- Compatibility testing with non-standard mesh radios (e.g., older T114 versions, third-party UART devices).
-- Secure erase and tamper detection mechanisms.
-- SD card data storage security.
+- Memory-safety or remote-code-execution in the firmware's parsing of radio traffic the sensor ingests by design — malformed 802.11 Wi-Fi frames, BLE advertisements, or drone RID frames handled by the scan/detection paths. This is the device's real unauthenticated attack surface: it listens to hostile RF.
+- The on-device HTTP interface on the node's Wi-Fi AP, and its authentication, where reachable over Wi-Fi without the mesh channel key.
+- Cryptographic weaknesses that let a party **without** the channel key or erase PSK forge, recover, or replay erase/tamper authorization.
+- Secrets (keys, PSK, location) leaked in telemetry or logs readable without the channel key.
 
 **Out of scope:**
 
-- Social engineering, phishing, or physical attacks not involving documented interfaces.
-- Findings in third‑party libraries (ESP-IDF, Arduino core, NimBLE, ArduinoJson) - report to upstream projects.
-- Denial-of-service or resource exhaustion attacks.
-- Issues requiring physical hardware modification beyond connecting to documented UART pins.
-- JTAG/SWD debug interface exploitation.
-- Vulnerabilities in forked or modified versions diverging from upstream `main`.
+- Anything that requires the operator's configured encrypted channel key. Delivery of a mesh command presupposes the key; keyed channel members are trusted operators, so mesh command dispatch, configuration, and erase from a keyed member are the accepted design, not findings.
+- Anything that requires physical access to the node: opening the enclosure, the USB serial console, the mesh UART (Serial1), the microSD (behind an internal brass standoff), JTAG/SWD, or any hardware modification.
+- A node left on the default public channel — securing the channel is step one of deployment; findings must hold on a properly configured node.
+- Social engineering and phishing.
+- Denial-of-service or resource-exhaustion attacks.
+- Findings in third-party libraries (ESP-IDF, Arduino core, NimBLE, ArduinoJson) — report to upstream.
+- Vulnerabilities in forked or modified firmware diverging from upstream `main`.
 
-If your research affects an upstream dependency, please disclose directly to that project. We appreciate a heads-up so we can track the fix.
+A report that depends on the channel key, on physical/USB/UART/SD access, or on a node left on the public channel is a configuration or trust-model matter, not a vulnerability, and may be addressed as a hardening change without an advisory.
 
-## Coordinated Disclosure & Safe Harbor
+## Reporting
 
-- Acting in good faith within this policy will not lead to legal action. This includes testing, reporting, and discussing vulnerabilities privately.
-- Avoid accessing, modifying, or destroying user data. If you encounter data owned by others, stop testing immediately and notify us.
-- Limit automated scanning to minimum necessary for verification. Avoid resource exhaustion that could damage SD cards or flash memory.
-- Testing mesh protocol security with various UART devices is permitted and encouraged.
-- Give us reasonable time to remediate (minimum 30 days unless otherwise agreed) before public disclosure.
+1. Open a private advisory at the repository's [Security Advisories](https://github.com/lukeswitz/AntiHunter/security/advisories) page with subject `AHFW SECURITY REPORT`.
+2. Include: description, impact within the trust model above, reproduction steps, commit hash/version tested, hardware configuration, and — for any mesh finding — whether it holds **without** the operator's channel key.
+3. Response: acknowledgment within 3 business days, triage within 7 business days.
+4. Do not publicly disclose until a fix is confirmed or a disclosure date is mutually agreed (minimum 30 days).
 
-## Testing Guidelines
+## Coordinated disclosure & safe harbor
 
-**Device Access:**
-- Connect to device AP (default gateway: `192.168.4.1`)
-- HTTP API: `http://192.168.4.1`
-- USB serial console: 115200 baud
-- Mesh UART (Serial1): 115200 baud on GPIO pins (physical access required)
+- Acting in good faith within this policy will not lead to legal action.
+- Do not access, modify, or destroy data you do not own. If you encounter data owned by others, stop and notify us.
+- Use your own test devices and isolated test networks.
+- Give reasonable time to remediate before public disclosure.
 
-**Mesh Protocol Testing:**
-- Test with standard T114 mesh radios
-- Test with older/legacy mesh radio firmware versions
-- Test with non-standard UART devices to evaluate command injection
-- Test mesh message authentication and validation
-- Test replay attack resistance
+## Credit
 
-**Safe Harbor:**
-- Use your own test devices only.
-- Avoid data destruction beyond demonstrating vulnerability.
-- Stop testing if you encounter data owned by others.
-- Do not bypass tamper detection unless specifically testing that feature.
-- When testing mesh protocols, use isolated test networks.
-
-## Credit & Recognition
-
-We acknowledge security researchers who responsibly disclose issues, subject to your consent and severity of the finding. Let us know if you'd like credit in release notes or advisories.
-
-## Need Help?
-
-- For policy clarifications, contact via repository owner's GitHub [profile](https://github.com/lukeswitz) or open a draft advisory.
-- For operational questions, consult firmware documentation first.
-- For incidents involving deployed devices, also notify your organization's security contacts - this is open-source firmware and you remain responsible for your device security posture.
-
-Thank you for helping keep AntiHunter firmware secure for all users.
+We credit researchers who responsibly disclose in-scope issues, subject to your consent and the severity of the finding.
