@@ -3223,6 +3223,10 @@ R"HTML(
           if (scrubbed !== t) elem.setAttribute('title', scrubbed);
         });
 
+        el.querySelectorAll('.res-ident.name:not([data-ssid]):not([data-name])').forEach(elem => {
+          elem.setAttribute('data-name', elem.textContent);
+        });
+
         // Replace device names — <strong> whose parent div starts with "Name:"
         el.querySelectorAll('strong').forEach(strong => {
           if (strong.parentElement?.textContent.startsWith('Name:')) {
@@ -4847,8 +4851,11 @@ R"HTML(
         const el = document.getElementById('list');
         if (!el || !el.value) return [];
         return el.value.split('\n')
-          .map(l => l.trim().toUpperCase())
-          .filter(l => l && !l.startsWith('#') && /^[0-9A-F]{2}(:[0-9A-F]{2}){2,5}$/.test(l));
+          .map(l => l.trim())
+          .filter(l => l && !l.startsWith('#') && !/^T-/i.test(l))
+          .map(l => l.replace(/[^0-9a-fA-F]/g, '').toUpperCase())
+          .filter(h => h.length === 12 || h.length === 6)
+          .map(h => h.match(/../g).join(':'));
       }
 
       function macIsTarget(mac, tokens) {
@@ -4940,6 +4947,7 @@ R"HTML(
         let inProbeSection = false;
         let probeLines = [];
         const targetTokens = getTargetTokens();
+        const listScan = /^(List|Target) scan/.test(text);
         let targetHtml = '';
         let normalHtml = '';
 
@@ -4961,7 +4969,7 @@ R"HTML(
           const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
           const rssiColor = rssiColorFor(rssi);
-          const isTarget = macIsTarget(mac, targetTokens);
+          const isTarget = listScan || macIsTarget(mac, targetTokens);
           const cls = 'res-card device-card' + (isTarget ? ' target is-target' : '');
 
           let card = '<div class="' + cls + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '">';
@@ -4969,7 +4977,7 @@ R"HTML(
           card += '<span class="res-mac">';
           if (isTarget) card += '<span class="res-badge target">TARGET</span>';
           card += mac + randBadge(mac);
-          if (name) card += '<strong class="res-ident name" style="color:var(--acc)">' + esc(name) + '</strong>';
+          if (name) card += '<strong class="res-ident name" data-name="' + esc(name) + '" style="color:var(--warn)">' + esc(name) + '</strong>';
           const idBadge = classBadge(line);
           if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += idBadge;
@@ -5576,6 +5584,7 @@ R"HTML(
         ajaxForm(e.target, 'Targets saved ✓');
         setTimeout(load, 500);
       });
+      document.getElementById('list').addEventListener('change', () => document.getElementById('f').requestSubmit());
 
       document.getElementById('af').addEventListener('submit', e => {
         e.preventDefault();
@@ -6541,7 +6550,7 @@ R"HTML(
         }
         if(key==='uptime_ms'){var s=Math.floor(val/1000);var m=Math.floor(s/60);s=s%60;var h=Math.floor(m/60);m=m%60;return (h?h+'h ':'')+(m?m+'m ':'')+(s+'s');}
         if(key==='mac'||key==='src'||key==='dst'||key==='bssid'){
-          if(typeof privacyMode!=='undefined'&&privacyMode&&typeof val==='string'&&val.length>=17) return val.substring(0,9)+'XX:XX'+val.substring(14);
+          if(typeof privacyMode!=='undefined'&&privacyMode&&typeof val==='string'&&val.length>=17) return 'XX:XX:XX:XX:XX:XX';
         }
         if(key==='_type') return val;
         return String(val);
