@@ -3937,6 +3937,7 @@ void listScanTask(void *pv) {
                          sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
                 pr += std::string(sh.isBLE ? "BLE " : "WiFi") + " " + mb;
                 pr += " RSSI=" + std::to_string(sh.rssi) + "dBm";
+                pr += fmtRange(sh.rssi, sh.isBLE);
                 if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
@@ -4008,6 +4009,7 @@ void listScanTask(void *pv) {
             String macOut = macFmt6(e.mac);
             results += " " + std::string(macOut.c_str());
             results += " RSSI=" + std::to_string(e.rssi) + "dBm";
+            results += fmtRange(e.rssi, e.isBLE);
             if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
