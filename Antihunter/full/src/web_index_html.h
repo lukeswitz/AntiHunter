@@ -2379,7 +2379,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (icon) { icon.style.transform = 'rotate(0deg)'; icon.textContent = '▼'; }
         });
         if (openDetails.size || closedDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; else if (k && closedDetails.has(k)) d.open = false; });
-        if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
+        if (typeof sortResultsDisplay === 'function') sortResultsDisplay();
         privacyApply(el);
       }
 
@@ -3486,6 +3486,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function sortResultsDisplay() {
         const resultsElement = document.getElementById('r');
+        const sortSel = document.getElementById('sortBy');
+        if (sortSel) currentSort = sortSel.value;
         if (!resultsElement || currentSort === 'default') return;
 
         const MAC_RE = /([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i;
