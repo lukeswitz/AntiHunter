@@ -368,7 +368,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-tbl th{text-align:left;padding:7px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord)}
       .res-tbl td{padding:7px 10px;border-bottom:1px solid var(--bord);color:var(--txt);white-space:nowrap;vertical-align:middle}
       .res-tbl td:first-child{font-weight:600}
-      .cls-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:hsl(var(--h) 70% 50%);margin-right:8px;vertical-align:middle}
+      .cls-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:hsl(var(--h) 70% 34%);margin-right:8px;vertical-align:middle}
+      [data-theme="dark"] .cls-dot,[data-theme="cyber"] .cls-dot{background:hsl(var(--h) 85% 72%)}
       /* tags (SSIDs / probes) */
       .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
       .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
@@ -3829,6 +3830,9 @@ R"HTML(
       }
 
       const CHIP_HUE = { BLE: 215, WiFi: 145,Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
+      function hueStyle(h) {
+        return h >= 0 ? '--h:' + h : '--h:0;filter:saturate(0)';
+      }
       function resChip(text, hue, tip) {
         return '<span class="res-badge' + (hue === undefined ? '' : ' hue" style="--h:' + hue) + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + text + '</span>';
       }
@@ -3845,8 +3849,9 @@ R"HTML(
         h += '<div class="res-row-main"><div class="res-id-line">';
         if (o.target) h += '<span class="res-badge target">TARGET</span>';
         if (o.name) h += '<strong class="res-ident name" data-name="' + esc(o.name) + '">' + esc(o.name) + '</strong>';
-        h += '<span class="res-mac">' + o.mac + '</span>' + randBadge(o.mac) + '</div><div class="res-meta">';
+        h += '<span class="res-mac">' + o.mac + '</span></div><div class="res-meta">';
         if (o.type) h += resChip(o.type === 'BLE' ? 'BLE' : 'WiFi', CHIP_HUE[o.type === 'BLE' ? 'BLE' : 'WiFi']);
+        h += randBadge(o.mac);
         if (o.channel) h += resChip('CH ' + o.channel);
         h += (o.chips || '') + '</div>';
         h += o.metric !== undefined ? o.metric : resMetric(o.rssi, ' dBm', rssiColorFor(o.rssi));
@@ -4754,7 +4759,7 @@ R"HTML(
         if (!cm) return '';
         const dc = devClassOf(cm[1]);
         if (!dc) return '<span class="res-badge" title="Advertises ' + cm[1] + '">' + cm[1] + '</span>';
-        return '<span class="res-badge cls" style="' + (dc.hue >= 0 ? '--h:' + dc.hue : '--h:0;filter:saturate(0)') + '" title="' + dc.name + ': advertises ' + cm[1] + '">' + cm[1] + '</span>';
+        return '<span class="res-badge cls" style="' + hueStyle(dc.hue) + '" title="' + dc.name + ': advertises ' + cm[1] + '">' + cm[1] + '</span>';
       }
 
       function deviceClassTable(lines) {
@@ -4766,7 +4771,7 @@ R"HTML(
           const dc = cm ? devClassOf(cm[1]) : null;
           const key = dc ? dc.name : (t[1] === 'WiFi' ? 'Wi-Fi' : 'Unclassified BLE');
           const r = line.match(/(?:Avg|RSSI)[:=]([-\d]+)dBm/);
-          const g = groups[key] || (groups[key] = { hue: dc ? dc.hue : -1, n: 0, best: -127 });
+          const g = groups[key] || (groups[key] = { hue: dc ? dc.hue : CHIP_HUE[t[1]], n: 0, best: -127 });
           g.n++;
           if (r && +r[1] > g.best) g.best = +r[1];
         });
@@ -4775,7 +4780,7 @@ R"HTML(
         let h = '<div style="overflow-x:auto"><table class="res-tbl"><tr><th>Class</th><th>Devices</th><th>Strongest</th></tr>';
         keys.forEach(k => {
           const g = groups[k];
-          const dot = g.hue >= 0 ? '<span class="cls-dot" style="--h:' + g.hue + '"></span>' : '<span class="cls-dot" style="background:var(--mut)"></span>';
+          const dot = '<span class="cls-dot" style="' + hueStyle(g.hue) + '"></span>';
           h += '<tr><td>' + dot + k + '</td><td>' + g.n + '</td><td style="color:' + rssiColorFor(g.best) + '">' + g.best + ' dBm</td></tr>';
         });
         return h + '</table></div>';
