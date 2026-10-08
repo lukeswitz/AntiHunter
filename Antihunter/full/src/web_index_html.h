@@ -255,8 +255,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card-head:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-card-head:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
       .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
-      [data-theme="light"] #r .res-card,[data-theme="light"] #r .res-section{--acc:var(--txt);--accbg:rgba(0,0,0,0.05);--succ:hsl(145 60% 32%);--c-ok:hsl(145 60% 32%);--c-known:hsl(185 75% 30%);--c-ap:hsl(185 75% 30%)}
-      [data-theme="dark"] #r .res-card,[data-theme="dark"] #r .res-section{--acc:var(--txt);--accbg:rgba(255,255,255,0.06);--succ:hsl(145 55% 55%);--c-ok:hsl(145 55% 55%);--c-known:hsl(185 60% 45%);--c-ap:hsl(185 60% 45%)}
+      [data-theme="light"] #r .res-card,[data-theme="light"] #r .res-section{--acc:var(--txt);--accbg:rgba(0,0,0,0.05);--succ:var(--txt);--c-ok:var(--txt);--c-known:hsl(0 0% 40%);--c-ap:hsl(0 0% 40%)}
+      [data-theme="dark"] #r .res-card,[data-theme="dark"] #r .res-section{--acc:var(--txt);--accbg:rgba(255,255,255,0.06);--succ:var(--txt);--c-ok:var(--txt);--c-known:hsl(0 0% 42%);--c-ap:hsl(0 0% 42%)}
       .res-id-line{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;min-width:0}
       .res-id-line .res-ident.name{font-size:17px;color:var(--txt)}
       .res-id-line .res-mac{font-size:16px;color:var(--txt);opacity:.72}
@@ -3834,13 +3834,13 @@ R"HTML(
         return '<span class="res-badge rand" title="Locally-administered (randomized) MAC">RAND</span>';
       }
 
-      const CHIP_HUE = { BLE: 275, WiFi: 175, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
+      const CHIP_HUE = { BLE: 275, WiFi: 28, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
       function resChip(text, hue, tip) {
         return '<span class="res-badge' + (hue === undefined ? '' : ' hue" style="--h:' + hue) + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + text + '</span>';
       }
       function authChip(line) {
         const m = line.replace(/"[^"]*"/g, '""').match(/\sAUTH=(Open|WEP|WPA|WPA2|WPA\/WPA2|WPA2-EAP|WPA3|WPA2\/WPA3|WAPI|OWE|Other)(?=\s|$)/);
-        return m ? resChip(m[1], m[1] in CHIP_HUE ? CHIP_HUE[m[1]] : 130, 'Advertised security') : '';
+        return m ? resChip(m[1], CHIP_HUE[m[1]], 'Advertised security') : '';
       }
       function resMetric(val, unit, color, lab) {
         if (val === null || val === undefined || val === '') return '';
@@ -4582,7 +4582,7 @@ R"HTML(
         let chips = '';
         if (d.vendor && !d.randomized && !isRandomMac(d.mac)) chips += resChip(esc(d.vendor));
         if (d.count > 1) chips += resChip('x' + d.count);
-        if (d.ap) chips += resChip('Client', 130);
+        if (d.ap) chips += resChip('Client');
         if (d.known) chips += '<span class="res-badge known">Known</span>';
         let h = '';
         if (d.ssids.length > 1) {
@@ -4733,7 +4733,7 @@ R"HTML(
       }
 
       const DEV_CLASSES = [
-        ['Phone', 215, /^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP)/],
+        ['Phone', 340,/^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP)/],
         ['Tag', 45, /^(Tag|FindMy|SmartTag|Tile|Keyring)/],
         ['Audio', 305, /^(Audio|AirPods|Samsung-Buds|MediaPlayer)/],
         ['Wearable', 265, /^(Wearable|Watch|HeartRate|Cycling)/],
@@ -4742,12 +4742,12 @@ R"HTML(
         ['Camera', 25, /^Camera/],
         ['Radio', 12, /^Radio/],
         ['Glasses', 285, /^(Glasses|EyeGlasses)/],
-        ['Health', 150, /^(Health|BP$)/],
+        ['Health', -1,/^(Health|BP$)/],
         ['Lock', 60, /^Lock/],
-        ['Home', 100, /^(Home|HomeKit|Apple-TV|AirPrint|Display|Clock|Sensor|Environment|Robotic|Toy)/],
-        ['Computer', 195, /^(Computer|Microsoft|MS-|SwiftPair)/],
-        ['Input', 235, /^(Input|HID|Remote|Logitech|Barcode)/],
-        ['Beacon', 175, /^(Beacon|iBeacon|Eddystone)/],
+        ['Home', -1,/^(Home|HomeKit|Apple-TV|AirPrint|Display|Clock|Sensor|Environment|Robotic|Toy)/],
+        ['Computer', -1,/^(Computer|Microsoft|MS-|SwiftPair)/],
+        ['Input', -1,/^(Input|HID|Remote|Logitech|Barcode)/],
+        ['Beacon', -1,/^(Beacon|iBeacon|Eddystone)/],
       ];
 
       function devClassOf(label) {
@@ -4760,7 +4760,7 @@ R"HTML(
         if (!cm) return '';
         const dc = devClassOf(cm[1]);
         if (!dc) return '<span class="res-badge" title="Advertises ' + cm[1] + '">' + cm[1] + '</span>';
-        return '<span class="res-badge cls" style="--h:' + dc.hue + '" title="' + dc.name + ': advertises ' + cm[1] + '">' + cm[1] + '</span>';
+        return '<span class="res-badge cls" style="' + (dc.hue >= 0 ? '--h:' + dc.hue : '--h:0;filter:saturate(0)') + '" title="' + dc.name + ': advertises ' + cm[1] + '">' + cm[1] + '</span>';
       }
 
       function deviceClassTable(lines) {
