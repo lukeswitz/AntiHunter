@@ -15,7 +15,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <style>
       :root{--t:0.2s;--blur:12px}
       [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#2563eb;--c-ble-bg:rgba(37,99,235,0.08);--c-wifi:#15803d;--c-wifi-bg:rgba(21,128,61,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#b9e83c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#4c8dff;--c-ble-bg:rgba(76,141,255,0.12);--c-wifi:#34c77b;--c-wifi-bg:rgba(52,199,123,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#a2c95a;--c-err-bg:rgba(162,201,90,0.08);--dang-glow:rgba(185,232,60,0.22);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#b9e83c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.14),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#4c8dff;--c-ble-bg:rgba(76,141,255,0.12);--c-wifi:#34c77b;--c-wifi-bg:rgba(52,199,123,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#a2c95a;--c-err-bg:rgba(162,201,90,0.08);--dang-glow:rgba(185,232,60,0.22);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -242,8 +242,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card.danger::before{background:var(--dang)}
       .res-card.ok::before{background:var(--succ)}
       .res-card.ble::before{background:var(--c-ble)}
-      .res-card.target{border-color:var(--acc);background:var(--accbg);box-shadow:var(--glow)}
-      .res-card.target::before{background:var(--acc)}
+      .res-card.target{border-color:var(--warn);background:var(--c-away-bg)}
+      .res-card.target::before{background:var(--warn)}
       /* 3-zone horizontal band: identity | meta (fills the middle) | metric */
       .res-row-main{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
       .res-row-main:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
@@ -254,7 +254,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
       .res-id-line{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;min-width:0}
       .res-id-line .res-ident.name{font-size:17px;color:var(--txt)}
-      .res-id-line .res-mac{font-size:16px;color:var(--mut)}
+      .res-id-line .res-mac{font-size:16px;color:var(--txt);opacity:.72}
       .res-track-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
       .res-track>summary:has(>.res-metrics){display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-track>summary:has(>.res-metrics)>.res-caret{grid-column:1;grid-row:1/span 2}
@@ -346,14 +346,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
       .res-badge.acc{color:var(--acc);border-color:var(--acc);background:var(--accbg)}
       .res-badge.known{color:#fff;background:var(--c-known);border-color:var(--c-known)}
-      .res-badge.target{color:#fff;background:var(--acc);border-color:var(--acc)}
+      .res-badge.target{color:#fff;background:var(--warn);border-color:var(--warn)}
       .res-badge.danger{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg)}
       .res-badge.warn{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
       .res-badge.ok{color:var(--succ);border-color:var(--succ);background:var(--accbg)}
       .res-badge.ble{color:var(--c-ble);border-color:var(--c-ble);background:var(--c-ble-bg)}
       .res-badge.wifi{color:var(--c-wifi);border-color:var(--c-wifi);background:var(--c-wifi-bg)}
       .res-badge.muted{color:#fff;background:var(--mut);border-color:var(--mut)}
-      .res-badge.rand{color:#fff;background:var(--c-rand);border-color:var(--c-rand)}
+      .res-badge.rand{color:var(--txt);background:transparent;border-color:var(--txt);opacity:.6}
       .res-badge.ident{color:#fff;background:var(--c-known);border-color:var(--c-known);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
       .res-badge.rand,.res-badge.ident{margin-left:6px}
       .res-mac>.res-badge,.res-meta .res-badge{margin-left:0}
@@ -3776,9 +3776,9 @@ R"HTML(
 
       function rssiColorFor(rssi) {
         const v = parseInt(rssi);
-        if (v >= -50) return 'var(--succ)';
+        if (v >= -50) return 'hsl(145 60% 42%)';
         if (v >= -70) return 'var(--txt)';
-        return 'var(--mut)';
+        return 'hsl(0 0% 55%)';
       }
 
       function isRandomMac(mac) {
@@ -3817,7 +3817,7 @@ R"HTML(
         return '<span class="res-badge rand" title="Locally-administered (randomized) MAC">RAND</span>';
       }
 
-      const CHIP_HUE = { BLE: 220, WiFi: 175, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
+      const CHIP_HUE = { BLE: 275, WiFi: 175, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
       function resChip(text, hue, tip) {
         return '<span class="res-badge' + (hue === undefined ? '' : ' hue" style="--h:' + hue) + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + text + '</span>';
       }
