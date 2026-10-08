@@ -249,6 +249,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-row-main:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-row-main:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
       .res-row-main:has(>.res-metric,>.res-metrics)>.res-metric,.res-row-main:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
+      .res-card-head:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
+      .res-card-head:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
+      .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
+      .res-track-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+      .res-track>summary:has(>.res-metrics){display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 16px;align-items:center}
+      .res-track>summary:has(>.res-metrics)>.res-caret{grid-column:1;grid-row:1/span 2}
+      .res-track>summary:has(>.res-metrics)>.res-track-id,.res-track>summary:has(>.res-metrics)>.res-meta{grid-column:2;min-width:0}
+      .res-track>summary:has(>.res-metrics)>.res-metrics{grid-column:3;grid-row:1/span 2;margin-left:0}
+      @media(max-width:600px){.res-row-main>.res-metrics,.res-card-head>.res-metrics,.res-track>summary>.res-metrics{flex-direction:column;align-items:flex-end;gap:8px}}
       .res-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
       .res-id{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
       .res-meta{flex:1 1 160px;min-width:0;display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;font-size:14px;color:var(--mut);line-height:1.4}
@@ -4224,10 +4233,12 @@ R"HTML(
           html += '<details class="res-section res-track" data-type="' + deviceType + '" data-sessions="' + (sessionsMatch ? sessionsMatch[1] : '0') + '" data-lastseen="' + (lastSeenMatch ? lastSeenMatch[1] : '999999') + '" data-channel="' + (primaryChMatch ? primaryChMatch[1] : '0') + '">';
           html += '<summary>';
           html += '<span class="res-caret">&#9654;</span>';
+          html += '<span class="res-track-id">';
           if (anchorMac) html += '<span class="res-mac acc">' + anchorMac + '</span>' + identBadgeText(trackId);
           html += '<span class="res-badge ' + (isBLE ? 'ble' : 'wifi') + '">' + deviceType + '</span>';
           if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
           if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
+          html += '</span>';
           html += '<div class="res-meta">';
           if (nameMatch) html += '<span>Name: <strong class="res-ident name" data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
           if (ssidMatch) html += '<span>SSID: <strong class="res-ident name" data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
