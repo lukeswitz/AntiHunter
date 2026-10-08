@@ -246,6 +246,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card.target::before{background:var(--acc)}
       /* 3-zone horizontal band: identity | meta (fills the middle) | metric */
       .res-row-main{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
+      .res-row-main:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
+      .res-row-main:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
+      .res-row-main:has(>.res-metric,>.res-metrics)>.res-metric,.res-row-main:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
       .res-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
       .res-id{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
       .res-meta{flex:1 1 160px;min-width:0;display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;font-size:14px;color:var(--mut);line-height:1.4}
