@@ -242,8 +242,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card.danger::before{background:var(--dang)}
       .res-card.ok::before{background:var(--succ)}
       .res-card.ble::before{background:var(--c-ble)}
-      .res-card.target{border-color:var(--warn);background:var(--c-away-bg)}
-      .res-card.target::before{background:var(--warn)}
+      .res-card.target{border-color:hsl(0 70% 52%);background:hsl(0 70% 50% / .07)}
+      .res-card.target::before{background:hsl(0 70% 52%)}
       /* 3-zone horizontal band: identity | meta (fills the middle) | metric */
       .res-row-main{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
       .res-row-main:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
@@ -348,7 +348,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
       .res-badge.acc{color:var(--acc);border-color:var(--acc);background:var(--accbg)}
       .res-badge.known{color:#fff;background:var(--c-known);border-color:var(--c-known)}
-      .res-badge.target{color:#fff;background:var(--warn);border-color:var(--warn)}
+      .res-badge.target{color:#fff;background:hsl(0 70% 48%);border-color:hsl(0 70% 48%)}
       .res-badge.danger{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg)}
       .res-badge.warn{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
       .res-badge.ok{color:var(--succ);border-color:var(--succ);background:var(--accbg)}
