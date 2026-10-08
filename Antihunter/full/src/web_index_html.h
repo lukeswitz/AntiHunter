@@ -252,6 +252,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card-head:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-card-head:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
       .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
+      [data-theme="light"] #r .res-card,[data-theme="light"] #r .res-section{--acc:var(--txt);--accbg:rgba(0,0,0,0.05);--succ:hsl(145 60% 32%);--c-ok:hsl(145 60% 32%);--c-known:hsl(185 75% 30%);--c-ap:hsl(185 75% 30%)}
+      [data-theme="dark"] #r .res-card,[data-theme="dark"] #r .res-section{--acc:var(--txt);--accbg:rgba(255,255,255,0.06);--succ:hsl(145 55% 55%);--c-ok:hsl(145 55% 55%);--c-known:hsl(185 60% 45%);--c-ap:hsl(185 60% 45%)}
       .res-id-line{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;min-width:0}
       .res-id-line .res-ident.name{font-size:17px;color:var(--txt)}
       .res-id-line .res-mac{font-size:16px;color:var(--txt);opacity:.72}
