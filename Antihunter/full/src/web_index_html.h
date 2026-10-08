@@ -3435,7 +3435,7 @@ R"HTML(
         sortInPlace(items, cmpItems);
 
         const lead = new Map();
-        Array.from(resultsElement.querySelectorAll('details.res-section:not(.res-track)')).forEach(sec => {
+        Array.from(resultsElement.querySelectorAll('details.res-section:not(.res-track):not(.res-pinned)')).forEach(sec => {
           const first = Array.from(sec.querySelectorAll('.res-card, details.res-track, table.res-tbl tr')).find(el => keys.has(el));
           if (first) lead.set(sec, first);
         });
@@ -4614,7 +4614,7 @@ R"HTML(
         if (broadcast.length) {
           const bBle = broadcast.filter(d => d.isBLE).length;
           const bWifi = broadcast.length - bBle;
-          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
+          html += '<details class="res-section res-pinned" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
           html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span>';
           if (bWifi) html += '<span class="res-badge">' + bWifi + ' Wi-Fi</span>';
           if (bBle) html += '<span class="res-badge acc">' + bBle + ' BLE</span>';
