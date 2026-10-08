@@ -3851,12 +3851,9 @@ void listScanTask(void *pv) {
         }
 
         if (!triangulationActive && ((int32_t)(millis() - lastListProgressUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount)) {
-            std::string pr = "Target scan (IN PROGRESS)\nElapsed: ";
+            std::string pr = "Target scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\nElapsed: ";
             pr += std::to_string((millis() - lastScanStart) / 1000) + "s";
-            if (!forever && secs > 0) {
-                int32_t rem = secs - (int32_t)((millis() - lastScanStart) / 1000);
-                if (rem > 0) pr += " / " + std::to_string(secs) + "s (" + std::to_string(rem) + "s left)";
-            }
+            if (!forever && secs > 0) pr += " / " + std::to_string(secs) + "s";
             pr += "\nTarget Hits: " + std::to_string(totalHits.load());
             pr += "\nUnique devices: " + std::to_string(uniqueMacs.size());
             pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
