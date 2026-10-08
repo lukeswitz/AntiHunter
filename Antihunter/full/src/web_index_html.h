@@ -252,6 +252,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card-head:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-card-head:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
       .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
+      .res-id-line{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;min-width:0}
+      .res-id-line .res-ident.name{font-size:17px;color:var(--txt)}
+      .res-id-line .res-mac{font-size:16px;color:var(--mut)}
       .res-track-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
       .res-track>summary:has(>.res-metrics){display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-track>summary:has(>.res-metrics)>.res-caret{grid-column:1;grid-row:1/span 2}
@@ -354,8 +357,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-badge.ident{color:#fff;background:var(--c-known);border-color:var(--c-known);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
       .res-badge.rand,.res-badge.ident{margin-left:6px}
       .res-mac>.res-badge,.res-meta .res-badge{margin-left:0}
-      .res-badge.cls{color:hsl(var(--h) 70% 34%);border-color:hsl(var(--h) 60% 45%);background:hsl(var(--h) 75% 50% / .12)}
-      [data-theme="dark"] .res-badge.cls,[data-theme="cyber"] .res-badge.cls{color:hsl(var(--h) 85% 72%);border-color:hsl(var(--h) 70% 55%);background:hsl(var(--h) 75% 50% / .16)}
+      .res-badge.cls,.res-badge.hue{color:hsl(var(--h) 70% 34%);border-color:hsl(var(--h) 60% 45%);background:hsl(var(--h) 75% 50% / .12)}
+      [data-theme="dark"] .res-badge.cls,[data-theme="cyber"] .res-badge.cls,[data-theme="dark"] .res-badge.hue,[data-theme="cyber"] .res-badge.hue{color:hsl(var(--h) 85% 72%);border-color:hsl(var(--h) 70% 55%);background:hsl(var(--h) 75% 50% / .16)}
       .res-tbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
       .res-tbl th{text-align:left;padding:7px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord)}
       .res-tbl td{padding:7px 10px;border-bottom:1px solid var(--bord);color:var(--txt);white-space:nowrap;vertical-align:middle}
@@ -3814,6 +3817,31 @@ R"HTML(
         return '<span class="res-badge rand" title="Locally-administered (randomized) MAC">RAND</span>';
       }
 
+      const CHIP_HUE = { BLE: 220, WiFi: 175, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
+      function resChip(text, hue, tip) {
+        return '<span class="res-badge' + (hue === undefined ? '' : ' hue" style="--h:' + hue) + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + text + '</span>';
+      }
+      function authChip(line) {
+        const m = line.replace(/"[^"]*"/g, '""').match(/\sAUTH=(Open|WEP|WPA|WPA2|WPA\/WPA2|WPA2-EAP|WPA3|WPA2\/WPA3|WAPI|OWE|Other)(?=\s|$)/);
+        return m ? resChip(m[1], m[1] in CHIP_HUE ? CHIP_HUE[m[1]] : 130, 'Advertised security') : '';
+      }
+      function resMetric(val, unit, color, lab) {
+        if (val === null || val === undefined || val === '') return '';
+        return '<div class="res-metric"><span class="res-metric-val"' + (color ? ' style="color:' + color + '"' : '') + '>' + val + '<small>' + unit + '</small></span>' + (lab ? '<span class="res-metric-lab">' + lab + '</span>' : '') + '</div>';
+      }
+      function resItem(o) {
+        let h = '<div class="res-card device-card' + (o.target ? ' target is-target' : '') + (o.cls ? ' ' + o.cls : '') + '" data-type="' + (o.type || '') + '" data-channel="' + (o.channel || '0') + '" data-target="' + (o.target ? '1' : '0') + '">';
+        h += '<div class="res-row-main"><div class="res-id-line">';
+        if (o.target) h += '<span class="res-badge target">TARGET</span>';
+        if (o.name) h += '<strong class="res-ident name" data-name="' + esc(o.name) + '">' + esc(o.name) + '</strong>';
+        h += '<span class="res-mac">' + o.mac + '</span>' + randBadge(o.mac) + '</div><div class="res-meta">';
+        if (o.type) h += resChip(o.type === 'BLE' ? 'BLE' : 'WiFi', CHIP_HUE[o.type === 'BLE' ? 'BLE' : 'WiFi']);
+        if (o.channel) h += resChip('CH ' + o.channel);
+        h += (o.chips || '') + '</div>';
+        h += o.metric !== undefined ? o.metric : resMetric(o.rssi, ' dBm', rssiColorFor(o.rssi));
+        return h + '</div>' + (o.after || '') + '</div>';
+      }
+
       function _resEmpty(msg, icon) {
         const svg = icon === 'ok'
           ? '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
@@ -4051,12 +4079,7 @@ R"HTML(
           liveHtml += '<span class="res-badge acc">' + liveLines.length + ' not yet linked</span></summary>';
           liveHtml += '<div class="res-section-body">';
           liveLines.forEach(function(m) {
-            liveHtml += '<div class="res-card"><div class="res-row-main"><span class="res-mac">' + m[1].toUpperCase() + randBadge(m[1].toUpperCase()) + '</span>';
-            liveHtml += '<div class="res-meta"><span class="res-badge ' + (m[2] === 'BLE' ? 'ble' : 'wifi') + '">' + m[2] + '</span>';
-            if (m[5]) liveHtml += '<span class="res-badge">CH ' + m[5] + '</span>';
-            liveHtml += '<span>probes <strong>' + m[3] + '</strong></span></div>';
-            liveHtml += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span></div>';
-            liveHtml += '</div></div>';
+            liveHtml += resItem({ mac: m[1].toUpperCase(), type: m[2], channel: m[5], rssi: m[4], chips: resChip(m[3] + ' probes') });
           });
           if (moreSess) liveHtml += '<div class="res-more">+ ' + moreSess[1] + ' more sessions</div>';
           liveHtml += '</div></details></div>';
@@ -4179,18 +4202,7 @@ R"HTML(
         }
 
         function makeDeviceCard(type, mac, rssi, channel, name, vendor, line) {
-          let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
-          c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
-          c += '<div class="res-meta">';
-          if (name && name !== 'Unknown') c += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
-          c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
-          if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
-          if (line) c += tagBadges(line);
-          if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
-          c += '</div>';
-          c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span></div>';
-          c += '</div></div>';
-          return c;
+          return resItem({ mac, name: name !== 'Unknown' ? name : '', type, channel, rssi, chips: (line ? tagBadges(line) : '') + (vendor ? resChip(esc(vendor)) : '') });
         }
 
         let html = '';
@@ -4263,17 +4275,10 @@ R"HTML(
             const [_, kind, type, mac, a, b, delta, name] = m;
             const sv = line.match(/\sV=([^"\n]+)$/);
             const label = kind === 'NEW' ? 'NEW HERE' : (kind === 'GONE' ? 'GONE' : (parseInt(delta) > 0 ? 'MOVING CLOSER' : 'MOVING AWAY'));
-            html += '<div class="res-card device-card' + (kind === 'NEW' ? ' alert' : '') + '" data-type="' + type + '">';
-            html += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
-            html += '<div class="res-meta"><span class="res-badge cls" style="--h:' + (kind === 'NEW' ? 200 : (kind === 'GONE' ? 220 : 25)) + (kind === 'GONE' ? ';filter:saturate(.2)' : '') + '">' + label + '</span>';
-            html += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
-            if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
-            html += tagBadges(line);
-            if (sv) html += '<span class="res-badge">' + sv[1].trim() + '</span>';
-            html += '</div>';
             const shown = b || a;
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(shown) + '">' + shown + '<small> dBm</small></span><span class="res-metric-lab">' + (a && b ? a + ' → ' + b + ' dBm' : (b ? 'now' : 'last seen')) + '</span></div>';
-            html += '</div></div>';
+            html += resItem({ mac, name, type, cls: kind === 'NEW' ? 'alert' : '',
+              chips: resChip(label, kind === 'NEW' ? 200 : (kind === 'GONE' ? 220 : 25)) + tagBadges(line) + (sv ? resChip(esc(sv[1].trim())) : ''),
+              metric: resMetric(shown, ' dBm', rssiColorFor(shown), a && b ? a + ' → ' + b + ' dBm' : (b ? 'now' : 'last seen')) });
           });
         }
 
@@ -4557,18 +4562,12 @@ R"HTML(
       }
 
       function renderProbeClientCard(d) {
-        let h = '<div class="res-card' + (d.known ? ' acc' : '') + '">';
-        h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
-        h += '<span class="res-badge' + (d.isBLE ? ' acc' : '') + '">' + (d.isBLE ? 'BLE' : 'Wi-Fi') + '</span>';
-        if (d.vendor && !d.randomized && !isRandomMac(d.mac)) h += '<span class="res-badge">' + d.vendor + '</span>';
-        if (d.devName) h += '<span class="res-badge acc">' + d.devName + '</span>';
-        if (d.ch) h += '<span class="res-badge">CH' + d.ch + '</span>';
-        if (d.count > 1) h += '<span class="res-badge acc">x' + d.count + '</span>';
-        if (d.ap) h += '<span class="res-badge ok">Client</span>';
-        if (d.known) h += '<span class="res-badge known">Known</span>';
-        h += '</span>';
-        if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span></div>';
-        h += '</div>';
+        let chips = '';
+        if (d.vendor && !d.randomized && !isRandomMac(d.mac)) chips += resChip(esc(d.vendor));
+        if (d.count > 1) chips += resChip('x' + d.count);
+        if (d.ap) chips += resChip('Client', 130);
+        if (d.known) chips += '<span class="res-badge known">Known</span>';
+        let h = '';
         if (d.ssids.length > 1) {
           const shown = d.ssids.slice(0, 9), rest = d.ssids.length - shown.length;
           h += '<div class="res-tags res-tags-2row"><span class="res-tags-lab">Also probing</span>';
@@ -4577,8 +4576,7 @@ R"HTML(
           h += '</div>';
         }
         if (d.known) h += '<div class="res-sub"><span style="color:var(--c-known);">Seen <strong>' + d.known.seen + '</strong> times across <strong>' + d.known.sessions + '</strong> sessions</span> &middot; last: ' + d.known.last + '</div>';
-        h += '</div>';
-        return h;
+        return resItem({ mac: d.mac, name: d.devName, type: d.isBLE ? 'BLE' : 'WiFi', channel: d.ch, rssi: d.rssi, cls: d.known ? 'acc' : '', chips, after: h });
       }
 
       function renderProbeGroups(devs) {
@@ -4685,27 +4683,14 @@ R"HTML(
             let h = '';
             devices.sort((a, b) => b.last - a.last);
             for (const d of devices) {
-              const isRand = d.rand;
-              const border = isRand ? 'var(--c-rand)' : 'var(--bord)';
-              h += '<div class="res-card">';
-              h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
-              if (d.vendor && !isRandomMac(d.mac)) {
-                h += '<span class="res-badge">' + d.vendor + '</span>';
-              }
-              if (d.name) h += '<span class="res-badge acc">' + d.name + '</span>';
-              h += '</span>';
-              h += '<div class="res-meta"><span>seen <strong>' + d.seen + '</strong>x</span>';
-              h += '<span><strong>' + d.sessions + '</strong> session' + (String(d.sessions) === '1' ? '' : 's') + '</span></div>';
-              h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span></div>';
-              h += '</div>';
+              let tags = '';
               if (d.ssids && d.ssids.length > 0) {
-                h += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
-                for (const s of d.ssids) {
-                  h += '<span class="res-tag" data-ssid="' + s + '">' + s + '</span>';
-                }
-                h += '</div>';
+                tags += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
+                for (const s of d.ssids) tags += '<span class="res-tag" data-ssid="' + esc(s) + '">' + esc(s) + '</span>';
+                tags += '</div>';
               }
-              h += '</div>';
+              h += resItem({ mac: d.mac, name: d.name, rssi: d.rssi, after: tags,
+                chips: (d.vendor && !isRandomMac(d.mac) ? resChip(esc(d.vendor)) : '') + resChip('seen ' + d.seen + 'x') + resChip(d.sessions + ' session' + (String(d.sessions) === '1' ? '' : 's')) });
             }
             list.innerHTML = h;
             if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
@@ -4832,43 +4817,23 @@ R"HTML(
           const isApple = / APPLE(?:\s|$)/.test(line);
           const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
-          const rssiColor = rssiColorFor(rssi);
-          const isTarget = / TARGET(?:\s|$)/.test(line.replace(/"[^"]*"/g, '""'));
-          const cls = 'res-card device-card' + (isTarget ? ' target is-target' : '');
-
-          let card = '<div class="' + cls + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '">';
-          card += '<div class="res-row-main">';
-          card += '<span class="res-mac">';
-          if (isTarget) card += '<span class="res-badge target">TARGET</span>';
-          card += mac + randBadge(mac);
-          if (name) card += '<strong class="res-ident name" data-name="' + esc(name) + '" style="color:var(--warn)">' + esc(name) + '</strong>';
           const idBadge = classBadge(line);
-          if (isApple && !idBadge) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
-          card += idBadge;
-          const trendMatch = line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
-          if (trendShown() && trendMatch && (trendMatch[1] === 'CLOSING' || trendMatch[1] === 'OPENING')) {
-            const closer = trendMatch[1] === 'CLOSING';
-            card += '<span class="res-badge cls" style="--h:' + (closer ? 25 : 200) + '" data-tip="Signal ' + (closer ? 'rising' : 'falling') + ' ' + trendMatch[2] + ' dB over the last minute">' + (closer ? 'Getting closer' : 'Moving away') + '</span>';
-          } else if (trendShown() && trendMatch && trendMatch[1] === 'STEADY') {
-            card += '<span class="res-badge" data-tip="Signal change ' + trendMatch[2] + ' dB over the last minute">Steady</span>';
-          } else if (trendShown() && trendMatch && trendMatch[1] === 'WAIT') {
-            card += '<span class="res-badge" data-tip="Needs 6 hits over 15 s before movement is known">Measuring</span>';
-          }
-          card += '</span>';
-          card += '<div class="res-meta">';
-          card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
-          if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
-          const authMatch = line.replace(/"[^"]*"/g, '""').match(/\sAUTH=(Open|WEP|WPA|WPA2|WPA\/WPA2|WPA2-EAP|WPA3|WPA2\/WPA3|WAPI|OWE|Other)(?=\s|$)/);
-          if (authMatch) card += '<span class="res-badge' + (authMatch[1] === 'Open' || authMatch[1] === 'WEP' ? ' warn' : '') + '" title="Advertised security">' + esc(authMatch[1]) + '</span>';
-          if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
+          let chips = authChip(line) + idBadge;
+          if (isApple && !idBadge) chips += resChip('APPLE', undefined, 'Apple device (advertises Apple 0x004C continuity)');
+          if (range) chips += resChip('~' + range + ' m &plusmn;' + rangeSig, undefined, 'Estimated range from RSSI path-loss model (1-sigma)');
           const vendName = vendMatch ? vendMatch[1].trim() : '';
-          if (vendName && !(isApple && /^apple/i.test(vendName)) && !idBadge.toLowerCase().includes('>' + vendName.toLowerCase())) card += '<span class="res-badge">' + vendName + '</span>';
-          card += '</div>';
-          card += '<div class="res-metric">';
-          card += '<span class="res-metric-val" style="color:' + rssiColor + '">' + rssi + '<small> dBm</small></span>';
-          card += '</div>';
-          card += '</div>';
-          card += '</div>';
+          if (vendName && !(isApple && /^apple/i.test(vendName)) && !idBadge.toLowerCase().includes('>' + vendName.toLowerCase())) chips += resChip(esc(vendName));
+          const trendMatch = trendShown() && line.match(/\sTREND=([A-Z]+)(?:\(([-+\d.]+)\))?/);
+          if (trendMatch && (trendMatch[1] === 'CLOSING' || trendMatch[1] === 'OPENING')) {
+            const closer = trendMatch[1] === 'CLOSING';
+            chips += resChip(closer ? 'Getting closer' : 'Moving away', closer ? 25 : 200, 'Signal ' + (closer ? 'rising' : 'falling') + ' ' + trendMatch[2] + ' dB over the last minute');
+          } else if (trendMatch && trendMatch[1] === 'STEADY') {
+            chips += resChip('Steady', undefined, 'Signal change ' + trendMatch[2] + ' dB over the last minute');
+          } else if (trendMatch && trendMatch[1] === 'WAIT') {
+            chips += resChip('Measuring', undefined, 'Needs 6 hits over 15 s before movement is known');
+          }
+          const isTarget = / TARGET(?:\s|$)/.test(line.replace(/"[^"]*"/g, '""'));
+          const card = resItem({ mac, name, type, channel, rssi, target: isTarget, chips });
 
           if (isTarget) targetHtml += card; else normalHtml += card;
         });
