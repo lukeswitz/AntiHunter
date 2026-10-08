@@ -2275,6 +2275,7 @@ R"HTML(
         });
         if (openDetails.size || closedDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; else if (k && closedDetails.has(k)) d.open = false; });
         if (typeof sortResultsDisplay === 'function') sortResultsDisplay();
+        if (typeof updateSortOptions === 'function') updateSortOptions();
         if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(el);
       }
 
@@ -3352,47 +3353,25 @@ R"HTML(
         sortResultsDisplay();
       }
 
+      const SORT_KEY = { 'rssi-desc': 'rssi', 'rssi-asc': 'rssi', 'confidence-desc': 'confidence', 'sessions-desc': 'sessions', 'lastseen-asc': 'lastSeen', 'name-asc': 'name', 'type-asc': 'deviceType', 'class-asc': 'devClass', 'channel-asc': 'channel' };
+
+      function updateSortOptions() {
+        const sel = document.getElementById('sortBy'), r = document.getElementById('r');
+        if (!sel || !r) return;
+        const { items, keys } = resSortItems(r);
+        Array.from(sel.options).forEach(o => {
+          const k = SORT_KEY[o.value];
+          o.hidden = o.disabled = !!k && new Set(items.map(el => keys.get(el)[k])).size < 2;
+        });
+      }
+
       function sortResultsDisplay() {
         const resultsElement = document.getElementById('r');
         const sortSel = document.getElementById('sortBy');
         if (sortSel) currentSort = sortSel.value;
         if (!resultsElement || currentSort === 'default') return;
-
-        const MAC_RE = /([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i;
-        const DBM_RE = /(-\d+)\s*dBm/;
-        const cands = Array.from(resultsElement.querySelectorAll('.res-card, details.res-track, table.res-tbl tr'))
-          .filter(el => !el.querySelector('th, table.res-tbl') && (MAC_RE.test(el.textContent) || DBM_RE.test(el.textContent) || el.hasAttribute('data-rssi')));
-        const candSet = new Set(cands);
-        const items = cands.filter(el => {
-          for (let p = el.parentElement; p && p !== resultsElement; p = p.parentElement) if (candSet.has(p)) return false;
-          return true;
-        });
+        const { items, keys } = resSortItems(resultsElement);
         if (!items.length) return;
-
-        const keys = new Map();
-        items.forEach(el => {
-          const t = el.textContent;
-          const num = (attr, re, dflt) => {
-            const a = el.getAttribute(attr);
-            if (a !== null && a !== '') return parseInt(a, 10);
-            const m = re ? t.match(re) : null;
-            return m ? parseInt(m[1], 10) : dflt;
-          };
-          const nameEl = el.querySelector('[data-name], [data-ssid], .res-ident.name');
-          const name = nameEl ? (nameEl.getAttribute('data-name') || nameEl.getAttribute('data-ssid') || nameEl.textContent).trim() : '';
-          keys.set(el, {
-            mac: (t.match(MAC_RE) || [])[1] || '',
-            rssi: num('data-rssi', DBM_RE, -999),
-            confidence: num('data-conf', /(\d+)%/, 0),
-            sessions: num('data-sessions', null, 0),
-            lastSeen: num('data-lastseen', null, 999999),
-            channel: num('data-channel', /\bCH[ =:]?(\d+)/, 0),
-            name,
-            deviceType: el.getAttribute('data-type') || (/\bBLE\b/.test(t) ? 'BLE' : (/\bWi-?Fi\b/i.test(t) ? 'WiFi' : '')),
-            devClass: cardClassOf(el),
-            isTarget: el.getAttribute('data-target') === '1' || el.classList.contains('is-target')
-          });
-        });
 
         const cmpItems = (ea, eb) => {
           const a = keys.get(ea), b = keys.get(eb);
@@ -3413,7 +3392,6 @@ R"HTML(
           if (cmp === 0) cmp = a.mac.localeCompare(b.mac);
           return sortReverse ? -cmp : cmp;
         };
-
         const sortInPlace = (els, cmp) => {
           const groups = new Map();
           els.forEach(el => {
@@ -3439,6 +3417,44 @@ R"HTML(
           if (first) lead.set(sec, first);
         });
         sortInPlace(Array.from(lead.keys()), (a, b) => cmpItems(lead.get(a), lead.get(b)));
+      }
+
+      function resSortItems(resultsElement) {
+        const MAC_RE = /([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i;
+        const DBM_RE = /(-\d+)\s*dBm/;
+        const cands = Array.from(resultsElement.querySelectorAll('.res-card, details.res-track, table.res-tbl tr'))
+          .filter(el => !el.querySelector('th, table.res-tbl') && (MAC_RE.test(el.textContent) || DBM_RE.test(el.textContent) || el.hasAttribute('data-rssi')));
+        const candSet = new Set(cands);
+        const items = cands.filter(el => {
+          for (let p = el.parentElement; p && p !== resultsElement; p = p.parentElement) if (candSet.has(p)) return false;
+          return true;
+        });
+
+        const keys = new Map();
+        items.forEach(el => {
+          const t = el.textContent;
+          const num = (attr, re, dflt) => {
+            const a = el.getAttribute(attr);
+            if (a !== null && a !== '') return parseInt(a, 10);
+            const m = re ? t.match(re) : null;
+            return m ? parseInt(m[1], 10) : dflt;
+          };
+          const nameEl = el.querySelector('[data-name], [data-ssid], .res-ident.name');
+          const name = nameEl ? (nameEl.getAttribute('data-name') || nameEl.getAttribute('data-ssid') || nameEl.textContent).trim() : '';
+          keys.set(el, {
+            mac: (t.match(MAC_RE) || [])[1] || '',
+            rssi: num('data-rssi', DBM_RE, -999),
+            confidence: num('data-conf', /(\d+)%/, 0),
+            sessions: num('data-sessions', null, 0),
+            lastSeen: num('data-lastseen', null, 999999),
+            channel: num('data-channel', /\bCH[ =:]?(\d+)/, 0),
+            name,
+            deviceType: el.getAttribute('data-type') || (/\bBLE\b/.test(t) ? 'BLE' : (/\bWi-?Fi\b/i.test(t) ? 'WiFi' : '')),
+            devClass: cardClassOf(el),
+            isTarget: el.getAttribute('data-target') === '1' || el.classList.contains('is-target')
+          });
+        });
+        return { items, keys };
       }
 
       // Override the parseAndStyleResults to reset sort after reload
