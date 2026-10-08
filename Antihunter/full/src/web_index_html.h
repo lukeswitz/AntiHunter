@@ -4858,6 +4858,8 @@ R"HTML(
           card += '<div class="res-meta">';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
+          const authMatch = line.match(/\sAUTH=(\S+)/);
+          if (authMatch) card += '<span class="res-badge' + (authMatch[1] === 'Open' || authMatch[1] === 'WEP' ? ' warn' : '') + '" title="Advertised security">' + authMatch[1] + '</span>';
           if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
           const vendName = vendMatch ? vendMatch[1].trim() : '';
           if (vendName && !(isApple && /^apple/i.test(vendName)) && !idBadge.toLowerCase().includes('>' + vendName.toLowerCase())) card += '<span class="res-badge">' + vendName + '</span>';

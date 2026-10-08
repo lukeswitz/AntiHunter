@@ -44,6 +44,7 @@ struct Hit {
    bool isBLE = false;
    bool isApple = false;
    char cls[24] = {0};
+   uint8_t auth = 0xFF;
 };
 
 using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
@@ -312,6 +313,7 @@ struct ApInfoEvent {
     int8_t rssi;
     uint8_t channel;
     char ssid[33];
+    uint8_t auth;
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;

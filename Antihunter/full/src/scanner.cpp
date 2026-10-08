@@ -117,6 +117,25 @@ static std::string fmtRange(int8_t rssi, bool isBLE) {
 
 extern TaskHandle_t blueTeamTaskHandle;
 
+static std::string fmtAuth(const Hit &h) {
+    if (h.isBLE || h.auth == 0xFF) return std::string();
+    const char *a;
+    switch (h.auth) {
+        case WIFI_AUTH_OPEN: a = "Open"; break;
+        case WIFI_AUTH_WEP: a = "WEP"; break;
+        case WIFI_AUTH_WPA_PSK: a = "WPA"; break;
+        case WIFI_AUTH_WPA2_PSK: a = "WPA2"; break;
+        case WIFI_AUTH_WPA_WPA2_PSK: a = "WPA/WPA2"; break;
+        case WIFI_AUTH_WPA2_ENTERPRISE: a = "WPA2-EAP"; break;
+        case WIFI_AUTH_WPA3_PSK: a = "WPA3"; break;
+        case WIFI_AUTH_WPA2_WPA3_PSK: a = "WPA2/WPA3"; break;
+        case WIFI_AUTH_WAPI_PSK: a = "WAPI"; break;
+        case WIFI_AUTH_OWE: a = "OWE"; break;
+        default: a = "Other"; break;
+    }
+    return std::string(" AUTH=") + a;
+}
+
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
 static std::mutex snifferCacheMutex;
@@ -1145,6 +1164,7 @@ void snifferScanTask(void *pv)
                     memcpy(h.mac, bssidBytes, 6);
                     h.rssi = rssi;
                     h.ch = WiFi.channel(i);
+                    h.auth = WiFi.encryptionType(i);
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
@@ -1206,6 +1226,7 @@ void snifferScanTask(void *pv)
                     memcpy(h.mac, ae.bssid, 6);
                     h.rssi = ae.rssi;
                     h.ch = ae.channel;
+                    h.auth = ae.auth;
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
@@ -1523,6 +1544,7 @@ void snifferScanTask(void *pv)
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
                 }
+                results += fmtAuth(hit);
                 if (isTarget) results += " TARGET";
                 if (hit.isBLE && hit.isApple) results += " APPLE";
                 if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
@@ -1685,7 +1707,8 @@ void snifferScanTask(void *pv)
                 }
             }
 
-            if (isTarget) results += " TARGET";
+            results += fmtAuth(hit);
+                if (isTarget) results += " TARGET";
             if (hit.isBLE && hit.isApple) results += " APPLE";
             if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
             { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
@@ -2366,6 +2389,51 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     return 0;
 }
 
+static uint8_t extractAuthFromBeacon(const uint8_t *payload, uint16_t length) {
+    if (length < 36) return 0xFF;
+    const bool privacy = (payload[34] & 0x10) != 0;
+    bool rsn = false, wpa = false, psk = false, sae = false, eap = false, owe = false;
+    uint16_t offset = 36;
+    while (offset + 2 <= length) {
+        const uint8_t tag = payload[offset];
+        const uint8_t len = payload[offset + 1];
+        const uint8_t *d = payload + offset + 2;
+        if (offset + 2 + len > length) break;
+        if (tag == 48 && len >= 8) {
+            rsn = true;
+            uint16_t p = 6;
+            const uint16_t pairCount = d[p] | (d[p + 1] << 8);
+            p += 2 + 4 * pairCount;
+            if (p + 2 <= len) {
+                const uint16_t akmCount = d[p] | (d[p + 1] << 8);
+                p += 2;
+                for (uint16_t i = 0; i < akmCount && p + 4 <= len; i++, p += 4) {
+                    if (d[p] != 0x00 || d[p + 1] != 0x0F || d[p + 2] != 0xAC) continue;
+                    switch (d[p + 3]) {
+                        case 1: case 5: case 12: eap = true; break;
+                        case 2: case 6: psk = true; break;
+                        case 8: case 24: sae = true; break;
+                        case 18: owe = true; break;
+                        default: break;
+                    }
+                }
+            }
+        } else if (tag == 221 && len >= 4 && d[0] == 0x00 && d[1] == 0x50 && d[2] == 0xF2 && d[3] == 0x01) {
+            wpa = true;
+        }
+        offset += 2 + len;
+    }
+    if (!privacy && !rsn && !wpa) return WIFI_AUTH_OPEN;
+    if (owe) return WIFI_AUTH_OWE;
+    if (eap) return WIFI_AUTH_WPA2_ENTERPRISE;
+    if (sae && psk) return WIFI_AUTH_WPA2_WPA3_PSK;
+    if (sae) return WIFI_AUTH_WPA3_PSK;
+    if (rsn && wpa) return WIFI_AUTH_WPA_WPA2_PSK;
+    if (rsn) return WIFI_AUTH_WPA2_PSK;
+    if (wpa) return WIFI_AUTH_WPA_PSK;
+    return WIFI_AUTH_WEP;
+}
+
 void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
@@ -2420,6 +2488,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             uint8_t chIe = extractChannelFromIE(p, ppkt->rx_ctrl.sig_len, 36);
             ae.channel = (chIe >= 1 && chIe <= 14) ? chIe : ppkt->rx_ctrl.channel;
             extractSsidFromIE(p, ppkt->rx_ctrl.sig_len, 36, ae.ssid, sizeof(ae.ssid));
+            ae.auth = extractAuthFromBeacon(p, ppkt->rx_ctrl.sig_len);
             BaseType_t woken = pdFALSE;
             xQueueSendFromISR(apInfoQueue, &ae, &woken);
             if (woken) portYIELD_FROM_ISR();
@@ -3460,6 +3529,7 @@ void listScanTask(void *pv) {
                     memcpy(wh.mac, bssidBytes, 6);
                     wh.rssi = rssi;
                     wh.ch = ch;
+                    wh.auth = WiFi.encryptionType(i);
                     strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
                     wh.name[sizeof(wh.name) - 1] = '\0';
                     wh.isBLE = false;
@@ -3896,7 +3966,7 @@ void listScanTask(void *pv) {
                 if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
-                pr += " TARGET";
+                pr += fmtAuth(sh) + " TARGET";
                 if (sh.isBLE && sh.cls[0]) pr += std::string(" C=") + sh.cls;
                 { auto ft = foxTracks.find(mb); if (ft != foxTracks.end()) pr += foxToken(ft->second); }
                 { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
@@ -3970,7 +4040,7 @@ void listScanTask(void *pv) {
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
             }
-            results += " TARGET";
+            results += fmtAuth(e) + " TARGET";
             if (e.isBLE && e.cls[0]) results += std::string(" C=") + e.cls;
             { String up = macOut; up.toUpperCase(); auto ft = foxTracks.find(std::string(up.c_str())); if (ft != foxTracks.end()) results += foxToken(ft->second); }
             { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
