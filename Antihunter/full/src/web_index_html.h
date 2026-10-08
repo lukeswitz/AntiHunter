@@ -2259,6 +2259,8 @@ R"HTML(
         const dkeyOf = d => { if (d.dataset.dkey) return d.dataset.dkey; const sm = d.querySelector('summary'); return sm ? dkey(sm) : ''; };
         const openDetails = new Set();
         el.querySelectorAll('details[open]').forEach(d => { const k = dkeyOf(d); if (k) openDetails.add(k); });
+        const closedDetails = new Set();
+        el.querySelectorAll('details:not([open])').forEach(d => { const k = dkeyOf(d); if (k) closedDetails.add(k); });
 
         el.innerHTML = parseAndStyleResults(text);
         if (typeof pcapPaintList === 'function') pcapPaintList();
@@ -2270,7 +2272,7 @@ R"HTML(
           const icon = document.getElementById(id.replace('Content', 'Icon'));
           if (icon) { icon.style.transform = 'rotate(0deg)'; icon.textContent = '\u25bc'; }
         });
-        if (openDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; });
+        if (openDetails.size || closedDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; else if (k && closedDetails.has(k)) d.open = false; });
         if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
         if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(el);
       }
@@ -4601,7 +4603,7 @@ R"HTML(
         for (const g of arr) {
           const away = !g.apResponded && !g.anyPresent;
           const n = g.devices.length;
-          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>';
+          html += '<details class="res-section" data-dkey="probe:' + esc(g.name) + '" open><summary><span class="res-caret">&#9654;</span>';
           html += '<span class="res-ident name" data-ssid="' + g.name + '">' + g.name + '</span>';
           html += '<span class="res-badge ' + (away ? 'warn' : 'acc') + '">' + n + ' client' + (n === 1 ? '' : 's') + '</span>';
           if (g.apResponded) html += '<span class="res-badge ok">AP present</span>';
@@ -4614,7 +4616,7 @@ R"HTML(
         if (broadcast.length) {
           const bBle = broadcast.filter(d => d.isBLE).length;
           const bWifi = broadcast.length - bBle;
-          html += '<details class="res-section res-pinned" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
+          html += '<details class="res-section res-pinned" data-dkey="probe:broadcast" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
           html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span>';
           if (bWifi) html += '<span class="res-badge">' + bWifi + ' Wi-Fi</span>';
           if (bBle) html += '<span class="res-badge acc">' + bBle + ' BLE</span>';
