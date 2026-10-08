@@ -3349,216 +3349,78 @@ R"HTML(
 
       function sortResultsDisplay() {
         const resultsElement = document.getElementById('r');
-        
-        if (currentSort === 'default') {
-          return;
-        }
-        
-        const isRandomization = resultsElement.textContent.includes('Randomized Device Tracer');
-        const isBaseline = resultsElement.textContent.includes('Baseline') || resultsElement.querySelector('.baseline-marker');
-        const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
-        const isDrone = resultsElement.textContent.includes('Drone Detection');
-        const isDeviceScan = resultsElement.textContent.includes('Device Discovery');
-        
-        let items = [];
-        const preservedElements = [];
-        
-        if (isRandomization) {
-          Array.from(resultsElement.children).forEach(child => {
-            if (child.tagName === 'DETAILS') {
-              const summary = child.querySelector('summary');
-              if (!summary) {
-                preservedElements.push(child);
-                return;
-              }
-              
-              const macElement = summary.querySelector('.res-mac');
-              const mac = macElement ? macElement.textContent.trim() : '';
-              
-              const summaryText = summary.textContent;
-              const confidenceMatch = summaryText.match(/(\d+)%/);
-              const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
-              
-              const rssiMatch = summaryText.match(/([-\d]+)\s*dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : -999;
+        if (!resultsElement || currentSort === 'default') return;
 
-              const sessions = parseInt(child.getAttribute('data-sessions') || '0', 10);
-              const lastSeen = parseInt(child.getAttribute('data-lastseen') || '999999', 10);
-              const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
+        const MAC_RE = /([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i;
+        const DBM_RE = /(-\d+)\s*dBm/;
+        const cands = Array.from(resultsElement.querySelectorAll('.res-card, details.res-track, table.res-tbl tr'))
+          .filter(el => !el.querySelector('th, table.res-tbl') && (MAC_RE.test(el.textContent) || DBM_RE.test(el.textContent) || el.hasAttribute('data-rssi')));
+        const candSet = new Set(cands);
+        const items = cands.filter(el => {
+          for (let p = el.parentElement; p && p !== resultsElement; p = p.parentElement) if (candSet.has(p)) return false;
+          return true;
+        });
+        if (!items.length) return;
 
-              const nameEl = summary.querySelector('[data-name]');
-              const name = nameEl ? nameEl.textContent.trim() : '';
-
-              const deviceType = child.getAttribute('data-type') || '';
-
-              items.push({
-                element: child,
-                mac, confidence, rssi, sessions, lastSeen, channel, name, deviceType,
-                sortKey: currentSort,
-                type: 'randomization'
-              });
-            } else {
-              preservedElements.push(child);
-            }
-          });
-        } else if (isBaseline) {
-          // Sort each device-card group in place within its own parent (anomaly cards and baseline-devices stay separate); MAC tiebreaker keeps order stable across live polls.
-          const cards = Array.from(resultsElement.querySelectorAll('.device-card'));
-          if (cards.length === 0) return;
-          const groups = new Map();
-          cards.forEach(c => {
-            const p = c.parentElement;
-            if (!groups.has(p)) groups.set(p, []);
-            groups.get(p).push(c);
-          });
-          const macOf = el => (el.textContent.match(/([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i) || [])[1] || '';
-          const rssiOf = el => { const m = el.textContent.match(/(-?\d+)\s*dBm/); return m ? parseInt(m[1]) : 0; };
-          const nameOf = el => { const m = el.textContent.match(/Name:\s*([^\n]+)/); return m ? m[1].trim() : ''; };
-          const cmpBaseline = (a, b) => {
-            let cmp = 0;
-            switch (currentSort) {
-              case 'rssi-desc': cmp = rssiOf(b) - rssiOf(a); break;
-              case 'rssi-asc': cmp = rssiOf(a) - rssiOf(b); break;
-              case 'name-asc': cmp = (nameOf(a) || macOf(a)).localeCompare(nameOf(b) || macOf(b)); break;
-              case 'type-asc': cmp = (a.getAttribute('data-type') || '').localeCompare(b.getAttribute('data-type') || ''); break;
-              case 'channel-asc': cmp = parseInt(a.getAttribute('data-channel') || '0') - parseInt(b.getAttribute('data-channel') || '0'); break;
-              case 'class-asc': cmp = cmpClass(cardClassOf(a), cardClassOf(b)); break;
-              default: cmp = 0;
-            }
-            if (cmp === 0) cmp = macOf(a).localeCompare(macOf(b));
-            return sortReverse ? -cmp : cmp;
+        const keys = new Map();
+        items.forEach(el => {
+          const t = el.textContent;
+          const num = (attr, re, dflt) => {
+            const a = el.getAttribute(attr);
+            if (a !== null && a !== '') return parseInt(a, 10);
+            const m = re ? t.match(re) : null;
+            return m ? parseInt(m[1], 10) : dflt;
           };
-          groups.forEach((list, parent) => {
-            const marker = document.createComment('s');
-            parent.insertBefore(marker, list[0]);
-            list.forEach(c => parent.removeChild(c));
-            list.sort(cmpBaseline);
-            list.forEach(c => parent.insertBefore(c, marker));
-            parent.removeChild(marker);
+          const nameEl = el.querySelector('[data-name], [data-ssid], .res-ident.name');
+          const name = nameEl ? (nameEl.getAttribute('data-name') || nameEl.getAttribute('data-ssid') || nameEl.textContent).trim() : '';
+          keys.set(el, {
+            mac: (t.match(MAC_RE) || [])[1] || '',
+            rssi: num('data-rssi', DBM_RE, -999),
+            confidence: num('data-conf', /(\d+)%/, 0),
+            sessions: num('data-sessions', null, 0),
+            lastSeen: num('data-lastseen', null, 999999),
+            channel: num('data-channel', /\bCH[ =:]?(\d+)/, 0),
+            name,
+            deviceType: el.getAttribute('data-type') || (/\bBLE\b/.test(t) ? 'BLE' : (/\bWi-?Fi\b/i.test(t) ? 'WiFi' : '')),
+            devClass: cardClassOf(el),
+            isTarget: el.getAttribute('data-target') === '1' || el.classList.contains('is-target')
           });
-          return;
-        } else if (isDeauth) {
-          Array.from(resultsElement.children).forEach(child => {
-            const hasDeauthBorder = child.classList.contains('res-card');
-            if (hasDeauthBorder) {
-              const macMatch = child.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
-              const mac = macMatch ? macMatch[1] : '';
-              
-              const totalMatch = child.textContent.match(/Total Attacks[\s\S]*?(\d+)/);
-              const attacks = totalMatch ? parseInt(totalMatch[1]) : 0;
-              
-              const rssiMatch = child.textContent.match(/Signal[\s\S]*?([-\d]+)\s*dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-              
-              items.push({
-                element: child,
-                mac, attacks, rssi,
-                sortKey: currentSort,
-                type: 'deauth'
-              });
-            } else {
-              preservedElements.push(child);
-            }
-          });
-        } else if (isDrone) {
-          Array.from(resultsElement.children).forEach(child => {
-            const hasDroneBorder = child.classList.contains('res-card');
-            if (hasDroneBorder) {
-              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
-              const mac = macMatch ? macMatch[1] : '';
-              
-              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-              
-              items.push({
-                element: child,
-                mac, rssi,
-                sortKey: currentSort,
-                type: 'drone'
-              });
-            } else {
-              preservedElements.push(child);
-            }
-          });
-        } else if (isDeviceScan) {
-          Array.from(resultsElement.children).forEach(child => {
-            if (child.classList.contains('device-card')) {
-              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
-              const mac = macMatch ? macMatch[1] : '';
-              
-              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-              
-              const nameEl = child.querySelector('.res-ident.name');
-              const name = nameEl ? nameEl.textContent.trim() : '';
+        });
 
-              const deviceType = child.getAttribute('data-type') || '';
-              const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
-              const isTarget = child.getAttribute('data-target') === '1';
-
-              items.push({
-                element: child,
-                mac, rssi, name, deviceType, channel, isTarget, devClass: cardClassOf(child),
-                sortKey: currentSort,
-                type: 'device'
-              });
-            } else {
-              preservedElements.push(child);
-            }
-          });
-        }
-        
-        if (items.length === 0) {
-          return;
-        }
-        
-        items.sort((a, b) => {
-          if ((a.isTarget ? 1 : 0) !== (b.isTarget ? 1 : 0)) return a.isTarget ? -1 : 1;
+        const cmpItems = (ea, eb) => {
+          const a = keys.get(ea), b = keys.get(eb);
+          if (a.isTarget !== b.isTarget) return a.isTarget ? -1 : 1;
           let cmp = 0;
-
-          switch(currentSort) {
-            case 'rssi-desc':
-              cmp = b.rssi - a.rssi;
-              break;
-            case 'rssi-asc':
-              cmp = a.rssi - b.rssi;
-              break;
-            case 'confidence-desc':
-              cmp = (b.confidence || 0) - (a.confidence || 0);
-              break;
-            case 'sessions-desc':
-              cmp = (b.sessions || 0) - (a.sessions || 0);
-              break;
-            case 'lastseen-asc':
-              cmp = (a.lastSeen || 0) - (b.lastSeen || 0);
-              break;
-            case 'name-asc':
-              cmp = (a.name || a.mac).localeCompare(b.name || b.mac);
-              break;
-            case 'type-asc':
-              cmp = (a.deviceType || '').localeCompare(b.deviceType || '');
-              break;
-            case 'channel-asc':
-              cmp = (a.channel || 0) - (b.channel || 0);
-              break;
-            case 'class-asc':
-              cmp = cmpClass(a.devClass, b.devClass) || b.rssi - a.rssi;
-              break;
-            default:
-              cmp = 0;
+          switch (currentSort) {
+            case 'rssi-desc': cmp = b.rssi - a.rssi; break;
+            case 'rssi-asc': cmp = a.rssi - b.rssi; break;
+            case 'confidence-desc': cmp = b.confidence - a.confidence; break;
+            case 'sessions-desc': cmp = b.sessions - a.sessions; break;
+            case 'lastseen-asc': cmp = a.lastSeen - b.lastSeen; break;
+            case 'name-asc': cmp = (a.name || a.mac).localeCompare(b.name || b.mac); break;
+            case 'type-asc': cmp = a.deviceType.localeCompare(b.deviceType); break;
+            case 'channel-asc': cmp = a.channel - b.channel; break;
+            case 'class-asc': cmp = cmpClass(a.devClass, b.devClass) || b.rssi - a.rssi; break;
+            default: cmp = 0;
           }
-
+          if (cmp === 0) cmp = a.mac.localeCompare(b.mac);
           return sortReverse ? -cmp : cmp;
+        };
+
+        const groups = new Map();
+        items.forEach(el => {
+          const p = el.parentElement;
+          if (!groups.has(p)) groups.set(p, []);
+          groups.get(p).push(el);
         });
-        
-        resultsElement.innerHTML = '';
-        
-        preservedElements.forEach(el => {
-          resultsElement.appendChild(el);
-        });
-        
-        items.forEach(item => {
-          resultsElement.appendChild(item.element);
+        groups.forEach((list, parent) => {
+          if (list.length < 2) return;
+          const marker = document.createComment('s');
+          parent.insertBefore(marker, list[0]);
+          list.forEach(c => parent.removeChild(c));
+          list.sort(cmpItems);
+          list.forEach(c => parent.insertBefore(c, marker));
+          parent.removeChild(marker);
         });
       }
 
@@ -4374,7 +4236,7 @@ R"HTML(
               const k = ANOM_KINDS.find(x => x[2].test(reason)) || ['Anomaly', 0];
               if (counts[k[0]] !== undefined) counts[k[0]]++;
               const detail = k[0] === 'Moved' ? reason.replace(/^Significant RSSI change:\s*/, '') : (k[0] === 'Returned' ? reason.replace(/^Device returned after\s*/, 'after ') : '');
-              rows += '<tr><td><span class="res-badge cls" style="--h:' + k[1] + '">' + k[0] + '</span></td>';
+              rows += '<tr data-rssi="' + rssi + '"><td><span class="res-badge cls" style="--h:' + k[1] + '">' + k[0] + '</span></td>';
               rows += '<td>' + mac + randBadge(mac) + (name ? ' <strong class="res-ident name">' + name + '</strong>' : '') + '</td>';
               rows += '<td><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>' + (channel ? ' CH ' + channel : '') + '</td>';
               rows += '<td>' + tagBadges(line) + (anomVendor ? ' ' + anomVendor : '') + '</td>';
