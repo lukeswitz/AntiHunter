@@ -4730,23 +4730,6 @@ R"HTML(
         }).catch(e => { if (typeof toast === 'function') toast('Clear failed: ' + e.message, 'warning'); });
       }
 
-      function getTargetTokens() {
-        const el = document.getElementById('list');
-        if (!el || !el.value) return [];
-        return el.value.split('\n')
-          .map(l => l.trim())
-          .filter(l => l && !l.startsWith('#') && !/^T-/i.test(l))
-          .map(l => l.replace(/[^0-9a-fA-F]/g, '').toUpperCase())
-          .filter(h => h.length === 12 || h.length === 6)
-          .map(h => h.match(/../g).join(':'));
-      }
-
-      function macIsTarget(mac, tokens) {
-        if (!tokens || !tokens.length) return false;
-        const m = (mac || '').toUpperCase();
-        return tokens.some(t => t.length >= 17 ? m === t : m.startsWith(t + ':'));
-      }
-
       const DEV_CLASSES = [
         ['Phone', 215, /^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP)/],
         ['Tag', 45, /^(Tag|FindMy|SmartTag|Tile|Keyring)/],
@@ -4829,8 +4812,6 @@ R"HTML(
         html += deviceClassTable(probeAt >= 0 ? lines.slice(0, probeAt) : lines);
         let inProbeSection = false;
         let probeLines = [];
-        const targetTokens = getTargetTokens();
-        const listScan = /^(List|Target) scan/.test(text);
         let targetHtml = '';
         let normalHtml = '';
 
@@ -4852,7 +4833,7 @@ R"HTML(
           const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
           const rssiColor = rssiColorFor(rssi);
-          const isTarget = listScan || macIsTarget(mac, targetTokens);
+          const isTarget = / TARGET(?:\s|$)/.test(line.replace(/"[^"]*"/g, '""'));
           const cls = 'res-card device-card' + (isTarget ? ' target is-target' : '');
 
           let card = '<div class="' + cls + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '">';

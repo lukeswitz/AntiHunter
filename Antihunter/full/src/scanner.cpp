@@ -1490,6 +1490,12 @@ void snifferScanTask(void *pv)
         }
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount) {
+            HitsVecPsram sortedHits = hitsLog;
+            std::sort(sortedHits.begin(), sortedHits.end(),
+                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+            const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
+                     [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
+
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
@@ -1501,13 +1507,10 @@ void snifferScanTask(void *pv)
                       "\nBLE devices: " + std::to_string(bleDeviceCache.size()) +
                       "\nUnique devices: " + std::to_string(uniqueMacs.size()) +
                       "\nTarget Hits: " + std::to_string(totalHits) + "\n\n";
-            
-            HitsVecPsram sortedHits = hitsLog;
-            std::sort(sortedHits.begin(), sortedHits.end(), 
-                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-            
+
             int shown = 0;
             for (const auto& hit : sortedHits) {
+                const bool isTarget = static_cast<size_t>(shown) < nTargets;
                 if (shown++ >= 50) break;
                 results += std::string(hit.isBLE ? "BLE " : "WiFi");
                 char macStr[18];
@@ -1520,6 +1523,7 @@ void snifferScanTask(void *pv)
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
                 }
+                if (isTarget) results += " TARGET";
                 if (hit.isBLE && hit.isApple) results += " APPLE";
                 if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
                 { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
@@ -1625,6 +1629,12 @@ void snifferScanTask(void *pv)
 
     // Write final results immediately so UI shows them while mesh TX runs
     {
+        HitsVecPsram sortedHits = hitsLog;
+        std::sort(sortedHits.begin(), sortedHits.end(),
+                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+        const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
+                [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
+
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
         std::string results =
@@ -1635,12 +1645,9 @@ void snifferScanTask(void *pv)
             "Target Hits: " + std::to_string(totalHits) + "\n" +
             "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
 
-        HitsVecPsram sortedHits = hitsLog;
-        std::sort(sortedHits.begin(), sortedHits.end(),
-                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
         int shown = 0;
         for (const auto& hit : sortedHits) {
+            const bool isTarget = static_cast<size_t>(shown) < nTargets;
             if (shown++ >= 100) break;
 
             results += (hit.isBLE ? "BLE  " : "WiFi ");
@@ -1678,6 +1685,7 @@ void snifferScanTask(void *pv)
                 }
             }
 
+            if (isTarget) results += " TARGET";
             if (hit.isBLE && hit.isApple) results += " APPLE";
             if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
             { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
@@ -3888,6 +3896,7 @@ void listScanTask(void *pv) {
                 if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
+                pr += " TARGET";
                 if (sh.isBLE && sh.cls[0]) pr += std::string(" C=") + sh.cls;
                 { auto ft = foxTracks.find(mb); if (ft != foxTracks.end()) pr += foxToken(ft->second); }
                 { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
@@ -3961,6 +3970,7 @@ void listScanTask(void *pv) {
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
             }
+            results += " TARGET";
             if (e.isBLE && e.cls[0]) results += std::string(" C=") + e.cls;
             { String up = macOut; up.toUpperCase(); auto ft = foxTracks.find(std::string(up.c_str())); if (ft != foxTracks.end()) results += foxToken(ft->second); }
             { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
