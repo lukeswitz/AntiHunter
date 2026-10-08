@@ -4305,7 +4305,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             liveHtml += '<div class="res-meta"><span class="res-badge ' + (m[2] === 'BLE' ? 'ble' : 'wifi') + '">' + m[2] + '</span>';
             if (m[5]) liveHtml += '<span class="res-badge">CH ' + m[5] + '</span>';
             liveHtml += '<span>probes <strong>' + m[3] + '</strong></span></div>';
-            liveHtml += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+            liveHtml += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span></div>';
             liveHtml += '</div></div>';
           });
           if (moreSess) liveHtml += '<div class="res-more">+ ' + moreSess[1] + ' more sessions</div>';
@@ -4364,7 +4364,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<span><strong>' + macCount + '</strong> MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div class="res-metrics">';
-          if (avgRssi !== null) html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColor + '">' + avgRssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          if (avgRssi !== null) html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColor + '">' + avgRssi + '<small> dBm</small></span></div>';
           html += '<div class="res-metric"><span class="res-metric-val" style="color:' + confColor + '">' + confidence + '<small>%</small></span><span class="res-metric-lab">Conf</span></div>';
           html += '</div></summary>';
 
@@ -4438,7 +4438,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (line) c += tagBadges(line);
           if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
           c += '</div>';
-          c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span></div>';
           c += '</div></div>';
           return c;
         }
@@ -4701,7 +4701,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
           if (isStale) html += '<span class="res-badge warn">Stale</span>';
           html += '</div>';
-          if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span></div>';
           html += '</div>';
 
           const kvs = [];
@@ -5017,7 +5017,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (d.ap) h += '<span class="res-badge ok">Client</span>';
         if (d.known) h += '<span class="res-badge known">Known</span>';
         h += '</span>';
-        if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+        if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span></div>';
         h += '</div>';
         if (d.ssids.length > 1) {
           const shown = d.ssids.slice(0, 9), rest = d.ssids.length - shown.length;
@@ -5146,7 +5146,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               h += '</span>';
               h += '<div class="res-meta"><span>seen <strong>' + d.seen + '</strong>x</span>';
               h += '<span><strong>' + d.sessions + '</strong> session' + (String(d.sessions) === '1' ? '' : 's') + '</span></div>';
-              h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+              h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span></div>';
               h += '</div>';
               if (d.ssids && d.ssids.length > 0) {
                 h += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
@@ -5333,7 +5333,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           card += '</div>';
           card += '<div class="res-metric">';
           card += '<span class="res-metric-val" style="color:' + rssiColor + '">' + rssi + '<small> dBm</small></span>';
-          card += '<span class="res-metric-lab">RSSI</span>';
           card += '</div>';
           card += '</div>';
           card += '</div>';
