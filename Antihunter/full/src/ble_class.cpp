@@ -148,7 +148,6 @@ static const char *svcDataLabel(uint16_t uuid, const uint8_t *s, size_t n) {
         case 0xFE61: return "Logitech";
         case 0x1812: return "HID";
         case 0x180D: return "HeartRate";
-        case 0x180F: return "Battery";
         case 0x181A: return "Environment";
         default:     return nullptr;
     }
@@ -162,7 +161,6 @@ static const char *svcUuidLabel(uint16_t uuid) {
         case 0xFD6F: return "ExposureNotif";
         case 0x1812: return "HID";
         case 0x180D: return "HeartRate";
-        case 0x180F: return "Battery";
         case 0x181A: return "Environment";
         case 0xFE61: return "Logitech";
         default:     return nullptr;
