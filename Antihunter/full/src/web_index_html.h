@@ -2454,16 +2454,22 @@ R"HTML(
 
       async function ajaxForm(form, okMsg) {
         const fd = new FormData(form);
+        if (form.id === 'f' || form.id === 'af') {
+          if (privacyMode) { toast('Turn Privacy off to save the list', 'warning'); return false; }
+          fd.set('list', String(fd.get('list') || '').split('\n').filter(l => !/XX:XX/i.test(l)).join('\n'));
+        }
         try {
           const r = await fetch(form.action, {
             method: 'POST',
             body: fd
           });
           const t = await r.text();
-          if (!r.ok) { toast(t || ('Error ' + r.status), 'warning'); return; }
+          if (!r.ok) { toast(t || ('Error ' + r.status), 'warning'); return false; }
           toast(okMsg || t);
+          return true;
         } catch (e) {
           toast('Error: ' + e.message);
+          return false;
         }
       }
 
@@ -2730,6 +2736,7 @@ R"HTML(
             resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
           }
           load();
+          fetch('/allowlist-export').then(r => r.text()).then(t => { document.getElementById('wlist').value = t; }).catch(e => console.warn('allowlist reload failed', e));
         }
         refreshDataTabPrivacy();
       }
@@ -5595,20 +5602,18 @@ R"HTML(
 
       document.getElementById('f').addEventListener('submit', e => {
         e.preventDefault();
-        ajaxForm(e.target, 'Targets saved ✓');
-        setTimeout(load, 500);
+        ajaxForm(e.target, 'Targets saved ✓').then(ok => { if (ok) setTimeout(load, 500); });
       });
       document.getElementById('list').addEventListener('change', () => document.getElementById('f').requestSubmit());
 
       document.getElementById('af').addEventListener('submit', e => {
         e.preventDefault();
-        ajaxForm(e.target, 'Allowlist saved ✓');
-        setTimeout(() => {
+        ajaxForm(e.target, 'Allowlist saved ✓').then(ok => { if (ok) setTimeout(() => {
           fetch('/allowlist-export').then(r => r.text()).then(t => {
             document.getElementById('wlist').value = t;
             document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
           });
-        }, 500);
+        }, 500); });
       });
 
       document.getElementById('nodeForm').addEventListener('submit', function(e) {
