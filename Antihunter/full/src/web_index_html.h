@@ -2734,17 +2734,11 @@ R"HTML(
         privacyMode = !privacyMode;
         localStorage.setItem('privacyMode', privacyMode ? '1' : '0');
         updatePrivacyBtn();
-        const resultsElement = document.getElementById('r');
+        if (lastResultsText) renderResults(lastResultsText);
         if (privacyMode) {
-          if (resultsElement && lastResultsText) {
-            resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
-          }
           applyPrivacyToElement(document.body);
           document.querySelectorAll('textarea').forEach(ta => { ta.value = privScrubText(ta.value); });
         } else {
-          if (resultsElement && lastResultsText) {
-            resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
-          }
           load();
           fetch('/allowlist-export').then(r => r.text()).then(t => { document.getElementById('wlist').value = t; }).catch(e => console.warn('allowlist reload failed', e));
         }
