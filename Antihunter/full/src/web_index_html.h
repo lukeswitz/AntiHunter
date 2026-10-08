@@ -255,8 +255,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-card-head:has(>.res-metric,>.res-metrics){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
       .res-card-head:has(>.res-metric,>.res-metrics)>*{grid-column:1;min-width:0}
       .res-card-head:has(>.res-metric,>.res-metrics)>.res-metric,.res-card-head:has(>.res-metric,>.res-metrics)>.res-metrics{grid-column:2;grid-row:1/span 2;margin-left:0}
-      [data-theme="light"] #r .res-card,[data-theme="light"] #r .res-section{--acc:var(--txt);--accbg:rgba(0,0,0,0.05);--succ:var(--txt);--c-ok:var(--txt);--c-known:hsl(0 0% 40%);--c-ap:hsl(0 0% 40%)}
-      [data-theme="dark"] #r .res-card,[data-theme="dark"] #r .res-section{--acc:var(--txt);--accbg:rgba(255,255,255,0.06);--succ:var(--txt);--c-ok:var(--txt);--c-known:hsl(0 0% 42%);--c-ap:hsl(0 0% 42%)}
+      [data-theme="light"] #r .res-card,[data-theme="light"] #r .res-section{--acc:var(--txt);--accbg:rgba(0,0,0,0.05);--succ:hsl(145 60% 32%);--c-ok:hsl(145 60% 32%);--c-known:hsl(0 0% 40%);--c-ap:hsl(0 0% 40%)}
+      [data-theme="dark"] #r .res-card,[data-theme="dark"] #r .res-section{--acc:var(--txt);--accbg:rgba(255,255,255,0.06);--succ:hsl(145 55% 55%);--c-ok:hsl(145 55% 55%);--c-known:hsl(0 0% 42%);--c-ap:hsl(0 0% 42%)}
       .res-id-line{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;min-width:0}
       .res-id-line .res-ident.name{font-size:17px;color:var(--txt)}
       .res-id-line .res-mac{font-size:16px;color:var(--txt);opacity:.72}
@@ -3834,7 +3834,7 @@ R"HTML(
         return '<span class="res-badge rand" title="Locally-administered (randomized) MAC">RAND</span>';
       }
 
-      const CHIP_HUE = { BLE: 275, WiFi: 28, Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
+      const CHIP_HUE = { BLE: 215, WiFi: 145,Open: 0, WEP: 0, WPA: 40, 'WPA/WPA2': 40 };
       function resChip(text, hue, tip) {
         return '<span class="res-badge' + (hue === undefined ? '' : ' hue" style="--h:' + hue) + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + text + '</span>';
       }
