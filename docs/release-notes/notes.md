@@ -1,42 +1,56 @@
-# AntiHunter v1.0.4
+# AntiHunter v1.0.5
 
-Apple services detection, BLE device class table, baseline "Watch for changes", Target vendor tag, v1.0.3 fixes.
+User-set erase key, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
-| Stable | v1.0.4 | ESP32-S3 | v1.0.3 (2026-09-29) |
-| Beta | v1.0.4-beta1 | ESP32-S3 | v1.0.3-beta1 (2026-09-29) |
-| Experimental | v1.0.4-c5exp1 | XIAO ESP32-C5 | v1.0.3-c5exp1 (2026-09-29) |
+| Stable | v1.0.5 | ESP32-S3 | v1.0.4 (2026-10-04) |
+| Beta | v1.0.5-beta1 | ESP32-S3 | v1.0.4-beta1 (2026-10-04) |
+| Experimental | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
 
-## New (full firmware)
+Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTINEL=0`).
 
-- Apple services detection: BLE Continuity type (AirDrop, Handoff, AirPods, Hey Siri, Tethering, iPhone activity state) or GAP appearance category, as a badge in Device scan, Target scan and Baseline results, and on baseline anomaly alerts (`Class:`).
-- BLE device class from 16-bit service UUID, service data or company ID (208 UUIDs, 108 companies, Bluetooth SIG assigned numbers): Phone, Wearable, Audio, Tag, Vehicle, Health, Home, Lock, Camera, Drone, Glasses, Radio, Beacon, Input, shown as `Class-Vendor` in the same badge. 4 KB flash, no RAM.
-- Target scan cards show **Getting closer** or **Moving away** when a target's signal clearly rises or falls over the last minute (line fit with a significance test); off with the Movement toggle.
-- Baseline "Watch for changes from now": button or `@ALL BASELINE_WATCH` while a baseline runs; results add "Since <time>" listing devices new here, gone, or moving closer/away (by the RSSI threshold), with before → after signal.
-- Target mesh alerts end with `V=<vendor>` (first word of the OUI vendor, e.g. `V=NETGEAR`) when the MAC is not randomized. Full and headless.
-- Device classes each have their own color on every badge, light and dark themes.
-- Baseline anomalies as a table: New, Returned and Moved pills with counts, device, radio, class or vendor, signal and detail.
-- Class summary table (devices per class, strongest signal) at the top of Device scan results and the cached baseline device list.
-- The web page reloads itself when the node runs new firmware.
-- Results: BLE blue, Wi-Fi green.
+## Erase key (all channels; read before upgrading)
+
+- A wipe needs an erase key you set: web UI, flasher `CONFIG` `erasePSK`, or `CONFIG_ERASE_PSK:<new>:<current>`. Until then erase commands reply `ERASE_ACK:SET_KEY_FIRST`.
+- Full: the AP password serves as `<current>` for setting the key, once the AP password is no longer the default. Headless: no key until set in the flasher.
+- `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_*` and `CONFIG_ERASE_PSK` take the key directly. HMAC token answers still work for scripts and C2; each token is valid for one answer.
+- One `ERASE_REQUEST` per 20 s. 5 wrong keys lock erase commands for 10 min.
+- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config.
+
+## New
+
+- Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
+- Mesh, Full and headless: `STATUS_BOOT:` line after `STATUS` with reset reason, previous uptime, restored results, SD mount failures and write retries.
+- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits; `PCAP_DELETE_ALL` deletes every capture on the SD card.
+- Mesh, Full and headless **(Beta/C5)**: `DETECT_JSON:<karma|pg|tsf|hshk|pwna|tof|hunts|pcap|pcaps>`, `DETECT_CLEAR:<name>`, `DETECT_COUNTS`, `DETECT_VERBOSE:ON|OFF`, `TOF_PING[:<node>]`, `KARMA_ON`/`KARMA_OFF`, `HUNT_COOLDOWN:<ms>`, `QUORUM:<type>,<n>`, `ATTACK_RESPONSE_CANCEL`.
+- Detection tab **(Beta/C5)**: Pwnagotchi card; Karma bait on/off; hunt cooldown; verbose detector logging; quorum setting; pending attack response with Cancel; link to the raw `/detect` logs.
+- System tab: set the RTC from the browser's clock.
+- Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
+- Target card: Targets and Allow list above the scan options; trend badges Steady and Measuring; Movement toggle in the Forever/Triangulate row.
+- Results toolbar is a full-width bar with a mobile grid layout.
+- Watchlist accepts hex tracer IDs (`T-00A3`).
+- PCAP files carry the radiotap MCS field for HT frames.
 
 ## Fixed
 
-- Scan start no longer moves the radio off the softAP channel while a client is connected; the web UI stays up (full).
-- Deauth scan no longer starts BLE.
-- Sentinel BLE attack table: Flipper Zero matched by its service UUID 0x3080-0x3083; the old 0x0FBA company ID belongs to Cosonic.
-- Mesh RX task stack in internal RAM.
-- Device scan name shown after the MAC, HTML-escaped.
-- Schedule list: same-day blocks read "Today", not next week.
-- Locally modified builds get a unique web UI ETag.
-- Docs: mesh command reference and Operator's Guide (rev 1.1, PDF) list every firmware command; Beta-only commands marked.
+- **(Beta/C5)** STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
+- **(Beta/C5)** Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
+- **(Beta/C5)** `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
+- Battery saver now lowers the CPU clock to 80 MHz (restores 240 MHz on exit). Before, the clock never changed.
+- Headless: boot forensics (previous uptime, restored results) reach the mesh again.
+- `CONFIG_TARGETS` over mesh splits on `|`; mesh text has no newlines.
+- Auto-erase counts vibrations within the detection window and triggers at the configured count.
+- Targets list saves on blur; the block list saves in privacy mode.
+- Privacy mode redacts device-scan names and full MACs in the Data tab.
+- List scan lines carry a range estimate and always highlight hits; target tokens accept any MAC separator.
+- Class table counts device rows only.
 
 ## Upgrade
 
-Settings and SD card files survive a flash.
+Settings and SD card files survive a flash. Erase commands stay refused until you set an erase key (see above).
 
-All three builds attach to the one v1.0.4 release.
+All three builds attach to the one v1.0.5 release.
 Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
 Also `bootloader`, `partitions` and `SHA256SUMS` per version.
 Builds are reproducible; verify with `shasum -a 256`.
