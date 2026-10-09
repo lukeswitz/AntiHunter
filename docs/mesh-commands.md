@@ -12,8 +12,8 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
-| `STATUS` | Report mode, scan state, hits, temp, uptime, GPS | None | `@ALL STATUS` |
-| `STOP` | Stop everything running | None | `@ALL STOP` |
+| `STATUS` | Report mode, scan state, hits, temp, uptime, GPS; then `STATUS_BOOT: reset= prevUp= restored= sdMountFail= sdRetry=` | None | `@ALL STATUS` |
+| `STOP` | Stop everything running, including a pending attack response | None | `@ALL STOP` |
 | `MESH_TX_CANCEL` | Drop queued mesh event and bulk traffic; the running scan and triangulation control traffic continue. ACK `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | None | `@ALL MESH_TX_CANCEL` |
 
 ### Configuration
@@ -43,6 +43,8 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:CH<list>]` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
 | `PCAP_LIMITS` | Set or read the file size cap | `[MB]`, 8-300 | `@ALL PCAP_LIMITS:150` |
+| `PCAP_AUTO` | Set or read the auto-capture SD budget and free-space floor | `[budgetMB,floorMB]` | `@AH01 PCAP_AUTO:512,64` |
+| `PCAP_DELETE_ALL` | Delete every capture on SD; replies the count | None | `@AH01 PCAP_DELETE_ALL` |
 | `SD_REPAIR` | Rebuild an unmountable SD card; erases it | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 | `SCHED_ADD` | Schedule a scan | `<local YYYY-MM-DDTHH:MM>\|<repeat secs>\|<scan>\|<options>`; scan `/scan`, `/sniffer` or `/drone`; repeat `0` once, else 600+ | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/scan\|mode=2&secs=600` |
 | `SCHED_LIST` | Print scheduled scans to serial, reply with the count | None | `@AH01 SCHED_LIST` |
@@ -73,6 +75,15 @@ These commands are only present on Beta firmware. On Stable they are not recogni
 | `INCIDENTS_CLEAR` | Clear the incident log | None | `@ALL INCIDENTS_CLEAR` |
 | `ATTACKER_TRILAT` | Triangulate a confirmed attacker | `1`/`0`/`on`/`off` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | Report that setting | None | `@AH01 ATTACKER_TRILAT_STATUS` |
+| `DETECT_JSON` | Dump a detector's list to serial | `karma\|pg\|tsf\|hshk\|pwna\|tof\|hunts\|pcap\|pcaps` | `@AH01 DETECT_JSON:pwna` |
+| `DETECT_CLEAR` | Clear a detector's list | same names | `@AH01 DETECT_CLEAR:tsf` |
+| `DETECT_COUNTS` | Entry count per detector, pending attack responses | None | `@AH01 DETECT_COUNTS` |
+| `DETECT_VERBOSE` | Per-frame detector logging on serial | `ON\|OFF` | `@AH01 DETECT_VERBOSE:ON` |
+| `QUORUM` | Nodes that must agree before an alert | `<type>,<n>` | `@ALL QUORUM:PMKID,2` |
+| `KARMA_ON` / `KARMA_OFF` | Karma detector; transmits bait probes to confirm a suspect AP | None | `@AH01 KARMA_ON` |
+| `HUNT_COOLDOWN` | Gap between attacker hunts | ms | `@ALL HUNT_COOLDOWN:60000` |
+| `TOF_PING` | Time-of-flight ping | `[:<node>]`, all if omitted | `@AH01 TOF_PING:AH02` |
+| `ATTACK_RESPONSE_CANCEL` | Drop a pending attack response | None | `@ALL ATTACK_RESPONSE_CANCEL` |
 
 `GROUP` members: `dos` = eviltwin, sae, assoc_sleep · `rogue` = eviltwin, owe, karma · `recon` = pmkid, probe_flood, hshk · `physical` = frag, tsf, jam · `mesh` = mesh_guard · `all` = every member listed here.
 
@@ -149,7 +160,7 @@ Erase commands reply `ERASE_ACK:SET_KEY_FIRST` until you set your own key. 5 wro
 | `BATTERY_SAVER_STOP` | Return to normal | None | `@AH01 BATTERY_SAVER_STOP` |
 | `BATTERY_SAVER_STATUS` | Report power state | None | `@AH01 BATTERY_SAVER_STATUS` |
 
-Stops Wi-Fi/BLE scanning, reduces CPU to 80MHz, enables light sleep, GPS polled once per minute. Mesh UART stays active. Heartbeat format:
+Stops Wi-Fi/BLE scanning, reduces CPU to 80MHz, sends a heartbeat every interval. Mesh UART stays active. Heartbeat format:
 
 ```
 NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
