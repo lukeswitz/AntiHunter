@@ -199,7 +199,7 @@ static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
 
 void rebuildActiveChannels() {
 #ifdef ARDUINO_XIAO_ESP32C5
-    if (rfConfig.bandMode != 0) {
+    if (rfConfig.bandMode != 0 && !g_sweepHopChannels) {
         static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
         bool have5g = false;
         for (uint8_t ch : CHANNELS) if (!channelIs2G(ch)) { have5g = true; break; }
@@ -209,7 +209,7 @@ void rebuildActiveChannels() {
             Serial.println("[RF] 5GHz channels added to saved list: 36/40/44/48/149/153/157/161/165");
         }
     }
-    if (rfConfig.bandMode == 2) {
+    if (rfConfig.bandMode == 2 && !g_sweepHopChannels) {
         bool have2g = false;
         for (uint8_t ch : CHANNELS) if (channelIs2G(ch)) { have2g = true; break; }
         if (!have2g) {
@@ -465,6 +465,13 @@ extern Preferences prefs;
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
+volatile bool g_sweepHopChannels = false;
+static std::vector<uint8_t> g_preSplitChannels;
+void splitChannelsBegin(const String &csv) {
+    g_preSplitChannels = CHANNELS;
+    g_sweepHopChannels = true;
+    parseChannelsCSV(csv);
+}
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern bool isZeroOrBroadcast(const uint8_t *mac);
@@ -1389,12 +1396,14 @@ void snifferScanTask(void *pv)
 
             if (stopRequested) break;
             Serial.println("[SNIFFER] Scanning WiFi networks (all channels)...");
+            std::vector<uint8_t> sweepCh = g_sweepHopChannels ? CHANNELS : std::vector<uint8_t>{0};
+            for (uint8_t sweepChan : sweepCh) {
             if (hopTimer) esp_timer_stop(hopTimer);
             hopScanAbort();
             esp_wifi_set_promiscuous(false);
             WiFi.setScanTimeout(AH_SCAN_TIMEOUT_MS);
             WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_MS);
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, 0);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, sweepChan);
             WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_DEFAULT_MS);
             esp_wifi_set_promiscuous(true);
             if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
@@ -1460,6 +1469,8 @@ void snifferScanTask(void *pv)
 
             WiFi.scanDelete();
             Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
+            }
+            if (stopRequested) break;
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
@@ -2114,6 +2125,11 @@ void snifferScanTask(void *pv)
         Serial.printf("[SCANMEM] task-exit locals tx=%u batch=%u freed=%d\n",
                       (unsigned)locTx, (unsigned)locBatch,
                       (int)heap_caps_get_free_size(MALLOC_CAP_INTERNAL) - (int)locBefore);
+    }
+    if (g_sweepHopChannels) {
+        g_sweepHopChannels = false;
+        CHANNELS = g_preSplitChannels;
+        rebuildActiveChannels();
     }
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);

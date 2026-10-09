@@ -101,4 +101,5 @@ bool schedulerYieldRadio(const char *who);
 bool vibAutoScanWaiting();
 void setNodeId(const String &id);
 String getNodeId();
+int fleetSend(String node, String cmd, String &msg);
 extern unsigned long meshSendInterval;
