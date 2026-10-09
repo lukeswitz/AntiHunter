@@ -767,6 +767,7 @@ static void handleDeviceScanStart(const String &command)
   int secs = 60;
   bool forever = false;
   bool captureProbes = false;
+  String chans;
 
   int field = 0;
   int start = 0;
@@ -778,6 +779,8 @@ static void handleDeviceScanStart(const String &command)
       forever = true;
     } else if (tok == "+PROBE") {
       captureProbes = true;
+    } else if (tok.startsWith("CH") && tok.length() > 2) {
+      chans = tok.substring(2);
     } else if (tok.length()) {
       int v = tok.toInt();
       if (field == 0) mode = v;
@@ -797,6 +800,7 @@ static void handleDeviceScanStart(const String &command)
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
+      if (chans.length()) parseChannelsCSV(chans);
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 

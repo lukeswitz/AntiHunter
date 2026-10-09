@@ -917,6 +917,7 @@ R"HTML(
             <button type="button" class="sched-add" id="schedAddBtn" onclick="schedOpen(true)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="schedAddLbl">Schedule this scan</span></button>
             <div class="sched-sheet" id="schedSheet" style="display:none;">
               <input type="hidden" id="schScan">
+              <div><label style="font-size:11px;">Run on</label><select id="schNode"><option value="">This node</option></select></div>
               <div><label style="font-size:11px;">Start (<span id="schTz">UTC</span>)</label><input type="datetime-local" id="schAt"></div>
               <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="schDur" min="1" max="1440" value="10" placeholder="10"></div>
               <div><label style="font-size:11px;">Repeat</label>
@@ -1017,6 +1018,16 @@ R"HTML(
             <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
           </div>
           <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
+          <div style="margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
+            <h4 style="margin:0 0 6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Split Device Scan</h4>
+            <div class="det-desc" style="margin:0 0 10px;">Runs one device scan across the checked nodes. By radio: nodes alternate Wi-Fi and BLE, so no node loses Wi-Fi time to BLE. By channel: each node sweeps its share of the Wi-Fi channel list.</div>
+            <div id="fleetSplitNodes" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end;">
+              <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
+              <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" min="1" max="1440" value="10"></div>
+              <button class="btn primary" type="button" onclick="fleetSplit()">Start Split Scan</button>
+            </div>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
             <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
             <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
@@ -2626,8 +2637,90 @@ R"HTML(
                   'No non-node senders heard.');
         fleetFill(document.getElementById('detRadios'), radios, fleetRadioCard,
                   'No non-node senders heard.');
+        fleetSplitNodesRender(peers);
         var fb = document.getElementById('fleetCardBody');
         if (fb && !fb.classList.contains('collapsed')) fb.style.maxHeight = 'none';
+      }
+      function fleetAliveIds(peers) {
+        return (peers || []).filter(function(p) { return p.alive && /^[A-Za-z0-9]{2,5}$/.test(p.id); }).map(function(p) { return p.id; });
+      }
+      function fleetSplitNodesRender(peers) {
+        var box = document.getElementById('fleetSplitNodes');
+        if (!box) return;
+        var keep = {};
+        box.querySelectorAll('input:checked').forEach(function(c) { keep[c.value] = 1; });
+        var ids = [''].concat(fleetAliveIds(peers));
+        var had = box.childElementCount > 0;
+        box.innerHTML = '';
+        ids.forEach(function(id) {
+          var l = document.createElement('label');
+          l.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;';
+          var c = document.createElement('input');
+          c.type = 'checkbox';
+          c.value = id;
+          c.checked = had ? !!keep[id] : true;
+          l.appendChild(c);
+          l.appendChild(document.createTextNode(id || 'This node'));
+          box.appendChild(l);
+        });
+      }
+      function fleetNodeOptions(sel, firstLabel) {
+        if (!sel) return;
+        fetch('/api/mesh').then(function(r) { return r.json(); }).then(function(d) {
+          var cur = sel.value;
+          sel.innerHTML = '';
+          [''].concat(fleetAliveIds(d && d.peers)).forEach(function(id) {
+            var o = document.createElement('option');
+            o.value = id;
+            o.textContent = id || firstLabel;
+            sel.appendChild(o);
+          });
+          sel.value = cur;
+          if (sel.value !== cur) sel.value = '';
+        }).catch(fleetFetchFailed);
+      }
+      function fleetChannelList() {
+        var wc = document.getElementById('wifiChannels');
+        var s = (wc && wc.value.trim()) || '1..11';
+        var out = [];
+        s.split(',').forEach(function(t) {
+          var m = /^\s*(\d+)\s*\.\.\s*(\d+)\s*$/.exec(t);
+          if (m) { for (var i = +m[1]; i <= +m[2]; i++) out.push(i); }
+          else if (+t > 0) out.push(+t);
+        });
+        return out;
+      }
+      async function fleetSplit() {
+        var ids = [];
+        document.querySelectorAll('#fleetSplitNodes input:checked').forEach(function(c) { ids.push(c.value); });
+        var mins = parseInt(document.getElementById('fleetSplitMin').value, 10);
+        var by = document.getElementById('fleetSplitBy').value;
+        if (ids.length < 2) { toast('Check at least two nodes', 'error'); return; }
+        if (!(mins >= 1 && mins <= 1440)) { toast('Duration must be 1 to 1440 minutes', 'error'); return; }
+        var chans = fleetChannelList();
+        if (by === 'channel' && chans.length < ids.length) { toast('More nodes than channels', 'error'); return; }
+        var secs = mins * 60, done = [], failed = [];
+        for (var i = 0; i < ids.length; i++) {
+          var mode = by === 'radio' ? (i % 2) : 0;
+          var ch = '';
+          if (by === 'channel') {
+            var a = Math.floor(i * chans.length / ids.length), b = Math.floor((i + 1) * chans.length / ids.length);
+            ch = chans.slice(a, b).join(',');
+          }
+          var r;
+          try {
+            if (!ids[i]) {
+              var p = { detection: 'device-scan', deviceScanMode: String(mode), secs: String(secs) };
+              if (ch) p.ch = ch;
+              r = await fetch('/sniffer', { method: 'POST', body: new URLSearchParams(p) });
+            } else {
+              r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: ids[i], cmd: 'DEVICE_SCAN_START:' + mode + ':' + secs + (ch ? ':CH' + ch : '') }) });
+            }
+          } catch (e) { r = null; }
+          var label = (ids[i] || 'This node') + ' ' + (mode ? 'BLE' : 'Wi-Fi') + (ch ? ' ch ' + ch : '');
+          (r && r.ok ? done : failed).push(label + (r && !r.ok ? ' (' + (await r.text()) + ')' : ''));
+        }
+        toast((done.length ? 'Started: ' + done.join('; ') : '') + (failed.length ? (done.length ? '. ' : '') + 'Failed: ' + failed.join('; ') : ''), failed.length ? 'error' : 'success');
       }
       function fleetFetchFailed(e) {
         console.warn('fleet: /api/mesh request failed', e);
@@ -6232,6 +6325,7 @@ R"HTML(
             const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + 5 * 60000);
             document.getElementById('schAt').value = d.toISOString().slice(0, 16);
           }
+          fleetNodeOptions(document.getElementById('schNode'), 'This node');
         }
         document.getElementById('schedSheet').style.display = on ? '' : 'none';
         document.getElementById('schedAddBtn').style.display = on ? 'none' : '';
@@ -6280,6 +6374,7 @@ R"HTML(
         schedLoad();
       }
       async function schedAdd() {
+        const node = document.getElementById('schNode').value;
         const kind = document.getElementById('schScan').value;
         const mins = parseInt(document.getElementById('schDur').value, 10);
         const at = document.getElementById('schAt').value.slice(0, 16);
@@ -6305,7 +6400,7 @@ R"HTML(
           const _wc = document.getElementById('wifiChannels');
           if (_wc && _wc.value.trim()) fd.set('ch', _wc.value.trim());
           if (kind === 'drone-detection') { path = '/drone'; fd.delete('detection'); }
-          if (kind === 'baseline') {
+          if (kind === 'baseline' && !node) {
             const v = id => encodeURIComponent(document.getElementById(id).value);
             await fetch('/baseline/config', {
               method: 'POST',
@@ -6317,6 +6412,12 @@ R"HTML(
         fd.delete('forever');
         fd.set('secs', String(mins * 60));
         const body = new URLSearchParams(fd).toString();
+        if (node) {
+          const rr = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node, cmd: `SCHED_ADD:${at}|${document.getElementById('schRep').value}|${path}|${body}` }) });
+          toast((await rr.text()) + (rr.ok ? ' - its SCHED_ACK shows in Fleet' : ''), rr.ok ? 'success' : 'error');
+          if (rr.ok) schedOpen(false);
+          return;
+        }
         const r = await fetch('/schedule', {
           method: 'POST',
           body: new URLSearchParams({ now: Math.floor(Date.now() / 1000), at, period: document.getElementById('schRep').value, path, body })

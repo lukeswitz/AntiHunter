@@ -1379,6 +1379,49 @@ void registerRemainingRoutes() {
     req->send(200, "application/json", "{\"ok\":true}");
   });
 
+  server->on("/api/fleet/send", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!meshEnabled) {
+      req->send(409, "text/plain", "Mesh disabled");
+      return;
+    }
+    if (!req->hasParam("node", true) || !req->hasParam("cmd", true)) {
+      req->send(400, "text/plain", "Missing node or cmd");
+      return;
+    }
+    String node = req->getParam("node", true)->value();
+    String cmd = req->getParam("cmd", true)->value();
+    node.trim();
+    node.toUpperCase();
+    cmd.trim();
+    bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
+    for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
+    if (!nodeOk) {
+      req->send(400, "text/plain", "Bad node ID");
+      return;
+    }
+    static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS"};
+    bool cmdOk = false;
+    for (const char *p : kAllowed) {
+      size_t n = strlen(p);
+      if (p[n - 1] == ':' ? cmd.startsWith(p) : cmd == p) { cmdOk = true; break; }
+    }
+    String line = "@" + node + " " + cmd;
+    for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
+    if (!cmdOk) {
+      req->send(400, "text/plain", "Command not allowed");
+      return;
+    }
+    if ((int)line.length() > MAX_MESH_SIZE) {
+      req->send(413, "text/plain", "Too long for one mesh message");
+      return;
+    }
+    if (!sendToSerial1(line, true)) {
+      req->send(503, "text/plain", "Mesh busy - retry");
+      return;
+    }
+    req->send(200, "text/plain", "Sent to " + node);
+  });
+
   server->on("/api/mesh/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
     meshFleetClear();
     req->send(200, "application/json", "{\"ok\":true}");
