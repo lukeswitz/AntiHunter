@@ -599,7 +599,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>RF Settings</b>.</li>
     <li><b>Hidden network.</b> Off by default. Turn it on under <b>RF Settings</b> and the node stops beaconing its SSID, so the AP does not appear in a scan of the area. It is not access control. A hidden SSID forces the client to send directed probe requests carrying the network name, so the phone or laptop you connect with advertises that name everywhere it goes afterwards. The WPA2/WPA3 passphrase is still what keeps people out. The node reboots on save and you type the SSID by hand to reconnect.</li>
-    <li><b>Erase PSK.</b> The key that authorizes every wipe, abort, auto-erase change and factory reset. The node makes a random one on first boot and prints it on USB serial at every boot (<span class="mono">[ERASE] PSK: …</span>). Record it. The web UI takes it in the Authorization field. Over mesh it is never sent in the clear: see §10.4. To change it: <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;hmac&gt;</span>.</li>
+    <li><b>Erase key.</b> Authorizes every wipe, abort, auto-erase change and factory reset. 8 to 64 characters, no <span class="mono">:</span>. Erase commands are refused (<span class="mono">ERASE_ACK:SET_KEY_FIRST</span>) until you set one: in the web UI, in the flasher (<span class="mono">erasePSK</span>), or with <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. Full: until a key is set, <span class="mono">&lt;current&gt;</span> is the AP password, once it is changed from the default. Headless: set it in the flasher. Record it; the node never prints it.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
@@ -637,7 +637,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>Privacy Mode.</b> One click blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
-    <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
+    <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz and sends a heartbeat (temperature, GPS) every interval. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
     <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — of the Sentinel banners and of the movement hit color. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
     <li><b>Fleet</b> (System tab, full). Lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers; <b>Clear</b> empties the list.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
@@ -882,26 +882,26 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Erase delay</td><td>10 to 300 s</td><td>Countdown before destruction, your window to cancel</td></tr>
     <tr><td>Cooldown</td><td>5 to 60 min</td><td>Minimum time between tamper attempts, to blunt false triggers</td></tr>
   </table>
-  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;hmac&gt;   <span class="c"># setup:erase:vibs:window:cooldown:hmac</span>
+  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;key&gt;   <span class="c"># setup:erase:vibs:window:cooldown:key</span>
 @AH01 AUTOERASE_STATUS
-@AH01 AUTOERASE_DISABLE:&lt;hmac&gt;
-@AH01 ERASE_CANCEL:&lt;hmac&gt;                       <span class="c"># abort a running countdown</span></pre>
+@AH01 AUTOERASE_DISABLE:&lt;key&gt;
+@AH01 ERASE_CANCEL:&lt;key&gt;                       <span class="c"># abort a running countdown</span></pre>
   <p>During the setup period the node still reports movement, so you can watch the arming from a distance: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When it triggers you get <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>.</p>
 
   <h4>Remote erase</h4>
-  <p>Two steps, so a single stray message cannot wipe a node and the PSK never crosses the mesh. Every command marked <span class="mono">&lt;hmac&gt;</span> in this section works the same way.</p>
+  <p>Every command marked <span class="mono">&lt;key&gt;</span> takes the erase key (§8.1): <span class="mono">@AH01 ERASE_FORCE:&lt;key&gt;</span>. 5 wrong keys lock erase commands for 10 min.</p>
+  <p>To keep the key off the mesh, answer a token instead:</p>
   <ol>
-    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span>.</li>
-    <li>The node answers on the mesh channel, in the Meshtastic app or Command Center log like any other reply: <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>. Copy the token, <span class="mono">AH_…</span> up to the space.</li>
-    <li>On your phone or laptop, sign the token with the node's erase PSK (§8.1): <span class="mono">printf '%s' 'AH_3F2A…' | openssl dgst -sha256 -hmac 'yourPSK'</span>. Copy the 64 hex characters after <span class="mono">=</span>. That is <span class="mono">&lt;hmac&gt;</span>.</li>
-    <li>Within 5 minutes send <span class="mono">@AH01 ERASE_FORCE:&lt;hmac&gt;</span> (or <span class="mono">ERASE_CANCEL</span>, <span class="mono">AUTOERASE_*</span>, <span class="mono">FACTORY_RESET</span>, <span class="mono">CONFIG_ERASE_PSK</span> with the same <span class="mono">&lt;hmac&gt;</span>). The token works only on the node that issued it and expires after 300 s; after that, request a new one.</li>
+    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span> (one per 20 s). The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
+    <li>Sign the token: <span class="mono">printf '%s' 'AH_3F2A…' | openssl dgst -sha256 -hmac 'yourKey'</span>.</li>
+    <li>Within 300 s send the 64 hex characters, or the first 8, in place of <span class="mono">&lt;key&gt;</span>. A token answers once.</li>
   </ol>
-  <p>From the node's own web UI no token is needed: enter the PSK in the Authorization field.</p>
+  <p>In the web UI, enter the key in the Authorization field.</p>
   <p>After a wipe the node plants a dummy IoT weather configuration in place of its own, so a recovered device does not obviously read as a sensor.</p>
 
   <h4>Factory reset</h4>
-  <pre>@AH01 FACTORY_RESET:FULL:&lt;hmac&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
-  <p>Single node only. Request a token first, then answer with the HMAC as above.</p>
+  <pre>@AH01 FACTORY_RESET:FULL:&lt;key&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
+  <p>Single node only.</p>
 
   <div class="box warn"><span class="t">Data destruction is irreversible</span>
     <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone, and the countdown is short by design.</p>
@@ -915,8 +915,8 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>Core</h3>
   <table class="tight">
     <tr><th style="width:34%">Command</th><th>Description</th></tr>
-    <tr><td><span class="mono">STATUS</span></td><td>Mode, scan state, hits, temperature, uptime, GPS</td></tr>
-    <tr><td><span class="mono">STOP</span></td><td>Stop all operations, flush pending mesh transmissions</td></tr>
+    <tr><td><span class="mono">STATUS</span></td><td>Mode, scan state, hits, temperature, uptime, GPS; then <span class="mono">STATUS_BOOT:</span> reset reason, previous uptime, SD faults</td></tr>
+    <tr><td><span class="mono">STOP</span></td><td>Stop all operations and any pending attack response, flush pending mesh transmissions</td></tr>
   </table>
 
   <h3>Configuration</h3>
@@ -931,7 +931,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>Toggle per-session dedup</td><td>0 or 1</td></tr>
     <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td><td>None</td></tr>
     <tr><td><span class="mono">DEVICE_DB_CLEAR</span></td><td>Clear the discovered-device DB, headless, Beta and C5</td><td>None</td></tr>
-    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Change the key that authorizes a wipe</td><td><span class="mono">&lt;new&gt;:&lt;hmac&gt;</span>, key 1 to 64 characters, no <span class="mono">:</span></td></tr>
+    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the erase key</td><td><span class="mono">&lt;new&gt;:&lt;current&gt;</span>, 8 to 64 characters, no <span class="mono">:</span>; §8.1</td></tr>
   </table>
 
   <h3>Scanning</h3>
@@ -953,6 +953,8 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">MESH_TX_CANCEL</span></td><td>Drop queued mesh traffic, keep scanning</td><td>None</td></tr>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:CH&lt;list&gt;]</span></td></tr>
     <tr><td><span class="mono">PCAP_LIMITS</span></td><td>Set or read the capture size cap</td><td><span class="mono">[MB]</span>, 8 to 300</td></tr>
+    <tr><td><span class="mono">PCAP_AUTO</span></td><td>Set or read the auto-capture SD budget</td><td><span class="mono">[budgetMB,floorMB]</span></td></tr>
+    <tr><td><span class="mono">PCAP_DELETE_ALL</span></td><td>Delete every capture on SD</td><td>None</td></tr>
     <tr><td><span class="mono">SD_REPAIR</span></td><td>Rebuild an unmountable SD card; erases it</td><td><span class="mono">ON|OFF|NOW</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
@@ -969,18 +971,26 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector tunables</td><td>JSON, 180 characters or fewer</td></tr>
     <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td>Dump or clear the incident log</td><td><span class="mono">[:1-200]</span></td></tr>
     <tr><td><span class="mono">ATTACKER_TRILAT</span> and <span class="mono">ATTACKER_TRILAT_STATUS</span></td><td>Triangulate a confirmed attacker, or report the setting</td><td>1 or 0, off by default</td></tr>
+    <tr><td><span class="mono">DETECT_JSON</span> and <span class="mono">DETECT_CLEAR</span></td><td>Dump a detector's list to serial, or clear it</td><td><span class="mono">karma|pg|tsf|hshk|pwna|tof|hunts|pcap|pcaps</span></td></tr>
+    <tr><td><span class="mono">DETECT_COUNTS</span></td><td>Entry count per detector, pending attack responses</td><td>None</td></tr>
+    <tr><td><span class="mono">DETECT_VERBOSE</span></td><td>Per-frame detector logging on serial</td><td><span class="mono">ON|OFF</span></td></tr>
+    <tr><td><span class="mono">QUORUM</span></td><td>Nodes that must agree before an alert</td><td><span class="mono">&lt;type&gt;,&lt;n&gt;</span>, e.g. <span class="mono">PMKID,2</span></td></tr>
+    <tr><td><span class="mono">KARMA_ON</span> and <span class="mono">KARMA_OFF</span></td><td>Karma detector; transmits bait probes to confirm a suspect AP</td><td>None</td></tr>
+    <tr><td><span class="mono">HUNT_COOLDOWN</span></td><td>Gap between attacker hunts</td><td>ms</td></tr>
+    <tr><td><span class="mono">TOF_PING</span></td><td>Time-of-flight ping</td><td><span class="mono">[:node]</span>, all if omitted</td></tr>
+    <tr><td><span class="mono">ATTACK_RESPONSE_CANCEL</span></td><td>Drop a pending attack response</td><td>None</td></tr>
   </table>
 
   <h3>Security, power and heartbeat</h3>
   <table class="tight">
     <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Wipe the node, challenge flow</td><td>None, <span class="mono">&lt;hmac&gt;</span>, <span class="mono">&lt;hmac&gt;</span>; §10.4</td></tr>
-    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown:hmac</span></td></tr>
-    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td><span class="mono">&lt;hmac&gt;</span>, none</td></tr>
+    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Token, wipe, abort</td><td>None, <span class="mono">&lt;key&gt;</span>, <span class="mono">&lt;key&gt;</span>; §10.4</td></tr>
+    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown:key</span></td></tr>
+    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td><span class="mono">&lt;key&gt;</span>, none</td></tr>
     <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>Enable, disable, report the sensor</td><td>None</td></tr>
     <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown[:interrupt]]</span></td></tr>
     <tr><td><span class="mono">SCHED_ADD</span>, <span class="mono">SCHED_LIST</span>, <span class="mono">SCHED_DEL</span></td><td>Add, list or delete a schedule block</td><td><span class="mono">at|repeat s|path|body</span>, none, block number</td></tr>
-    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;hmac&gt;</span></td></tr>
+    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;key&gt;</span></td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Drop to low power</td><td>Minutes, 1 to 30, default 5</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>Return to normal, or report</td><td>None</td></tr>
     <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default</td><td>Interval 1 to 60 min</td></tr>
@@ -1148,7 +1158,7 @@ docker compose up -d --build</pre>
     <li>Clock set, GPS has a fix</li>
     <li>SD card mounted and writable</li>
     <li>Vibration sensor tuned in its final position</li>
-    <li>Auto-erase parameters understood if you armed it, and the erase PSK recorded somewhere safe</li>
+    <li>Auto-erase parameters understood if you armed it, and the erase key recorded somewhere safe</li>
     <li>The node answers <span class="mono">@NODEID STATUS</span> over the mesh from where you will be standing</li>
     <li>Antennas tight, seals seated, lid closed</li>
   </ul>
@@ -1297,7 +1307,7 @@ docker compose up -d --build</pre>
     <tr><td>Wi-Fi AP password</td><td><span class="mono">antihunt3r123</span></td><td><b>change it</b></td></tr>
     <tr><td>Wi-Fi AP hidden</td><td>off, SSID beacons</td><td>optional, see §8.1 before turning it on</td></tr>
     <tr><td>Web UI</td><td><span class="mono">http://192.168.4.1</span></td><td>Full firmware only</td></tr>
-    <tr><td>Erase PSK</td><td>not set</td><td><b>set it</b> if using erase or factory reset</td></tr>
+    <tr><td>Erase key</td><td>not set</td><td><b>set it</b> if using erase or factory reset</td></tr>
     <tr><td>Meshtastic serial</td><td>TEXTMSG, 115200</td><td>pre-configured on tiers 1 and 3, you set it on 2 and 4</td></tr>
     <tr><td>LoRa region</td><td><span class="mono">UNSET</span>, receive only</td><td><b>set it</b></td></tr>
     <tr><td>Meshtastic channel</td><td>public default</td><td><b>replace with your own encrypted channel</b></td></tr>
