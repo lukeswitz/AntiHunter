@@ -222,8 +222,10 @@ void mesh_observeInbound(const String &sender, const String &body);
 
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged = false);
 
+void detect_setVerbose(bool on);
 bool detect_isVerbose();
 size_t detect_meshPeerCount();
+void quorum_setRequired(const String &type, uint8_t n);
 
 void sentinel_startAlwaysOn();
 void sentinel_kill();

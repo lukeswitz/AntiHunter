@@ -157,7 +157,10 @@ void recordBootReason();
 void logBootRecord();
 void markUptimeAlive();
 const char *getResetReasonText();
+uint32_t getPrevBootUptimeSec();
+bool prevBootUptimeKnown();
 bool wasCleanBoot();
+bool resultsWereRestored();
 void saveResultsSnapshot(bool force = false);
 void loadResultsSnapshot();
 

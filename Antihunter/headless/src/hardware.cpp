@@ -1439,7 +1439,10 @@ const char *getResetReasonText() {
     }
 }
 
+uint32_t getPrevBootUptimeSec() { return g_prevUptimeSec; }
+bool prevBootUptimeKnown() { return g_prevUptimeKnown; }
 bool wasCleanBoot() { return g_resetReason == ESP_RST_POWERON || g_resetReason == ESP_RST_EXT; }
+bool resultsWereRestored() { return g_resultsRestored; }
 
 void recordBootReason() {
     g_resetReason = esp_reset_reason();
@@ -2431,16 +2434,10 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     Serial.println("[BATTERY_SAVER] BLE disabled");
 
     // Reduce CPU frequency to 80MHz for power saving
-    esp_pm_config_t pm_config = {
-        .max_freq_mhz = 80,
-        .min_freq_mhz = 80,
-        .light_sleep_enable = true
-    };
-    esp_err_t err = esp_pm_configure(&pm_config);
-    if (err == ESP_OK) {
-        Serial.println("[BATTERY_SAVER] CPU frequency reduced to 80MHz");
+    if (setCpuFrequencyMhz(80)) {
+        Serial.printf("[BATTERY_SAVER] CPU frequency reduced to %luMHz\n", (unsigned long)getCpuFrequencyMhz());
     } else {
-        Serial.printf("[BATTERY_SAVER] Failed to configure PM: %s\n", esp_err_to_name(err));
+        Serial.println("[BATTERY_SAVER] Failed to set CPU frequency");
     }
 
     batterySaverEnabled = true;
@@ -2463,16 +2460,10 @@ void exitBatterySaver() {
     Serial.println("[BATTERY_SAVER] Exiting battery saver mode...");
 
     // Restore CPU frequency to 240MHz
-    esp_pm_config_t pm_config = {
-        .max_freq_mhz = 240,
-        .min_freq_mhz = 80,
-        .light_sleep_enable = false
-    };
-    esp_err_t err = esp_pm_configure(&pm_config);
-    if (err == ESP_OK) {
-        Serial.println("[BATTERY_SAVER] CPU frequency restored to 240MHz");
+    if (setCpuFrequencyMhz(240)) {
+        Serial.printf("[BATTERY_SAVER] CPU frequency restored to %luMHz\n", (unsigned long)getCpuFrequencyMhz());
     } else {
-        Serial.printf("[BATTERY_SAVER] Failed to configure PM: %s\n", esp_err_to_name(err));
+        Serial.println("[BATTERY_SAVER] Failed to set CPU frequency");
     }
 
     // Re-enable BLE controller

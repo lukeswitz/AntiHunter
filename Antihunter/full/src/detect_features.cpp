@@ -463,7 +463,7 @@ String pwnagotchi_getJson() {
                ",\"best_rssi\":" + String(kv.second.bestRssi) +
                ",\"first\":" + String(kv.second.firstSeen) +
                ",\"last\":" + String(kv.second.lastSeen) +
-               ",\"snippet\":\"" + String(kv.second.snippet) + "\"}";
+               ",\"snippet\":\"" + jsonEscape(String(kv.second.snippet)) + "\"}";
     }
     out += "]";
     return out;

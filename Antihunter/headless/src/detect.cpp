@@ -4065,7 +4065,13 @@ size_t detect_meshPeerCount() {
 }
 
 std::atomic<bool> g_detectVerbose{false};
+void detect_setVerbose(bool on) { g_detectVerbose.store(on); }
 bool detect_isVerbose() { return g_detectVerbose.load(); }
+
+void quorum_setRequired(const String &type, uint8_t n) {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_quorumRequired[type] = n;
+}
 
 void detect_periodicMeshGossip() {
     if (!g_bloomGossipEnabled.load()) return;
