@@ -724,6 +724,28 @@ static bool schedPathOk(const String &p) {
   return p == "/scan" || p == "/sniffer" || p == "/drone";
 }
 
+int fleetSend(String node, String cmd, String &msg) {
+  node.trim();
+  node.toUpperCase();
+  cmd.trim();
+  bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
+  for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
+  if (!nodeOk) { msg = "Bad node ID"; return 400; }
+  static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS"};
+  bool cmdOk = false;
+  for (const char *p : kAllowed) {
+    size_t n = strlen(p);
+    if (p[n - 1] == ':' ? cmd.startsWith(p) : cmd == p) { cmdOk = true; break; }
+  }
+  String line = "@" + node + " " + cmd;
+  for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
+  if (!cmdOk) { msg = "Command not allowed"; return 400; }
+  if ((int)line.length() > MAX_MESH_SIZE) { msg = "Too long for one mesh message"; return 413; }
+  if (!sendToSerial1(line, true)) { msg = "Mesh busy - retry"; return 503; }
+  msg = "Sent to " + node;
+  return 200;
+}
+
 static int schedPost(const String &path, const String &body) {
   int s = lwip_socket(AF_INET, SOCK_STREAM, 0);
   if (s < 0) { Serial.println("[SCHED] socket failed"); return 0; }
@@ -1388,38 +1410,9 @@ void registerRemainingRoutes() {
       req->send(400, "text/plain", "Missing node or cmd");
       return;
     }
-    String node = req->getParam("node", true)->value();
-    String cmd = req->getParam("cmd", true)->value();
-    node.trim();
-    node.toUpperCase();
-    cmd.trim();
-    bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
-    for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
-    if (!nodeOk) {
-      req->send(400, "text/plain", "Bad node ID");
-      return;
-    }
-    static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS"};
-    bool cmdOk = false;
-    for (const char *p : kAllowed) {
-      size_t n = strlen(p);
-      if (p[n - 1] == ':' ? cmd.startsWith(p) : cmd == p) { cmdOk = true; break; }
-    }
-    String line = "@" + node + " " + cmd;
-    for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
-    if (!cmdOk) {
-      req->send(400, "text/plain", "Command not allowed");
-      return;
-    }
-    if ((int)line.length() > MAX_MESH_SIZE) {
-      req->send(413, "text/plain", "Too long for one mesh message");
-      return;
-    }
-    if (!sendToSerial1(line, true)) {
-      req->send(503, "text/plain", "Mesh busy - retry");
-      return;
-    }
-    req->send(200, "text/plain", "Sent to " + node);
+    String msg;
+    int code = fleetSend(req->getParam("node", true)->value(), req->getParam("cmd", true)->value(), msg);
+    req->send(code, "text/plain", msg);
   });
 
   server->on("/api/mesh/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -1614,9 +1607,13 @@ void registerRemainingRoutes() {
             return;
         }
 
+        g_sweepHopChannels = false;
         if (req->hasParam("ch", true)) {
             String ch = req->getParam("ch", true)->value();
-            if (ch.length() > 0) parseChannelsCSV(ch);
+            if (ch.length() > 0) {
+                if (req->hasParam("split", true)) splitChannelsBegin(ch);
+                else parseChannelsCSV(ch);
+            }
         }
 
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";

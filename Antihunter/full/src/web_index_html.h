@@ -2711,7 +2711,7 @@ R"HTML(
           try {
             if (!ids[i]) {
               var p = { detection: 'device-scan', deviceScanMode: String(mode), secs: String(secs) };
-              if (ch) p.ch = ch;
+              if (ch) { p.ch = ch; p.split = '1'; }
               r = await fetch('/sniffer', { method: 'POST', body: new URLSearchParams(p) });
             } else {
               r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: ids[i], cmd: 'DEVICE_SCAN_START:' + mode + ':' + secs + (ch ? ':CH' + ch : '') }) });

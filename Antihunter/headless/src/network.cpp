@@ -800,7 +800,8 @@ static void handleDeviceScanStart(const String &command)
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
-      if (chans.length()) parseChannelsCSV(chans);
+      g_sweepHopChannels = false;
+      if (chans.length()) splitChannelsBegin(chans);
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 

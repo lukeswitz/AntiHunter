@@ -782,7 +782,8 @@ static void handleDeviceScanStart(const String &command)
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
-      if (chans.length()) parseChannelsCSV(chans);
+      g_sweepHopChannels = false;
+      if (chans.length()) splitChannelsBegin(chans);
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
@@ -2276,6 +2277,19 @@ void processCommand(const String &commandRaw, const String &targetId = "")
 #if AH_SELFTEST
   else if (command == "SELFTEST_VIBSCAN") {
       vibAutoScanPending = true;
+  }
+  else if (command == "SELFTEST_CHANNELS") {
+      extern std::vector<uint8_t> CHANNELS;
+      String s;
+      for (uint8_t c : CHANNELS) s += String(c) + ",";
+      Serial.printf("[SELFTEST] channels %s sweep=%d\n", s.c_str(), (int)g_sweepHopChannels);
+  }
+  else if (command.startsWith("SELFTEST_FLEET:")) {
+      String p = command.substring(15);
+      int sp = p.indexOf(' ');
+      String msg;
+      int code = sp > 0 ? fleetSend(p.substring(0, sp), p.substring(sp + 1), msg) : 400;
+      Serial.printf("[SELFTEST] fleet %d %s\n", code, msg.c_str());
   }
   else if (command == "SELFTEST_ATTACK") {
       const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
