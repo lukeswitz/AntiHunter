@@ -7,7 +7,6 @@
 #include "main.h"
 #include "triangulation.h"
 #include <SD.h>
-#include <LittleFS.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
 #include <esp_wifi.h>
