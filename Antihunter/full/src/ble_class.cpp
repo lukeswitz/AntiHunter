@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+volatile bool bleClassifyEnabled = true;
+
 static const char *idClassLabel(const uint16_t *keys, const uint8_t *labels, size_t n, uint16_t key) {
     size_t lo = 0, hi = n;
     while (lo < hi) {
@@ -57,33 +59,30 @@ static void appleContinuity(const uint8_t *m, size_t n, char *out, size_t outLen
         case 0x06: s = "HomeKit"; break;
         case 0x07: s = "AirPods"; break;
         case 0x08: s = "Hey-Siri"; break;
-        case 0x09: s = "Nearby-Action"; break;
-        case 0x0A: s = "Apple-TV"; break;
-        case 0x0B: s = "Watch-C"; break;
+        case 0x09: s = "AirPlay-Target"; break;
+        case 0x0A: s = "AirPlay-Source"; break;
+        case 0x0B: s = "Watch-MagicSwitch"; break;
         case 0x0C: s = "Handoff"; break;
-        case 0x0D: s = "WiFi-Settings"; break;
-        case 0x0E: s = "Tethering-T"; break;
-        case 0x0F: s = "Tethering-S"; break;
+        case 0x0D: s = "Tethering-Target"; break;
+        case 0x0E: s = "Tethering-Source"; break;
+        case 0x0F: s = "Nearby-Action"; break;
         case 0x10:
-            if (n >= 6) {
-                uint8_t act = (m[4] >> 4) & 0x0F;
-                uint8_t flg = m[4] & 0x0F;
-                bool wifi = (m[5] & 0x10) != 0;
-                switch (act) {
-                    case 0x00: s = wifi ? "iPhone-Inactive-WiFi" : "iPhone-Inactive"; break;
-                    case 0x01: s = "iPhone-Idle"; break;
-                    case 0x03: s = "iPhone-Audio"; break;
-                    case 0x05: s = "iPhone-AirDrop-RX"; break;
-                    case 0x07: s = "iPhone-HomeScreen"; break;
-                    case 0x09: s = "iPhone-LockScreen"; break;
-                    case 0x0A: s = "iPhone-Locked"; break;
-                    case 0x0B: s = "iPhone-Call-Ringing"; break;
-                    case 0x0D: s = "iPhone-Recently-Used"; break;
-                    case 0x0E: s = "iPhone-Call-Active"; break;
-                    default: snprintf(out, outLen, "iPhone-Act%X-%X", act, flg); return;
+            if (n >= 5) {
+                switch (m[4] & 0x0F) {
+                    case 0x01: s = "Nearby-ReportOff"; break;
+                    case 0x03: s = "Nearby-Locked"; break;
+                    case 0x05: s = "Nearby-Audio"; break;
+                    case 0x07: s = "Nearby-Inactive"; break;
+                    case 0x09: s = "Nearby-Video"; break;
+                    case 0x0A: s = "Nearby-Locked-Watch"; break;
+                    case 0x0B: s = "Nearby-Active"; break;
+                    case 0x0D: s = "Nearby-Driving"; break;
+                    case 0x0E: s = "Nearby-Call"; break;
+                    default:   s = "Nearby-Info"; break;
                 }
+                if (n >= 6 && (m[5] & 0x04)) { snprintf(out, outLen, "%s-WiFi", s); return; }
             } else {
-                s = "iPhone-Nearby";
+                s = "Nearby-Info";
             }
             break;
         case 0x12: s = "FindMy"; break;
@@ -93,20 +92,32 @@ static void appleContinuity(const uint8_t *m, size_t n, char *out, size_t outLen
 }
 
 static void microsoftSubtype(const uint8_t *m, size_t n, char *out, size_t outLen) {
-    if (n < 3) { snprintf(out, outLen, "Microsoft"); return; }
+    if (n < 4) { snprintf(out, outLen, "Microsoft"); return; }
     const char *s = nullptr;
-    uint8_t sub = m[2] & 0x3F;
-    switch (sub) {
-        case 0x01: s = "MS-XboxOne"; break;
-        case 0x03: s = "SwiftPair-T1"; break;
-        case 0x05: s = "SwiftPair-T2"; break;
-        case 0x06: s = "SwiftPair-T3"; break;
-        case 0x07: s = "SwiftPair-T4"; break;
-        case 0x08: s = "Beacon"; break;
-        case 0x09: s = "CDP"; break;
-        case 0x0A: s = "Continuum"; break;
-        case 0x0C: s = "MS-Account"; break;
-        default: snprintf(out, outLen, "Microsoft-%02X", sub); return;
+    if (m[2] == 0x01) {
+        switch (m[3] & 0x1F) {
+            case 1:  s = "CDP-Xbox"; break;
+            case 6:  s = "CDP-iPhone"; break;
+            case 7:  s = "CDP-iPad"; break;
+            case 8:  s = "CDP-Android"; break;
+            case 9:  s = "CDP-WinDesktop"; break;
+            case 11: s = "CDP-WinPhone"; break;
+            case 12: s = "CDP-Linux"; break;
+            case 13: s = "CDP-WinIoT"; break;
+            case 14: s = "CDP-SurfaceHub"; break;
+            case 15: s = "CDP-WinLaptop"; break;
+            case 16: s = "CDP-WinTablet"; break;
+            default: s = "CDP"; break;
+        }
+    } else if (m[2] == 0x03) {
+        switch (m[3]) {
+            case 0x00: s = "SwiftPair-LE"; break;
+            case 0x01: s = "SwiftPair-BREDR"; break;
+            case 0x02: s = "SwiftPair-Dual"; break;
+            default:   s = "SwiftPair"; break;
+        }
+    } else {
+        snprintf(out, outLen, "Microsoft-%02X", m[2]); return;
     }
     snprintf(out, outLen, "%s", s);
 }
@@ -142,7 +153,7 @@ static const char *svcDataLabel(uint16_t uuid, const uint8_t *s, size_t n) {
         case 0xFE9F: return "Google-Nearby";
         case 0xFD6F: return "ExposureNotif";
         case 0xFCF1: return "Google-Stadia";
-        case 0xFE2C: return "Google";
+        case 0xFE2C: return "FastPair";
         case 0xFE25: return "AppleMHC";
         case 0xFD44: return "AppleAuth";
         case 0xFE61: return "Logitech";

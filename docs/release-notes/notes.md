@@ -31,6 +31,10 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - Results toolbar is a full-width bar with a mobile grid layout.
 - Watchlist accepts hex tracer IDs (`T-00A3`).
 - PCAP files carry the radiotap MCS field for HT frames.
+- Campaigns, Full and headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot.
+- Data tab: campaign picker, From/To date filter for every dataset, Start/Stop campaign, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the RTC; without it only system log lines match a campaign.
+- BLE classifier on/off: Data tab checkbox or mesh `BLE_CLASSIFY:0|1`. Off skips advertisement parsing during scans. On by default; the setting persists.
+- `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for headless nodes.
 
 ## Fixed
 
@@ -45,6 +49,9 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - Privacy mode redacts device-scan names and full MACs in the Data tab.
 - List scan lines carry a range estimate and always highlight hits; target tokens accept any MAC separator.
 - Class table counts device rows only.
+- BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
+- BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
+- Data tab search keeps the selected sort column.
 
 ## Upgrade
 

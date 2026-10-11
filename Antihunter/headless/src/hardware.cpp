@@ -1,6 +1,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "baseline.h"
+#include "campaign.h"
 #include "detect.h"
 #include "csi.h"
 #include "pcap.h"
@@ -1399,7 +1400,8 @@ void logToSD(const String &data) {
     // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
 
-    String line = "[" + timestamp + "] " + data + "\n";
+    const char *camp = campaignName();
+    String line = "[" + timestamp + "] " + (camp[0] ? String("[C:") + camp + "] " : String()) + data + "\n";
     const uint8_t *lineBytes = reinterpret_cast<const uint8_t *>(line.c_str());
     if (SafeSD::write(logFile, lineBytes, line.length()) != line.length()) {
         logFile.close();
