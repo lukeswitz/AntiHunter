@@ -944,7 +944,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
             h.name[sizeof(h.name) - 1] = '\0';
             h.isBLE = true;
-            {
+            if (bleClassifyEnabled) {
                 std::vector<uint8_t> pl = advertisedDevice->getPayload();
                 bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
             }
@@ -1330,8 +1330,10 @@ void snifferScanTask(void *pv)
                             {
                                 std::string mfr = device->getManufacturerData();
                                 h.isApple = (mfr.size() >= 2 && (uint8_t)mfr[0] == 0x4C && (uint8_t)mfr[1] == 0x00);
-                                std::vector<uint8_t> pl = device->getPayload();
-                                bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+                                if (bleClassifyEnabled) {
+                                    std::vector<uint8_t> pl = device->getPayload();
+                                    bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+                                }
                             }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
                                 hitsLog.push_back(h);
@@ -3617,7 +3619,7 @@ void listScanTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    {
+                    if (bleClassifyEnabled) {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
                     }

@@ -1,6 +1,8 @@
 #include "hardware.h"
 #include "network.h"
 #include "baseline.h"
+#include "campaign.h"
+#include "ble_class.h"
 #include "triangulation.h"
 #include "detect.h"
 #include "pcap.h"
@@ -472,6 +474,7 @@ void initializeHardware()
     setMeshSessionDedup(prefs.getBool("meshSessDedup", false));
     meshEnabled = prefs.getBool("meshEnabled", true);
     Serial.printf("[CONFIG] Mesh: %s\n", meshEnabled ? "Enabled" : "Disabled");
+    bleClassifyEnabled = prefs.getBool("bleClassify", true);
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
@@ -1660,7 +1663,8 @@ void logToSD(const String &data) {
     // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
 
-    String line = "[" + timestamp + "] " + data + "\n";
+    const char *camp = campaignName();
+    String line = "[" + timestamp + "] " + (camp[0] ? String("[C:") + camp + "] " : String()) + data + "\n";
     const uint8_t *lineBytes = reinterpret_cast<const uint8_t *>(line.c_str());
     if (SafeSD::write(logFile, lineBytes, line.length()) != line.length()) {
         logFile.close();

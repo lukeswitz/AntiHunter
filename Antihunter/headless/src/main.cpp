@@ -1,5 +1,6 @@
 #include "main.h"
 #include "triangulation.h"
+#include "campaign.h"
 #include <SPI.h>
 #include <Arduino.h>
 #include <Preferences.h>
@@ -212,6 +213,7 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    campaignInit();
 
     Serial.println("Waiting for mesh device stability...");
     delay(10000);

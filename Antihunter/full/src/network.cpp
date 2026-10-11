@@ -6,6 +6,8 @@
 #include "main.h"
 #include "detect.h"
 #include "pcap.h"
+#include "campaign.h"
+#include "ble_class.h"
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include <esp_timer.h>
@@ -1364,6 +1366,29 @@ void registerRemainingRoutes() {
   server->on("/mesh-dedup-clear", HTTP_POST, [](AsyncWebServerRequest *req) {
     meshDedupClear();
     req->send(200, "text/plain", "Dedup cache cleared");
+  });
+
+  server->on("/data-cfg", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", String("{\"campaign\":\"") + campaignName() +
+              "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") + "}");
+  });
+
+  server->on("/data-cfg", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (req->hasParam("bleClassify", true)) {
+      bleClassifyEnabled = req->getParam("bleClassify", true)->value().toInt() != 0;
+      prefs.putBool("bleClassify", bleClassifyEnabled);
+    }
+    if (req->hasParam("stop", true)) campaignStop();
+    if (req->hasParam("campaign", true) && !campaignStart(req->getParam("campaign", true)->value())) {
+      req->send(400, "text/plain", "Campaign name needs letters, digits, - or _");
+      return;
+    }
+    req->send(200, "application/json", String("{\"campaign\":\"") + campaignName() +
+              "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") + "}");
+  });
+
+  server->on("/api/campaigns.csv", HTTP_GET, [](AsyncWebServerRequest *req) {
+    sendSdLog(req, CAMPAIGN_FILE, "text/csv", 200, "");
   });
 
   server->on("/mesh-session-dedup", HTTP_POST, [](AsyncWebServerRequest *req) {
