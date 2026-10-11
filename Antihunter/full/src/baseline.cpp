@@ -773,7 +773,7 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    {
+                    if (bleClassifyEnabled) {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
                     }
@@ -929,7 +929,7 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    {
+                    if (bleClassifyEnabled) {
                         std::vector<uint8_t> pl = device->getPayload();
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
                     }

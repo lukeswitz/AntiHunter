@@ -7,6 +7,7 @@
 #include "detect.h"
 #include "csi.h"
 #include "pcap.h"
+#include "campaign.h"
 #include <RTClib.h>
 #include <algorithm>
 #include <esp_timer.h>
@@ -2360,6 +2361,19 @@ static void handleBatterySaverStatus(const String &command)
   sendToSerial1(status, true);
 }
 
+static void handleCampaign(const String &command)
+{
+  if (command.startsWith("CAMPAIGN_START:")) {
+    bool ok = campaignStart(command.substring(15));
+    sendToSerial1(nodeId + ": CAMPAIGN_ACK:" + (ok ? String("START:") + campaignName() : String("INVALID")), true);
+  } else if (command == "CAMPAIGN_STOP") {
+    String was = campaignName();
+    sendToSerial1(nodeId + ": CAMPAIGN_ACK:" + (campaignStop() ? "STOP:" + was : String("NONE")), true);
+  } else {
+    sendToSerial1(nodeId + ": CAMPAIGN_STATUS:" + (campaignName()[0] ? String(campaignName()) : String("NONE")), true);
+  }
+}
+
 static void handleHbOn(const String &command)
 {
   hbEnabled = true;
@@ -2640,6 +2654,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("BATTERY_SAVER_START")) handleBatterySaverStart(command);
   else if (command == "BATTERY_SAVER_STOP")           handleBatterySaverStop(command);
   else if (command == "BATTERY_SAVER_STATUS")         handleBatterySaverStatus(command);
+  else if (command.startsWith("CAMPAIGN_"))           handleCampaign(command);
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
