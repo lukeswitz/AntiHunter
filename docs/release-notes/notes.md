@@ -52,6 +52,8 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
 - BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - Data tab search keeps the selected sort column.
+- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 353,360 B to 78,218 B). The full image is 307,096 B smaller.
+- Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
 
 ## Upgrade
 

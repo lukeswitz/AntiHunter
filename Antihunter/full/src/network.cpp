@@ -275,7 +275,7 @@ void initializeNetwork()
 
 // ------------- AP HTML -------------
 
-#include "web_index_html.h"
+#include "web_index_html_gz.h"
 
 static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *mime, int missCode, const char *missMsg) {
     if (!SD.exists(path)) { req->send(missCode, missCode == 200 ? mime : "text/plain", missMsg); return; }
@@ -348,7 +348,8 @@ void startWebServer()
         // ETag revalidation: 336KB page returns a tiny 304 on repeat loads, re-sent only on new fw
         static const char *ETAG = "\"" AH_GIT_SHA "\"";
         if (r->hasHeader("If-None-Match") && r->header("If-None-Match") == ETAG) { r->send(304); return; }
-        AsyncWebServerResponse* res = r->beginResponse(200, "text/html", reinterpret_cast<const uint8_t*>(INDEX_HTML), strlen_P(INDEX_HTML));
+        AsyncWebServerResponse* res = r->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+        res->addHeader("Content-Encoding", "gzip");
         res->addHeader("ETag", ETAG);
         res->addHeader("Cache-Control", "no-cache");
         r->send(res); });
@@ -2784,10 +2785,6 @@ void registerRemainingRoutes() {
   server->on("/api/recon/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       detect_clearRecon();
       r->send(200, "text/plain", "cleared");
-  });
-  server->on("/api/oui/reload", HTTP_POST, [](AsyncWebServerRequest *r) {
-      bool ok = loadOuiTable();
-      r->send(200, "application/json", ok ? "{\"loaded\":true}" : "{\"loaded\":false}");
   });
   server->on("/api/detect/clear_all", HTTP_POST, [](AsyncWebServerRequest *r) {
       detect_clearAll();

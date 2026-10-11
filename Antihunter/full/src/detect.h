@@ -272,7 +272,6 @@ void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash);
 String detect_getBloomStatsJson();
 
 // OUI category
-bool loadOuiTable();  // from LittleFS /oui_cat.bin if present
 
 // Recon score
 String detect_getReconJson();

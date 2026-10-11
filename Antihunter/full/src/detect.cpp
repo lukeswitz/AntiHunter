@@ -7,7 +7,6 @@
 #include "main.h"
 #include "triangulation.h"
 #include <SD.h>
-#include <LittleFS.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
 #include <esp_wifi.h>
@@ -4306,27 +4305,6 @@ String detect_getRidClaimsJson() {
     return out;
 }
 
-// =============================================================================
-// OUI table
-// =============================================================================
-bool loadOuiTable() {
-    if (!LittleFS.begin(true)) return false;
-    if (!LittleFS.exists("/oui_cat.bin")) return false;
-    File f = LittleFS.open("/oui_cat.bin", "r");
-    if (!f) return false;
-    size_t sz = f.size();
-    size_t n = sz / sizeof(OuiTableEntry);
-    g_ouiTable.clear();
-    g_ouiTable.reserve(n);
-    for (size_t i = 0; i < n; ++i) {
-        OuiTableEntry e;
-        if (f.read(reinterpret_cast<uint8_t*>(&e), sizeof(e)) != sizeof(e)) break;
-        g_ouiTable.push_back(e);
-    }
-    f.close();
-    Serial.printf("[DETECT] Loaded %u OUI entries\n", (unsigned)g_ouiTable.size());
-    return true;
-}
 // =============================================================================
 // Recon scoring
 // =============================================================================
