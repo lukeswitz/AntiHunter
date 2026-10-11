@@ -5061,7 +5061,7 @@ R"HTML(
       }
 
       const DEV_CLASSES = [
-        ['Phone', 340,/^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP-(iPhone|iPad|Android|WinPhone))/],
+        ['Phone', 185,/^(Phone|iPhone|AirDrop|Handoff|Nearby|Hey-Siri|Tethering|WiFi-Settings|ExposureNotif|Samsung$|Google|FastPair|Continuum|CDP-(iPhone|iPad|Android|WinPhone))/],
         ['Tag', 45, /^(Tag|FindMy|SmartTag|Tile|Keyring)/],
         ['Audio', 305, /^(Audio|AirPods|Samsung-Buds|MediaPlayer)/],
         ['Wearable', 265, /^(Wearable|Watch|HeartRate|Cycling)/],
