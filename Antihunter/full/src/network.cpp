@@ -507,6 +507,11 @@ void startWebServer()
           return;
       }
       
+      if (getTargetCount() == 0) {
+          req->send(400, "text/plain", "No targets - add MACs or OUIs to the target list first");
+          return;
+      }
+
       String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
       if (!workerTaskHandle) {
