@@ -6174,6 +6174,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               return;
             }
             fd.set('targetMac', tgt);
+          } else if (!(document.getElementById('list')?.value || '').trim()) {
+            toast('No targets - add MACs or OUIs to the target list first', 'error');
+            document.getElementById('list')?.focus();
+            return;
           }
 
           // Mark as in progress
