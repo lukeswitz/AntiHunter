@@ -55,6 +55,21 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 353,360 B to 78,218 B). The full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
 
+## Firmware size
+
+App image size against the v1.0.4 release bins. Full builds shrink because the web page is stored gzip-compressed; headless builds grew from features added since v1.0.4.
+
+| Build | v1.0.4 | v1.0.5 | Change | App partition used |
+|---|---|---|---|---|
+| Stable full | 2,601,872 B | 2,321,584 B | -280,288 B | 77.8% -> 69.5% |
+| Beta full | 2,787,152 B | 2,421,936 B | -365,216 B | 83.4% -> 72.5% |
+| C5 full | 3,141,952 B | 2,768,816 B | -373,136 B | 74.9% -> 66.0% |
+| Stable headless | 1,897,584 B | 1,919,488 B | +21,904 B | 56.8% -> 57.4% |
+| Beta headless | 1,966,272 B | 2,003,792 B | +37,520 B | 58.8% -> 60.0% |
+| C5 headless | 2,321,776 B | 2,359,152 B | +37,376 B | 55.4% -> 56.2% |
+
+C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
+
 ## Upgrade
 
 Settings and SD card files survive a flash. Erase commands stay refused until you set an erase key (see above).
