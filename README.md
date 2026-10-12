@@ -35,11 +35,11 @@
 
 ## What is AntiHunter?
 
-***A digital and physical tripwire for your perimeter and RF environment. No subscription, data is yours.***
+***A wireless and physical tripwire for your perimeter. No subscription, no cloud. Your data stays yours.***
 
-The name comes from counter-surveillance: phones, trackers, and drones give themselves away by transmitting, and AntiHunter listens for them. It doesn't jam or send attack frames.
+AntiHunter turns the hunt around. Drones, phones, and attack tools give themselves away by transmitting, and AntiHunter listens. It flags watchlist targets, new devices, drones, wireless attacks, and tampering, then alerts, collects evidence, and can erase itself.
 
-Use it at home, on a fence line, at an event, or off the grid on battery and LoRa. It needs no internet, and scan results and detections save to its SD card. One node works on its own. Add more and they share alerts over the mesh, control all at once from the AHCC, and can locate a device together.
+Run it at home, on a fence line, at an event, or off-grid on battery. No internet needed; everything logs to SD. One node works alone. Add more and they share alerts and can pinpoint a device together (experimental). Control the whole fleet from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
