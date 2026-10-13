@@ -53,6 +53,8 @@ enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 #endif
 
 extern const int MAX_MESH_SIZE;
+constexpr size_t MESH_RADIO_PACKET_BYTES = 233;
+constexpr uint32_t MESH_RADIO_READ_IDLE_MS = 1500;
 extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
 extern bool meshEnabled;
