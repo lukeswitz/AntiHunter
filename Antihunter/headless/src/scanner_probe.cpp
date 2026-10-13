@@ -13,6 +13,7 @@
 #include <mutex>
 #include "scanner.h"
 #include "hardware.h"
+#include "campaign.h"
 #include "network.h"
 #include "triangulation.h"
 #include "baseline.h"
@@ -511,6 +512,7 @@ void probeDetectionTask(void *pv)
             for (auto &p : probeDevices) {
                 ProbeDevice &dev = p.second;
                 DynamicJsonDocument doc(512);
+                if (campaignName()[0]) doc["campaign"] = campaignName();
                 doc["t"] = now;
                 doc["mac"] = p.first;
                 doc["rssi"] = dev.rssi;

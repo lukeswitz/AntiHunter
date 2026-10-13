@@ -33,12 +33,14 @@ struct AnomalyHit {
     bool isBLE{};
     uint32_t timestamp{};
     String reason{};
+    char cls[24]{};
 };
 
 struct BaselineTag {
     uint8_t slices{};
     int8_t rssiA{};
     int8_t rssiB{};
+    char cls[24]{};
 };
 
 bool baselineSetMarker();
@@ -118,7 +120,7 @@ extern bool sdBaselineInitialized;
 void baselineDetectionTask(void *pv);
 bool isDeviceInBaseline(const uint8_t *mac);
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
-void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel, const char *cls = nullptr);
 void cleanupBaselineMemory();
 void updateBaselineStats();
 

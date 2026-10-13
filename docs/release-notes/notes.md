@@ -34,6 +34,10 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - Campaigns, Full and headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot.
 - Data tab: campaign picker, From/To date filter for every dataset, Start/Stop campaign, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the RTC; without it only system log lines match a campaign.
 - BLE classifier on/off: Data tab checkbox or mesh `BLE_CLASSIFY:0|1`. Off skips advertisement parsing during scans. On by default; the setting persists.
+- BLE classifier, headless: list and device scan results carry `C=<class>`; mesh `BLE_CLASSIFY:0|1`.
+- BLE classifier reads every manufacturer, service-data and service-UUID block in an advertisement plus scan response, not only the first.
+- Campaign UX: one Data tab panel starts/stops on this node and checked mesh nodes; header REC badge; Export campaign; jsonl rows carry `campaign` and filter by it; mesh `STATUS` adds `Camp:<name>`.
+- `/api/fleet/send` accepts `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for headless nodes.
 
 ## Fixed
