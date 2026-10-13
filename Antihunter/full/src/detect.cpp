@@ -3724,6 +3724,9 @@ String detect_getIncidentsJson(size_t maxEntries) {
 void detect_clearIncidents() {
     ah_detect::detect_clearIncidents();
 }
+size_t detect_incidentCount() {
+    return ah_detect::detect_incidentCount();
+}
 
 namespace {
     struct SoftApDeauthState {
