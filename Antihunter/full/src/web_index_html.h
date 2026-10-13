@@ -6399,6 +6399,7 @@ R"HTML(
       function onDataRange(){
         var f=document.getElementById('dataFrom').value,t=document.getElementById('dataTo').value;
         document.getElementById('dataCampaign').value='';dataCampTag='';
+        document.getElementById('campExport').disabled=true;
         dataRange=(f||t)?[f?Date.parse(f)/1000:0,t?Date.parse(t)/1000:4102444800]:null;
         loadDataSet();
       }
@@ -6413,6 +6414,7 @@ R"HTML(
       function campHdrSet(name){
         var el=document.getElementById('campStatusHdr');if(!el) return;
         el.style.display=name?'':'none';el.textContent=name?'REC '+name:'REC';
+        var st=document.getElementById('campState');if(st)st.textContent=name?'Recording: '+name:'No active campaign';
       }
       function campHdrStop(){
         if(!confirm('Stop the campaign on this node?')) return;
@@ -6474,8 +6476,6 @@ R"HTML(
           .then(function(r){return r.ok?r.json():r.text().then(function(t){throw new Error(t);});})
           .then(function(){loadCampaigns();return true;}).catch(function(e){toast(e.message||'Failed','error');return false;});
       }
-      function campStart(){var n=document.getElementById('campName').value.trim();if(!n){toast('Enter a campaign name','warning');return;}dataCfgPost('campaign='+encodeURIComponent(n)).then(function(ok){if(ok)toast('Campaign started','success');});}
-      function campStop(){dataCfgPost('stop=1');}
       function saveBleClassify(){dataCfgPost('bleClassify='+(document.getElementById('bleClassify').checked?1:0));}
       function dataRefilter(){
         var q=document.getElementById('dataSearch').value.toLowerCase();
