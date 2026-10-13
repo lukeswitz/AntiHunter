@@ -8,7 +8,7 @@ Send `@<NODE> CMD` or `@ALL CMD`. Node ID: 2-5 chars, A-Z 0-9. `secs`: 0-86400. 
 
 | Command | Args | Reply | Example |
 |---|---|---|---|
-| `STATUS` | | `STATUS:` then `STATUS_BOOT:` | `@ALL STATUS` |
+| `STATUS` | | `STATUS:` | `@ALL STATUS` |
 | `STOP` | | | `@ALL STOP` |
 | `MESH_TX_CANCEL` | | `MESH_TX_CANCEL_ACK` | `@ALL MESH_TX_CANCEL` |
 
