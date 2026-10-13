@@ -46,7 +46,6 @@ Send `@<NODE> CMD` or `@ALL CMD`. Node ID: 2-5 chars, A-Z 0-9. `secs`: 0-86400. 
 | `PCAP_STOP` | | | `@ALL PCAP_STOP` |
 | `PCAP_LIMITS` | `[MB]` 8-300 | `PCAP_LIMITS_ACK:MAXFILE=<n>MB\|INVALID` | `@ALL PCAP_LIMITS:150` |
 | `PCAP_AUTO` | `[budgetMB,floorMB]` | `PCAP_AUTO_ACK:BUDGET=...\|INVALID` | `@AH01 PCAP_AUTO:512,64` |
-| `PCAP_DELETE_ALL` | | count | `@AH01 PCAP_DELETE_ALL` |
 | `SD_REPAIR` | `ON\|OFF\|NOW`, NOW erases the card | `SD_REPAIR_ACK:ON\|OFF\|REPAIRED\|FAILED` | `@ALL SD_REPAIR:ON` |
 | `SCHED_ADD` | `YYYY-MM-DDTHH:MM\|repeat\|scan\|options`; repeat `0` or 600+; scan `/scan` `/sniffer` `/drone` | `SCHED_ACK:OK\|ERR <msg>\|INVALID` | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/scan\|mode=2&secs=600` |
 | `SCHED_LIST` | | count, entries on serial | `@AH01 SCHED_LIST` |
@@ -105,15 +104,7 @@ Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys: 10 min lockout.
 | `INCIDENTS_CLEAR` | | `@ALL INCIDENTS_CLEAR` |
 | `ATTACKER_TRILAT` | `0\|1\|on\|off` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | | `@AH01 ATTACKER_TRILAT_STATUS` |
-| `DETECT_JSON` | `karma\|pg\|tsf\|hshk\|pwna\|tof\|hunts\|pcap\|pcaps` | `@AH01 DETECT_JSON:pwna` |
-| `DETECT_CLEAR` | same | `@AH01 DETECT_CLEAR:tsf` |
 | `DETECT_COUNTS` | | `@AH01 DETECT_COUNTS` |
-| `DETECT_VERBOSE` | `ON\|OFF` | `@AH01 DETECT_VERBOSE:ON` |
-| `QUORUM` | `type,n` | `@ALL QUORUM:PMKID,2` |
-| `KARMA_ON` / `KARMA_OFF` | transmits bait probes | `@AH01 KARMA_ON` |
-| `HUNT_COOLDOWN` | ms | `@ALL HUNT_COOLDOWN:60000` |
-| `TOF_PING` | `[:node]` | `@AH01 TOF_PING:AH02` |
-| `ATTACK_RESPONSE_CANCEL` | | `@ALL ATTACK_RESPONSE_CANCEL` |
 
 `GROUP`: `dos` eviltwin,sae,assoc_sleep · `rogue` eviltwin,owe,karma · `recon` pmkid,probe_flood,hshk · `physical` frag,tsf,jam · `mesh` mesh_guard · `all`.
 Headless: use `SENTINEL_MODE:scan`.

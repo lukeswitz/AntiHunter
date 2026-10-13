@@ -954,7 +954,6 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:CH&lt;list&gt;]</span></td></tr>
     <tr><td><span class="mono">PCAP_LIMITS</span></td><td>Set or read the capture size cap</td><td><span class="mono">[MB]</span>, 8 to 300</td></tr>
     <tr><td><span class="mono">PCAP_AUTO</span></td><td>Set or read the auto-capture SD budget</td><td><span class="mono">[budgetMB,floorMB]</span></td></tr>
-    <tr><td><span class="mono">PCAP_DELETE_ALL</span></td><td>Delete every capture on SD</td><td>None</td></tr>
     <tr><td><span class="mono">SD_REPAIR</span></td><td>Rebuild an unmountable SD card; erases it</td><td><span class="mono">ON|OFF|NOW</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
@@ -971,14 +970,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector tunables</td><td>JSON, 180 characters or fewer</td></tr>
     <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td>Dump or clear the incident log</td><td><span class="mono">[:1-200]</span></td></tr>
     <tr><td><span class="mono">ATTACKER_TRILAT</span> and <span class="mono">ATTACKER_TRILAT_STATUS</span></td><td>Triangulate a confirmed attacker, or report the setting</td><td>1 or 0, off by default</td></tr>
-    <tr><td><span class="mono">DETECT_JSON</span> and <span class="mono">DETECT_CLEAR</span></td><td>Dump a detector's list to serial, or clear it</td><td><span class="mono">karma|pg|tsf|hshk|pwna|tof|hunts|pcap|pcaps</span></td></tr>
     <tr><td><span class="mono">DETECT_COUNTS</span></td><td>Entry count per detector, pending attack responses</td><td>None</td></tr>
-    <tr><td><span class="mono">DETECT_VERBOSE</span></td><td>Per-frame detector logging on serial</td><td><span class="mono">ON|OFF</span></td></tr>
-    <tr><td><span class="mono">QUORUM</span></td><td>Nodes that must agree before an alert</td><td><span class="mono">&lt;type&gt;,&lt;n&gt;</span>, e.g. <span class="mono">PMKID,2</span></td></tr>
-    <tr><td><span class="mono">KARMA_ON</span> and <span class="mono">KARMA_OFF</span></td><td>Karma detector; transmits bait probes to confirm a suspect AP</td><td>None</td></tr>
-    <tr><td><span class="mono">HUNT_COOLDOWN</span></td><td>Gap between attacker hunts</td><td>ms</td></tr>
-    <tr><td><span class="mono">TOF_PING</span></td><td>Time-of-flight ping</td><td><span class="mono">[:node]</span>, all if omitted</td></tr>
-    <tr><td><span class="mono">ATTACK_RESPONSE_CANCEL</span></td><td>Drop a pending attack response</td><td>None</td></tr>
   </table>
 
   <h3>Security, power and heartbeat</h3>

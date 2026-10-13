@@ -1217,44 +1217,6 @@ static String detectArg(const String &command)
 }
 
 #if AH_SENTINEL
-static void handleDetectJson(const String &command)
-{
-  const String name = detectArg(command);
-  String j;
-  if      (name == "karma") j = karma_getJson();
-  else if (name == "pg")    j = pg_getGraphJson();
-  else if (name == "tsf")   j = tsf_getSkewJson();
-  else if (name == "hshk")  j = hshk_getReconJson();
-  else if (name == "pwna")  j = pwnagotchi_getJson();
-  else if (name == "tof")   j = tof_getPeersJson();
-  else if (name == "hunts") j = attacker_getActiveHuntsJson();
-  else if (name == "pcap")  j = getPcapStatusJson();
-  else if (name == "pcaps") j = getPcapListJson();
-  else {
-    sendToSerial1(nodeId + ": DETECT_JSON_ACK:INVALID", true);
-    return;
-  }
-  Serial.println("[DETECT] " + name + ": " + j);
-  sendToSerial1(nodeId + ": DETECT_JSON_LEN:" + name + ":" + String(j.length()) + " (see serial)", true);
-}
-
-static void handleDetectClear(const String &command)
-{
-  const String name = detectArg(command);
-  if      (name == "karma") karma_clear();
-  else if (name == "pg")    pg_clear();
-  else if (name == "tsf")   tsf_clear();
-  else if (name == "hshk")  hshk_clear();
-  else if (name == "pwna")  pwnagotchi_clear();
-  else if (name == "tof")   tof_clear();
-  else if (name == "hunts") attacker_clearHunts();
-  else {
-    sendToSerial1(nodeId + ": DETECT_CLEAR_ACK:INVALID", true);
-    return;
-  }
-  sendToSerial1(nodeId + ": DETECT_CLEAR_ACK:" + name, true);
-}
-
 static void handleDetectCounts(const String &command)
 {
   (void)command;
@@ -1268,63 +1230,6 @@ static void handleDetectCounts(const String &command)
                 " hshk=" + String(hshk_count()) +
                 " peers=" + String(detect_meshPeerCount()) +
                 " arPending=" + String(attack_responsePending()), true);
-}
-
-static void handleTofPing(const String &command)
-{
-  const String tgt = detectArg(command);
-  if (!tgt.length() || tgt == "*") tof_broadcastPing();
-  else tof_ping(tgt.c_str());
-  sendToSerial1(nodeId + ": TOF_PING_ACK:" + (tgt.length() ? tgt : String("*")), true);
-}
-
-static void handleKarma(const String &command)
-{
-  karma_setEnabled(command == "KARMA_ON");
-  detect_persistTunables();
-  sendToSerial1(nodeId + ": KARMA_ACK:" + String(karma_isEnabled() ? "ON" : "OFF"), true);
-}
-
-static void handleHuntCooldown(const String &command)
-{
-  const long ms = detectArg(command).toInt();
-  if (ms < 1000 || ms > 3600000) {
-    sendToSerial1(nodeId + ": HUNT_COOLDOWN_ACK:INVALID", true);
-    return;
-  }
-  attacker_setCooldown((uint32_t)ms);
-  sendToSerial1(nodeId + ": HUNT_COOLDOWN_ACK:" + String(ms), true);
-}
-
-static void handleQuorum(const String &command)
-{
-  const String a = detectArg(command);
-  const int comma = a.indexOf(',');
-  String type = comma > 0 ? a.substring(0, comma) : String("");
-  type.trim();
-  type.toUpperCase();
-  const long n = comma > 0 ? a.substring(comma + 1).toInt() : 0;
-  if (!type.length() || type.length() > 16 || n < 1 || n > 10) {
-    sendToSerial1(nodeId + ": QUORUM_ACK:INVALID", true);
-    return;
-  }
-  quorum_setRequired(type, (uint8_t)n);
-  sendToSerial1(nodeId + ": QUORUM_ACK:" + type + "=" + String(n), true);
-}
-
-static void handleDetectVerbose(const String &command)
-{
-  const String a = detectArg(command);
-  if (a == "ON") detect_setVerbose(true);
-  else if (a == "OFF") detect_setVerbose(false);
-  sendToSerial1(nodeId + ": DETECT_VERBOSE_ACK:" + String(detect_isVerbose() ? "ON" : "OFF"), true);
-}
-
-static void handleAttackResponseCancel(const String &command)
-{
-  (void)command;
-  attack_responseCancel();
-  sendToSerial1(nodeId + ": ATTACK_RESPONSE_ACK:CANCELED", true);
 }
 #endif
 
@@ -1341,13 +1246,6 @@ static void handlePcapAuto(const String &command)
   }
   sendToSerial1(nodeId + ": PCAP_AUTO_ACK:BUDGET=" + String(getPcapAutoBudgetMB()) +
                 "MB FLOOR=" + String(getPcapFreeFloorMB()) + "MB", true);
-}
-
-static void handlePcapDeleteAll(const String &command)
-{
-  (void)command;
-  const uint32_t n = pcapDeleteAll();
-  sendToSerial1(nodeId + ": PCAP_DELETE_ACK:" + String(n), true);
 }
 
 static void handleVibrationStatus(const String &command)
@@ -2511,18 +2409,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
   else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
   else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
-  else if (command.startsWith("DETECT_JSON:"))        handleDetectJson(command);
-  else if (command.startsWith("DETECT_CLEAR:"))       handleDetectClear(command);
   else if (command == "DETECT_COUNTS")                handleDetectCounts(command);
-  else if (command.startsWith("DETECT_VERBOSE:"))     handleDetectVerbose(command);
-  else if (command == "TOF_PING" || command.startsWith("TOF_PING:")) handleTofPing(command);
-  else if (command == "KARMA_ON" || command == "KARMA_OFF") handleKarma(command);
-  else if (command.startsWith("HUNT_COOLDOWN:"))      handleHuntCooldown(command);
-  else if (command.startsWith("QUORUM:"))             handleQuorum(command);
-  else if (command == "ATTACK_RESPONSE_CANCEL")       handleAttackResponseCancel(command);
 #endif
   else if (command == "PCAP_AUTO" || command.startsWith("PCAP_AUTO:")) handlePcapAuto(command);
-  else if (command == "PCAP_DELETE_ALL")              handlePcapDeleteAll(command);
   else if (command == "STATUS")                       handleStatus(command);
   else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
