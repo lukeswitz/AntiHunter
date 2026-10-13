@@ -257,6 +257,7 @@ void detect_periodicMeshGossip();
 void detect_logIncident(const String &raw, const char *src);
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();
+size_t detect_incidentCount();
 
 // Quorum
 void quorum_addReport(const String &type, const String &key,
