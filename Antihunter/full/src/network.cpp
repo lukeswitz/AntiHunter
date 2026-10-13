@@ -160,10 +160,27 @@ bool sendToSerial1(const String &message, bool canDelay) {
         }
     }
 
+    static uint32_t s_radioLastTxMs = 0;
+    static size_t s_radioBurstBytes = 0;
+    if (canDelay) {
+        while (s_radioBurstBytes + msgLen > MESH_RADIO_PACKET_BYTES &&
+               millis() - s_radioLastTxMs < MESH_RADIO_READ_IDLE_MS) {
+            xSemaphoreGive(serial1Mutex);
+            delay(20);
+            if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+                Serial.printf("[MESH] Mutex timeout on radio pacing\n");
+                return false;
+            }
+        }
+    }
+    if (millis() - s_radioLastTxMs >= MESH_RADIO_READ_IDLE_MS) s_radioBurstBytes = 0;
+
     Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
 
     Serial1.flush();
+    s_radioLastTxMs = millis();
+    s_radioBurstBytes += msgLen;
 
     // Review fix A (completion): consume INSIDE mutex so canSend/consume are fully atomic.
     if (!isPriority) {

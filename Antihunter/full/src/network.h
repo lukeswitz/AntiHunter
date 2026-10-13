@@ -45,6 +45,8 @@ uint32_t meshMsgUnits(const String &msg);
 uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
+constexpr size_t MESH_RADIO_PACKET_BYTES = 233;
+constexpr uint32_t MESH_RADIO_READ_IDLE_MS = 1500;
 constexpr int MAX_MESH_SIZE = 230;  // packs more DEVICE rows/frame; stays under Meshtastic 237B text-payload cap
 extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
