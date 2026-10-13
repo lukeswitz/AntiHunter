@@ -1066,11 +1066,6 @@ static void handleStatus(const String &command)
               gpsLat, gpsLon, hdop);
   }
   sendToSerial1(String(status_msg), true);
-  sendToSerial1(nodeId + ": STATUS_BOOT: reset=" + String(getResetReasonText()) +
-                " prevUp=" + (prevBootUptimeKnown() ? String(getPrevBootUptimeSec()) + "s" : String("unknown")) +
-                " restored=" + (resultsWereRestored() ? "yes" : "no") +
-                " sdMountFail=" + String(SafeSD::mountFailureCount()) +
-                " sdRetry=" + String(SafeSD::writeRetryCount()), true);
 }
 
 #if AH_SENTINEL
