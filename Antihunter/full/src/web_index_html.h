@@ -6984,7 +6984,6 @@ R"HTML(
         ]);
         if(n>0)detMarkActive('probegraph');
       }
-      async function pgClear(){await fetch('/api/probegraph/clear',{method:'POST'});pgTick();}
       async function hsTick(){
         if(!detTabActive())return;
         const [r,s]=await Promise.all([_jj('/api/handshakes'),_jj('/api/handshakes/stats')]);
@@ -7000,7 +6999,6 @@ R"HTML(
         ]);
         if(s&&s.krack_events>0)detMarkActive('handshake');
       }
-      async function hsClear(){await fetch('/api/handshakes/clear',{method:'POST'});hsTick();}
       async function ahTick(){
         if(!detTabActive())return;
         const h=await _jj('/api/attacker_hunts');
@@ -7014,51 +7012,11 @@ R"HTML(
         ]);
         if(n>0)detMarkActive('hunts');
       }
-      async function ahClear(){await fetch('/api/attacker_hunts/clear',{method:'POST'});ahTick();}
-      async function ahCooldown(){
-        const s=parseInt(document.getElementById('ah-cooldown-in').value,10);
-        if(!(s>=1&&s<=3600))return;
-        const fd=new FormData();fd.append('ms',String(s*1000));
-        await fetch('/api/attacker_hunts/cooldown',{method:'POST',body:fd});ahTick();
-      }
-      async function pwnaTick(){
-        if(!detTabActive())return;
-        const p=await _jj('/api/pwnagotchi');
-        {const _e=document.getElementById('pwna-n');if(_e)_e.textContent=(p||[]).length;}
-        detRenderTable('pwna-pre',p||[],[
-          {key:'bssid',label:'BSSID'},{key:'observations',label:'Seen'},
-          {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},
-          {key:'snippet',label:'Identity'},{key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if((p||[]).length>0)detMarkActive('pwna');
-      }
-      async function pwnaClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwnaTick();}
       async function rtcFromBrowser(){
         const fd=new FormData();fd.append('epoch',String(Math.floor(Date.now()/1000)));
         const r=await fetch('/api/time',{method:'POST',body:fd}).catch(()=>null);
         const m=document.getElementById('rtcSetMsg');
         if(m)m.textContent=r?(r.ok?'RTC set':'Failed: '+await r.text()):'Failed';
-      }
-      async function arTick(){
-        if(!detTabActive())return;
-        const a=await _jj('/api/attack_response');
-        const e=document.getElementById('arPending');
-        if(e&&a)e.textContent=a.pending?'yes':'none';
-      }
-      async function arCancel(){await fetch('/api/attack_response/cancel',{method:'POST'});arTick();}
-      async function verboseTick(){
-        if(!detTabActive())return;
-        const v=await _jj('/api/detect/verbose');
-        const e=document.getElementById('d-verbose');
-        if(e&&v)e.textContent=v.verbose?'ON':'off';
-      }
-      async function detVerbose(on){await fetch('/api/detect/verbose/'+(on?'on':'off'),{method:'POST'});verboseTick();}
-      async function quorumSet(){
-        const t=(document.getElementById('q-type-in').value||'').trim().toUpperCase();
-        const n=parseInt(document.getElementById('q-n-in').value,10);
-        if(!t||t.length>16||!(n>=1&&n<=10))return;
-        const fd=new FormData();fd.append('type',t);fd.append('n',String(n));
-        await fetch('/api/quorum/config',{method:'POST',body:fd});
       }
       async function kmTick(){
         if(!detTabActive())return;
@@ -7073,8 +7031,6 @@ R"HTML(
         ]);
         if(s&&s.confirmed>0)detMarkActive('karma');
       }
-      async function kmToggle(on){const fd=new FormData();fd.append('on',on);await fetch('/api/karma/enable',{method:'POST',body:fd});kmTick();}
-      async function kmClear(){await fetch('/api/karma/clear',{method:'POST'});kmTick();}
       async function tsfTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tsf_skew');
@@ -7085,7 +7041,6 @@ R"HTML(
           {key:'last',label:'Last',get:r=>_ago(r.last)}
         ]);
       }
-      async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
       async function jammingTick(){
         if(!detTabActive())return;
         const a=await _jsonl('/api/jamming.jsonl');
@@ -7119,12 +7074,6 @@ R"HTML(
           {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_ago(r.last)}
         ]);
       }
-      async function tofPing(){
-        const tgt=document.getElementById('tof-target-in').value||'*';
-        const fd=new FormData();fd.append('target',tgt);
-        await fetch('/api/tof/ping',{method:'POST',body:fd});tofTick();
-      }
-      async function tofClear(){await fetch('/api/tof/clear',{method:'POST'});tofTick();}
       const _detLastActivity={};
       let _detSev='all';
       function detApplyFilters(){
