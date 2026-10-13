@@ -8,6 +8,7 @@
 #include "csi.h"
 #include "pcap.h"
 #include "campaign.h"
+#include "ble_class.h"
 #include <RTClib.h>
 #include <algorithm>
 #include <esp_timer.h>
@@ -1249,6 +1250,11 @@ static void handleStatus(const String &command)
                       totalHits.load(),
                       esp_temp,
                       (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+  if (campaignName()[0] && written > 0 && written < (int)sizeof(status_msg) - 1)
+  {
+    int n = snprintf(status_msg + written, sizeof(status_msg) - written, " Camp:%s", campaignName());
+    if (n > 0) written = min(written + n, (int)sizeof(status_msg) - 1);
+  }
   if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
   {
       float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
@@ -2374,6 +2380,13 @@ static void handleCampaign(const String &command)
   }
 }
 
+static void handleBleClassify(const String &command)
+{
+  bleClassifyEnabled = command.substring(13).toInt() != 0;
+  prefs.putBool("bleClassify", bleClassifyEnabled);
+  sendToSerial1(nodeId + ": CONFIG_ACK:BLE_CLASSIFY:" + String(bleClassifyEnabled ? 1 : 0), true);
+}
+
 static void handleHbOn(const String &command)
 {
   hbEnabled = true;
@@ -2563,6 +2576,40 @@ static void handleSchedDel(const String &command)
   sendToSerial1(nodeId + (ok ? ": SCHED_ACK:DELETED" : ": SCHED_ACK:NOT_FOUND"), true);
 }
 
+#if AH_SELFTEST
+static String selftestTail(const char *path, size_t n) {
+  File f = SafeSD::open(path, FILE_READ);
+  if (!f) return String();
+  size_t sz = f.size();
+  if (sz > n) f.seek(sz - n);
+  String out;
+  while (f.available()) out += (char)f.read();
+  f.close();
+  return out;
+}
+
+static void selftestReport(const char *name, bool pass, const String &detail) {
+  Serial.printf("[SELFTEST] %s %s %s\n", name, pass ? "PASS" : "FAIL", detail.c_str());
+}
+
+static void selftestCampaignCheck() {
+  bool stopped = campaignStop();
+  selftestReport("camp_stop", stopped && !campaignName()[0], String("name='") + campaignName() + "'");
+  logEventToSD("/selftest.jsonl", "{\"t\":2,\"k\":\"st\"}");
+  String log = selftestTail("/antihunter.log", 8192);
+  int li = log.indexOf("[C:st1] SELFTEST_PROBE camp");
+  selftestReport("log_tag", li >= 0, li >= 0 ? log.substring(li, log.indexOf('\n', li)) : String("missing"));
+  String csv = selftestTail(CAMPAIGN_FILE, 1024);
+  int cs = csv.lastIndexOf("START,st1,"), ce = csv.lastIndexOf("STOP,st1,");
+  selftestReport("csv_start_stop", cs >= 0 && ce > cs, cs >= 0 ? csv.substring(cs) : String("missing"));
+  String js = selftestTail("/selftest.jsonl", 512);
+  int j1 = js.lastIndexOf("{\"campaign\":\"st1\",\"t\":1,\"k\":\"st\"}");
+  int j2 = js.lastIndexOf("{\"t\":2,\"k\":\"st\"}");
+  selftestReport("jsonl_campaign", j1 >= 0, j1 >= 0 ? js.substring(j1, js.indexOf('\n', j1)) : String("missing"));
+  selftestReport("jsonl_nocamp_after_stop", j2 > j1 && j2 >= 0 && js.charAt(j2 - 1) == '\n', j2 >= 0 ? js.substring(j2, js.indexOf('\n', j2)) : String("missing"));
+}
+#endif
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
   String command = commandRaw;
@@ -2611,6 +2658,15 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PCAP_LIMITS"))           handlePcapLimits(command);
   else if (command.startsWith("SD_REPAIR"))             handleSdRepair(command);
   else if (command == "STOP")                         handleStop(command);
+#if AH_SELFTEST
+  else if (command == "SELFTEST_CAMP1") {
+      bool ok = campaignStart("st1");
+      logToSD("SELFTEST_PROBE camp");
+      logEventToSD("/selftest.jsonl", "{\"t\":1,\"k\":\"st\"}");
+      Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
+  }
+  else if (command == "SELFTEST_CAMP2")               selftestCampaignCheck();
+#endif
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
   else if (command == "SENTINEL_STATUS")              handleSentinelStatus(command);
@@ -2655,6 +2711,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "BATTERY_SAVER_STOP")           handleBatterySaverStop(command);
   else if (command == "BATTERY_SAVER_STATUS")         handleBatterySaverStatus(command);
   else if (command.startsWith("CAMPAIGN_"))           handleCampaign(command);
+  else if (command.startsWith("BLE_CLASSIFY:"))       handleBleClassify(command);
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
@@ -3382,6 +3439,10 @@ void sendMeshNotification(const Hit &hit) {
         String vs;
         for (const char *p = v; *p && *p != ' ' && *p != '(' && *p != ',' && vs.length() < 16; ++p) vs += *p;
         if (vs.length()) baseMsg += " V=" + vs;
+    }
+
+    if (hit.isBLE && hit.cls[0] && baseMsg.length() + 3 + strlen(hit.cls) < sizeof(mesh_msg)) {
+        baseMsg += " C=" + String(hit.cls);
     }
 
     int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());

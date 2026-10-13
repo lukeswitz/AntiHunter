@@ -2,6 +2,7 @@
 #include "network.h"
 #include "baseline.h"
 #include "campaign.h"
+#include "ble_class.h"
 #include "detect.h"
 #include "csi.h"
 #include "pcap.h"
@@ -465,6 +466,7 @@ void initializeHardware()
     setMeshSessionDedup(prefs.getBool("meshSessDedup", false));
     meshEnabled = prefs.getBool("meshEnabled", true);
     Serial.printf("[CONFIG] Mesh: %s\n", meshEnabled ? "Enabled" : "Disabled");
+    bleClassifyEnabled = prefs.getBool("bleClassify", true);
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
@@ -1898,7 +1900,12 @@ void logEventToSD(const char* path, const String& jsonLine) {
         }
     }
     SdWriter f_w(f);
-    f_w.println(jsonLine);
+    const char *camp = campaignName();
+    if (camp[0] && jsonLine.length() > 1 && jsonLine[0] == '{' && jsonLine[1] != '}') {
+        f_w.println(String("{\"campaign\":\"") + camp + "\"," + jsonLine.substring(1));
+    } else {
+        f_w.println(jsonLine);
+    }
     size_t curSize = f.size();
     f.close();
 
