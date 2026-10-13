@@ -2467,6 +2467,24 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
   }
   else if (command == "SELFTEST_CAMP2")               selftestCampaignCheck();
+  else if (command.startsWith("SELFTEST_DUMP:")) {
+      String p = command.substring(14);
+      int c = p.lastIndexOf(':');
+      String path = c > 0 ? p.substring(0, c) : p;
+      size_t n = c > 0 ? (size_t)p.substring(c + 1).toInt() : 65536;
+      File f = SafeSD::open(path.c_str(), FILE_READ);
+      if (!f) { Serial.printf("[DUMP-END] %s missing\n", path.c_str()); return; }
+      size_t sz = f.size();
+      if (sz > n) { f.seek(sz - n); f.readStringUntil('\n'); }
+      Serial.printf("[DUMP-BEGIN] %s %u\n", path.c_str(), (unsigned)sz);
+      while (f.available()) {
+        String line = f.readStringUntil('\n');
+        Serial.printf("[DUMP] %s\n", line.c_str());
+        Serial.flush();
+      }
+      f.close();
+      Serial.printf("[DUMP-END] %s\n", path.c_str());
+  }
 #endif
 #if AH_SENTINEL
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);

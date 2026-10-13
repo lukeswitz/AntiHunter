@@ -1333,6 +1333,11 @@ void snifferScanTask(void *pv)
                                 if (bleClassifyEnabled) {
                                     std::vector<uint8_t> pl = device->getPayload();
                                     bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+#if AH_SELFTEST
+                                    String hex;
+                                    for (uint8_t b : pl) { char x[3]; snprintf(x, sizeof(x), "%02X", b); hex += x; }
+                                    Serial.printf("[ADV] %s %s %s\n", macStr.c_str(), hex.c_str(), h.cls[0] ? h.cls : "-");
+#endif
                                 }
                             }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
