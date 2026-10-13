@@ -21,8 +21,8 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 ## New
 
 - Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
-- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits; `PCAP_DELETE_ALL` deletes every capture on the SD card.
-- Mesh, Full and headless **(Beta/C5)**: `DETECT_JSON:<karma|pg|tsf|hshk|pwna|tof|hunts|pcap|pcaps>`, `DETECT_CLEAR:<name>`, `DETECT_COUNTS`, `DETECT_VERBOSE:ON|OFF`, `TOF_PING[:<node>]`, `KARMA_ON`/`KARMA_OFF`, `HUNT_COOLDOWN:<ms>`, `QUORUM:<type>,<n>`, `ATTACK_RESPONSE_CANCEL`.
+- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits.
+- Mesh, Full and headless **(Beta/C5)**: `DETECT_COUNTS`.
 - Detection tab **(Beta/C5)**: Pwnagotchi card; Karma bait on/off; hunt cooldown; verbose detector logging; quorum setting; pending attack response with Cancel; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
