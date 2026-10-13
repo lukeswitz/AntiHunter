@@ -178,6 +178,11 @@ static const char *svcUuidLabel(uint16_t uuid) {
     }
 }
 
+static bool knownCompany(const uint8_t *m) {
+    uint16_t c = (uint16_t)(m[0] | (m[1] << 8));
+    return c == 0x004C || c == 0x0006 || c == 0x00E0 || c == 0x0075;
+}
+
 bool bleClassify(const uint8_t *adv, size_t len, char *out, size_t outLen) {
     if (!out || outLen == 0) return false;
     out[0] = '\0';
@@ -197,9 +202,19 @@ bool bleClassify(const uint8_t *adv, size_t len, char *out, size_t outLen) {
         uint8_t t = adv[off + 1];
         const uint8_t *d = adv + off + 2;
         size_t dl = l - 1;
-        if (t == 0xFF && !mfr && dl >= 2) { mfr = d; mfrLen = dl; }
-        else if (t == 0x16 && !sd && dl >= 2) { sdUuid = (uint16_t)(d[0] | (d[1] << 8)); sd = d + 2; sdLen = dl - 2; }
-        else if ((t == 0x02 || t == 0x03) && !haveSvcUuid && dl >= 2) { svcUuid = (uint16_t)(d[0] | (d[1] << 8)); haveSvcUuid = true; svcList = d; svcListLen = dl; }
+        if (t == 0xFF && dl >= 2) {
+            if (!mfr || (!knownCompany(mfr) && knownCompany(d))) { mfr = d; mfrLen = dl; }
+        }
+        else if (t == 0x16 && dl >= 2) {
+            uint16_t u = (uint16_t)(d[0] | (d[1] << 8));
+            if (!sd || (!svcDataLabel(sdUuid, sd, sdLen) && svcDataLabel(u, d + 2, dl - 2))) { sdUuid = u; sd = d + 2; sdLen = dl - 2; }
+        }
+        else if ((t == 0x02 || t == 0x03) && dl >= 2) {
+            for (size_t i = 0; i + 1 < dl; i += 2) {
+                uint16_t u = (uint16_t)(d[i] | (d[i + 1] << 8));
+                if (!haveSvcUuid || (!svcUuidLabel(svcUuid) && svcUuidLabel(u))) { svcUuid = u; haveSvcUuid = true; svcList = d; svcListLen = dl; }
+            }
+        }
         else if (t == 0x19 && dl >= 2) { appearance = (uint16_t)(d[0] | (d[1] << 8)); haveAppearance = true; }
         off += 1 + l;
     }

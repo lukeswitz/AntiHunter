@@ -739,7 +739,8 @@ int fleetSend(String node, String cmd, String &msg) {
   bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
   for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
   if (!nodeOk) { msg = "Bad node ID"; return 400; }
-  static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS"};
+  static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS",
+                                          "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS", "BLE_CLASSIFY:"};
   bool cmdOk = false;
   for (const char *p : kAllowed) {
     size_t n = strlen(p);

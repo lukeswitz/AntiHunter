@@ -989,6 +989,9 @@ void baselineDetectionTask(void *pv) {
                     if (strlen(anomaly.name) > 0 && strcmp(anomaly.name, "Unknown") != 0) {
                         anomalyMsg += " N:" + String(anomaly.name).substring(0, 20);
                     }
+                    if (anomaly.cls[0] && anomalyMsg.length() + 3 + strlen(anomaly.cls) <= MAX_MESH_SIZE) {
+                        anomalyMsg += " C=" + String(anomaly.cls);
+                    }
 
                     if (anomalyMsg.length() <= MAX_MESH_SIZE) {
                         if (meshEnqueue(anomalyMsg)) {

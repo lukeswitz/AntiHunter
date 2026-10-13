@@ -1846,7 +1846,12 @@ void logEventToSD(const char* path, const String& jsonLine) {
         }
     }
     SdWriter f_w(f);
-    f_w.println(jsonLine);
+    const char *camp = campaignName();
+    if (camp[0] && jsonLine.length() > 1 && jsonLine[0] == '{' && jsonLine[1] != '}') {
+        f_w.println(String("{\"campaign\":\"") + camp + "\"," + jsonLine.substring(1));
+    } else {
+        f_w.println(jsonLine);
+    }
     size_t curSize = f.size();
     f.close();
 

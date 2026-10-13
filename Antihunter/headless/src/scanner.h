@@ -42,6 +42,7 @@ struct Hit {
    char name[32] = {};
    bool isBLE = false;
    bool isApple = false;
+   char cls[24] = {0};
 };
 
 using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;

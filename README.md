@@ -316,7 +316,7 @@ Once you start it, Sentinel listens for Wi-Fi attack frames in the background an
 - **Output:** `[DETECT]` serial lines, `.jsonl` files on SD (some detectors share a file), `/incidents.jsonl`, and a mesh broadcast so other nodes can confirm
 - **AP clients:** devices that join the node's own AP, with MAC, join count, and first/last seen. *AP Clients* panel, `GET /api/apclients.json`
 - **Mesh command audit:** every incoming command and its sender, including commands meant for other nodes. *Mesh Commands* panel, `GET /api/mesh_cmd.jsonl`
-- **Mesh labels:** the [mesh command reference](docs/mesh-commands.md) lists the labels Sentinel sends, for log parsers and C2, under *Sentinel label reference*
+- **Mesh labels:** the [mesh command reference](docs/mesh-commands.md) lists the labels Sentinel sends, for log parsers and C2, under *Sentinel labels*
 - **Tested against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware
 - **Confirmed on hardware** against those tools: deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, forced handshake
 - **Experimental:** OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, Wi-Fi interference, mesh disruption
@@ -512,6 +512,8 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
   - `@AH01 SCHED_DEL:1` - deletes entry 1
 
   Headless runs entries only once its clock is set, from GPS or `SETTIME:<unix seconds>` on USB serial.
+- **Campaigns** - tags a block of work so its logs can be pulled out later. While a campaign runs, every SD log line carries `[C:<name>]`, and start and stop times go to `/campaigns.csv`. It survives a reboot. Full: Data tab → name → **Start**; tick other mesh nodes to start them too. A **REC** badge in the header shows the active campaign; click it to stop. Review: pick the campaign in the Data tab to filter every dataset, **Export campaign** downloads all its rows in one file. Mesh `STATUS` adds `Camp:<name>`. Both builds, over mesh: `@AH01 CAMPAIGN_START:site-a`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `scripts/campaign_report.py <sd_dir> --campaign <name>` summarizes a copied SD card per file for that campaign.
+- **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
 - **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, enables light sleep, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
 - **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → RF Settings → Wi-Fi Access Point → **Hidden network**.
 - **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to rebuild immediately.

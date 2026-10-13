@@ -157,6 +157,10 @@ void sendMeshNotification(const Hit &hit) {
         if (vs.length()) baseMsg += " V=" + vs;
     }
 
+    if (hit.isBLE && hit.cls[0] && baseMsg.length() + 3 + strlen(hit.cls) < sizeof(mesh_msg)) {
+        baseMsg += " C=" + String(hit.cls);
+    }
+
     int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
 
     if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
@@ -1022,6 +1026,11 @@ static void handleStatus(const String &command)
                         totalHits.load(),
                         esp_temp,
                         (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+  if (campaignName()[0] && written > 0 && written < (int)sizeof(status_msg) - 1)
+  {
+    int n = snprintf(status_msg + written, sizeof(status_msg) - written, " Camp:%s", campaignName());
+    if (n > 0) written = min(written + n, (int)sizeof(status_msg) - 1);
+  }
   if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
   {
     float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
@@ -2272,6 +2281,78 @@ static bool meshIsResponse(const String &payload)
   return false;
 }
 
+#if AH_SELFTEST
+#include <HTTPClient.h>
+static String selftestTail(const char *path, size_t n) {
+  File f = SafeSD::open(path, FILE_READ);
+  if (!f) return String();
+  size_t sz = f.size();
+  if (sz > n) f.seek(sz - n);
+  String out;
+  while (f.available()) out += (char)f.read();
+  f.close();
+  return out;
+}
+
+static void selftestReport(const char *name, bool pass, const String &detail) {
+  Serial.printf("[SELFTEST] %s %s %s\n", name, pass ? "PASS" : "FAIL", detail.c_str());
+}
+
+static int selftestHttp(const char *method, const String &path, const String &body, String &resp) {
+  HTTPClient http;
+  http.setTimeout(4000);
+  if (!http.begin("http://127.0.0.1" + path)) { resp = "begin failed"; return -1; }
+  int code;
+  if (String(method) == "POST") {
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    code = http.POST(body);
+  } else {
+    code = http.GET();
+  }
+  resp = code > 0 ? http.getString() : http.errorToString(code);
+  http.end();
+  return code;
+}
+
+static void selftestHttpCheck() {
+  String r;
+  int c = selftestHttp("POST", "/data-cfg", "campaign=st2", r);
+  selftestReport("http_start", c == 200 && r.indexOf("\"campaign\":\"st2\"") >= 0, String(c) + " " + r);
+  c = selftestHttp("GET", "/data-cfg", "", r);
+  selftestReport("http_cfg_get", c == 200 && r.indexOf("\"campaign\":\"st2\"") >= 0, String(c) + " " + r);
+  c = selftestHttp("POST", "/data-cfg", "campaign=%21%21%21", r);
+  selftestReport("http_bad_name", c == 400, String(c) + " " + r);
+  c = selftestHttp("GET", "/api/campaigns.csv", "", r);
+  int s = r.lastIndexOf("START,st2,");
+  selftestReport("http_csv", c == 200 && s >= 0, String(c) + " " + (s >= 0 ? r.substring(s, r.indexOf('\n', s)) : String("missing")));
+  c = selftestHttp("POST", "/api/fleet/send", "node=ZZ9&cmd=CAMPAIGN_STATUS", r);
+  selftestReport("http_fleet_allow", c == 200 || c == 503, String(c) + " " + r);
+  c = selftestHttp("POST", "/api/fleet/send", "node=ZZ9&cmd=BLE_CLASSIFY%3A1", r);
+  selftestReport("http_fleet_allow_cls", c == 200 || c == 503, String(c) + " " + r);
+  c = selftestHttp("POST", "/api/fleet/send", "node=ZZ9&cmd=FACTORY_RESET%3AFULL%3Ax", r);
+  selftestReport("http_fleet_deny", c == 400, String(c) + " " + r);
+  c = selftestHttp("POST", "/data-cfg", "stop=1", r);
+  selftestReport("http_stop", c == 200 && r.indexOf("\"campaign\":\"\"") >= 0, String(c) + " " + r);
+}
+
+static void selftestCampaignCheck() {
+  bool stopped = campaignStop();
+  selftestReport("camp_stop", stopped && !campaignName()[0], String("name='") + campaignName() + "'");
+  logEventToSD("/selftest.jsonl", "{\"t\":2,\"k\":\"st\"}");
+  String log = selftestTail("/antihunter.log", 8192);
+  int li = log.indexOf("[C:st1] SELFTEST_PROBE camp");
+  selftestReport("log_tag", li >= 0, li >= 0 ? log.substring(li, log.indexOf('\n', li)) : String("missing"));
+  String csv = selftestTail(CAMPAIGN_FILE, 1024);
+  int cs = csv.lastIndexOf("START,st1,"), ce = csv.lastIndexOf("STOP,st1,");
+  selftestReport("csv_start_stop", cs >= 0 && ce > cs, cs >= 0 ? csv.substring(cs) : String("missing"));
+  String js = selftestTail("/selftest.jsonl", 512);
+  int j1 = js.lastIndexOf("{\"campaign\":\"st1\",\"t\":1,\"k\":\"st\"}");
+  int j2 = js.lastIndexOf("{\"t\":2,\"k\":\"st\"}");
+  selftestReport("jsonl_campaign", j1 >= 0, j1 >= 0 ? js.substring(j1, js.indexOf('\n', j1)) : String("missing"));
+  selftestReport("jsonl_nocamp_after_stop", j2 > j1 && j2 >= 0 && js.charAt(j2 - 1) == '\n', j2 >= 0 ? js.substring(j2, js.indexOf('\n', j2)) : String("missing"));
+}
+#endif
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
   String command = commandRaw;
@@ -2316,6 +2397,36 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "SELFTEST_ATTACK") {
       const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
       attack_responseArm(m, "SELFTEST");
+  }
+  else if (command == "SELFTEST_CAMP1") {
+      bool ok = campaignStart("st1");
+      logToSD("SELFTEST_PROBE camp");
+      logEventToSD("/selftest.jsonl", "{\"t\":1,\"k\":\"st\"}");
+      Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
+  }
+  else if (command == "SELFTEST_CAMP2") {
+      selftestCampaignCheck();
+  }
+  else if (command == "SELFTEST_HTTP") {
+      selftestHttpCheck();
+  }
+  else if (command.startsWith("SELFTEST_DUMP:")) {
+      String p = command.substring(14);
+      int c = p.lastIndexOf(':');
+      String path = c > 0 ? p.substring(0, c) : p;
+      size_t n = c > 0 ? (size_t)p.substring(c + 1).toInt() : 65536;
+      File f = SafeSD::open(path.c_str(), FILE_READ);
+      if (!f) { Serial.printf("[DUMP-END] %s missing\n", path.c_str()); return; }
+      size_t sz = f.size();
+      if (sz > n) { f.seek(sz - n); f.readStringUntil('\n'); }
+      Serial.printf("[DUMP-BEGIN] %s %u\n", path.c_str(), (unsigned)sz);
+      while (f.available()) {
+        String line = f.readStringUntil('\n');
+        Serial.printf("[DUMP] %s\n", line.c_str());
+        Serial.flush();
+      }
+      f.close();
+      Serial.printf("[DUMP-END] %s\n", path.c_str());
   }
 #endif
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);

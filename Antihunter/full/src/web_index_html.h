@@ -564,6 +564,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="statx-ticker"><div class="statx-track" id="statxTrack">
             <div class="status-item idle" id="scanStatus">Idle</div>
               <div class="status-item" id="gpsStatus">GPS</div>
+              <div class="status-item active" id="campStatusHdr" style="display:none;cursor:pointer;" onclick="campHdrStop()" title="Campaign recording. Click to stop">REC</div>
               <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
 )HTML"
 #if AH_SENTINEL
@@ -1519,10 +1520,12 @@ R"HTML(
           <select id="dataCampaign" onchange="onDataCampaign()" title="Limit every dataset to a campaign or time range"><option value="">All time</option></select>
           <input type="datetime-local" id="dataFrom" step="1" onchange="onDataRange()" title="From">
           <input type="datetime-local" id="dataTo" step="1" onchange="onDataRange()" title="To">
+          <button class="btn alt" id="campExport" onclick="campExport()" style="padding:8px 14px;font-size:12px;" disabled title="Download every dataset's rows for the selected campaign">Export campaign</button>
           <input type="text" id="campName" maxlength="23" placeholder="Campaign name">
-          <button class="btn" onclick="campStart()" style="padding:8px 14px;font-size:12px;">Start</button>
-          <button class="btn alt" onclick="campStop()" style="padding:8px 14px;font-size:12px;">Stop</button>
+          <button class="btn" onclick="fleetCampaign(true)" style="padding:8px 14px;font-size:12px;">Start</button>
+          <button class="btn alt" onclick="fleetCampaign(false)" style="padding:8px 14px;font-size:12px;">Stop</button>
           <span id="campState" style="font-size:12px;color:var(--mut);align-self:center;"></span>
+          <div id="campNodes" style="display:none;flex-wrap:wrap;gap:10px;font-size:12px;align-items:center;"></div>
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;" title="Off skips BLE advertisement classification during scans to save CPU and heap. Existing labels stay.">
             <input type="checkbox" id="bleClassify" onchange="saveBleClassify()" style="width:auto;">BLE classifier
           </label>
@@ -2734,6 +2737,29 @@ R"HTML(
           (r && r.ok ? done : failed).push(label + (r && !r.ok ? ' (' + (await r.text()) + ')' : ''));
         }
         toast((done.length ? 'Started: ' + done.join('; ') : '') + (failed.length ? (done.length ? '. ' : '') + 'Failed: ' + failed.join('; ') : ''), failed.length ? 'error' : 'success');
+      }
+      async function fleetCampaign(start) {
+        var ids = [];
+        document.querySelectorAll('#campNodes input:checked').forEach(function(c) { ids.push(c.value); });
+        if (!document.getElementById('campNodes').childElementCount) ids = [''];
+        var name = document.getElementById('campName').value.trim();
+        if (!ids.length) { toast('Check at least one node', 'error'); return; }
+        if (start && !/^[A-Za-z0-9_-]{1,23}$/.test(name)) { toast('Campaign name needs letters, digits, - or _', 'error'); return; }
+        var done = [], failed = [];
+        for (var i = 0; i < ids.length; i++) {
+          var r;
+          try {
+            if (!ids[i]) {
+              r = await fetch('/data-cfg', { method: 'POST', body: new URLSearchParams(start ? { campaign: name } : { stop: '1' }) });
+            } else {
+              r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: ids[i], cmd: start ? 'CAMPAIGN_START:' + name : 'CAMPAIGN_STOP' }) });
+            }
+          } catch (e) { r = null; }
+          var label = ids[i] || 'This node';
+          (r && r.ok ? done : failed).push(label + (r && !r.ok ? ' (' + (await r.text()) + ')' : ''));
+        }
+        loadCampaigns();
+        toast((done.length ? (start ? 'Started: ' : 'Stopped: ') + done.join('; ') : '') + (failed.length ? (done.length ? '. ' : '') + 'Failed: ' + failed.join('; ') : ''), failed.length ? 'error' : 'success');
       }
       function fleetFetchFailed(e) {
         console.warn('fleet: /api/mesh request failed', e);
@@ -6549,6 +6575,7 @@ R"HTML(
       function dataInRange(row){
         if(!dataRange) return true;
         if(dataCampTag&&typeof row._msg==='string'&&row._msg.indexOf(dataCampTag)===0) return true;
+        if(dataCampTag&&row.campaign&&'[C:'+row.campaign+']'===dataCampTag) return true;
         var s=dataRowSpan(row);
         return !!s&&s[1]>=dataRange[0]&&s[0]<=dataRange[1];
       }
@@ -6582,13 +6609,54 @@ R"HTML(
         dataRange=c?[c.from,c.to||4102444800]:null;dataCampTag=c?'[C:'+c.name+']':'';
         document.getElementById('dataFrom').value=c&&c.from?dataLocalInput(c.from):'';
         document.getElementById('dataTo').value=c&&c.to?dataLocalInput(c.to):'';
+        document.getElementById('campExport').disabled=!c;
         loadDataSet();
+      }
+      function campHdrSet(name){
+        var el=document.getElementById('campStatusHdr');if(!el) return;
+        el.style.display=name?'':'none';el.textContent=name?'REC '+name:'REC';
+      }
+      function campHdrStop(){
+        if(!confirm('Stop the campaign on this node?')) return;
+        dataCfgPost('stop=1').then(function(ok){if(ok)toast('Campaign stopped','success');});
+      }
+      function campNodesRender(peers){
+        var box=document.getElementById('campNodes');if(!box) return;
+        var ids=fleetAliveIds(peers);
+        if(!ids.length){box.innerHTML='';box.style.display='none';return;}
+        var keep={'':1},had=box.childElementCount>0;
+        if(had){keep={};box.querySelectorAll('input:checked').forEach(function(c){keep[c.value]=1;});}
+        box.innerHTML='';box.style.display='flex';
+        [''].concat(ids).forEach(function(id){
+          var l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;';
+          var c=document.createElement('input');c.type='checkbox';c.value=id;c.checked=!!keep[id];c.style.width='auto';
+          l.appendChild(c);l.appendChild(document.createTextNode(id||'This node'));box.appendChild(l);
+        });
+      }
+      async function campExport(){
+        var i=document.getElementById('dataCampaign').value,c=dataCamps[i];if(!c) return;
+        var btn=document.getElementById('campExport');btn.disabled=true;
+        var out=[],n=0;
+        for(var ds in DATA_SETS){
+          var cfg=DATA_SETS[ds];if(!dataChunked(cfg)) continue;
+          var t='';
+          try{var r=await fetch(cfg.url);t=r.ok?await r.text():'';}catch(e){t='';}
+          var keep=t.split('\n').filter(function(l){var row=l.trim()&&dataParseChunk(l,cfg)[0];return row&&dataInRange(row);});
+          if(keep.length){out.push('### '+ds+' ('+keep.length+')');out=out.concat(keep);n+=keep.length;}
+        }
+        btn.disabled=false;
+        if(!n){toast('No rows for '+c.name,'warning');return;}
+        var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out.join('\n')+'\n'],{type:'text/plain'}));
+        a.download='campaign-'+c.name+'.txt';document.body.appendChild(a);a.click();a.remove();
+        toast(n+' rows exported','success');
       }
       function loadCampaigns(){
         fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){
           var cb=document.getElementById('bleClassify');if(cb)cb.checked=!!d.bleClassify;
           document.getElementById('campState').textContent=d.campaign?'Recording: '+d.campaign:'No active campaign';
+          campHdrSet(d.campaign);
         }).catch(function(e){console.error('[DATA] /data-cfg failed:',e);});
+        fetch('/api/mesh').then(function(r){return r.json();}).then(function(d){campNodesRender(d&&d.peers);}).catch(fleetFetchFailed);
         fetch('/api/campaigns.csv').then(function(r){return r.ok?r.text():'';}).then(function(t){
           var open={};dataCamps=[];
           t.split('\n').forEach(function(l){
@@ -6910,6 +6978,7 @@ R"HTML(
       loadDedupTtl();
       loadSdRepair();
       loadCampaigns();
+      setInterval(function(){fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){campHdrSet(d.campaign);}).catch(function(e){console.warn('[CAMP] /data-cfg poll failed:',e);});},10000);
       updateAutoEraseStatus();
       loadVibScanConfig();
       refreshPskStatus();

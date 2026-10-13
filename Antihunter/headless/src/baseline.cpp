@@ -4,6 +4,7 @@
 #include "network.h"
 #include "main.h"
 #include "detect.h"
+#include "ble_class.h"
 #include <algorithm>
 #include <iterator>
 #include <ArduinoJson.h>
@@ -123,8 +124,19 @@ static void baselineTagDevice(const Hit &h) {
     std::lock_guard<std::mutex> lock(baselineMutex);
     if (baselineCache.find(k) == baselineCache.end()) return;
     BaselineTag &t = baselineTags[k];
+    if (h.cls[0]) {
+        strncpy(t.cls, h.cls, sizeof(t.cls) - 1);
+        t.cls[sizeof(t.cls) - 1] = '\0';
+    }
     if (baselineMarkerMs == 0) { t.slices |= SLICE_A; t.rssiA = h.rssi; }
     else { t.slices |= SLICE_B; t.rssiB = h.rssi; }
+}
+
+static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
+    if (cls && cls[0]) {
+        strncpy(hit.cls, cls, sizeof(hit.cls) - 1);
+        hit.cls[sizeof(hit.cls) - 1] = '\0';
+    }
 }
 
 static void baselineReportWatch() {
@@ -156,6 +168,7 @@ static void baselineReportWatch() {
             if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
                 lines += " \"" + String(dev.name) + "\"";
             }
+            if (t.cls[0]) lines += " C=" + String(t.cls);
             lines += "\n";
         }
     }
@@ -599,7 +612,11 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    
+                    if (bleClassifyEnabled) {
+                        std::vector<uint8_t> pl = device->getPayload();
+                        bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
+                    }
+
                     if (macQueue) {
                         xQueueSend(macQueue, &bh, 0);
                     }
@@ -754,7 +771,11 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    
+                    if (bleClassifyEnabled) {
+                        std::vector<uint8_t> pl = device->getPayload();
+                        bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
+                    }
+
                     if (macQueue) {
                         xQueueSend(macQueue, &bh, 0);
                     }
@@ -775,10 +796,11 @@ void baselineDetectionTask(void *pv) {
             }
             
             if (baselineEstablished) {
-                checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+                checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch, h.cls);
             }
-            
+
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+            baselineTagDevice(h);
         }
         
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
@@ -801,6 +823,9 @@ void baselineDetectionTask(void *pv) {
 
                     if (strlen(anomaly.name) > 0 && strcmp(anomaly.name, "Unknown") != 0) {
                         anomalyMsg += " N:" + String(anomaly.name).substring(0, 20);
+                    }
+                    if (anomaly.cls[0] && anomalyMsg.length() + 3 + strlen(anomaly.cls) <= MAX_MESH_SIZE) {
+                        anomalyMsg += " C=" + String(anomaly.cls);
                     }
 
                     if (anomalyMsg.length() <= MAX_MESH_SIZE) {
@@ -1519,7 +1544,7 @@ bool isDeviceInBaseline(const uint8_t *mac) {
     return inSD;
 }
 
-void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel, const char *cls) {
     if (rssi < baselineRssiThreshold) {
         return;
     }
@@ -1562,6 +1587,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.isBLE = isBLE;
         hit.timestamp = now;
         hit.reason = "New device (not in baseline)";
+        fillAnomalyTag(hit, cls);
 
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         {
@@ -1577,6 +1603,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
             alert += " Name:" + String(name);
         }
+        if (cls && cls[0]) alert += " Class:" + String(cls);
         if (gpsValid) {
             if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                 alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
@@ -1612,6 +1639,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
+            fillAnomalyTag(hit, cls);
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {
@@ -1658,6 +1686,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
+            fillAnomalyTag(hit, cls);
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {

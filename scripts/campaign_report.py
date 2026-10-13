@@ -67,7 +67,7 @@ def report(sd, rng, tag):
     per = collections.defaultdict(lambda: {"n": 0, "lo": None, "hi": None, "macs": set(), "grp": collections.Counter()})
     for name, row in rows(sd):
         span = row_span(row)
-        hit = (tag and row.get("_camp") == tag) or (rng is None) or (span and span[1] >= rng[0] and span[0] <= rng[1])
+        hit = (tag and (row.get("_camp") == tag or row.get("campaign") == tag)) or (rng is None) or (span and span[1] >= rng[0] and span[0] <= rng[1])
         if not hit:
             continue
         s = per[name]
