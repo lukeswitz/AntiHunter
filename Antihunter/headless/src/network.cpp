@@ -2564,7 +2564,7 @@ static const char *const kCmdAliases[][2] = {
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
   {"CB", "CONFIG_BAND"},          {"CIM", "CSI_MOTION_START"},       {"CIE", "CSI_EXCLUDE"},
   {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
-  {"CIR", "CSI_RECAL"},
+  {"CIR", "CSI_RECAL"},           {"DBX", "DEVICE_DB_CLEAR"},
 };
 
 static String meshExpandCommand(const String &cmd)
