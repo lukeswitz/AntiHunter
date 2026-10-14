@@ -1112,6 +1112,8 @@ void snifferScanTask(void *pv)
 
     String meshBatch;
     std::vector<String> meshBatchMacs;
+    unsigned long meshBatchStart = 0;
+    const unsigned long MESH_BATCH_HOLD_MS = 10000;
     auto flushMeshBatch = [&]() {
         if (meshBatch.length() == 0) return;
         if (meshEnqueue(meshBatch)) {
@@ -1124,6 +1126,7 @@ void snifferScanTask(void *pv)
         meshBatchMacs.clear();
     };
     auto addMeshDeviceRow = [&](const String &row, const String &mac) {
+        for (const auto &m : meshBatchMacs) if (m == mac) return;
         String firstFrame = getNodeId() + ": " + row;
         if (firstFrame.length() > (size_t)MAX_MESH_SIZE) return;
         String candidate = (meshBatch.length() == 0) ? firstFrame : (meshBatch + "\n" + row);
@@ -1133,6 +1136,7 @@ void snifferScanTask(void *pv)
         } else {
             meshBatch = candidate;
         }
+        if (meshBatchMacs.empty()) meshBatchStart = millis();
         meshBatchMacs.push_back(mac);
     };
 
@@ -1428,7 +1432,7 @@ void snifferScanTask(void *pv)
                 }
             }
 
-            flushMeshBatch();
+            if (!meshBatchMacs.empty() && millis() - meshBatchStart >= MESH_BATCH_HOLD_MS) flushMeshBatch();
         }
 
         // Drain probeRequestQueue when captureProbes is enabled during device scan
