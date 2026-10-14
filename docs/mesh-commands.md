@@ -129,7 +129,7 @@ Nodes exchange `CSI_PEER:<AP MAC>` and skip each other's MACs.
 
 | Command | Alias | Build | Args | Example |
 |---|---|---|---|---|
-| `DEVICE_DB_CLEAR` | | headless, Beta, C5 | | `@AH01 DEVICE_DB_CLEAR` |
+| `DEVICE_DB_CLEAR` | `DBX` | headless, Beta, C5 | | `@AH01 DEVICE_DB_CLEAR` |
 | `CONFIG_BAND` | `CB` | C5 | `0` 2.4, `1` 5, `2` both | `@AH01 CONFIG_BAND:2` |
 
 ### Alerts
