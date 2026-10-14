@@ -594,7 +594,7 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    if (!safeMacQueueCreate(512)) {
+    if (!safeMacQueueCreate(AH_MAC_QUEUE_LEN)) {
         Serial.printf("[BASELINE] FATAL: macQueue creation failed (need=%u internal=%u largest=%u)\n",
                       (unsigned)(64 * sizeof(Hit)),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

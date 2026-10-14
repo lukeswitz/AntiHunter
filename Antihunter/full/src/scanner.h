@@ -28,8 +28,10 @@
 // C5 keeps ISR queues in internal SRAM (cache-disabled ISR), where 256 entries costs ~39 KB
 #ifdef ARDUINO_XIAO_ESP32C5
 #define AH_PROBE_QUEUE_LEN 96
+#define AH_MAC_QUEUE_LEN 128
 #else
 #define AH_PROBE_QUEUE_LEN 256
+#define AH_MAC_QUEUE_LEN 512
 #endif
 
 // Dual/5GHz has 9+ channels; cap the per-channel WiFi interval so a full sweep is ~seconds.

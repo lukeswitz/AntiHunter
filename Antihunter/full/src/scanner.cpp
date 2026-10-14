@@ -3684,7 +3684,7 @@ void listScanTask(void *pv) {
     stopRequested = false;
 
     // Use safe queue creation with mutex protection
-    if (!safeMacQueueCreate(512)) {
+    if (!safeMacQueueCreate(AH_MAC_QUEUE_LEN)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
         scanning = false;
         scanSetCountdown(0, false);

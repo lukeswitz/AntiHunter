@@ -3155,9 +3155,9 @@ void listScanTask(void *pv) {
     stopRequested = false;
 
     // Use safe queue creation with mutex protection
-    if (!safeMacQueueCreate(512)) {
+    if (!safeMacQueueCreate(AH_MAC_QUEUE_LEN)) {
         Serial.printf("[SCAN] ERROR: Failed to create macQueue (need=%u internal=%u largest=%u)\n",
-                      (unsigned)(512 * sizeof(Hit)),
+                      (unsigned)(AH_MAC_QUEUE_LEN * sizeof(Hit)),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         scanning = false;

@@ -453,9 +453,9 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    if (!safeMacQueueCreate(512)) {
+    if (!safeMacQueueCreate(AH_MAC_QUEUE_LEN)) {
         Serial.printf("[BASELINE] FATAL: macQueue creation failed (need=%u internal=%u largest=%u)\n",
-                      (unsigned)(512 * sizeof(Hit)),
+                      (unsigned)(AH_MAC_QUEUE_LEN * sizeof(Hit)),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         vQueueDeleteWithCaps(anomalyQueue);
