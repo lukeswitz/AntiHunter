@@ -353,6 +353,24 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
+static bool baselineDetectPhase = false;
+
+static void baselineConsumeHit(const Hit &h) {
+    if (isAllowlisted(h.mac)) return;
+    if (baselineDetectPhase && baselineEstablished) {
+        checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch, h.cls);
+    }
+    updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+    baselineTagDevice(h);
+}
+
+static void baselinePushHit(const Hit &h) {
+    if (safeMacQueueSend(&h, 0)) return;
+    Hit q;
+    while (safeMacQueueReceive(&q, 0)) baselineConsumeHit(q);
+    baselineConsumeHit(h);
+}
+
 static void baselineHarvestWifiActive() {
     int wifiScan = WiFi.scanComplete();
     if (wifiScan == WIFI_SCAN_FAILED) {
@@ -380,7 +398,7 @@ static void baselineHarvestWifiActive() {
         wh.name[sizeof(wh.name) - 1] = '\0';
         wh.isBLE = false;
 
-        if (macQueue) xQueueSend(macQueue, &wh, 0);
+        baselinePushHit(wh);
         framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
     WiFi.scanDelete();
@@ -402,7 +420,7 @@ static void baselineHarvestWifiPassive() {
         wh.name[sizeof(wh.name) - 1] = '\0';
         wh.isBLE = false;
 
-        safeMacQueueSend(&wh, 0);
+        baselinePushHit(wh);
         framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
 }
@@ -519,7 +537,8 @@ void baselineDetectionTask(void *pv) {
     
     Hit h;
     
-    Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n", 
+    baselineDetectPhase = false;
+    Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n",
                   phaseStart, phaseStart + baselineDuration);
     
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
@@ -616,7 +635,7 @@ void baselineDetectionTask(void *pv) {
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
                     }
 
-                    safeMacQueueSend(&bh, 0);
+                    baselinePushHit(bh);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 }  else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
@@ -701,7 +720,8 @@ void baselineDetectionTask(void *pv) {
     lastBLEScan = 0;
     lastMeshUpdate = 0;
 
-    Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
+    baselineDetectPhase = true;
+    Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n",
                 monitorStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
         
     while ((forever && !stopRequested) || 
@@ -770,7 +790,7 @@ void baselineDetectionTask(void *pv) {
                         bleClassify(pl.data(), pl.size(), bh.cls, sizeof(bh.cls));
                     }
 
-                    safeMacQueueSend(&bh, 0);
+                    baselinePushHit(bh);
                     bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 } else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
