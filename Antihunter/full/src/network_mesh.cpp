@@ -1263,9 +1263,7 @@ static void handleSummary(const String &command)
   int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Dev:%u Tgt:%u Hits:%d",
                    nodeId.c_str(), modeStr.c_str(), scanning.load() ? "ACTIVE" : "IDLE",
                    (unsigned)getDeviceDBSize(), (unsigned)getTargetCount(), totalHits.load());
-#if AH_SENTINEL
   if (n > 0 && n < (int)sizeof(buf)) n += snprintf(buf + n, sizeof(buf) - n, " Inc:%u", (unsigned)detect_incidentCount());
-#endif
   if (n > 0 && n < (int)sizeof(buf) && campaignName()[0])
     n += snprintf(buf + n, sizeof(buf) - n, " Camp:%s", campaignName());
   if (n > 0 && n < (int)sizeof(buf))
