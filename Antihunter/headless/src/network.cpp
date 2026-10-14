@@ -266,9 +266,10 @@ static MeshPriority classifyMeshMessage(const String &msg) {
 }
 
 uint32_t meshMsgUnits(const String &msg) {
-    int count = 0, idx = 0;
-    while ((idx = msg.indexOf("DEVICE:", idx)) >= 0) { count++; idx += 7; }
-    return count > 0 ? (uint32_t)count : 1;
+    if (msg.indexOf("DEVICE:") < 0) return 1;
+    int count = 1, idx = 0;
+    while ((idx = msg.indexOf('\n', idx)) >= 0) { count++; idx++; }
+    return (uint32_t)count;
 }
 
 bool meshEnqueuePrio(const String &msg, MeshPriority prio) {

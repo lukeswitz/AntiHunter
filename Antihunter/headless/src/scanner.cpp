@@ -974,7 +974,10 @@ void snifferScanTask(void *pv)
         for (const auto &m : meshBatchMacs) if (m == mac) return;
         String firstFrame = getNodeId() + ": " + row;
         if (firstFrame.length() > (size_t)MAX_MESH_SIZE) return;
-        String candidate = (meshBatch.length() == 0) ? firstFrame : (meshBatch + "\n" + row);
+        String compact = mac;
+        compact.replace(":", "");
+        compact += row.substring(7 + mac.length());
+        String candidate = (meshBatch.length() == 0) ? firstFrame : (meshBatch + "\n" + compact);
         if (candidate.length() > (size_t)MAX_MESH_SIZE) {
             flushMeshBatch();
             meshBatch = firstFrame;

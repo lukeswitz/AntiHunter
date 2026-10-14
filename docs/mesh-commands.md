@@ -137,6 +137,7 @@ Nodes exchange `CSI_PEER:<AP MAC>` and skip each other's MACs.
 | Alert | Format |
 |---|---|
 | Target | `NODE: Target: MAC RSSI:N Type:WiFi\|BLE [Name:x] [GPS=lat,lon] [V=vendor] [C=class]` |
+| Device | first row `NODE: DEVICE:AA:BB:CC:DD:EE:FF W\|B RSSI [C<ch>] [N:name]`, next rows in the same message `AABBCCDDEEFF W\|B RSSI [C<ch>] [N:name]`, one per line; `C` Wi-Fi only, name max 30 chars |
 | Anomaly | `NODE: ANOMALY-NEW: TYPE MAC RSSI:N [Name:x]` · `ANOMALY-RETURN: TYPE MAC RSSI:NdBm [Name:x]` · `ANOMALY-RSSI: TYPE MAC Old:NdBm New:NdBm Delta:NdBm` · `ANOMALY: TYPE MAC RSSI:N reason [N:x] [C=class]` |
 | Deauth | `NODE: ATTACK: DEAUTH\|DISASSOC [BROADCAST\|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason [GPS:lat,lon]` |
 | Drone | `NODE: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` |
