@@ -143,5 +143,6 @@ uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBy
 void detect_logIncident(const String &raw, const char *src);
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();
+size_t detect_incidentCount();
 
 } // namespace ah_detect

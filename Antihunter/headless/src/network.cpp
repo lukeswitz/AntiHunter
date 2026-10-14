@@ -1068,6 +1068,25 @@ static void handleStatus(const String &command)
   sendToSerial1(String(status_msg), true);
 }
 
+static void handleSummary(const String &command)
+{
+  (void)command;
+  String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+  uint32_t up = millis() / 1000;
+  char buf[MAX_MESH_SIZE];
+  int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Tgt:%u Hits:%d",
+                   nodeId.c_str(), modeStr.c_str(), scanning.load() ? "ACTIVE" : "IDLE",
+                   (unsigned)getTargetCount(), totalHits.load());
+#if AH_SENTINEL
+  if (n > 0 && n < (int)sizeof(buf)) n += snprintf(buf + n, sizeof(buf) - n, " Inc:%u", (unsigned)detect_incidentCount());
+#endif
+  if (n > 0 && n < (int)sizeof(buf) && campaignName()[0])
+    n += snprintf(buf + n, sizeof(buf) - n, " Camp:%s", campaignName());
+  if (n > 0 && n < (int)sizeof(buf))
+    snprintf(buf + n, sizeof(buf) - n, " Up:%02u:%02u:%02u", (unsigned)(up / 3600), (unsigned)(up / 60 % 60), (unsigned)(up % 60));
+  sendToSerial1(String(buf), true);
+}
+
 #if AH_SENTINEL
 static void handleSentinelOn(const String &command)
 {
@@ -2329,6 +2348,47 @@ static void selftestCampaignCheck() {
 }
 #endif
 
+static const char *const kCmdAliases[][2] = {
+  {"CC", "CONFIG_CHANNELS"},      {"CEP", "CONFIG_ERASE_PSK"},       {"CDT", "CONFIG_DEDUP_TTL"},
+  {"CSD", "CONFIG_SESSION_DEDUP"}, {"MDC", "MESH_DEDUP_CLEAR"},      {"CT", "CONFIG_TARGETS"},
+  {"CN", "CONFIG_NODEID"},        {"CR", "CONFIG_RSSI"},             {"SS", "SCAN_START"},
+  {"BLS", "BASELINE_START"},      {"BLQ", "BASELINE_STATUS"},        {"BLW", "BASELINE_WATCH"},
+  {"DS", "DEVICE_SCAN_START"},    {"DR", "DRONE_START"},             {"DA", "DEAUTH_START"},
+  {"MTC", "MESH_TX_CANCEL"},      {"RS", "RANDOMIZATION_START"},     {"PS", "PROBE_START"},
+  {"PX", "PROBE_STOP"},           {"PCS", "PCAP_START"},             {"PCX", "PCAP_STOP"},
+  {"SDR", "SD_REPAIR"},           {"PCL", "PCAP_LIMITS"},            {"PCA", "PCAP_AUTO"},
+  {"X", "STOP"},                  {"SE1", "SENTINEL_ON"},            {"SE0", "SENTINEL_OFF"},
+  {"SEQ", "SENTINEL_STATUS"},     {"SEM", "SENTINEL_MODE"},          {"SEB", "SENTINEL_BOOT"},
+  {"AT", "ATTACKER_TRILAT"},      {"ATQ", "ATTACKER_TRILAT_STATUS"}, {"GR", "GROUP"},
+  {"DCG", "DETECT_CFG_GET"},      {"DC", "DETECT_CFG"},              {"DCN", "DETECT_COUNTS"},
+  {"IN", "INCIDENTS"},            {"INX", "INCIDENTS_CLEAR"},        {"ST", "STATUS"},
+  {"SUM", "SUMMARY"},             {"VQ", "VIBRATION_STATUS"},        {"V1", "VIBRATION_ON"},
+  {"V0", "VIBRATION_OFF"},        {"VSS", "VIBSCAN_SET"},            {"VSQ", "VIBSCAN_STATUS"},
+  {"SA", "SCHED_ADD"},            {"SL", "SCHED_LIST"},              {"SD", "SCHED_DEL"},
+  {"TS", "TRIANGULATE_START"},    {"TX", "TRIANGULATE_STOP"},        {"TCS", "TRI_CYCLE_START"},
+  {"TR", "TRIANGULATE_RESULTS"},  {"EF", "ERASE_FORCE"},             {"EC", "ERASE_CANCEL"},
+  {"ER", "ERASE_REQUEST"},        {"FR", "FACTORY_RESET"},           {"AE1", "AUTOERASE_ENABLE"},
+  {"AE0", "AUTOERASE_DISABLE"},   {"AEQ", "AUTOERASE_STATUS"},       {"BSS", "BATTERY_SAVER_START"},
+  {"BSX", "BATTERY_SAVER_STOP"},  {"BSQ", "BATTERY_SAVER_STATUS"},   {"CS", "CAMPAIGN_START"},
+  {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
+  {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
+  {"CB", "CONFIG_BAND"},          {"CIM", "CSI_MOTION_START"},       {"CIE", "CSI_EXCLUDE"},
+  {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
+  {"CIR", "CSI_RECAL"},
+};
+
+static String meshExpandCommand(const String &cmd)
+{
+  int end = 0;
+  while (end < (int)cmd.length() && cmd[end] != ':' && cmd[end] != ' ') end++;
+  String verb = cmd.substring(0, end);
+  verb.toUpperCase();
+  for (const auto &a : kCmdAliases) {
+    if (verb == a[0]) { verb = a[1]; break; }
+  }
+  return verb + cmd.substring(end);
+}
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
   String command = commandRaw;
@@ -2377,6 +2437,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
   }
   else if (command == "SELFTEST_CAMP2")               selftestCampaignCheck();
+  else if (command.startsWith("SELFTEST_TX:")) { Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true)); }
   else if (command.startsWith("SELFTEST_DUMP:")) {
       String p = command.substring(14);
       int c = p.lastIndexOf(':');
@@ -2413,6 +2474,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
 #endif
   else if (command == "PCAP_AUTO" || command.startsWith("PCAP_AUTO:")) handlePcapAuto(command);
   else if (command == "STATUS")                       handleStatus(command);
+  else if (command == "SUMMARY")                      handleSummary(command);
   else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
@@ -3013,8 +3075,10 @@ void processMeshMessage(const String &message) {
       int spaceIndex = payload.indexOf(' ');
       if (spaceIndex > 0) {
           String targetId = payload.substring(1, spaceIndex);
-          if (targetId != nodeId && targetId != "ALL") return;
-          String command = payload.substring(spaceIndex + 1);
+          if (targetId.equalsIgnoreCase("ALL")) targetId = "ALL";
+          else if (targetId.equalsIgnoreCase(nodeId)) targetId = nodeId;
+          else return;
+          String command = meshExpandCommand(payload.substring(spaceIndex + 1));
           processCommand(command, targetId);
         }
     } else if (!meshIsNodeIdToken(sendingNode)) {

@@ -3723,6 +3723,9 @@ String detect_getIncidentsJson(size_t maxEntries) {
 void detect_clearIncidents() {
     ah_detect::detect_clearIncidents();
 }
+size_t detect_incidentCount() {
+    return ah_detect::detect_incidentCount();
+}
 
 extern void _detect_recordMeshPeer(const String &fromNode);
 void detect_processMesh(const String &fromNode, const String &msg) {

@@ -1014,6 +1014,11 @@ String detect_getIncidentsJson(size_t maxEntries) {
     return out;
 }
 
+size_t detect_incidentCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_incidentMtx);
+    return g_incidentRing.size();
+}
+
 void detect_clearIncidents() {
     {
         std::lock_guard<std::recursive_mutex> lk(g_incidentMtx);
