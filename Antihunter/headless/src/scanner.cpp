@@ -2759,6 +2759,20 @@ void safeMacQueueDelete() {
     }
 }
 
+static QueueHandle_t macQueueAlloc(size_t depth) {
+#if CONFIG_IDF_TARGET_ESP32C5
+    StaticQueue_t *qb = (StaticQueue_t *)heap_caps_malloc(sizeof(StaticQueue_t), AH_ISR_QUEUE_CAPS);
+    uint8_t *qs = (uint8_t *)heap_caps_malloc(depth * sizeof(Hit), MALLOC_CAP_RTCRAM);
+    if (qb && qs) {
+        QueueHandle_t q = xQueueCreateStatic(depth, sizeof(Hit), qs, qb);
+        if (q) return q;
+    }
+    heap_caps_free(qb);
+    heap_caps_free(qs);
+#endif
+    return xQueueCreateWithCaps(depth, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+}
+
 bool safeMacQueueCreate(size_t queueSize) {
     initMacQueueMutex();
     if (macQueueMutex == nullptr) return false;
@@ -2768,7 +2782,7 @@ bool safeMacQueueCreate(size_t queueSize) {
             xSemaphoreGive(macQueueMutex);
             return true;
         }
-        macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+        macQueue = macQueueAlloc(queueSize);
         xSemaphoreGive(macQueueMutex);
         return (macQueue != nullptr);
     }

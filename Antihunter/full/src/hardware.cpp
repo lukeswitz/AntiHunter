@@ -38,6 +38,59 @@ extern "C" void *__wrap_nimble_platform_mem_calloc(size_t n, size_t size) {
     return heap_caps_calloc_prefer(n, size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 }
 
+#if CONFIG_IDF_TARGET_ESP32C5
+static TaskHandle_t s_bleLlTask = nullptr;
+static TaskHandle_t s_bleLlHeapTask = nullptr;
+static bool s_bleLlStackPending = false;
+static StaticTask_t s_bleLlTcb;
+static StackType_t s_bleLlStack[CONFIG_BT_LE_CONTROLLER_TASK_STACK_SIZE] __attribute__((aligned(16)));
+
+extern "C" BaseType_t __real_xTaskCreatePinnedToCore(TaskFunction_t fn, const char *const name, const uint32_t depth,
+                                                     void *const arg, UBaseType_t prio, TaskHandle_t *const out,
+                                                     const BaseType_t core);
+extern "C" void __real_vTaskDelete(TaskHandle_t t);
+
+extern "C" BaseType_t __wrap_xTaskCreatePinnedToCore(TaskFunction_t fn, const char *const name, const uint32_t depth,
+                                                     void *const arg, UBaseType_t prio, TaskHandle_t *const out,
+                                                     const BaseType_t core) {
+    if (!name || strcmp(name, "ble_ll_task") != 0) {
+        return __real_xTaskCreatePinnedToCore(fn, name, depth, arg, prio, out, core);
+    }
+    TaskHandle_t h = nullptr;
+    if (!s_bleLlTask && !s_bleLlStackPending && depth <= sizeof(s_bleLlStack)) {
+        h = xTaskCreateStaticPinnedToCore(fn, name, depth, arg, prio, s_bleLlStack, &s_bleLlTcb, core);
+        if (h) {
+            s_bleLlTask = h;
+            if (out) *out = h;
+            return pdPASS;
+        }
+    }
+    BaseType_t r = xTaskCreatePinnedToCoreWithCaps(fn, name, depth, arg, prio, &h, core,
+                                                   MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    if (r == pdPASS) {
+        s_bleLlHeapTask = h;
+        if (out) *out = h;
+    }
+    return r;
+}
+
+extern "C" void __wrap_vTaskDelete(TaskHandle_t t) {
+    TaskHandle_t target = t ? t : xTaskGetCurrentTaskHandle();
+    if (s_bleLlTask && target == s_bleLlTask) {
+        s_bleLlTask = nullptr;
+        if (target == xTaskGetCurrentTaskHandle()) s_bleLlStackPending = true;
+        __real_vTaskDelete(t);
+        return;
+    }
+    if (s_bleLlHeapTask && target == s_bleLlHeapTask) {
+        s_bleLlHeapTask = nullptr;
+        vTaskDeleteWithCaps(target);
+        return;
+    }
+    __real_vTaskDelete(t);
+}
+#endif
+
 extern Preferences prefs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;

@@ -3208,6 +3208,20 @@ void safeMacQueueDelete() {
     }
 }
 
+static QueueHandle_t macQueueAlloc(size_t depth) {
+#if CONFIG_IDF_TARGET_ESP32C5
+    StaticQueue_t *qb = (StaticQueue_t *)heap_caps_malloc(sizeof(StaticQueue_t), AH_ISR_QUEUE_CAPS);
+    uint8_t *qs = (uint8_t *)heap_caps_malloc(depth * sizeof(Hit), MALLOC_CAP_RTCRAM);
+    if (qb && qs) {
+        QueueHandle_t q = xQueueCreateStatic(depth, sizeof(Hit), qs, qb);
+        if (q) return q;
+    }
+    heap_caps_free(qb);
+    heap_caps_free(qs);
+#endif
+    return xQueueCreateWithCaps(depth, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+}
+
 // Safe queue create with mutex protection
 bool safeMacQueueCreate(size_t queueSize) {
     initMacQueueMutex();
@@ -3219,7 +3233,7 @@ bool safeMacQueueCreate(size_t queueSize) {
         }
         vTaskDelay(pdMS_TO_TICKS(50));
         for (size_t depth = queueSize; depth >= 64; depth /= 2) {
-            macQueue = xQueueCreateWithCaps(depth, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+            macQueue = macQueueAlloc(depth);
             if (macQueue) {
                 if (depth < queueSize)
                     Serial.printf("[SCAN] macQueue depth %u (%u would need %u B, largest free %u)\n",
