@@ -55,7 +55,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
 - BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - Data tab search keeps the selected sort column.
-- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 353,360 B to 78,218 B). The full image is 307,096 B smaller.
+- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 451,990 B to 101,321 B). The full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
 
 ## Firmware size
@@ -64,10 +64,10 @@ App image size against the v1.0.4 release bins. Full builds shrink because the w
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,321,584 B | -280,288 B | 77.8% -> 69.5% |
+| Stable full | 2,601,872 B | 2,367,536 B | -234,336 B | 77.8% -> 70.8% |
 | Beta full | 2,787,152 B | 2,421,936 B | -365,216 B | 83.4% -> 72.5% |
 | C5 full | 3,141,952 B | 2,768,816 B | -373,136 B | 74.9% -> 66.0% |
-| Stable headless | 1,897,584 B | 1,919,488 B | +21,904 B | 56.8% -> 57.4% |
+| Stable headless | 1,897,584 B | 1,948,768 B | +51,184 B | 56.8% -> 58.3% |
 | Beta headless | 1,966,272 B | 2,003,792 B | +37,520 B | 58.8% -> 60.0% |
 | C5 headless | 2,321,776 B | 2,359,152 B | +37,376 B | 55.4% -> 56.2% |
 
