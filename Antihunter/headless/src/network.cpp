@@ -636,7 +636,7 @@ static void handleBaselineStart(const String &command)
   } else {
     stopRequested = false;
     scanning = true;
-    if (ahCreateTask(baselineDetectionTask, "baseline", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+    if (ahCreateTask(baselineDetectionTask, "baseline", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
         scanning = false;
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
@@ -859,7 +859,7 @@ static void handleDeviceScanStart(const String &command)
       }
 
       scanning = true;
-      if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+      if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
           scanning = false;
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);

@@ -41,11 +41,18 @@
 
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                        void *arg, UBaseType_t prio, TaskHandle_t *handle,
-                                       BaseType_t core) {
+                                       BaseType_t core, bool psramStack = false) {
 #ifdef CONFIG_FREERTOS_UNICORE
     core = 0;
 #endif
+#ifdef ARDUINO_XIAO_ESP32C5
+    BaseType_t rc = psramStack
+        ? xTaskCreatePinnedToCoreWithCaps(fn, name, stack, arg, prio, handle, core, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+        : xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+#else
+    (void)psramStack;
     BaseType_t rc = xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+#endif
     if (rc != pdPASS) {
         Serial.printf("[TASK] create %s failed: stack=%u free-int=%u largest-int-block=%u\n",
                       name, (unsigned)stack,

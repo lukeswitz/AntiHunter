@@ -537,12 +537,12 @@ static void handleConfigRssi(const String &command)
 }
 
 static bool meshStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack, int secs,
-                              bool forever, TaskHandle_t *handle)
+                              bool forever, TaskHandle_t *handle, bool psramStack = false)
 {
   scanning = true;
   if (ahCreateTask(fn, name, stack,
                    reinterpret_cast<void *>(static_cast<intptr_t>(forever ? 0 : secs)),
-                   1, handle, 1) != pdPASS) {
+                   1, handle, 1, psramStack) != pdPASS) {
     scanning = false;
     *handle = nullptr;
     Serial.printf("[MESH] Task create failed: %s\n", name);
@@ -616,7 +616,7 @@ static void handleBaselineStart(const String &command)
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
     stopRequested = false;
-    if (!meshStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle)) {
+    if (!meshStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle, true)) {
       sendToSerial1(nodeId + ": BASELINE_ACK:FAILED", true);
       return;
     }
@@ -839,7 +839,7 @@ static void handleDeviceScanStart(const String &command)
 
       scanning = true;
       if (ahCreateTask(snifferScanTask, "sniffer", 12288,
-                       reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                       reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
         workerTaskHandle = nullptr;
         scanning = false;
         if (captureProbes) { probeDetectionEnabled = false; releaseProbeQueue(); }

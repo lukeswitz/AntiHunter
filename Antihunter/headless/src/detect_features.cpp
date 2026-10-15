@@ -568,7 +568,7 @@ void attack_responsePump() {
     ::scanning = true;
     if (ahCreateTask(fn, taskName, stack,
                      reinterpret_cast<void *>(static_cast<intptr_t>(secs)),
-                     1, &::workerTaskHandle, 1) != pdPASS) {
+                     1, &::workerTaskHandle, 1, fn == snifferScanTask) != pdPASS) {
         ::scanning = false;
         ::workerTaskHandle = nullptr;
         scanSetCountdown(0, false);

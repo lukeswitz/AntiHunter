@@ -26,6 +26,7 @@
 #include "esp_pm.h"
 #include "esp_sleep.h"
 #include "esp_bt.h"
+#include "esp_memory_utils.h"
 #include "esp_system.h"
 #include "driver/gpio.h"
 
@@ -75,6 +76,12 @@ extern "C" void __wrap_vTaskDelete(TaskHandle_t t) {
     }
     if (s_bleLlHeapTask && target == s_bleLlHeapTask) {
         s_bleLlHeapTask = nullptr;
+        vTaskDeleteWithCaps(target);
+        return;
+    }
+    StackType_t *stk = nullptr;
+    StaticTask_t *tcb = nullptr;
+    if (target == xTaskGetCurrentTaskHandle() && xTaskGetStaticBuffers(target, &stk, &tcb) == pdTRUE && esp_ptr_external_ram(stk)) {
         vTaskDeleteWithCaps(target);
         return;
     }
