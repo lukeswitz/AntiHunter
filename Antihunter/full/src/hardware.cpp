@@ -30,14 +30,6 @@
 #include "esp_system.h"
 #include "driver/gpio.h"
 
-extern "C" void *__wrap_nimble_platform_mem_malloc(size_t size) {
-    return heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-}
-
-extern "C" void *__wrap_nimble_platform_mem_calloc(size_t n, size_t size) {
-    return heap_caps_calloc_prefer(n, size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-}
-
 #if CONFIG_IDF_TARGET_ESP32C5
 static TaskHandle_t s_bleLlTask = nullptr;
 static TaskHandle_t s_bleLlHeapTask = nullptr;
@@ -88,6 +80,15 @@ extern "C" void __wrap_vTaskDelete(TaskHandle_t t) {
         return;
     }
     __real_vTaskDelete(t);
+}
+
+extern "C" esp_err_t __real_esp_bt_controller_init(esp_bt_controller_config_t *cfg);
+extern "C" esp_err_t __wrap_esp_bt_controller_init(esp_bt_controller_config_t *cfg) {
+    cfg->nimble_max_connections = 1;
+    cfg->ble_acl_buf_count = 4;
+    cfg->ble_ll_rsp_dup_list_count = 10;
+    cfg->ble_ll_adv_dup_list_count = 10;
+    return __real_esp_bt_controller_init(cfg);
 }
 #endif
 
