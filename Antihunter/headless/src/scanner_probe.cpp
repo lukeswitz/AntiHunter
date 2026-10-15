@@ -164,7 +164,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     }
     msg += " RSSI=" + String(rssi) + " CH=" + String(channel);
     if (ssid && ssid[0]) {
-        msg += " SSID=\"" + String(ssid) + "\"";
+        msg += " SSID=\"" + sanitizeAscii(ssid, 33) + "\"";
         if (ghostSsid) msg += " GHOST";
     }
     if (isDst) {
