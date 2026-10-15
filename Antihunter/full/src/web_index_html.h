@@ -1612,11 +1612,14 @@ R"HTML(
           <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
           <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
           <button data-dtab="analysis" class="dtab" onclick="detSetTab('analysis')">Analysis</button>
+          <button class="btn alt privacy-toggle det-priv" type="button" onclick="togglePrivacy()"></button>
         </div>
         <style>
           #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
           #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
           #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
+          #det-tabs .det-priv{margin-left:auto;align-self:center;margin-bottom:4px;padding:6px 12px;font-size:12px;line-height:1;border-radius:8px;white-space:nowrap;}
+          @media (max-width:600px){#det-tabs button.dtab{padding:8px 9px;font-size:12px;}#det-tabs .det-priv{padding:5px 10px;font-size:11px;}}
           .dtab-hidden{display:none !important;}
           .det-empty-hidden{display:none !important;}
           .drow-head,.drow{display:grid;grid-template-columns:10px 1fr 48px 52px 44px;gap:12px;align-items:center;}
@@ -1700,8 +1703,10 @@ R"HTML(
               <span class="lbl" style="margin-left:10px;">Drops:</span><span id="d-drops" class="num">--</span>
               <span class="lbl" style="margin-left:10px;">Mesh-gated:</span><span id="d-mgated" class="num">--</span>
             </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button class="btn alt" onclick="detectClearAll()">Clear All State</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
+              <button class="btn" onclick="detectClearSession()">Clear Session</button>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every in-memory detection and deletes the saved detection logs on SD. Clear Session zeroes the counts shown here without deleting anything.</span>
             </div>
           </div>
         </div>
@@ -1722,6 +1727,9 @@ R"HTML(
             <span class="collapse-icon open" id="meshCmdCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshCmdCardBody">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+              <button class="btn alt" onclick="meshCmdClear()" style="padding:6px 12px;font-size:12px;">Clear All Events</button>
+            </div>
             <div id="meshCmdArea" style="overflow-x:auto;"><div style="color:var(--mut);font-size:12px;">No commands logged.</div></div>
           </div>
         </div>
@@ -2005,8 +2013,8 @@ R"HTML(
               <label style="font-size:12px;color:var(--mut);margin:0;">Source:</label>
               <select id="incSrc" style="width:auto;padding:6px 10px;font-size:12px;">
                 <option value="">ALL</option>
-                <option value="local">Local only</option>
-                <option value="peer">Peers only</option>
+                <option value="local">Local Only</option>
+                <option value="peer">Peers Only</option>
               </select>
               <button class="btn alt" onclick="loadIncidents()" style="padding:6px 12px;font-size:12px;">Refresh</button>
               <button class="btn alt" onclick="downloadIncidents()" style="padding:6px 12px;font-size:12px;">Download .jsonl</button>
@@ -2879,7 +2887,15 @@ R"HTML(
           load();
           fetch('/allowlist-export').then(r => r.text()).then(t => { document.getElementById('wlist').value = t; }).catch(e => console.warn('allowlist reload failed', e));
         }
+        refreshSentinelPrivacy();
         refreshDataTabPrivacy();
+      }
+
+      function refreshSentinelPrivacy() {
+        if (typeof _incLastHtml !== 'undefined') _incLastHtml = null;
+        if (typeof loadIncidents === 'function') loadIncidents();
+        if (typeof detTabActive === 'function' && detTabActive() && typeof detAllTicks === 'function') detAllTicks();
+        if (typeof loadSentinelAnalysis === 'function' && document.getElementById('saArea')) loadSentinelAnalysis();
       }
 
       function privacyApply(el) {
@@ -5474,6 +5490,7 @@ R"HTML(
         return d;
       }
       let _incLastHtml = null;
+      let _sessMark = null;
       async function loadIncidents(){
         try {
           const r = await fetch('/api/incidents.json?limit=200');
@@ -5482,9 +5499,11 @@ R"HTML(
           const ftype = document.getElementById('incFilter').value;
           const fsrc  = document.getElementById('incSrc').value;
           const body = document.getElementById('incBody');
+          const sessMs = (_sessMark && _sessMark.marked) ? (_sessMark.ms||0) : 0;
           const filtered = arr.slice().reverse().filter(e =>
             (!ftype || e.type === ftype) &&
-            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
+            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local')) &&
+            (!sessMs || (e.ts||0) >= sessMs)
           );
           document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
           let html;
@@ -5504,6 +5523,7 @@ R"HTML(
           }
           if (html !== _incLastHtml) {
             body.innerHTML = html;
+            privacyApply(body);
             _incLastHtml = html;
           }
         } catch(e){ console.error('loadIncidents', e); }
@@ -6586,13 +6606,14 @@ R"HTML(
           return `<span class="sa-chip" style="border-color:${SEVC[sv]};color:${on?'#fff':SEVC[sv]};background:${on?SEVC[sv]+'33':'transparent'};" onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()">${esc(t.replace(/_/g,' '))}<span style="opacity:.6;margin-left:6px;">${counts[t]}</span></span>`;
         }).join('');
         const chipBar=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${breakdown}</div>`;
-        if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';return;}
+        if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';privacyApply(area);return;}
         const hasPeer=_saData.some(x=>x.src&&x.src!=='local');
         area.innerHTML=chipBar
           +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
           +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th>'+(hasPeer?'<th>Source</th>':'')+'<th>Detail</th><th>Node</th></tr></thead><tbody>'
           +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td>`+(hasPeer?`<td class="sa-mac">${esc(r.src)}</td>`:'')+`<td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
           +'</tbody></table></div>';
+        privacyApply(area);
       }
       // Prefix-based severity for sentinel incident types (mirrors detector card sev).
       function _saSev(t){
@@ -6803,6 +6824,17 @@ R"HTML(
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
       function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      function _sessBase(path){
+        if(!_sessMark||!_sessMark.marked||!_sessMark.logs)return 0;
+        return _sessMark.logs[path]||0;
+      }
+      function _sessLines(s,path){
+        if(!s)return [];
+        const all=s.split('\n').filter(l=>l.trim());
+        const b=_sessBase(path);
+        return b>0?all.slice(b):all;
+      }
+      function _countSess(s,path){return _sessLines(s,path).length}
       const GROUPS={
         dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
           ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
@@ -6862,7 +6894,8 @@ R"HTML(
         }
       }
       async function renderDos(){
-        const inc=await _jj('/api/incidents.json?limit=200')||[];
+        let inc=await _jj('/api/incidents.json?limit=200')||[];
+        if(_sessMark&&_sessMark.marked&&_sessMark.ms>0)inc=inc.filter(x=>x&&(x.ts||0)>=_sessMark.ms);
         const cfg=_detCfg||{};
         _dosSyncMode(!!cfg.sentinel_scan);
         const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
@@ -6921,45 +6954,50 @@ R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,rc,ch,sess]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
           _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
           _jj('/api/rid_claims'),_jj('/api/recon'),
-          _jj('/api/channel_partition')
+          _jj('/api/channel_partition'),_jj('/api/detect/session')
         ]);
+        _sessMark=sess||null;
         const dEl = document.getElementById('d-dauth');
-        if (dEl) dEl.textContent = _countLines(df);
-        document.getElementById('d-pmkid').textContent=_countLines(pm);
-        document.getElementById('d-et').textContent=_countLines(et);
-        document.getElementById('d-sc').textContent=_countLines(sc);
-        document.getElementById('d-sae').textContent=_countLines(sa);
-        document.getElementById('d-owe').textContent=_countLines(ow);
-        document.getElementById('d-frag').textContent=_countLines(fr);
+        if (dEl) dEl.textContent = _countSess(df,'/deauth_flood.jsonl');
+        document.getElementById('d-pmkid').textContent=_countSess(pm,'/pmkid.jsonl');
+        document.getElementById('d-et').textContent=_countSess(et,'/eviltwin.jsonl');
+        document.getElementById('d-sc').textContent=_countSess(sc,'/ssid_confusion.jsonl');
+        document.getElementById('d-sae').textContent=_countSess(sa,'/sae_dos.jsonl');
+        document.getElementById('d-owe').textContent=_countSess(ow,'/owe_abuse.jsonl');
+        document.getElementById('d-frag').textContent=_countSess(fr,'/fragattack.jsonl');
         document.getElementById('d-rec').textContent=(rc||[]).length;
         document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
         document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
         document.getElementById('d-bn').textContent=b?(b.neighbor_bits_set+' / '+b.capacity_bits):'--';
         document.getElementById('d-qc').textContent=q?((q.candidates||[]).length):0;
         document.getElementById('d-quorum').textContent=q?JSON.stringify(q,null,2):'--';
+        privacyApply(document.getElementById('d-quorum'));
         document.getElementById('d-chan').textContent=ch?JSON.stringify(ch,null,2):'--';
-        {const _e=document.getElementById('d-rid');if(_e)_e.textContent=rid?JSON.stringify(rid,null,2):'[]';}
+        privacyApply(document.getElementById('d-chan'));
+        {const _e=document.getElementById('d-rid');if(_e){_e.textContent=rid?JSON.stringify(rid,null,2):'[]';privacyApply(_e);}}
         detRenderTable('d-recpre',rc||[],[
           {key:'id',label:'TrackId'},{key:'score',label:'Score'},
           {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
         ]);
         const evtRows=[];
-        function parseLines(s,kind,sevHint){
-          (s||'').split('\n').filter(l=>l.trim()).forEach(l=>{
+        function parseLines(s,kind,sevHint,path){
+          _sessLines(s,path).forEach(l=>{
             const o=_safeParse(l);
             if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
           });
         }
-        parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
-        parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
-        parseLines(bm,'BLEMalformed','med');
+        parseLines(pm,'PMKID','crit','/pmkid.jsonl');parseLines(et,'EvilTwin','high','/eviltwin.jsonl');
+        parseLines(sc,'SSIDConf','high','/ssid_confusion.jsonl');
+        parseLines(sa,'SAE','high','/sae_dos.jsonl');parseLines(ow,'OWE','med','/owe_abuse.jsonl');
+        parseLines(fr,'Frag','med','/fragattack.jsonl');
+        parseLines(bm,'BLEMalformed','med','/ble_malformed.jsonl');
         evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
         detRenderTable('d-stream',evtRows.slice(0,40),[
           {key:'kind',label:'Type'},
@@ -6968,10 +7006,28 @@ R"HTML(
           {key:'raw',label:'Detail',get:r=>r.raw}
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
-        if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+        if(_countSess(pm,'/pmkid.jsonl')>0||_countSess(et,'/eviltwin.jsonl')>0||_countSess(sc,'/ssid_confusion.jsonl')>0||_countSess(sa,'/sae_dos.jsonl')>0)detMarkActive('rid');
         renderDos();
       }
-      async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
+      async function detectClearAll(){
+        if(!confirm('Erase ALL Sentinel state?\n\nThis clears every detection held in memory (all detector windows, hunts, trackers, baselines) AND deletes the saved detection logs on SD, including incidents.jsonl.\n\nThis cannot be undone.'))return;
+        const r=await fetch('/api/detect/clear_all',{method:'POST'});
+        toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
+        _sessMark=null;
+        _incLastHtml=null;
+        detectTick();
+        if(typeof loadIncidents==='function')loadIncidents();
+        if(typeof refreshSentinelAnalysis==='function')refreshSentinelAnalysis();
+      }
+      async function detectClearSession(){
+        const r=await fetch('/api/detect/clear_session',{method:'POST'});
+        if(r.ok){try{_sessMark=await r.json();}catch(e){_sessMark=null;}}
+        toast(r.ok?'Session counts cleared (logs kept)':'Clear failed', r.ok?'success':'error');
+        _incLastHtml=null;
+        detectTick();
+        if(typeof loadIncidents==='function')loadIncidents();
+        if(typeof refreshSentinelAnalysis==='function')refreshSentinelAnalysis();
+      }
       async function pgTick(){
         if(!detTabActive())return;
         const pg=await _jj('/api/probegraph');
@@ -7575,6 +7631,7 @@ R"HTML(
           el.innerHTML='<table class="dt"><thead><tr><th>Client MAC</th><th>Assoc #</th><th>First</th><th>Last</th></tr></thead><tbody>'
             +a.map(c=>`<tr><td style="color:var(--acc);">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
             +'</tbody></table>';
+          privacyApply(el);
         }catch(e){console.warn('apClientsTick',e);}
       }
       async function meshCmdTick(){
@@ -7587,6 +7644,12 @@ R"HTML(
         el.innerHTML='<table class="dt"><thead><tr><th>Time</th><th>Radio</th><th>Command</th></tr></thead><tbody>'
           +a.slice(-100).reverse().map(r=>`<tr><td>${esc(when(r))}</td><td style="color:var(--acc);">${esc(r.src)}</td><td>${esc(r.cmd)}</td></tr>`).join('')
           +'</tbody></table>';
+        privacyApply(el);
+      }
+      async function meshCmdClear(){
+        if(!confirm('Clear all logged mesh commands?'))return;
+        await fetch('/api/mesh_cmd',{method:'DELETE'});
+        meshCmdTick();
       }
       function detAllTicks(){
         if(!detTabActive())return;
@@ -7604,6 +7667,7 @@ R"HTML(
         if(arr.length===0){el.textContent='--';return;}
         const rows=arr.slice(-50).reverse().map(r=>cols.map(c=>{const v=r[c];return v===undefined?'':String(v)}).join(' | '));
         el.textContent=cols.join(' | ')+'\n'+rows.join('\n');
+        privacyApply(el);
       }
       async function bfTick(){if(!detTabActive())return;
         const a=await _jsonl('/api/eviltwin.jsonl');

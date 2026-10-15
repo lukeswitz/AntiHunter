@@ -92,7 +92,7 @@ Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys: 10 min lockout.
 | `HB_ON` / `HB_OFF` | `HB1` / `HB0` | | | `@AH01 HB_ON` |
 | `HB_INTERVAL` | `HBI` | `min` 1-60 | `HB_ACK:INTERVAL <n>min` | `@AH01 HB_INTERVAL:10` |
 
-### Sentinel (Beta, C5)
+### Sentinel
 
 | Command | Alias | Args | Example |
 |---|---|---|---|

@@ -1130,21 +1130,6 @@ static void handleSentinelBoot(const String &command)
   sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
 
-static void handleAttackerTrilat(const String &command)
-{
-  String a = command.substring(16);
-  a.trim();
-  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
-  detect_setAttackerTrilat(en);
-  sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
-}
-
-static void handleAttackerTrilatStatus(const String &command)
-{
-  (void)command;
-  sendToSerial1(nodeId + ": ATTACKER_TRILAT_STATUS: " + (detect_getAttackerTrilat() ? "ON" : "OFF"), true);
-}
-
 // Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
 // deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
 static const char *groupMembers(const String &name)
@@ -1353,8 +1338,9 @@ static void handleVibScanStatus(const String &command)
 
 static void handleAttackerTrilat(const String &command)
 {
-  int v = command.substring(16).toInt();
-  bool en = (v != 0);
+  String a = command.substring(16);
+  a.trim();
+  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
   detect_setAttackerTrilat(en);
   sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
 }
@@ -2464,8 +2450,6 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "SENTINEL_STATUS")              handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
-  else if (command == "ATTACKER_TRILAT_STATUS")       handleAttackerTrilatStatus(command);
-  else if (command.startsWith("ATTACKER_TRILAT:"))    handleAttackerTrilat(command);
   else if (command.startsWith("GROUP:"))              handleGroup(command);
   else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);

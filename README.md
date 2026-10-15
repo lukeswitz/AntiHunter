@@ -113,7 +113,7 @@ Pick a feature from [What it detects](#what-it-detects). Each one shows how to s
 | [**Randomized MAC tracer**](#recon-randomized-mac-tracer-experimental) *(experimental)* | Groups a device's changing MACs into one identity | `RANDOMIZATION_START:2:300` |
 | [**Drone Remote ID**](#recon-drone-remote-id) | Drone ID, position, flight data, and operator location | `DRONE_START:300` |
 | [**Deauth detection**](#detection-deauth) | Logs deauth and disassociation frames and flags floods | `DEAUTH_START:300` |
-| [**Sentinel**](#detection-sentinel-beta) *(Beta)* | Detects Wi-Fi attacks in progress and names the tool when it recognizes one | `SENTINEL_ON` |
+| [**Sentinel**](#detection-sentinel) | Detects Wi-Fi attacks in progress and names the tool when it recognizes one | `SENTINEL_ON` |
 | [**CSI motion**](#detection-csi-motion-beta) *(Beta)* | Detects movement from changes in Wi-Fi signals between nearby devices and the node | `CSI_MOTION_START:0:FOREVER` |
 | [**Packet capture**](#capture-packet-capture) | Writes Wi-Fi or BLE to SD as a pcap that Wireshark opens | `PCAP_START:0:300:0` |
 | [**Triangulation**](#locate-triangulation-experimental) *(experimental)* | Three or more nodes with a GPS fix estimate a device's location from RSSI | `TRIANGULATE_START:<MAC>:60` |
@@ -271,10 +271,7 @@ Watches for deauthentication and disassociation frames, which knock devices off 
 
 ---
 
-### Detection: Sentinel (Beta)
-
-> [!IMPORTANT]
-> To use Sentinel, flash the **Beta** firmware.
+### Detection: Sentinel
 
 Once you start it, Sentinel listens for Wi-Fi attack frames in the background and pauses while another scan runs. It matches frame patterns and behavior, such as deauth floods, beacon spam, evil twin APs, PMKID requests, and someone knocking a client off to force a WPA handshake.
 
@@ -445,7 +442,7 @@ Both builds share the detectors and scan engine. Full adds a Wi-Fi access point 
 
 ### Web UI
 
-The web UI has four tabs: **Scan**, **Results**, **System**, and **Data** (plus **Sentinel** on Beta). On the Scan tab, pick the scan, the radio, and how long, then select **Start Scan**. Results show on the Results tab and save to SD. **Schedule this scan** runs the current scan at a set time.
+The web UI has five tabs: **Scan**, **Results**, **System**, **Data**, and **Sentinel**. On the Scan tab, pick the scan, the radio, and how long, then select **Start Scan**. Results show on the Results tab and save to SD. **Schedule this scan** runs the current scan at a set time.
 
 <p align="center">
 <img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />

@@ -1,6 +1,6 @@
 # AntiHunter v1.0.5
 
-User-set erase key, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
+User-set erase key, Sentinel in Stable, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -8,7 +8,7 @@ User-set erase key, headless scheduler and baseline watch, Sentinel detector car
 | Beta | v1.0.5-beta1 | ESP32-S3 | v1.0.4-beta1 (2026-10-04) |
 | Experimental | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
 
-Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTINEL=0`).
+Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, detector cards, incidents and the Sentinel mesh commands. Sentinel stays off until started.
 
 ## Erase key (all channels; read before upgrading)
 
@@ -22,8 +22,8 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 
 - Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
 - Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits.
-- Mesh, Full and headless **(Beta/C5)**: `DETECT_COUNTS`.
-- Detection tab **(Beta/C5)**: Pwnagotchi card; Karma bait on/off; hunt cooldown; verbose detector logging; quorum setting; pending attack response with Cancel; link to the raw `/detect` logs.
+- Mesh, Full and headless: `DETECT_COUNTS`.
+- Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; verbose detector logging; quorum setting; pending attack response with Cancel; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
 - Target card: Targets and Allow list above the scan options; trend badges Steady and Measuring; Movement toggle in the Forever/Triangulate row.
@@ -41,9 +41,9 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 
 ## Fixed
 
-- **(Beta/C5)** STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
-- **(Beta/C5)** Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
-- **(Beta/C5)** `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
+- STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
+- Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
+- `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
 - Battery saver now lowers the CPU clock to 80 MHz (restores 240 MHz on exit). Before, the clock never changed.
 - Headless: boot forensics (previous uptime, restored results) reach the mesh again.
 - `CONFIG_TARGETS` over mesh splits on `|`; mesh text has no newlines.
