@@ -23,6 +23,7 @@
 #include "detect_internal.h"
 
 extern std::atomic<bool> g_detectVerbose;
+extern String sanitizeAscii(const char *s, size_t maxLen);
 
 namespace ah_detect {
 
@@ -2836,12 +2837,13 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     if (meshEnabled && (c.lastMeshTx == 0 || now - c.lastMeshTx >= 60000)) {
         c.lastMeshTx = now;
         char buf[160];
+        const String meshId = sanitizeAscii(uavId, sizeof(c.uavId));
         snprintf(buf, sizeof(buf), "%s: RID_RX:%s:%d:%.6f:%.6f:%d",
-                 getNodeId().c_str(), uavId, (int)rssi,
+                 getNodeId().c_str(), meshId.c_str(), (int)rssi,
                  (double)gpsLat, (double)gpsLon, gpsValid ? 1 : 0);
         sendToSerial1(String(buf), true);
         snprintf(buf, sizeof(buf), "%s: RID_CLAIM:%s:%.6f:%.6f:%.1f",
-                 getNodeId().c_str(), uavId, lat, lon, alt);
+                 getNodeId().c_str(), meshId.c_str(), lat, lon, alt);
         sendToSerial1(String(buf), true);
     }
 

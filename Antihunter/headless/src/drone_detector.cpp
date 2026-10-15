@@ -55,12 +55,14 @@ static void droneMeshMarkSent(const String &key) {
     a.lastMeshMs = millis();
     a.stale = false;
 }
+extern String sanitizeAscii(const char *s, size_t maxLen);
+
 static uint32_t droneMeshLastSeen(const String &key, const DroneAnnounce &a, String &macOut, String &idOut) {
     macOut = key;
     idOut = "";
     auto it = detectedDrones.find(key);
     if (it == detectedDrones.end()) return a.lastMeshMs;
-    idOut = String(it->second.uavId);
+    idOut = sanitizeAscii(it->second.uavId, sizeof(it->second.uavId));
     return it->second.lastSeen;
 }
 
@@ -68,7 +70,7 @@ extern String macFmt6(const uint8_t *m);
 extern void sendMeshNotification(const Hit &hit);
 
 static String droneMeshLine(const String &mac, const DroneDetection &d) {
-    String msg = getNodeId() + ": DRONE: " + mac + " ID:" + String(d.uavId);
+    String msg = getNodeId() + ": DRONE: " + mac + " ID:" + sanitizeAscii(d.uavId, sizeof(d.uavId));
     msg += " R" + String(d.rssi);
     if (d.latitude != 0) {
         msg += " GPS:" + String(d.latitude, 6) + "," + String(d.longitude, 6);
@@ -92,7 +94,7 @@ static bool droneMeshAnnounce(const String &key, const DroneDetection &d) {
 
     String msg = droneMeshLine(key, d);
     if (msg.length() > MAX_MESH_SIZE) {
-        msg = getNodeId() + ": DRONE: " + key + " ID:" + String(d.uavId) + " R" + String(d.rssi);
+        msg = getNodeId() + ": DRONE: " + key + " ID:" + sanitizeAscii(d.uavId, sizeof(d.uavId)) + " R" + String(d.rssi);
     }
     if (msg.length() > MAX_MESH_SIZE || !meshEnqueue(msg)) return false;
 
