@@ -95,7 +95,7 @@ jobs:
         RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/${BRANCH}/Dist"
 
         # Remove old versioned bins; keep bootloader, partitions, flashAntihunter.sh
-        rm -f Dist/antihunter-*.bin
+        rm -f Dist/antihunter-full-*.bin Dist/antihunter-headless-*.bin
 
         cp "release/antihunter-full-${VERSION}.bin" "Dist/antihunter-full-${VERSION}.bin"
         cp "release/antihunter-headless-${VERSION}.bin" "Dist/antihunter-headless-${VERSION}.bin"
@@ -152,13 +152,13 @@ jobs:
         git checkout -B "${BRANCH}" "origin/${BRANCH}"
 
         # Apply artifacts onto the branch
-        rm -f Dist/antihunter-*.bin
-        cp /tmp/ah-dist/antihunter-*.bin Dist/
+        rm -f Dist/antihunter-full-*.bin Dist/antihunter-headless-*.bin
+        cp /tmp/ah-dist/antihunter-full-*.bin /tmp/ah-dist/antihunter-headless-*.bin Dist/
         cp /tmp/ah-dist/bootloader.bin /tmp/ah-dist/partitions.bin Dist/
         mkdir -p docs/flasher
         cp /tmp/ah-flasher/manifest-*.json docs/flasher/
 
-        git add -A -- 'Dist/antihunter-*.bin' Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
+        git add -A -- 'Dist/antihunter-full-*.bin' 'Dist/antihunter-headless-*.bin' Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
         for i in 1 2 3 4 5; do
