@@ -146,7 +146,7 @@ Nodes exchange `CSI_PEER:<AP MAC>` and skip each other's MACs.
 | Tri data | `NODE: T_D: MAC Hits=N RSSI:N [GPS=lat,lon HDOP=x]` |
 | Tri final | `NODE: T_F: MAC=addr GPS=lat,lon CONF=x UNC=x` |
 | Tri done | `NODE: T_C: MAC=addr Nodes=N [GPS=lat,lon CONF=pct URL=link]` |
-| Tri cycle | `@ALL TRI_CYCLE_START:<ms>:<node,...>` (firmware-sent) |
+| Tri cycle | `@ALL TRI_CYCLE_START:<ms>:<node,...>` (firmware-sent; alias `TCS`) |
 | Probe hit | `NODE: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="x" [GHOST]] [DST]` |
 | PCAP | `NODE: PCAP_START: WIFI\|BLE D=secs` · `PCAP_DONE: F=frames B=bytes D=dropped` |
 | Tamper | `NODE: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
