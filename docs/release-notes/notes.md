@@ -82,9 +82,9 @@ App image size against the v1.0.4 release bins. Full builds shrink because the w
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,372,912 B | -228,960 B | 77.8% -> 71.0% |
-| Beta full | 2,787,152 B | 2,430,688 B | -356,464 B | 83.4% -> 72.7% |
-| C5 full | 3,141,952 B | 2,774,416 B | -367,536 B | 74.9% -> 66.1% |
+| Stable full | 2,601,872 B | 2,384,928 B | -216,944 B | 77.8% -> 71.4% |
+| Beta full | 2,787,152 B | 2,442,384 B | -344,768 B | 83.4% -> 73.1% |
+| C5 full | 3,141,952 B | 2,787,440 B | -354,512 B | 74.9% -> 66.5% |
 | Stable headless | 1,897,584 B | 1,955,232 B | +57,648 B | 56.8% -> 58.5% |
 | Beta headless | 1,966,272 B | 2,009,104 B | +42,832 B | 58.8% -> 60.1% |
 | C5 headless | 2,321,776 B | 2,363,648 B | +41,872 B | 55.4% -> 56.4% |
