@@ -60,7 +60,7 @@ void uartForwardTask(void *parameter) {
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshRedactSecrets(meshBuffer).c_str());
 
           String toProcess, senderId;
           meshSplitSender(meshBuffer, senderId, toProcess);
@@ -165,6 +165,8 @@ void parseChannelsCSV(const String &csv) {
     if (csv.indexOf("..") >= 0) {
         int a = csv.substring(0, csv.indexOf("..")).toInt();
         int b = csv.substring(csv.indexOf("..") + 2).toInt();
+        if (a < 1) a = 1;
+        if (b > 255) b = 255;
         for (int ch = a; ch <= b; ch++) {
             if (isValidChannel(ch)) CHANNELS.push_back((uint8_t)ch);
         }
@@ -282,7 +284,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.4 C5 BETA HEADLESS BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v1.0.5 C5 BETA HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
@@ -309,7 +311,7 @@ void loop() {
                 Serial.println("OK: RTC set");
             }
         } else if (cmd.length() > 0 && cmd.length() <= MAX_MESH_SIZE) {
-            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", cmd.c_str());
+            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(cmd).c_str());
             processMeshMessage(cmd);
         }
     }

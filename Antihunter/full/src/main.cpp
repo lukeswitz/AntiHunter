@@ -72,7 +72,7 @@ void uartForwardTask(void *parameter) {
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshRedactSecrets(meshBuffer).c_str());
 
           String toProcess, senderId;
           meshSplitSender(meshBuffer, senderId, toProcess);
@@ -179,6 +179,8 @@ void parseChannelsCSV(const String &csv) {
     if (csv.indexOf("..") >= 0) {
         int a = csv.substring(0, csv.indexOf("..")).toInt();
         int b = csv.substring(csv.indexOf("..") + 2).toInt();
+        if (a < 1) a = 1;
+        if (b > 255) b = 255;
         for (int ch = a; ch <= b; ch++) {
             if (isValidChannel(ch)) CHANNELS.push_back((uint8_t)ch);
         }
@@ -362,7 +364,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.4 BETA BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.5 BETA BOOT COMPLETE =====");
 
     String currentSsid = prefsGetString("apSsid", AP_SSID);
     String currentPass = prefsGetString("apPass", AP_PASS);

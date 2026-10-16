@@ -211,7 +211,7 @@ int8_t getBaselineRssiThreshold() {
 void setBaselineRssiThreshold(int8_t threshold) {
     if (threshold >= -100 && threshold <= -30) {
         baselineRssiThreshold = threshold;
-        prefs.putInt("baselineRSSI", threshold);
+        prefs.putInt("blRssi", threshold);
         Serial.printf("[BASELINE] RSSI threshold set to %d dBm\n", threshold);
     }
 }

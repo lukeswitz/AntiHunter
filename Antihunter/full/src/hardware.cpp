@@ -773,7 +773,6 @@ void saveConfiguration() {
     cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
     cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
-    cw.printf(" \"apPass\":\"%s\",\n", jsonEscape(prefsGetString("apPass", AP_PASS)).c_str());
     cw.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
     cw.printf(" \"apHidden\":%s\n", prefs.getBool("apHidden", false) ? "true" : "false");
     cw.println("}");
@@ -1255,6 +1254,18 @@ bool waitForInitialConfig() {
             Serial.println("[CONFIG] Erase key rejected: needs 8-64 chars, no ':'");
         }
         doc.remove("erasePSK");
+    }
+
+    if (doc.containsKey("apPass")) {
+        String apPass = doc["apPass"].as<String>();
+        if (apPass.length() >= 8 && apPass.length() <= 63) {
+            prefs.putString("apPass", apPass);
+            ensureErasePSK();
+            Serial.println("[CONFIG] AP password set");
+        } else {
+            Serial.println("[CONFIG] AP password rejected: needs 8-63 chars");
+        }
+        doc.remove("apPass");
     }
 
     uint16_t pushed = 0;
@@ -2836,6 +2847,7 @@ static bool eraseConstEq(const String &a, const String &b) {
 }
 
 static bool validateEraseToken(const String &response);
+static bool eraseCheck(const String &response, bool allowKey);
 
 bool validateEraseResponse(const String &response) {
     if (!erasePskUserSet()) {
@@ -2843,10 +2855,14 @@ bool validateEraseResponse(const String &response) {
         sendToSerial1(getNodeId() + ": ERASE_ACK:SET_KEY_FIRST", true);
         return false;
     }
-    return validateEraseKeyChange(response);
+    return eraseCheck(response, false);
 }
 
 bool validateEraseKeyChange(const String &response) {
+    return eraseCheck(response, true);
+}
+
+static bool eraseCheck(const String &response, bool allowKey) {
     static uint8_t s_fails = 0;
     static uint32_t s_lockUntil = 0;
     if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {
@@ -2854,7 +2870,7 @@ bool validateEraseKeyChange(const String &response) {
         return false;
     }
     if (erasePSK.length() == 0) return false;
-    bool ok = eraseConstEq(response, erasePSK) || validateEraseToken(response);
+    bool ok = (allowKey && eraseConstEq(response, erasePSK)) || validateEraseToken(response);
     if (ok) {
         s_fails = 0;
         s_lockUntil = 0;
