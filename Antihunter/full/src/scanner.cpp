@@ -605,9 +605,8 @@ String getTargetsList()
     return out;
 }
 
-void saveTargetsList(const String &txt)
+static void loadTargetsList(const String &txt)
 {
-    prefs.putString("maclist", txt);
     {
     std::lock_guard<std::mutex> lock(randMutex);
     targets.clear();
@@ -637,6 +636,16 @@ void saveTargetsList(const String &txt)
     }
     }
     rebuildIdentityMacSnapshot();
+}
+
+bool saveTargetsList(const String &txt)
+{
+    if (prefs.putString("maclist", txt) != txt.length()) {
+        Serial.printf("[TARGETS] NVS write failed (%u bytes)\n", (unsigned)txt.length());
+        return false;
+    }
+    loadTargetsList(txt);
+    return true;
 }
 
 bool matchesSsid(const char *ssid)
@@ -3126,7 +3135,7 @@ void initializeScanner()
 {
     Serial.println("Loading targets...");
     String txt = prefsGetString("maclist", "");
-    saveTargetsList(txt);
+    loadTargetsList(txt);
     Serial.printf("Loaded %d targets\n", targets.size());
 
     Serial.println("Loading allowlist...");
@@ -3481,7 +3490,7 @@ void listScanTask(void *pv) {
                 Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
             }
 
-            if (!selfNodeExists) {
+            if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -3625,9 +3634,6 @@ void listScanTask(void *pv) {
                 framesSeen += networksFound;
             }
         }
-
-        extern void processUSBToMesh();
-        processUSBToMesh();
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
             !(triangulationActive.load() && triTargetRadio.load() == 2) &&
@@ -3847,8 +3853,7 @@ void listScanTask(void *pv) {
                             }
                         }
 
-                        skip_accumulation:
-                        (void)0;
+                        skip_accumulation:;
                     }
 
                     if (triangulationInitiator) {
@@ -3903,7 +3908,7 @@ void listScanTask(void *pv) {
                                 node.lastUpdate = millis();
                             }
 
-                            if (!selfNodeFound) {
+                            if (!selfNodeFound && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                                 TriangulationNode selfNode;
                                 selfNode.nodeId = myNodeIdLocal;
                                 selfNode.lat = hasGPS ? triLat : 0.0f;

@@ -339,7 +339,7 @@ extern portMUX_TYPE uniqueMacsMux;
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
 void rebuildIdentityMacSnapshot();
-void saveTargetsList(const String &txt);
+bool saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 extern volatile bool g_sweepHopChannels;
 void splitChannelsBegin(const String &csv);

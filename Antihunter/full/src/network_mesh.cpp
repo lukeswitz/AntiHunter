@@ -429,7 +429,10 @@ static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
   targets.replace("|", "\n");
-  prefs.putString("maclist", targets);
+  if (prefs.putString("maclist", targets) != targets.length()) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:FAILED", true);
+    return;
+  }
   if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
       saveTargetsList(targets);
   }
@@ -795,6 +798,7 @@ static void handleDeviceScanStart(const String &command)
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
       g_sweepHopChannels = false;
+      if (!chans.length()) chans = detect_getMyChannelsCsv();
       if (chans.length()) splitChannelsBegin(chans);
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
@@ -1321,6 +1325,10 @@ static void handleVibScanSet(const String &command)
   if (d4 >= 0) vibAutoScanPreempt = (p.substring(d4 + 1).toInt() != 0);
   if (mode < 0 || mode > 8) {
     sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID_MODE", true);
+    return;
+  }
+  if (mode == 8 && dur <= 0) {
+    sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID", true);
     return;
   }
   if (dur < 0) dur = 0;
@@ -1903,8 +1911,11 @@ static void handleEraseForce(const String &command)
   String credential = command.substring(12);
   if (validateEraseResponse(credential))
   {
-    executeSecureErase("Force command");
-    sendToSerial1(nodeId + ": ERASE_ACK:COMPLETE", true);
+    if (g_eraseWipeBusy.exchange(true)) {
+      sendToSerial1(nodeId + ": ERASE_ACK:BUSY", true);
+      return;
+    }
+    if (!spawnSecureErase("Force command")) sendToSerial1(nodeId + ": ERASE_ACK:FAILED", true);
   }
   else
   {
@@ -1945,7 +1956,7 @@ static void handleEraseCancel(const String &command)
     return;
   }
   cancelTamperErase();
-  sendToSerial1(nodeId + ": ERASE_ACK:CANCELLED", true);
+  sendToSerial1(nodeId + ": ERASE_ACK:CANCELED", true);
 }
 
 static void handleEraseRequest(const String &command)
@@ -2472,7 +2483,7 @@ static const char *const kCmdAliases[][2] = {
   {"BSX", "BATTERY_SAVER_STOP"},  {"BSQ", "BATTERY_SAVER_STATUS"},   {"CS", "CAMPAIGN_START"},
   {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
-  {"CB", "CONFIG_BAND"},          {"CIM", "CSI_MOTION_START"},       {"CIE", "CSI_EXCLUDE"},
+  {"CIM", "CSI_MOTION_START"},    {"CIE", "CSI_EXCLUDE"},
   {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
   {"CIR", "CSI_RECAL"},
 };
@@ -2489,8 +2500,30 @@ static String meshExpandCommand(const String &cmd)
   return verb + cmd.substring(end);
 }
 
+String meshRedactSecrets(const String &line)
+{
+  String sender, body;
+  meshSplitSender(line, sender, body);
+  int v = 0;
+  if (body.startsWith("@")) {
+    v = body.indexOf(' ') + 1;
+    if (v == 0) return line;
+  }
+  String rest = body.substring(v);
+  String cmd = meshExpandCommand(rest);
+  int cut = rest.indexOf(':');
+  if (cut < 0) return line;
+  if (cmd.startsWith("FACTORY_RESET:") || cmd.startsWith("AUTOERASE_ENABLE:")) cut = rest.lastIndexOf(':');
+  else if (!cmd.startsWith("ERASE_FORCE:") && !cmd.startsWith("ERASE_CANCEL:") &&
+           !cmd.startsWith("AUTOERASE_DISABLE:") && !cmd.startsWith("CONFIG_ERASE_PSK:")) return line;
+  return line.substring(0, line.length() - rest.length() + cut + 1) + "***";
+}
+
+static std::recursive_mutex g_cmdMutex;
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
+  std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
   String command = commandRaw;
   command.trim();
 #if defined(AH_DEBUG_VERBOSE) && (AH_DEBUG_VERBOSE)
@@ -2651,7 +2684,7 @@ static String buildVibAutoScanCommand(uint8_t mode, uint16_t durSecs)
     case 5: return "DRONE_START:" + dur;
     case 6: return "DEAUTH_START:" + dur;
     case 7: return "BASELINE_START:" + dur;
-    case 8: return "PCAP_START:0:" + String(durSecs) + ":0" + (durSecs == 0 ? ":FOREVER" : "");
+    case 8: return durSecs ? "PCAP_START:0:" + String(durSecs) + ":0" : String();
     default: return String();
   }
 }
@@ -2685,6 +2718,7 @@ void serviceVibrationAutoScan()
   }
   String cmd = buildVibAutoScanCommand(vibAutoScanMode, vibAutoScanDuration);
   if (cmd.length() == 0) return;
+  if (vibAutoScanMode == 8) setPcapAutoTriggered(true);
   lastVibAutoScanFire = now;
   Serial.printf("[VIBSCAN] Vibration-triggered auto-scan (mode %u): %s\n", vibAutoScanMode, cmd.c_str());
   if (vibAutoScanMode == 8) setPcapAutoTriggered(true);
@@ -2703,6 +2737,7 @@ void sendMeshCommand(const String &command) {
 }
 
 void setNodeId(const String &id) {
+    std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
     nodeId = id;
     nodeId.toUpperCase();
     prefs.putString("nodeId", nodeId);
@@ -2958,6 +2993,7 @@ void meshFleetClear() {
 
 void processMeshMessage(const String &message) {
     if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
+    std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
 
     String cleanMessage = "";
     for (size_t i = 0; i < message.length(); i++) {
@@ -2973,7 +3009,7 @@ void processMeshMessage(const String &message) {
     const bool haveSender = sendingNode.length() > 0;
     if (haveSender && sendingNode == getNodeId()) return;
 
-    Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
+    Serial.printf("[MESH] Processing message: '%s'\n", meshRedactSecrets(cleanMessage).c_str());
 
     if (haveSender && content.startsWith("CSI_PEER:")) {
         uint8_t pm[6];
@@ -3428,7 +3464,7 @@ void processUSBToMesh() {
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
                 if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
-                    if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", usbBuffer.c_str());
+                    if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(usbBuffer).c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
                     Serial.println("[MESH] Ignoring invalid message length");

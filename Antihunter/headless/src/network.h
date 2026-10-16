@@ -69,6 +69,7 @@ void sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void meshSplitSender(const String &line, String &sender, String &payload);
+String meshRedactSecrets(const String &line);
 void processUSBToMesh();
 void serviceVibrationAutoScan();
 void scheduleTick();
