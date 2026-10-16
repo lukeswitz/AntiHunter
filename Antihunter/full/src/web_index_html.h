@@ -1110,7 +1110,7 @@ R"HTML(
             <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
             
             <label style="font-size:11px;">Password</label>
-            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Unchanged - enter 8-63 characters to change" style="margin-bottom:8px;">
 
             <label style="font-size:11px;">Security</label>
             <select id="apAuth" style="margin-bottom:8px;">
@@ -2043,7 +2043,7 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-      <div align="center" class="footer">v1.0.4 Stable | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.5 Stable | Node: <span id="footerNodeId">--</span></div>
     </div>
     
       <script>
@@ -3105,7 +3105,6 @@ R"HTML(
           const r = await fetch('/wifi-config');
           const cfg = await r.json();
           document.getElementById('apSsid').value = cfg.ssid;
-          document.getElementById('apPass').value = cfg.pass;
           if (cfg.auth !== undefined) document.getElementById('apAuth').value = cfg.auth;
           if (cfg.hidden !== undefined) document.getElementById('apHidden').checked = !!cfg.hidden;
         } catch(e) {}
@@ -3893,68 +3892,6 @@ R"HTML(
       }
     }
       
-      function updateEraseProgress(message, percentage) {
-        const progressBar = document.getElementById('eraseProgressBar');
-        const progressText = document.getElementById('eraseProgressText');
-        const progressDetails = document.getElementById('eraseProgressDetails');
-        if (progressBar) {
-          progressBar.style.width = percentage + '%';
-        }
-        if (progressText) {
-          progressText.textContent = message;
-        }
-        if (progressDetails) {
-          progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
-          progressDetails.scrollTop = progressDetails.scrollHeight;
-        }
-      }
-      
-      function pollEraseProgress() {
-        const poll = setInterval(() => {
-          fetch('/erase/progress').then(response => response.json()).then(data => {
-            updateEraseProgress(data.message, data.percentage);
-            if (data.status === 'COMPLETE') {
-              clearInterval(poll);
-              finalizeEraseProcess(true);
-            } else if (data.status === 'ERROR') {
-              clearInterval(poll);
-              finalizeEraseProcess(false, data.error);
-            } else if (data.status === 'CANCELLED') {
-              clearInterval(poll);
-              hideEraseProgressModal();
-              toast('Secure erase canceled', 'info');
-            }
-          }).catch(error => {
-            clearInterval(poll);
-            finalizeEraseProcess(false, 'Communication error');
-          });
-        }, 1000);
-      }
-      
-      function finalizeEraseProcess(success, error = null) {
-        if (success) {
-          updateEraseProgress('Secure erase completed successfully', 100);
-          toast('All data has been securely destroyed', 'success');
-          setTimeout(() => {
-            hideEraseProgressModal();
-            window.location.reload();
-          }, 3000);
-        } else {
-          updateEraseProgress('Secure erase failed: ' + error, 0);
-          toast('Erase operation failed: ' + error, 'error');
-          setTimeout(() => {
-            hideEraseProgressModal();
-          }, 5000);
-        }
-      }
-      
-      function hideEraseProgressModal() {
-        const modal = document.getElementById('eraseProgressModal');
-        if (modal) {
-          document.body.removeChild(modal);
-        }
-      }
-
       function rssiColorFor(rssi) {
         const v = parseInt(rssi);
         if (v >= -50) return 'hsl(145 60% 42%)';
@@ -7707,7 +7644,6 @@ R"HTML(
       async function asClear(){await fetch('/api/assoc_sleep/clear',{method:'POST'});asTick();}
       async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
       async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
-      async function detectReloadOui(){await fetch('/api/oui/reload',{method:'POST'});detectTick()}
       detLoadCfg();
       setInterval(()=>{ if(pageActive('detect')) detAllTicks(); },5000);
       detAllTicks();

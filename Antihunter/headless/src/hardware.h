@@ -125,6 +125,7 @@ extern bool vibAutoScanEnabled;
 extern uint8_t vibAutoScanMode;
 extern uint16_t vibAutoScanDuration;
 extern uint32_t vibAutoScanCooldownMs;
+extern bool vibAutoScanPreempt;
 extern volatile bool vibAutoScanPending;
 extern unsigned long lastVibAutoScanFire;
 
@@ -139,7 +140,7 @@ void updateGPSLocation();
 void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
-void saveTargetsList(const String &txt);
+bool saveTargetsList(const String &txt);
 String prefsGetString(const char *key, const String &defaultValue);
 extern unsigned long lastSaveTime;
 void saveConfiguration();
@@ -157,10 +158,7 @@ void recordBootReason();
 void logBootRecord();
 void markUptimeAlive();
 const char *getResetReasonText();
-uint32_t getPrevBootUptimeSec();
-bool prevBootUptimeKnown();
 bool wasCleanBoot();
-bool resultsWereRestored();
 void saveResultsSnapshot(bool force = false);
 void loadResultsSnapshot();
 

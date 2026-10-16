@@ -341,7 +341,7 @@ static bool pcapAllocBuffers() {
         g_bufCap = 0;
         return false;
     }
-    g_sizeA = g_sizeB = 0;
+    g_sizeA = 0; g_sizeB = 0;
     g_useA = true;
     return true;
 }
@@ -351,7 +351,7 @@ static void pcapFreeBuffers() {
     portENTER_CRITICAL(&g_bufMux);
     a = g_bufA; g_bufA = nullptr;
     b = g_bufB; g_bufB = nullptr;
-    g_sizeA = g_sizeB = 0;
+    g_sizeA = 0; g_sizeB = 0;
     g_useA = true;
     portEXIT_CRITICAL(&g_bufMux);
     if (a) free(a);

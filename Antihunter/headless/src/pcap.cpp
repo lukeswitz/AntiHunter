@@ -341,7 +341,7 @@ static bool pcapAllocBuffers() {
         g_bufCap = 0;
         return false;
     }
-    g_sizeA = g_sizeB = 0;
+    g_sizeA = 0; g_sizeB = 0;
     g_useA = true;
     return true;
 }
@@ -351,7 +351,7 @@ static void pcapFreeBuffers() {
     portENTER_CRITICAL(&g_bufMux);
     a = g_bufA; g_bufA = nullptr;
     b = g_bufB; g_bufB = nullptr;
-    g_sizeA = g_sizeB = 0;
+    g_sizeA = 0; g_sizeB = 0;
     g_useA = true;
     portEXIT_CRITICAL(&g_bufMux);
     if (a) free(a);
@@ -640,69 +640,12 @@ bool pcapNameIsValid(const String &name) {
     return name.indexOf("..") < 0;
 }
 
-// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
-String getPcapListJson() {
-    String j = "[";
-    if (!SafeSD::isAvailable()) return j + "]";
-
-    fs::File dir = SafeSD::open(PCAP_DIR);
-    if (!dir || !dir.isDirectory()) {
-        if (dir) dir.close();
-        return j + "]";
-    }
-
-    const String activePath = g_active ? getPcapFilePath() : String("");
-    bool first = true;
-    for (fs::File f = dir.openNextFile(); f; f = dir.openNextFile()) {
-        if (f.isDirectory()) { f.close(); continue; }
-        String name = f.name();
-        const int slash = name.lastIndexOf('/');
-        if (slash >= 0) name = name.substring(slash + 1);
-        if (!name.endsWith(".pcap")) { f.close(); continue; }
-        if (!first) j += ",";
-        first = false;
-        j += "{\"name\":\"" + jsonEscape(name) + "\",\"size\":" + String((uint32_t)f.size());
-        j += ",\"active\":" + String(activePath.endsWith(name) ? "true" : "false") + "}";
-        f.close();
-    }
-    dir.close();
-    return j + "]";
-}
-
 bool pcapDeleteFile(const String &name) {
     if (!pcapNameIsValid(name) || !SafeSD::isAvailable()) return false;
     const String path = String(PCAP_DIR) + "/" + name;
     if (g_active && getPcapFilePath() == path) return false;
     if (!SafeSD::exists(path.c_str())) return false;
     return SafeSD::remove(path.c_str());
-}
-
-// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
-uint32_t pcapDeleteAll() {
-    if (!SafeSD::isAvailable()) return 0;
-
-    std::vector<String> names;
-    fs::File dir = SafeSD::open(PCAP_DIR);
-    if (!dir || !dir.isDirectory()) {
-        if (dir) dir.close();
-        return 0;
-    }
-    for (fs::File f = dir.openNextFile(); f; f = dir.openNextFile()) {
-        if (!f.isDirectory()) {
-            String name = f.name();
-            const int slash = name.lastIndexOf('/');
-            if (slash >= 0) name = name.substring(slash + 1);
-            if (name.endsWith(".pcap")) names.push_back(name);
-        }
-        f.close();
-    }
-    dir.close();
-
-    uint32_t removed = 0;
-    for (const String &n : names) {
-        if (pcapDeleteFile(n)) removed++;
-    }
-    return removed;
 }
 
 static String pcapSummary(bool inProgress) {
@@ -719,29 +662,6 @@ static String pcapSummary(bool inProgress) {
     uint32_t span = ((inProgress ? millis() : g_endMs) - g_startMs) / 1000;
     s += "Elapsed: " + String(span) + "s\n";
     return s;
-}
-
-// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
-String getPcapStatusJson() {
-    String j = "{";
-    j += "\"active\":" + String(g_active ? "true" : "false");
-    // cppcheck-suppress knownConditionTrueFalse // constant per target, true on C5
-    j += ",\"dualBand\":" + String(pcapDualBandCapable() ? "true" : "false");
-    j += ",\"radio\":" + String(g_radio);
-    j += ",\"band\":" + String(g_band);
-    j += ",\"channel\":" + String(g_curChan.load());
-    j += ",\"frames\":" + String(g_frames.load());
-    j += ",\"bytes\":" + String(g_bytes.load());
-    j += ",\"dropped\":" + String(g_dropped.load());
-    j += ",\"elapsed\":" + String((((g_active ? millis() : g_endMs) - g_startMs) / 1000));
-    j += ",\"file\":\"" + jsonEscape(getPcapFilePath()) + "\"";
-    j += ",\"sd\":" + String(SafeSD::isAvailable() ? "true" : "false");
-    j += ",\"budgetMB\":" + String(g_autoBudgetMB.load());
-    j += ",\"floorMB\":" + String(g_freeFloorMB.load());
-    j += ",\"maxFileMB\":" + String(g_maxFileMB.load());
-    j += ",\"freeMB\":" + String(SafeSD::isAvailable() ? (uint32_t)(pcapSdFreeBytes() / (1024ULL * 1024ULL)) : 0);
-    j += "}";
-    return j;
 }
 
 static void pcapAbort(const char *why) {

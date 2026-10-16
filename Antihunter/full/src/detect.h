@@ -472,6 +472,7 @@ uint32_t ppsLastEdgeMicros();
 // Channel partition (coordinator-side)
 void detect_assignChannelPartition();
 String detect_getChannelAssignmentJson();
+String detect_getMyChannelsCsv();
 
 // API JSON getters for /api/* endpoints
 String detect_getPmkidJsonl();

@@ -271,6 +271,7 @@ PsramMap<String, ReconAlert> g_recon;
 
 // RID claims (mesh-cooperative validation)
 PsramMap<String, RidClaim> g_ridClaims;  // key = uavId
+static constexpr size_t MAX_RID_CLAIMS = 64;
 
 // Quorum
 PsramMap<String, AlertCandidate> g_alerts;  // key = type+":"+key
@@ -1178,7 +1179,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                 char lb[220];
                 snprintf(lb, sizeof(lb),
                          "{\"bssid\":\"%s\",\"ssid\":\"%s\",\"reason\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                         bb, ssidSelf, rsn, (int)e.rssi, (unsigned)e.channel, (unsigned)nowc);
+                         bb, jsonEscape(String(ssidSelf)).c_str(), rsn, (int)e.rssi, (unsigned)e.channel, (unsigned)nowc);
                 logEventToSD("/eviltwin.jsonl", String(lb));
                 ::detect_logIncident(String("EVILTWIN:") + bb + ":" + rsn, nullptr);
                 quorum_addReport("EVILTWIN", String(bb), getNodeId(), e.rssi);
@@ -1475,7 +1476,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         char jsonLine[320];
         snprintf(jsonLine, sizeof(jsonLine),
                  "{\"bssid\":\"%s\",\"ssid\":\"%s\",\"reason\":\"%s\",\"ouis\":%u,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                 bs, ev.ssid, ev.reason, (unsigned)collisionOuiCount,
+                 bs, jsonEscape(String(ev.ssid)).c_str(), ev.reason, (unsigned)collisionOuiCount,
                  (int)ev.rssi, (unsigned)ev.channel, (unsigned)now);
         logEventToSD("/eviltwin.jsonl", String(jsonLine));
         Serial.printf("[DETECT] EVILTWIN src=%s reason=%s ssid=%s ouis=%u rssi=%d ch=%u\n",
@@ -1524,7 +1525,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                     char lineBuf[260];
                     snprintf(lineBuf, sizeof(lineBuf),
                              "{\"open_bssid\":\"%s\",\"owe_bssid\":\"%s\",\"ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                             obBuf, owbBuf, safeSsid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
+                             obBuf, owbBuf, jsonEscape(String(safeSsid)).c_str(), (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
                     Serial.printf("[DETECT] OWE_ABUSE src=%s owe_ap=%s ssid=%s rssi=%d ch=%u\n",
                                   obBuf, owbBuf, safeSsid, (int)e.rssi, (unsigned)e.channel);
@@ -1606,7 +1607,7 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
     char jsonLine[280];
     snprintf(jsonLine, sizeof(jsonLine),
              "{\"bssid\":\"%s\",\"ssid\":\"%s\",\"reason\":\"%s\",\"bi\":%u,\"ie\":%u,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-             bs, ev.ssid, ev.reason, (unsigned)bi, (unsigned)ieHash,
+             bs, jsonEscape(String(ev.ssid)).c_str(), ev.reason, (unsigned)bi, (unsigned)ieHash,
              (int)rssi, (unsigned)channel, (unsigned)ev.ts);
     logEventToSD("/eviltwin.jsonl", String(jsonLine));
     String bsStr(bs);
@@ -2016,7 +2017,7 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
     char lineBuf[260];
     snprintf(lineBuf, sizeof(lineBuf),
              "{\"ssid\":\"%s\",\"distinct_src\":%u,\"win_ms\":%u,\"rssi\":%d,\"ch\":%u,\"reason\":\"PROBE_FLOOD_BEHAVIORAL\",\"ts\":%u}",
-             w.ssid, (unsigned)w.distinctSrc.size(), (unsigned)PROBE_BEHAVE_WIN_MS,
+             jsonEscape(String(w.ssid)).c_str(), (unsigned)w.distinctSrc.size(), (unsigned)PROBE_BEHAVE_WIN_MS,
              (int)w.bestRssi, (unsigned)w.channel, (unsigned)now);
     logEventToSD("/probe_flood.jsonl", String(lineBuf));
     ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String((unsigned)w.distinctSrc.size()), nullptr);
@@ -2128,10 +2129,10 @@ static void handleProbeReq(const DetectFrameEvent &e) {
                      p[10],p[11],p[12],p[13],p[14],p[15]);
             Serial.printf("[DETECT] PROBE_FLOOD MARAUDER src=%s ssid=%s seq=0x%04X ch=%u rssi=%d\n",
                           sb, ssidB, seqCtrl, (unsigned)e.channel, (int)e.rssi);
-            char lb[220];
+            char lb[352];
             snprintf(lb, sizeof(lb),
                      "{\"src\":\"%s\",\"ssid\":\"%s\",\"tool\":\"MARAUDER\",\"seq\":%u,\"reason\":\"PROBE_TEMPLATE\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                     sb, ssidB, (unsigned)seqCtrl, (int)e.rssi, (unsigned)e.channel, (unsigned)tnow);
+                     sb, jsonEscape(String(ssidB)).c_str(), (unsigned)seqCtrl, (int)e.rssi, (unsigned)e.channel, (unsigned)tnow);
             logEventToSD("/probe_flood.jsonl", String(lb));
             ::detect_logIncident(String("PROBE_FLOOD:MARAUDER:") + sb + ":" + ssidB, nullptr);
             quorum_addReport("PROBE_FLOOD", String("MARAUDER"), getNodeId(), e.rssi);
@@ -2183,7 +2184,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     if (e.rssi > w.bestRssi) w.bestRssi = e.rssi;
     if (w.alerted || w.hits < PROBE_FLOOD_THRESH) return;
     w.alerted = true;
-    String msg = String("{\"ssid\":\"") + w.ssid +
+    String msg = String("{\"ssid\":\"") + jsonEscape(String(w.ssid)) +
                  "\",\"hits\":" + String(w.hits) +
                  ",\"win_ms\":" + String(PROBE_FLOOD_WIN_MS) +
                  ",\"src_sample\":\"" + macStr(src) +
@@ -2261,8 +2262,8 @@ static void handleProbeResp(const DetectFrameEvent &e) {
     char lineBuf[280];
     snprintf(lineBuf, sizeof(lineBuf),
              "{\"bssid\":\"%s\",\"beacon_ssid\":\"%s\",\"resp_ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-             bsBuf, ssidIsValid(b.ssid, strlen(b.ssid)) ? b.ssid : "",
-             ssidIsValid(ssid, strlen(ssid)) ? ssid : "", (int)e.rssi, (unsigned)e.channel, (unsigned)now);
+             bsBuf, jsonEscape(String(ssidIsValid(b.ssid, strlen(b.ssid)) ? b.ssid : "")).c_str(),
+             jsonEscape(String(ssidIsValid(ssid, strlen(ssid)) ? ssid : "")).c_str(), (int)e.rssi, (unsigned)e.channel, (unsigned)now);
     logEventToSD("/ssid_confusion.jsonl", String(lineBuf));
     Serial.printf("[DETECT] SSID_CONFUSION src=%s beacon_ssid=%s resp_ssid=%s rssi=%d ch=%u\n",
                   bsBuf, b.ssid, ssid, (int)e.rssi, (unsigned)e.channel);
@@ -2812,7 +2813,6 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     if (!uavId || uavId[0] == 0) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    static constexpr size_t MAX_RID_CLAIMS = 64;
     if (g_ridClaims.find(uavId) == g_ridClaims.end() && g_ridClaims.size() >= MAX_RID_CLAIMS) {
         auto oldest = std::min_element(g_ridClaims.begin(), g_ridClaims.end(),
             [](const auto &a, const auto &b) { return a.second.ts < b.second.ts; });
@@ -3504,7 +3504,7 @@ void mesh_observeInbound(const String &sender, const String &body) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
 
     if (body.startsWith("@") || body.startsWith("TRIANGULATE") || body.startsWith("TRI_")) {
-        String cmd = body.substring(0, 96);
+        String cmd = meshRedactSecrets(body).substring(0, 96);
         cmd.replace("\\", "\\\\"); cmd.replace("\"", "\\\"");
         String src = sender.length() ? sender : String("?");
         src.replace("\\", "\\\\"); src.replace("\"", "\\\"");
@@ -3701,7 +3701,7 @@ void quorum_addReport(const String &type, const String &key,
         if (median > -85) {
             c.fired = true;
             String line = String("{\"type\":\"") + type +
-                          "\",\"key\":\"" + key +
+                          "\",\"key\":\"" + jsonEscape(key) +
                           "\",\"nodes\":" + String((unsigned)c.reports.size()) +
                           ",\"median_rssi\":" + String(median) +
                           ",\"ts\":" + String(now) + "}";
@@ -3961,6 +3961,8 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         double lat = rest.substring(p1 + 1, p2).toDouble();
         double lon = rest.substring(p2 + 1, p3 > 0 ? p3 : rest.length()).toDouble();
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        if (g_ridClaims.find(uavId) == g_ridClaims.end() && g_ridClaims.size() >= MAX_RID_CLAIMS)
+            evictOldestBy(g_ridClaims, [](const RidClaim &rc) { return rc.ts; });
         auto &c = g_ridClaims[uavId];
         strncpy(c.uavId, uavId.c_str(), sizeof(c.uavId) - 1);
         c.lat = lat;
@@ -3980,6 +3982,8 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         double lon = rest.substring(p3 + 1, p4).toDouble();
         int valid = rest.substring(p4 + 1).toInt();
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        if (g_ridClaims.find(uavId) == g_ridClaims.end() && g_ridClaims.size() >= MAX_RID_CLAIMS)
+            evictOldestBy(g_ridClaims, [](const RidClaim &rc) { return rc.ts; });
         auto &c = g_ridClaims[uavId];
         strncpy(c.uavId, uavId.c_str(), sizeof(c.uavId) - 1);
         RidClaim::Rx rx;
@@ -4164,6 +4168,9 @@ void detect_processMesh(const String &fromNode, const String &msg) {
             if (e < 0) break;
             s = e + 1;
         }
+        static constexpr size_t MAX_CHAN_ASSIGN = 64;
+        if (g_chanAssignments.find(tgt) == g_chanAssignments.end() && g_chanAssignments.size() >= MAX_CHAN_ASSIGN)
+            g_chanAssignments.erase(g_chanAssignments.begin());
         g_chanAssignments[tgt] = chans;
         if (tgt == getNodeId()) g_myChannels = chans;
     }
@@ -4288,7 +4295,7 @@ String detect_getRidClaimsJson() {
     for (auto &kv : g_ridClaims) {
         if (!first) out += ",";
         first = false;
-        out += "{\"uav_id\":\"" + String(kv.second.uavId) + "\"";
+        out += "{\"uav_id\":\"" + jsonEscape(String(kv.second.uavId)) + "\"";
         out += ",\"claim_lat\":" + String(kv.second.lat, 6);
         out += ",\"claim_lon\":" + String(kv.second.lon, 6);
         out += ",\"alt\":" + String(kv.second.alt, 1);
@@ -4299,7 +4306,7 @@ String detect_getRidClaimsJson() {
         for (auto &rx : kv.second.rxs) {
             if (!firstRx) out += ",";
             firstRx = false;
-            out += "{\"node\":\"" + rx.nodeId + "\",\"rssi\":" + String(rx.rssi) +
+            out += "{\"node\":\"" + jsonEscape(rx.nodeId) + "\",\"rssi\":" + String(rx.rssi) +
                    ",\"lat\":" + String(rx.nodeLat, 6) +
                    ",\"lon\":" + String(rx.nodeLon, 6) +
                    ",\"gps\":" + String(rx.hasGps ? "true" : "false") + "}";
@@ -4407,7 +4414,7 @@ String detect_getChannelAssignmentJson() {
     for (auto &kv : g_chanAssignments) {
         if (!first) out += ",";
         first = false;
-        out += "\"" + kv.first + "\":[";
+        out += "\"" + jsonEscape(kv.first) + "\":[";
         for (size_t i = 0; i < kv.second.size(); ++i) {
             if (i) out += ",";
             out += String(kv.second[i]);
@@ -4416,6 +4423,15 @@ String detect_getChannelAssignmentJson() {
     }
     out += "}";
     return out;
+}
+String detect_getMyChannelsCsv() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String csv;
+    for (size_t i = 0; i < g_myChannels.size(); ++i) {
+        if (i) csv += ",";
+        csv += String(g_myChannels[i]);
+    }
+    return csv;
 }
 // =============================================================================
 // JSON getters
@@ -4438,7 +4454,7 @@ String detect_getPmkidJsonl() {
 String detect_getEvilTwinJsonl() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_evilTwinLog, [](const EvilTwinEvent &e){
-        return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"ssid\":\"" + e.ssid +
+        return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"ssid\":\"" + jsonEscape(String(e.ssid)) +
                "\",\"reason\":\"" + e.reason +
                "\",\"new_bi\":" + String(e.newBeaconInt) +
                ",\"rssi\":" + String(e.rssi) + ",\"ch\":" + String(e.channel) +
@@ -4448,8 +4464,8 @@ String detect_getEvilTwinJsonl() {
 String detect_getSsidConfusionJsonl() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_ssidConfusionLog, [](const SsidConfusionEvent &e){
-        return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"beacon\":\"" + e.beaconSsid +
-               "\",\"resp\":\"" + e.respSsid + "\",\"rssi\":" + String(e.rssi) +
+        return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"beacon\":\"" + jsonEscape(String(e.beaconSsid)) +
+               "\",\"resp\":\"" + jsonEscape(String(e.respSsid)) + "\",\"rssi\":" + String(e.rssi) +
                ",\"ch\":" + String(e.channel) + ",\"ts\":" + String(e.ts) + "}";
     });
 }
@@ -4466,7 +4482,7 @@ String detect_getOweAbuseJsonl() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_oweAbuseLog, [](const OweAbuseEvent &e){
         return String("{\"open\":\"") + macStr(e.openBssid) + "\",\"owe\":\"" + macStr(e.oweBssid) +
-               "\",\"ssid\":\"" + e.ssid + "\",\"rssi\":" + String(e.rssi) +
+               "\",\"ssid\":\"" + jsonEscape(String(e.ssid)) + "\",\"rssi\":" + String(e.rssi) +
                ",\"ch\":" + String(e.channel) + ",\"ts\":" + String(e.ts) + "}";
     });
 }

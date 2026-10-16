@@ -75,6 +75,7 @@ bool vibAutoScanEnabled = false;
 uint8_t vibAutoScanMode = 0;
 uint16_t vibAutoScanDuration = 60;
 uint32_t vibAutoScanCooldownMs = 60000;
+bool vibAutoScanPreempt = false;
 volatile bool vibAutoScanPending = false;
 unsigned long lastVibAutoScanFire = 0;
 
@@ -511,6 +512,7 @@ void syncSettingsToNVS() {
     prefs.putUChar("vibScanMode", vibAutoScanMode);
     prefs.putUShort("vibScanDur", vibAutoScanDuration);
     prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    prefs.putBool("vibScanPre", vibAutoScanPreempt);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -568,6 +570,7 @@ static uint32_t configSignature() {
     mix(&vibAutoScanMode, sizeof(vibAutoScanMode));
     mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
     mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
+    mix(&vibAutoScanPreempt, 1);
     return h;
 }
 
@@ -672,6 +675,7 @@ void saveConfiguration() {
     configFile_w.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
     configFile_w.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
     configFile_w.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
+    configFile_w.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
     configFile_w.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
     configFile_w.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     configFile_w.printf(" \"pcapMaxFileMB\":%u\n", (unsigned)getPcapMaxFileMB());
@@ -713,6 +717,7 @@ void loadConfiguration() {
         vibAutoScanMode = prefs.getUChar("vibScanMode", 0);
         vibAutoScanDuration = prefs.getUShort("vibScanDur", 60);
         vibAutoScanCooldownMs = prefs.getUInt("vibScanCd", 60000);
+        vibAutoScanPreempt = prefs.getBool("vibScanPre", false);
         return;
     }
 
@@ -980,6 +985,11 @@ void loadConfiguration() {
     if (doc.containsKey("vibScanCooldown")) {
         vibAutoScanCooldownMs = doc["vibScanCooldown"].as<uint32_t>();
         prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    }
+
+    if (doc.containsKey("vibScanPreempt")) {
+        vibAutoScanPreempt = doc["vibScanPreempt"].as<bool>();
+        prefs.putBool("vibScanPre", vibAutoScanPreempt);
     }
 
     if (doc.containsKey("meshEnabled")) {
@@ -1443,10 +1453,7 @@ const char *getResetReasonText() {
     }
 }
 
-uint32_t getPrevBootUptimeSec() { return g_prevUptimeSec; }
-bool prevBootUptimeKnown() { return g_prevUptimeKnown; }
 bool wasCleanBoot() { return g_resetReason == ESP_RST_POWERON || g_resetReason == ESP_RST_EXT; }
-bool resultsWereRestored() { return g_resultsRestored; }
 
 void recordBootReason() {
     g_resetReason = esp_reset_reason();
@@ -2139,6 +2146,7 @@ static bool eraseConstEq(const String &a, const String &b) {
 }
 
 static bool validateEraseToken(const String &response);
+static bool eraseCheck(const String &response, bool allowKey);
 
 bool validateEraseResponse(const String &response) {
     if (!erasePskUserSet()) {
@@ -2146,10 +2154,14 @@ bool validateEraseResponse(const String &response) {
         sendToSerial1(getNodeId() + ": ERASE_ACK:SET_KEY_FIRST", true);
         return false;
     }
-    return validateEraseKeyChange(response);
+    return eraseCheck(response, false);
 }
 
 bool validateEraseKeyChange(const String &response) {
+    return eraseCheck(response, true);
+}
+
+static bool eraseCheck(const String &response, bool allowKey) {
     static uint8_t s_fails = 0;
     static uint32_t s_lockUntil = 0;
     if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {
@@ -2157,7 +2169,7 @@ bool validateEraseKeyChange(const String &response) {
         return false;
     }
     if (erasePSK.length() == 0) return false;
-    bool ok = eraseConstEq(response, erasePSK) || validateEraseToken(response);
+    bool ok = (allowKey && eraseConstEq(response, erasePSK)) || validateEraseToken(response);
     if (ok) {
         s_fails = 0;
         s_lockUntil = 0;

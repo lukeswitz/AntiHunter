@@ -173,7 +173,7 @@ String tsf_getSkewJson() {
         uint8_t bssid[6];
         unpackMac(kv.first, bssid);
         out += "{\"bssid\":\"" + macStr(bssid) + "\"" +
-               ",\"ssid\":\"" + String(b.ssid) + "\"" +
+               ",\"ssid\":\"" + jsonEscape(String(b.ssid)) + "\"" +
                ",\"chan_a\":" + String((unsigned)b.chanA) +
                ",\"chan_b\":" + String((unsigned)b.chanB) +
                ",\"chan_a_ms\":" + String(b.chanAMs) +
@@ -350,7 +350,7 @@ String karma_getJson() {
                ",\"distinct_ssids\":" + String((unsigned)kv.second.distinctSsids) +
                ",\"bait_emitted\":" + String(kv.second.baitEmitted ? "true" : "false") +
                ",\"confirmed\":" + String(kv.second.confirmed ? "true" : "false") +
-               ",\"last_ssid\":\"" + String(kv.second.lastSsid) + "\"" +
+               ",\"last_ssid\":\"" + jsonEscape(String(kv.second.lastSsid)) + "\"" +
                ",\"first\":" + String(kv.second.firstSseen) +
                ",\"last\":" + String(kv.second.lastSeen) + "}";
     }
@@ -984,9 +984,7 @@ void detect_logIncident(const String &raw, const char *src) {
     uint32_t now = millis();
     time_t ep = getRTCEpoch();
     String node = getNodeId();
-    String escRaw = raw;
-    escRaw.replace("\\", "\\\\");
-    escRaw.replace("\"", "\\\"");
+    String escRaw = jsonEscape(raw);
     String line = String("{\"ts\":") + String(now) +
                   ",\"epoch\":" + String((uint32_t)ep) +
                   ",\"node\":\"" + node +

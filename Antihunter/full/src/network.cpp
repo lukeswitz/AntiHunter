@@ -353,12 +353,25 @@ static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack,
 
 void startWebServer()
 {
-  if (!server)
+  if (!server) {
     server = new AsyncWebServer(80);
-
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+    server->addMiddleware([](AsyncWebServerRequest *r, ArMiddlewareNext next) {
+      String host = r->host();
+      int colon = host.indexOf(':');
+      if (colon >= 0) host = host.substring(0, colon);
+      bool hostOk = host == WiFi.softAPIP().toString() ||
+                    (WiFi.isConnected() && host == WiFi.localIP().toString()) ||
+                    (r->client() && r->client()->remoteIP() == IPAddress(127, 0, 0, 1));
+      String site = r->hasHeader("Sec-Fetch-Site") ? r->header("Sec-Fetch-Site") : String();
+      bool crossSite = site == "cross-site" || site == "same-site";
+      bool badOrigin = r->hasHeader("Origin") && r->header("Origin") != "http://" + r->host();
+      if (!hostOk || crossSite || badOrigin) {
+        r->send(403, "text/plain", "Forbidden");
+        return;
+      }
+      next();
+    });
+  }
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
              {
@@ -419,7 +432,10 @@ void startWebServer()
             return;
         }
         String txt = req->getParam("list", true)->value();
-        saveTargetsList(txt);
+        if (!saveTargetsList(txt)) {
+            req->send(507, "text/plain", "Target list not saved: NVS write failed (limit 4000 bytes)");
+            return;
+        }
         saveConfiguration();
         req->send(200, "text/plain", "Saved"); });
 
@@ -966,6 +982,25 @@ void scheduleTick() {
   }
 }
 
+bool spawnSecureErase(const String &reason) {
+    String* reasonPtr = new String(reason);
+    if (xTaskCreate([](void* param) {
+        String* rp = static_cast<String*>(param);
+        delay(1000); // Give web server time to send response
+        bool success = executeSecureErase(*rp);
+        Serial.println(success ? "Erase completed" : "Erase failed");
+        if (*rp == "Force command") sendToSerial1(getNodeId() + (success ? ": ERASE_ACK:COMPLETE" : ": ERASE_ACK:FAILED"), true);
+        delete rp;
+        g_eraseWipeBusy.store(false);
+        vTaskDelete(NULL);
+    }, "secure_erase", 8192, reasonPtr, 1, NULL) != pdPASS) {
+        delete reasonPtr;
+        g_eraseWipeBusy.store(false);
+        return false;
+    }
+    return true;
+}
+
 void registerRemainingRoutes() {
   {
     std::lock_guard<std::mutex> lk(s_schedMutex);
@@ -1058,7 +1093,7 @@ void registerRemainingRoutes() {
     // Debug all parameters
     for(int i=0; i<req->params(); i++){
       const AsyncWebParameter* p = req->getParam(i);
-      Serial.printf("[AUTOERASE] Param[%d]: name='%s' value='%s' isPost=%d\n", i, p->name().c_str(), p->value().c_str(), p->isPost());
+      Serial.printf("[AUTOERASE] Param[%d]: name='%s' value='%s' isPost=%d\n", i, p->name().c_str(), p->name() == "confirm" ? "***" : p->value().c_str(), p->isPost());
     }
 
     if (!req->hasParam("enabled", true)) {
@@ -1093,7 +1128,7 @@ void registerRemainingRoutes() {
     }
 
     if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
-        req->getParam("confirm", true)->value() != erasePSK) {
+        !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
         req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
@@ -1169,8 +1204,10 @@ void registerRemainingRoutes() {
       prefs.putString("channels", channelsCSV);
 
       String targets = req->getParam("targets", true)->value();
-      saveTargetsList(targets);
-      prefs.putString("maclist", targets);
+      if (!saveTargetsList(targets)) {
+          req->send(507, "text/plain", "Target list not saved: NVS write failed (limit 4000 bytes)");
+          return;
+      }
 
       saveConfiguration();
       req->send(200, "text/plain", "Configuration updated"); });
@@ -1267,6 +1304,12 @@ void registerRemainingRoutes() {
 
   server->on("/vibration-scan", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+        long newMode = req->hasParam("mode", true) ? req->getParam("mode", true)->value().toInt() : vibAutoScanMode;
+        long newDur = req->hasParam("duration", true) ? req->getParam("duration", true)->value().toInt() : vibAutoScanDuration;
+        if (newMode == 8 && newDur <= 0) {
+            req->send(400, "text/plain", "Packet capture needs a duration above 0");
+            return;
+        }
         if (req->hasParam("enabled", true)) {
             String e = req->getParam("enabled", true)->value();
             vibAutoScanEnabled = (e == "true" || e == "1" || e == "on");
@@ -1508,7 +1551,7 @@ void registerRemainingRoutes() {
     }
     
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = erasePskUserSet() && confirm == erasePSK;
+    bool authed = erasePskUserSet() && validateEraseKeyChange(confirm);
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirmation");
         return;
@@ -1520,25 +1563,12 @@ void registerRemainingRoutes() {
     }
     String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
     req->send(200, "text/plain", "Secure erase initiated");
-
-    String* reasonPtr = new String(reason);
-    if (xTaskCreate([](void* param) {
-        String* rp = static_cast<String*>(param);
-        delay(1000); // Give web server time to send response
-        bool success = executeSecureErase(*rp);
-        Serial.println(success ? "Erase completed" : "Erase failed");
-        delete rp;
-        g_eraseWipeBusy.store(false);
-        vTaskDelete(NULL);
-    }, "secure_erase", 8192, reasonPtr, 1, NULL) != pdPASS) {
-        delete reasonPtr;
-        g_eraseWipeBusy.store(false);
-    } });
+    spawnSecureErase(reason); });
 
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
-        req->getParam("confirm", true)->value() != erasePSK) {
+        !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
         req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
@@ -1546,8 +1576,8 @@ void registerRemainingRoutes() {
     req->send(200, "text/plain", "Tamper erase canceled"); });
 
   server->on("/erase/psk", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (!req->hasParam("confirm", true) || !req->hasParam("key", true) || erasePSK.length() == 0 ||
-        req->getParam("confirm", true)->value() != erasePSK) {
+    if (!req->hasParam("confirm", true) || !req->hasParam("key", true) ||
+        !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
         req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
@@ -1568,7 +1598,7 @@ void registerRemainingRoutes() {
         return;
     }
     String confirm = req->getParam("confirm", true)->value();
-    bool authed = erasePskUserSet() && confirm == erasePSK;
+    bool authed = erasePskUserSet() && validateEraseKeyChange(confirm);
     if (!authed) {
         req->send(403, "text/plain", "Invalid confirm code");
         return;
@@ -1613,7 +1643,7 @@ void registerRemainingRoutes() {
   server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
-        req->getParam("confirm", true)->value() != erasePSK) {
+        !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
         req->send(403, "text/plain", "Wrong key, or no key set");
         return;
     }
@@ -1657,15 +1687,21 @@ void registerRemainingRoutes() {
         }
 
         g_sweepHopChannels = false;
+        bool chGiven = false;
         if (req->hasParam("ch", true)) {
             String ch = req->getParam("ch", true)->value();
             if (ch.length() > 0) {
+                chGiven = true;
                 if (req->hasParam("split", true)) splitChannelsBegin(ch);
                 else parseChannelsCSV(ch);
             }
         }
 
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
+        if (!chGiven && detection == "device-scan") {
+            String mine = detect_getMyChannelsCsv();
+            if (mine.length()) splitChannelsBegin(mine);
+        }
         int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
         bool forever = req->hasParam("forever", true);
 
@@ -2389,14 +2425,11 @@ void registerRemainingRoutes() {
 
   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
     String ssid = prefsGetString("apSsid", AP_SSID);
-    String pass = prefsGetString("apPass", AP_PASS);
-    
+
     if (ssid.length() == 0) ssid = AP_SSID;
-    if (pass.length() == 0) pass = AP_PASS;
-    
+
     String json = "{";
-    json += "\"ssid\":\"" + ssid + "\",";
-    json += "\"pass\":\"" + pass + "\",";
+    json += "\"ssid\":\"" + jsonEscape(ssid) + "\",";
     json += "\"auth\":" + String(prefs.getUChar("apAuth", 0)) + ",";
     json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false");
     json += "}";
@@ -3013,37 +3046,4 @@ tick();setInterval(tick,3000);
 
   server->begin();
   Serial.println("[WEB] Server started.");
-}
-
-
-void handleEraseRequest(AsyncWebServerRequest *request) {
-    if (!request->hasParam("confirm") || !request->hasParam("reason")) {
-        request->send(400, "text/plain", "Missing parameters");
-        return;
-    }
-    
-    String confirm = request->getParam("confirm")->value();
-    String reason = request->getParam("reason")->value();
-    
-    if (confirm != "WIPE_ALL_DATA") {
-        request->send(400, "text/plain", "Invalid confirmation");
-        return;
-    }
-
-    tamperAuthToken = generateEraseToken();
-    
-    String response = "Emergency Erase Token Generated: " + tamperAuthToken + "\n\n";
-    response += "INSTRUCTIONS:\n";
-    response += "1. This will execute immediately\n";
-    response += "2. This will PERMANENTLY DESTROY ALL DATA\n\n";
-    response += "Reason: " + reason + "\n";
-    
-    executeSecureErase("Manual web request: " + reason);
-    
-    request->send(200, "text/plain", response);
-}
-
-void handleEraseCancel(AsyncWebServerRequest *request) {
-    cancelTamperErase();
-    request->send(200, "text/plain", "Tamper erase sequence canceled");
 }

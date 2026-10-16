@@ -56,7 +56,7 @@ void uartForwardTask(void *parameter) {
 
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshRedactSecrets(meshBuffer).c_str());
 
           String toProcess, senderId;
           meshSplitSender(meshBuffer, senderId, toProcess);
@@ -151,6 +151,8 @@ void parseChannelsCSV(const String &csv) {
     if (csv.indexOf("..") >= 0) {
         int a = csv.substring(0, csv.indexOf("..")).toInt();
         int b = csv.substring(csv.indexOf("..") + 2).toInt();
+        if (a < 1) a = 1;
+        if (b > 255) b = 255;
         for (int ch = a; ch <= b; ch++) {
             if (ch >= 1 && ch <= 14) CHANNELS.push_back((uint8_t)ch);
         }
@@ -293,7 +295,7 @@ void setup() {
     delay(120);
     memMark("boot complete");
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.4 STABLE BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v1.0.5 STABLE BOOT COMPLETE =====");
 
     String currentSsid = prefsGetString("apSsid", AP_SSID);
     String currentPass = prefsGetString("apPass", AP_PASS);
@@ -330,7 +332,7 @@ void loop() {
         } else if (cmd == "FLEET") {
             Serial.println(meshFleetJson());
         } else if (cmd.length() > 0 && cmd.length() <= MAX_MESH_SIZE) {
-            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", cmd.c_str());
+            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(cmd).c_str());
             processMeshMessage(cmd);
         }
     }

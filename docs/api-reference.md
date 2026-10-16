@@ -149,8 +149,8 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/rf-config` | POST | `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | Full custom config |
 | `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
 | `/rf-config` | POST | `bandMode` (0-2) | **C5 only.** Band: 0=2.4GHz, 1=5GHz, 2=both. Also returned by GET, and accepted on `/config` GET/POST and in the serial `CONFIG:` JSON |
-| `/wifi-config` | GET | - | Wi-Fi AP settings (JSON) |
-| `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty), `auth` (0=WPA2/WPA3, 1=WPA2), `hidden` (0/1) | Update AP credentials and mode (triggers reboot). `hidden=1` stops the SSID beacon; clients must then enter the SSID manually and will probe for it by name, so the network name travels with them. Auth remains the access control |
+| `/wifi-config` | GET | - | Wi-Fi AP settings (JSON: `ssid`, `auth`, `hidden`; the password is not returned) |
+| `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63, or empty to keep the current one), `auth` (0=WPA2/WPA3, 1=WPA2), `hidden` (0/1) | Update AP credentials and mode (triggers reboot). `hidden=1` stops the SSID beacon; clients must then enter the SSID manually and will probe for it by name, so the network name travels with them. Auth remains the access control |
 
 </details>
 
@@ -197,12 +197,14 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/erase/status` | GET | Erasure status |
-| `/erase/request` | POST | Request secure erase (`confirm`=WIPE_ALL_DATA, optional `reason`) |
+| `/erase/request` | POST | Request secure erase (`confirm`=erase key, optional `reason`) |
 | `/erase/cancel` | POST | Cancel erase sequence |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | Auto-erase config |
 | `/battery-saver` | GET | Battery saver (`action`=start/stop/status, `interval`) |
+
+The erase key in `confirm` on `/erase/request`, `/erase/cancel`, `/erase/psk`, `/factory-wipe`, `/secure/abort` and `/config/autoerase` POST shares the mesh erase lockout: 5 wrong keys lock all erase commands for 10 min.
 
 **Hardware:**
 
