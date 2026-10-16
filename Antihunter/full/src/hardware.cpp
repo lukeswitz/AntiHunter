@@ -655,8 +655,6 @@ static uint32_t configSignature() {
     mixStr(prefsGetString("maclist", ""));
     mixStr(prefsGetString("apSsid", AP_SSID));
     mix(&hbEnabled, 1);
-    bool webAuthOn = prefs.getBool("webAuth", true);
-    mix(&webAuthOn, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
     mix(&vibAutoScanEnabled, 1);
@@ -765,7 +763,6 @@ void saveConfiguration() {
     cw.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
     cw.printf(" \"apSsid\":\"%s\",\n", jsonEscape(prefsGetString("apSsid", AP_SSID)).c_str());
     cw.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
-    cw.printf(" \"webAuth\":%s,\n", prefs.getBool("webAuth", true) ? "true" : "false");
     cw.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     cw.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
     cw.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
@@ -1080,10 +1077,6 @@ void loadConfiguration() {
         prefs.putBool("hbEnabled", hbEnabled);
     }
 
-    if (doc.containsKey("webAuth")) {
-        setWebAuthEnabled(doc["webAuth"].as<bool>());
-    }
-
     if (doc.containsKey("hbInterval")) {
         uint32_t minutes = doc["hbInterval"].as<uint32_t>();
         if (minutes < 1) minutes = 1;
@@ -1272,6 +1265,11 @@ bool waitForInitialConfig() {
             Serial.println("[CONFIG] Web password rejected: needs 8-63 chars, no ':'");
         }
         doc.remove("webPass");
+    }
+
+    if (doc.containsKey("webAuth")) {
+        setWebAuthEnabled(doc["webAuth"].as<bool>());
+        doc.remove("webAuth");
     }
 
     if (doc.containsKey("apPass")) {
