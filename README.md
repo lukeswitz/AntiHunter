@@ -184,7 +184,7 @@ Wi-Fi devices send probe requests that name the networks they want to join. This
 - **Ghost SSIDs:** if the node hears no probe response for a network name, it marks the name with a `~` prefix
 - **Frames to watchlist devices:** it also flags management frames (other than probes and beacons) addressed to a watchlist MAC
 - `+ALL` sends every probe to the mesh. Without it, only watchlist hits go to the mesh. The node keeps every probe locally either way
-- Vendor names come from a built-in list of the 400 largest IEEE-registered vendors. Randomized MACs are flagged
+- Vendor names come from a built-in table of 607 IEEE-registered vendors: the 400 that hold the most OUI blocks, plus a fixed list kept by `scripts/gen_oui_table.py`. Randomized MACs are flagged
 - BLE mode adds BLE devices to the list. BLE has no probe requests
 
 ---
@@ -436,7 +436,7 @@ Both builds share the detectors and scan engine. Full adds a Wi-Fi access point 
 | Wi-Fi discovery | Active all-channel sweep plus promiscuous capture on Device Scan, Target Scan, Baseline, and Triangulation | Same sweep, without Full's handling for clients joined to its AP |
 | Results | Results tab in the browser, saved to `/last_results.txt` on SD | `/last_results.txt` on SD |
 | Device database | `/devicedb.jsonl` | `/devicedb.jsonl` on Beta, not in Stable |
-| Scheduling | Scan tab and `SCHED_ADD` | Not available |
+| Scheduling | Scan tab and `SCHED_ADD` | `SCHED_ADD`, runs once the clock is set |
 | Fleet roster | Fleet card on the System tab, and `/api/mesh` | Not tracked |
 | RF footprint | AP beacons, unless hidden-network is on | No AP |
 
@@ -513,7 +513,7 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 - **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
 - **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, enables light sleep, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
 - **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → RF Settings → Wi-Fi Access Point → **Hidden network**.
-- **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to rebuild immediately.
+- **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to remount now. `:NOW` erases the card only if every mount attempt fails.
 
 The [mesh command reference](docs/mesh-commands.md) lists every parameter.
 
@@ -521,7 +521,7 @@ The [mesh command reference](docs/mesh-commands.md) lists every parameter.
 
 Wipe the node's data if someone moves it, or on command.
 
-Wipe is off until you set your own erase key (8+ characters, no `:`).
+Wipe is off until you set your own erase key (8-64 characters, no `:`).
 
 **Set your key**
 - Full: System → Secure Data Destruction. The current key is your AP password (change the default first). Or over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`
@@ -529,13 +529,17 @@ Wipe is off until you set your own erase key (8+ characters, no `:`).
 
 **Wipe**
 - Web UI: enter your key, press **WIPE NOW**
-- Mesh: `@AH01 ERASE_FORCE:<your key>`
+- Mesh: `@AH01 ERASE_REQUEST` replies `ERASE_TOKEN:<token>`. Within 300 s send `@AH01 ERASE_FORCE:<answer>`, where `<answer>` is the first 8 hex characters of HMAC-SHA256 of the token keyed with your erase key:
+  `printf %s '<token>' | openssl dgst -sha256 -hmac '<your key>' | awk '{print $NF}' | cut -c1-8`
+  A token works for one attempt. `ERASE_REQUEST` is limited to one per 20 s.
 
-**Change your key:** `@AH01 CONFIG_ERASE_PSK:<new key>:<current key>`
+Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE` and `FACTORY_RESET` take this answer, not the key. A captured command can't be replayed.
 
-5 wrong keys lock erase commands for 10 minutes. The key travels over your mesh channel, so use your own encrypted channel.
+**Change your key:** `@AH01 CONFIG_ERASE_PSK:<new key>:<current key>`. This is the only mesh command that carries the key, so use your own encrypted channel.
 
-- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations required** vibrations within the **Detection window** start the erase countdown. Cancel with `@AH01 ERASE_CANCEL:<your key>`
+5 wrong keys or answers lock erase commands for 10 minutes, on the web and over mesh.
+
+- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations required** vibrations within the **Detection window** start the erase countdown. Cancel with `@AH01 ERASE_REQUEST`, then `@AH01 ERASE_CANCEL:<answer>`
 - **Decoy file:** after the wipe, the node erases its settings and SD files, then writes `/weather-air-feed.txt` with a weather-monitor error message
 
 > [!WARNING]

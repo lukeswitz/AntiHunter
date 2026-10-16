@@ -45,11 +45,11 @@ Commands are case-insensitive and accept the alias in the Alias column, e.g. `@A
 | `RANDOMIZATION_START` | `RS` | `mode:secs[:FOREVER]` | `RANDOMIZATION_ACK:STARTED\|BUSY\|FAILED` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `PS` | `mode:secs[:FOREVER][:+ALL]` | `PROBE_ACK:...` | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | `PX` | | | `@ALL PROBE_STOP` |
-| `PCAP_START` | `PCS` | `radio:secs:band[:FOREVER][:CH<list>]`, band `0` 2.4, `1` 5, `2` both | `PCAP_ACK:...` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
+| `PCAP_START` | `PCS` | `radio:secs:band[:CH<list>]`, band `0` 2.4, `1` 5, `2` both; `secs` required, `0` and `FOREVER` are rejected | `PCAP_ACK:STARTED\|BUSY\|NOSD\|FAILED` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
 | `PCAP_STOP` | `PCX` | | | `@ALL PCAP_STOP` |
 | `PCAP_LIMITS` | `PCL` | `[MB]` 8-300 | `PCAP_LIMITS_ACK:MAXFILE=<n>MB\|INVALID` | `@ALL PCAP_LIMITS:150` |
 | `PCAP_AUTO` | `PCA` | `[budgetMB,floorMB]` | `PCAP_AUTO_ACK:BUDGET=...\|INVALID` | `@AH01 PCAP_AUTO:512,64` |
-| `SD_REPAIR` | `SDR` | `ON\|OFF\|NOW`, NOW erases the card | `SD_REPAIR_ACK:ON\|OFF\|REPAIRED\|FAILED` | `@ALL SD_REPAIR:ON` |
+| `SD_REPAIR` | `SDR` | `ON\|OFF\|NOW`, NOW remounts the card and erases it only if every mount attempt fails | `SD_REPAIR_ACK:ON\|OFF\|REPAIRED\|FAILED` | `@ALL SD_REPAIR:ON` |
 | `SCHED_ADD` | `SA` | `YYYY-MM-DDTHH:MM\|repeat\|scan\|options`; repeat `0` or 600+; scan `/scan` `/sniffer` `/drone` | `SCHED_ACK:OK\|ERR <msg>\|INVALID` | `@ALL SCHED_ADD:2026-09-30T02:00\|86400\|/scan\|mode=2&secs=600` |
 | `SCHED_LIST` | `SL` | | count, entries on serial | `@AH01 SCHED_LIST` |
 | `SCHED_DEL` | `SD` | `n` from `SCHED_LIST` | `SCHED_ACK:DELETED\|NOT_FOUND` | `@AH01 SCHED_DEL:1` |
@@ -67,20 +67,21 @@ Commands are case-insensitive and accept the alias in the Alias column, e.g. `@A
 | Command | Alias | Args | Reply | Example |
 |---|---|---|---|---|
 | `ERASE_REQUEST` | `ER` | | `ERASE_TOKEN:<token> Expires:300s\|RATE_LIMITED` | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | `EF` | `key` | | `@AH02 ERASE_FORCE:<key>` |
-| `ERASE_CANCEL` | `EC` | `key` | | `@AH01 ERASE_CANCEL:<key>` |
-| `AUTOERASE_ENABLE` | `AE1` | `setup:erase:vibs:window:cooldown:key`, secs | `AUTOERASE_ACK:...\|DENIED` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300:<key>` |
-| `AUTOERASE_DISABLE` | `AE0` | `key` | | `@AH01 AUTOERASE_DISABLE:<key>` |
+| `ERASE_FORCE` | `EF` | `answer` | `ERASE_ACK:COMPLETE\|FAILED\|BUSY\|DENIED` | `@AH02 ERASE_FORCE:<answer>` |
+| `ERASE_CANCEL` | `EC` | `answer` | `ERASE_ACK:CANCELED\|DENIED` | `@AH01 ERASE_CANCEL:<answer>` |
+| `AUTOERASE_ENABLE` | `AE1` | `setup:erase:vibs:window:cooldown:answer`, secs | `AUTOERASE_ACK:...\|DENIED` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300:<answer>` |
+| `AUTOERASE_DISABLE` | `AE0` | `answer` | | `@AH01 AUTOERASE_DISABLE:<answer>` |
 | `AUTOERASE_STATUS` | `AEQ` | | | `@AH01 AUTOERASE_STATUS` |
-| `CONFIG_ERASE_PSK` | `CEP` | `new:current`, 8+ chars, no `:` | `SET\|DENIED\|INVALID` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<current>` |
-| `FACTORY_RESET` | `FR` | `FULL\|CONFIG\|DATA:key` | `FACTORY_RESET_ACK:<tier>\|DENIED\|BAD_TIER\|BUSY` | `@AH01 FACTORY_RESET:FULL:<key>` |
+| `CONFIG_ERASE_PSK` | `CEP` | `new:current`, 8-64 chars, no `:` | `CONFIG_ACK:ERASE_PSK:SET\|DENIED\|INVALID` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<current>` |
+| `FACTORY_RESET` | `FR` | `FULL\|CONFIG\|DATA:answer` | `FACTORY_RESET_ACK:<tier>\|DENIED\|BAD_TIER\|BUSY` | `@AH01 FACTORY_RESET:FULL:<answer>` |
 | `VIBRATION_ON` / `VIBRATION_OFF` | `V1` / `V0` | | | `@AH01 VIBRATION_ON` |
 | `VIBRATION_STATUS` | `VQ` | | | `@AH01 VIBRATION_STATUS` |
 | `VIBSCAN_SET` | `VSS` | `en:mode:dur[:cooldown[:interrupt]]` | `VIBSCAN_ACK:...\|INVALID\|INVALID_MODE` | `@AH01 VIBSCAN_SET:1:2:60:300` |
 | `VIBSCAN_STATUS` | `VSQ` | | | `@AH01 VIBSCAN_STATUS` |
 
-Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys: 10 min lockout.
-`VIBSCAN_SET` mode: `0` off, `1` device, `2` probe, `3` rand-MAC, `4` list, `5` drone, `6` deauth, `7` baseline, `8` pcap. `dur` 0 = until stopped. `cooldown` 5-86400. `interrupt` `1` preempts a scheduled scan.
+`answer`: send `ERASE_REQUEST`, then the first 8 (or all 64) hex characters of HMAC-SHA256 of the returned token, keyed with the erase key: `printf %s '<token>' | openssl dgst -sha256 -hmac '<key>'`. Each token takes one attempt and expires after 300 s. Mesh erase commands refuse the key itself. `CONFIG_ERASE_PSK` takes the current key.
+Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys or answers: 10 min lockout. Keys and answers are logged as `***`.
+`VIBSCAN_SET` mode: `0` off, `1` device, `2` probe, `3` rand-MAC, `4` list, `5` drone, `6` deauth, `7` baseline, `8` pcap. `dur` 0 = until stopped, except mode `8` (pcap), which needs `dur` > 0 and replies `INVALID` otherwise. `cooldown` 5-86400. `interrupt` `1` preempts a scheduled scan; that scan resumes after if 10 s or more were left. Reply ends `Pre:0|1`.
 
 ### Power
 
@@ -129,7 +130,7 @@ Nodes exchange `CSI_PEER:<AP MAC>` and skip each other's MACs.
 
 | Command | Alias | Build | Args | Example |
 |---|---|---|---|---|
-| `DEVICE_DB_CLEAR` | `DBX` | headless, Beta, C5 | | `@AH01 DEVICE_DB_CLEAR` |
+| `DEVICE_DB_CLEAR` | `DBX` | Beta and C5 headless | | `@AH01 DEVICE_DB_CLEAR` |
 | `CONFIG_BAND` | `CB` | C5 | `0` 2.4, `1` 5, `2` both | `@AH01 CONFIG_BAND:2` |
 
 ### Alerts

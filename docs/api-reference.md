@@ -6,6 +6,9 @@ Back to the [README](../README.md).
 > [!NOTE]
 > Timestamps show local time from the GPS fix, with daylight saving applied. Without a GPS lock they show UTC. Fields named `epoch` are UTC seconds.
 
+> [!IMPORTANT]
+> Every request must address the node by its own IP (`192.168.4.1` on the AP, or its station IP); the node's own loopback requests from the scheduler are allowed. The server returns `403` when the `Host` header names anything else, when `Sec-Fetch-Site` is `cross-site` or `same-site`, or when `Origin` is not `http://<Host>`. Responses carry no CORS headers. A page on another site can't read from the node or send it commands, and DNS-rebinding hostnames are refused. The AP password is the access control.
+
 ### Core
 
 | Endpoint | Method | Description |
@@ -29,6 +32,9 @@ Back to the [README](../README.md).
 | `/pcap/delete` | POST | Deletes one capture (`f`). Refused while that file is recording |
 | `/pcap/delete-all` | POST | Deletes every capture in `/pcap` |
 | `/pcap/limits` | POST | Auto-capture pruning (`budgetMB`, `floorMB`), persisted |
+| `/schedule` | GET | Schedule list (text) |
+| `/schedule` | POST | Add a block (`at` = `YYYY-MM-DDTHH:MM` node local time, `period` = seconds, `0` once or 600-2678400, `path` = `/scan`, `/sniffer` or `/drone`, `body` = that scan's form body), or `del=<block line>` to remove one. Max 8 blocks. `400` bad input, `404` block not found, `413` full |
+| `/mesh-tx/cancel` | POST | Empty the mesh TX queue; the scan keeps running |
 
 ### Results
 
@@ -59,6 +65,7 @@ Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes**
 | `/api/mesh` | GET | Fleet roster (JSON: `node`, `peers`, `radios`) |
 | `/api/mesh/ping` | POST | Broadcast `@ALL STATUS` |
 | `/api/mesh/clear` | POST | Clear both rosters |
+| `/api/fleet/send` | POST | Send `@<node> <cmd>` over the mesh (`node` 2-5 `A-Z0-9`, not this node; `cmd` one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `STOP`, `STATUS`, `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`). `400` bad node or command, `409` mesh disabled, `413` too long, `503` mesh busy |
 
 ### Probe Database
 
@@ -67,6 +74,7 @@ Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes**
 | `/api/probedb` | GET | Probe database (JSON: mac, vendor, name, SSIDs, RSSI, randomization status) |
 | `/api/probedb/clear` | POST | Clear probe database |
 | `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
+| `/api/probes/clear` | POST | Delete the probe log (`/probes.jsonl` and `/probes_old.jsonl`) |
 
 `vendor` is the IEEE OUI-registered organization, resolved from the first 24 bits of the MAC.
 `name` is the device's advertised BLE name. Randomized (locally administered) MACs carry no OUI
@@ -96,6 +104,9 @@ The **Data** tab in the web UI provides a searchable, sortable view of all SD-lo
 | `/api/vibrations/clear` | POST | Clear vibration log (SD) |
 | `/api/antihunter.log` | GET | System event log (text) |
 | `/api/antihunter.log/clear` | POST | Clear system log |
+| `/api/campaigns.csv` | GET | Campaign start/stop log (CSV) |
+| `/data-cfg` | GET | Active campaign and BLE classifier state (JSON: `campaign`, `bleClassify`) |
+| `/data-cfg` | POST | `bleClassify` (0/1), `stop` ends the campaign, `campaign=<name>` starts one (`400` if the name has characters other than letters, digits, `-`, `_`). Returns the same JSON as GET |
 
 Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, Sentinel Incidents, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI, except the device database, which is web-build only.
 
@@ -108,11 +119,19 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 |----------|--------|-------------|
 | `/node-id` | GET/POST | Get/set node ID (2-5 alphanumeric, A-Z 0-9) |
 | `/mesh-interval` | GET/POST | Get/set mesh send interval (1500-30000ms) |
-| `/save` | POST | Save target configuration |
+| `/save` | POST | Save target list (`list`). `507` if NVS rejects it (limit 4000 bytes); the running list is left unchanged |
 | `/export` | GET | Export target MAC list |
 | `/allowlist-export` | GET | Export allowlist |
 | `/allowlist-save` | POST | Save allowlist |
 | `/api/time` | POST | Set RTC time from Unix timestamp |
+| `/mesh-dedup-ttl` | GET | Mesh dedup state (JSON) |
+| `/mesh-dedup-ttl` | POST | Set dedup TTL (`ttl` 0-3600 seconds, `0` disables dedup) |
+| `/mesh-dedup-clear` | POST | Clear the dedup cache |
+| `/mesh-session-dedup` | POST | Session dedup (`on` 0/1) |
+| `/mesh/drain/status` | GET | Mesh TX drain progress (JSON) |
+| `/vibration-scan` | GET | Vibration auto-scan config (JSON: `enabled`, `mode`, `duration`, `cooldown` seconds, `preempt`) |
+| `/vibration-scan` | POST | Set `enabled`, `mode` (0-8), `duration` (0-65535 s), `cooldown` (5-86400 s), `preempt`; saved. `400` for mode `8` (pcap) with duration `0` |
+| `/api/onboarding` | GET/POST | First-run disclaimer state (JSON: `accepted`). POST marks it accepted |
 
 </details>
 
@@ -132,6 +151,38 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 | `/api/mesh_cmd.jsonl` | GET | Mesh command provenance audit from SD (JSONL: `ts`, `epoch`, `src` radio id, `cmd`) |
 | `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
 | `/api/apclients.json` | GET | Stations associated to this node's AP |
+| `/api/incidents/clear` | POST | Clear all incidents |
+| `/api/sentinel/ble/start` | POST | Start the BLE scan; `409` below 60000 bytes free heap |
+| `/api/sentinel/boot` | GET | Boot auto-start setting (JSON: `boot`) |
+| `/api/sentinel/boot` | POST | Set boot auto-start (`on` 0/1). Returns the same JSON as GET |
+| `/api/detect/session` | GET | Detector session counters (JSON) |
+| `/api/detect/clear_session` | POST | Start a new session; returns the session JSON |
+| `/api/detect/clear_all` | POST | Clear detector state and logs |
+| `/api/detect/verbose` | GET | Verbose state and mesh peer count (JSON: `verbose`, `mesh_peers`) |
+| `/api/detect/verbose/on` / `/api/detect/verbose/off` | POST | Turn verbose detector logging on/off |
+| `/api/quorum` | GET | Quorum status (JSON) |
+| `/api/quorum/config` | POST | Peers required for an alert type (`type`, `n` > 0); `400` if either is missing |
+| `/api/bloom` | GET | Bloom filter stats (JSON) |
+| `/api/rid_claims` | GET | Remote ID claims (JSON) |
+| `/api/channel_partition` | GET | Channel assignment (JSON) |
+| `/api/channel_partition` | POST | Split channels 1-14 across this node and the peers it has heard, send each peer its share (`CHAN_ASSIGN`), and return the assignment. A Device Scan started with no channel list then sweeps this node's share |
+| `/api/pps` | GET | GPS PPS state (JSON: `locked`, `last_edge`, `disciplined_us`) |
+| `/api/recon/clear` | POST | Clear BLE recon state |
+| `/api/probegraph` | GET | Probe graph (JSON) |
+| `/api/probegraph/clear` | POST | Clear the probe graph |
+| `/api/handshakes/clear` | POST | Clear captured handshakes |
+| `/api/handshakes/stats` | GET | Handshake counts (JSON: `count`, `krack_events`) |
+| `/api/attacker_hunts/clear` | POST | Clear active attacker hunts |
+| `/api/attacker_hunts/cooldown` | POST | Hunt cooldown (`ms`, default 60000) |
+| `/api/tof` | GET | Time-of-flight peers (JSON) |
+| `/api/tof/clear` | POST | Clear time-of-flight peers |
+| `/api/tof/ping` | POST | Time-of-flight ping (`target`, default `*`) |
+| `/api/tsf_skew/clear` | POST | Clear TSF skew state |
+| `/api/karma/clear` | POST | Clear Karma state |
+| `/api/karma/enable` | POST | Karma detector on/off (`on` 0/1). Returns JSON `enabled` |
+| `/api/karma/stats` | GET | Karma counts (JSON: `enabled`, `candidates`, `confirmed`) |
+| `/api/pwnagotchi/clear` | POST | Clear Pwnagotchi sightings |
+| `/detect` | GET | Detector dashboard page (HTML) |
 
 Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds - `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
 
@@ -191,6 +242,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/randomization/reset` | POST | Reset randomization detection |
 | `/randomization/clear-old` | POST | Clear old identities (optional `age`) |
 | `/randomization/identities` | GET | Tracked identities (JSON) |
+| `/api/identity-map` | GET | Tracked MACs mapped to identity IDs (JSON) |
 
 **Security:**
 
@@ -199,12 +251,15 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/erase/status` | GET | Erasure status |
 | `/erase/request` | POST | Request secure erase (`confirm`=erase key, optional `reason`) |
 | `/erase/cancel` | POST | Cancel erase sequence |
+| `/erase/psk-status` | GET | Erase key state (JSON: `pskSet`, `custom`, `apDefault`) |
+| `/erase/psk` | POST | Change the erase key (`confirm` = current key, `key` = new key, 8-64 chars, no `:`). `403` wrong key, `400` invalid key |
+| `/factory-wipe` | POST | Reset and reboot (`confirm` = erase key, `tier` = `full` (default), `config` or `data`). `400` bad tier, `403` wrong key, `409` erase already running |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | Auto-erase config |
 | `/battery-saver` | GET | Battery saver (`action`=start/stop/status, `interval`) |
 
-The erase key in `confirm` on `/erase/request`, `/erase/cancel`, `/erase/psk`, `/factory-wipe`, `/secure/abort` and `/config/autoerase` POST shares the mesh erase lockout: 5 wrong keys lock all erase commands for 10 min.
+The erase key in `confirm` on `/erase/request`, `/erase/cancel`, `/erase/psk`, `/factory-wipe`, `/secure/abort` and `/config/autoerase` POST is compared in constant time and shares the mesh erase lockout: 5 wrong keys lock all erase commands for 10 min.
 
 **Hardware:**
 
@@ -212,6 +267,8 @@ The erase key in `confirm` on `/erase/request`, `/erase/cancel`, `/erase/psk`, `
 |----------|--------|-------------|
 | `/gps` | GET | GPS status and location |
 | `/sd-status` | GET | SD card status |
+| `/sd-repair` | GET | SD repair state (JSON: `auto`, `mounted`, `mountFailures`, `pending`) |
+| `/sd-repair` | POST | `auto` (1/0) sets auto-repair; `now` queues a remount that erases the card only if it won't mount |
 | `/drone/status` | GET | Drone detection status (JSON) |
 | `/mesh` | POST | Enable/disable mesh |
 | `/mesh-test` | GET | Test mesh connectivity |

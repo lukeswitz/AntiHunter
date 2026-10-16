@@ -1,7 +1,7 @@
 # RadarNode
 
 > [!WARNING]
-> **Experimental.** The radar path works — detection, RF enrichment, web UI and mesh all run — but the firmware is unreleased: no branch is published yet, no web-flasher entry, no release binaries. Source link: _(branch not yet pushed)_.
+> **Experimental.** Test build `v0.1.0-radarexp2` is published as a binary: the web flasher's Experimental channel (RadarNode) and option 3 in `Dist/flashAntihunter.sh`. Its source branch is not public, so this repository can't build it.
 
 A 24GHz radar node that detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
 
@@ -103,18 +103,7 @@ Serial at boot confirms the link:
 
 ## Build & Flash
 
-```bash
-pio run -e RadarNode-c5 -t upload
-```
-
-Or via the Makefile:
-
-```bash
-make build-radar     # build
-make lint-radar      # cppcheck
-```
-
-All environments build on one platform (pioarduino). Mixing in `espressif32@6.x` breaks the build — both platforms claim the `framework-arduinoespressif32` package directory at different versions and overwrite each other.
+Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Experimental → RadarNode) or `Dist/flashAntihunter.sh` option 3. Building from source needs the RadarNode branch, which is not published.
 
 ---
 

@@ -81,11 +81,11 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 | Question | Answer |
 |---|---|
 | **Full or Headless?** | Same detectors, same scan engine, same mesh commands. Full hosts the Wi-Fi AP with the web UI and API, and beacons continuously. Headless is serial and mesh only, never beacons. Start on Full, reflash to Headless before a quiet deployment. [Details](../README.md#full-vs-headless) |
-| **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first, Sentinel among them. [Release notes](release-notes/notes.md) |
+| **Stable or Beta?** | Stable (`main`) for field deployments. Beta (`beta`) for new features first. [Release notes](release-notes/notes.md) |
 | **S3 or C5?** | ESP32-S3 is the stable build. The [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) is a drop-in on the same pads and adds 5 GHz, under the flasher's Experimental channel while it is in testing. [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md) pairs a 24 GHz radar with the same mesh. |
 | **Do I need the Meshtastic radio?** | Not for scanning. Without it, you control one node from its own AP or over serial, standing next to it. With it, you send commands and get detections over LoRa from anywhere in mesh range, across as many nodes as you deploy. |
 | **Which SD card?** | FAT32, under 32 GB. Every tier except Bare PCB ships with an 8 GB card fitted. |
-| **How do I update?** | Re-run the flasher on the same channel with *Erase Device* unticked. Settings are in NVS and mirrored to the SD card, so they survive. Read the release notes first. |
+| **How do I update?** | Re-run the flasher on the same channel with *Erase Device* unticked. Settings are in NVS and mirrored to the SD card, except the AP password and erase key, which stay in NVS only. They survive the update. Read the release notes first. |
 
 ---
 
@@ -101,7 +101,7 @@ Send these as text messages from any Meshtastic client on your channel.
 @ALL SCAN_START:2:600:1..11        watchlist scan, 10 minutes
 @ALL DEVICE_SCAN_START:2:300       survey everything nearby
 @ALL BASELINE_START:900            learn the site's normal devices
-@ALL SENTINEL_ON                   attacker-tool detection (Beta)
+@ALL SENTINEL_ON                   attacker-tool detection
 @ALL DRONE_START:0                 drone watch until stopped
 @AH01 BATTERY_SAVER_START:10       idle, mesh stays up
 ```

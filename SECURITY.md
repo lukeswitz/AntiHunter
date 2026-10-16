@@ -6,9 +6,9 @@ AntiHunter DIGI node firmware is operator-controlled firmware for a private, ope
 
 | Version branch    | Supported? | Notes                                                    |
 | ----------------- | ---------- | -------------------------------------------------------- |
-| `main`            | ✅         | Actively developed; security fixes land here first       |
-| Release tags      | ⚠️         | Snapshots only; update to latest `main`                  |
-| Modified builds   | ❌         | Out of scope unless reproducible on unmodified firmware  |
+| `main`            | Yes        | Actively developed; security fixes land here first       |
+| Release tags      | Partial    | Snapshots only; update to latest `main`                  |
+| Modified builds   | No         | Out of scope unless reproducible on unmodified firmware  |
 
 ## Trust model
 
