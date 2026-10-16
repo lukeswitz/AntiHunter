@@ -14,9 +14,9 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 
 - A wipe needs an erase key you set: web UI, flasher `CONFIG` `erasePSK`, or `CONFIG_ERASE_PSK:<new>:<current>`. Until then erase commands reply `ERASE_ACK:SET_KEY_FIRST`.
 - Full: the AP password serves as `<current>` for setting the key, once the AP password is no longer the default. Headless: no key until set in the flasher.
-- `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_*` and `CONFIG_ERASE_PSK` take the key directly. HMAC token answers still work for scripts and C2; each token is valid for one answer.
-- One `ERASE_REQUEST` per 20 s. 5 wrong keys lock erase commands for 10 min.
-- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config.
+- Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE` and `FACTORY_RESET` take a one-time answer to an `ERASE_REQUEST` token (the first 8 hex characters of HMAC-SHA256 of the token keyed with the erase key), not the key. A captured command can't be replayed. `CONFIG_ERASE_PSK` takes the current key. The web UI takes the key.
+- One `ERASE_REQUEST` per 20 s; each token takes one attempt and expires after 300 s. 5 wrong keys or answers lock erase commands for 10 min, on the web and over mesh.
+- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config. Keys and answers show as `***` in serial logs and `/mesh_cmd.jsonl`.
 
 ## New
 
@@ -45,7 +45,6 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
 - `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
 - Battery saver now lowers the CPU clock to 80 MHz (restores 240 MHz on exit). Before, the clock never changed.
-- Headless: boot forensics (previous uptime, restored results) reach the mesh again.
 - `CONFIG_TARGETS` over mesh splits on `|`; mesh text has no newlines.
 - Auto-erase counts vibrations within the detection window and triggers at the configured count.
 - Targets list saves on blur; the block list saves in privacy mode.
@@ -57,6 +56,21 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Data tab search keeps the selected sort column.
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 451,990 B to 101,321 B). The full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
+- Web: no CORS headers; requests are refused (`403`) when `Host` is not the node's IP, `Sec-Fetch-Site` is cross-site, or `Origin` doesn't match. Another site's page can't read from the node or send it commands, and DNS rebinding is blocked.
+- Web: `GET /wifi-config` no longer returns the AP password; leaving the password field empty keeps the current one. The AP password is no longer written to the SD config.
+- Web erase endpoints compare the key in constant time and share the 5-failure lockout.
+- Over-the-air SSIDs and Remote ID values with control characters can no longer split a mesh line into a second command.
+- OTA SSIDs are JSON-escaped in every detector log.
+- A channel range such as `1..2147483647` (mesh or web) hung the node; ranges are clamped to 1-255.
+- USB serial input is read by one task only. Before, a list scan read it too and could corrupt memory.
+- Commands from USB, mesh and the scheduler run one at a time.
+- Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe, and replies `ERASE_ACK:COMPLETE` or `FAILED` when done, `BUSY` if a wipe is running.
+- `VIBSCAN_SET` mode 8 (pcap) with duration 0 never captured; it is now refused.
+- Headless `VIBSCAN_SET` reads the interrupt field, and an interrupted scheduled scan resumes.
+- Saving a target list larger than NVS holds reports an error (`507`, `CONFIG_ACK:TARGETS:FAILED`) instead of success.
+- Mesh-fed Remote ID claim and channel assignment tables are capped.
+- A Device Scan started with no channel list sweeps this node's share from Reassign / `CHAN_ASSIGN`. Before, the assignment had no effect.
+- Boot banner and web footer show v1.0.5.
 
 ## Firmware size
 
