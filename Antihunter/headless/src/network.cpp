@@ -1668,6 +1668,7 @@ static void handleTriangulateStop(const String &command)
   Serial.println("[MESH] TRIANGULATE_STOP received");
   stopRequested = true;
   triPendingCycleStart = false;
+  if (triangulationInitiator && !triangulationActive) triangulationAbortSetup();
 
   if (triangulationActive && !triangulationInitiator) {
       rateLimiter.flush();

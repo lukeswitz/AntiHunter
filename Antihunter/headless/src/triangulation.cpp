@@ -898,6 +898,13 @@ void markTriangulationStopFromMesh() {
     triStopCameFromMesh = true;
 }
 
+void triangulationAbortSetup() {
+    if (coordinatorSetupTaskHandle == nullptr) return;
+    triSetupAbort.store(true);
+    sendMeshCommand("@ALL TRIANGULATE_STOP");
+    Serial.println("[TRIANGULATE] Stop during setup - signaling coordinator abort");
+}
+
 void stopTriangulation() {
     if (coordinatorSetupTaskHandle != nullptr) {
         triSetupAbort.store(true);

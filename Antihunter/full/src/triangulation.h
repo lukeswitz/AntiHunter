@@ -180,6 +180,7 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
 String calculateTriangulation();
 void stopTriangulation();
 void requestTriangulationStop();
+void triangulationAbortSetup();
 bool startTriangulation(const String &targetMac, int duration, String *err = nullptr);
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
