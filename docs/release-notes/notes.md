@@ -38,6 +38,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Campaign UX: one Data tab panel starts/stops on this node and checked mesh nodes; header REC badge; Export campaign; jsonl rows carry `campaign` and filter by it; mesh `STATUS` adds `Camp:<name>`.
 - `/api/fleet/send` accepts `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for headless nodes.
+- Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password: System → Wi-Fi Access Point, `CONFIG_WEB_PASS:<new>:<current>`, or `webPass` in the flasher config. Turn the login off there, with `CONFIG_WEB_AUTH:0:<current>`, or `"webAuth":false` in the config. Scheduled scans are not affected.
 
 ## Fixed
 

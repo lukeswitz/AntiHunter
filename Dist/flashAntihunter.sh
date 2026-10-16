@@ -258,9 +258,22 @@ collect_configuration() {
         read -p "Hide the AP name (stops the beacon, not access control)? (y/N): " AP_HIDDEN_ON
         if [[ "$AP_HIDDEN_ON" =~ ^[Yy]$ ]]; then AP_HIDDEN="true"; else AP_HIDDEN="false"; fi
 
-        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apAuth\":$AP_AUTH,\"apHidden\":$AP_HIDDEN"
+        read -p "Require a web UI login (user admin)? (Y/n): " WEB_AUTH_ON
+        if [[ "$WEB_AUTH_ON" =~ ^[Nn]$ ]]; then WEB_AUTH="false"; else WEB_AUTH="true"; fi
+        WEB_PASS=""
+        if [ "$WEB_AUTH" = true ]; then
+            read -p "Web UI password (8-63 chars, no ':', empty uses the WiFi password): " WEB_PASS
+            while [ -n "$WEB_PASS" ] && { [ ${#WEB_PASS} -lt 8 ] || [ ${#WEB_PASS} -gt 63 ] || [[ "$WEB_PASS" == *:* ]]; }; do
+                read -p "Needs 8-63 chars, no ':'. Web UI password (empty uses the WiFi password): " WEB_PASS
+            done
+        fi
+
+        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apAuth\":$AP_AUTH,\"apHidden\":$AP_HIDDEN,\"webAuth\":$WEB_AUTH"
         if [ -n "$AP_PASS" ]; then
             AP_SSID_JSON="$AP_SSID_JSON,\"apPass\":\"$AP_PASS\""
+        fi
+        if [ -n "$WEB_PASS" ]; then
+            AP_SSID_JSON="$AP_SSID_JSON,\"webPass\":\"$WEB_PASS\""
         fi
     else
         AP_SSID_JSON=""
