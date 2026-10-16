@@ -135,7 +135,7 @@
       Covers all four tiers: <b>Fully Assembled Unit</b> · <b>Complete Parts Kit</b> · <b>Populated PCB</b> · <b>Bare PCB</b>
     </div>
     <div class="foot">
-      Guide revision 1.1 · 4 October 2026 · Firmware v1.0.4 · Written for the current Stable and Beta firmware channels<br>
+      Guide revision 1.1 · 4 October 2026 · Firmware v1.0.5 · Written for the current Stable and Beta firmware channels<br>
       github.com/lukeswitz/AntiHunter · Web flasher: lukeswitz.github.io/AntiHunter
     </div>
   </div>
@@ -882,25 +882,25 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Erase delay</td><td>10 to 300 s</td><td>Countdown before destruction, your window to cancel</td></tr>
     <tr><td>Cooldown</td><td>5 to 60 min</td><td>Minimum time between tamper attempts, to blunt false triggers</td></tr>
   </table>
-  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;key&gt;   <span class="c"># setup:erase:vibs:window:cooldown:key</span>
+  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;answer&gt;   <span class="c"># setup:erase:vibs:window:cooldown:answer</span>
 @AH01 AUTOERASE_STATUS
-@AH01 AUTOERASE_DISABLE:&lt;key&gt;
-@AH01 ERASE_CANCEL:&lt;key&gt;                       <span class="c"># abort a running countdown</span></pre>
+@AH01 AUTOERASE_DISABLE:&lt;answer&gt;
+@AH01 ERASE_CANCEL:&lt;answer&gt;                       <span class="c"># abort a running countdown</span></pre>
   <p>During the setup period the node still reports movement, so you can watch the arming from a distance: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When it triggers you get <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>.</p>
 
   <h4>Remote erase</h4>
-  <p>Every command marked <span class="mono">&lt;key&gt;</span> takes the erase key (§8.1): <span class="mono">@AH01 ERASE_FORCE:&lt;key&gt;</span>. 5 wrong keys lock erase commands for 10 min.</p>
-  <p>To keep the key off the mesh, answer a token instead:</p>
+  <p>Every mesh command marked <span class="mono">&lt;answer&gt;</span> takes a one-time answer to a token. The erase key (§8.1) never goes on the mesh for these commands, so a captured command can't be replayed:</p>
   <ol>
     <li>Send <span class="mono">@AH01 ERASE_REQUEST</span> (one per 20 s). The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
     <li>Sign the token: <span class="mono">printf '%s' 'AH_3F2A…' | openssl dgst -sha256 -hmac 'yourKey'</span>.</li>
-    <li>Within 300 s send the 64 hex characters, or the first 8, in place of <span class="mono">&lt;key&gt;</span>. A token answers once.</li>
+    <li>Within 300 s send the 64 hex characters, or the first 8, as <span class="mono">&lt;answer&gt;</span>: <span class="mono">@AH01 ERASE_FORCE:&lt;answer&gt;</span>. A token takes one attempt, right or wrong.</li>
   </ol>
+  <p>The key itself is refused over mesh. 5 wrong answers, or 5 wrong keys on the web, lock erase commands for 10 min. Logs show keys and answers as <span class="mono">***</span>.</p>
   <p>In the web UI, enter the key in the Authorization field.</p>
   <p>After a wipe the node plants a dummy IoT weather configuration in place of its own, so a recovered device does not obviously read as a sensor.</p>
 
   <h4>Factory reset</h4>
-  <pre>@AH01 FACTORY_RESET:FULL:&lt;key&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
+  <pre>@AH01 FACTORY_RESET:FULL:&lt;answer&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
   <p>Single node only.</p>
 
   <div class="box warn"><span class="t">Data destruction is irreversible</span>
@@ -960,7 +960,7 @@ python3 scripts/meshtastic_config.py</pre>
   </table>
   <p>Mode is 0 Wi-Fi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP is the exception: its radio field is 0 Wi-Fi / 1 BLE only, one radio per capture, and 2 is taken as Wi-Fi rather than both. PCAP band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
-  <h3>Sentinel (Beta and C5)</h3>
+  <h3>Sentinel</h3>
   <table class="tight">
     <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
     <tr><td><span class="mono">SENTINEL_ON</span>, <span class="mono">SENTINEL_OFF</span>, <span class="mono">SENTINEL_STATUS</span></td><td>Start, stop, report</td><td>None</td></tr>
@@ -976,13 +976,13 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>Security, power and heartbeat</h3>
   <table class="tight">
     <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Token, wipe, abort</td><td>None, <span class="mono">&lt;key&gt;</span>, <span class="mono">&lt;key&gt;</span>; §10.4</td></tr>
-    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown:key</span></td></tr>
-    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td><span class="mono">&lt;key&gt;</span>, none</td></tr>
+    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Token, wipe, abort</td><td>None, <span class="mono">&lt;answer&gt;</span>, <span class="mono">&lt;answer&gt;</span>; §10.4</td></tr>
+    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown:answer</span></td></tr>
+    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td><span class="mono">&lt;answer&gt;</span>, none</td></tr>
     <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>Enable, disable, report the sensor</td><td>None</td></tr>
     <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown[:interrupt]]</span></td></tr>
     <tr><td><span class="mono">SCHED_ADD</span>, <span class="mono">SCHED_LIST</span>, <span class="mono">SCHED_DEL</span></td><td>Add, list or delete a schedule block</td><td><span class="mono">at|repeat s|path|body</span>, none, block number</td></tr>
-    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;key&gt;</span></td></tr>
+    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;answer&gt;</span></td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Drop to low power</td><td>Minutes, 1 to 30, default 5</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>Return to normal, or report</td><td>None</td></tr>
     <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default</td><td>Interval 1 to 60 min</td></tr>
@@ -1109,7 +1109,7 @@ docker compose up -d --build</pre>
   <h4>Overnight perimeter watch (home, shop, site)</h4>
   <p>Learn what belongs, then flag anything new after dark. Pair with Sentinel for attacks on your Wi-Fi.</p>
   <pre>@AH01 SCHED_ADD:2026-10-05T21:00|86400|/sniffer|detection=baseline&amp;secs=32400   <span class="c"># 9 h, nightly</span>
-@AH01 SENTINEL_BOOT:1                     <span class="c"># Beta: attack detection from power-on</span>
+@AH01 SENTINEL_BOOT:1                     <span class="c"># attack detection from power-on</span>
 @AH01 VIBRATION_ON</pre>
   <p>You get <span class="mono">ANOMALY-NEW</span> for a device that was not there at dusk, and Sentinel alerts for deauth, evil twins and similar attacks.</p>
 
@@ -1132,7 +1132,7 @@ docker compose up -d --build</pre>
   <p>Most Wi-Fi attacks start by knocking clients off with deauthentication frames: to capture a handshake, push them onto an evil twin, or just jam. The Deauth scan catches that on every build; run it around the clock.</p>
   <pre>@AH01 DEAUTH_START:0:FOREVER
 @AH01 SCHED_ADD:2026-10-05T00:00|86400|/sniffer|detection=deauth&amp;secs=86400   <span class="c"># or as a daily block</span>
-@AH01 SENTINEL_ON                          <span class="c"># Beta: also evil twins, karma, PMKID, floods</span></pre>
+@AH01 SENTINEL_ON                          <span class="c"># also evil twins, karma, PMKID, floods</span></pre>
   <p>Alerts name the source MAC and target. Sentinel can also start triangulation, a capture or a sweep on a confirmed attack (Sentinel tab → On confirmed attack).</p>
 
   <h4>Unattended in a vehicle or camp</h4>

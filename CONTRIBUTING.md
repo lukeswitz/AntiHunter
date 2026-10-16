@@ -7,7 +7,7 @@ Thank you for your interest in contributing to AntiHunter. **Use the provided te
 ### Prerequisites
 - PlatformIO IDE or PlatformIO Core
 - ESP32 toolchain
-- Supported [hardware](https://github.com/lukeswitz/AntiHunter?tab=readme-ov-file#hardware-requirements) 
+- Supported [hardware](https://github.com/lukeswitz/AntiHunter?tab=readme-ov-file#hardware) 
 
 ### Building from Source
 ```bash
@@ -38,6 +38,7 @@ pio run
 - Reference related issues
 - Include testing details and hardware used
 - Ensure code compiles without warnings
+- Run `make lint` (cppcheck 2.20, the CI version) and `make test-ble`; CI runs both and fails on any finding
 - Keep PRs focused on single features/fixes
 
 ### Reporting Issues
