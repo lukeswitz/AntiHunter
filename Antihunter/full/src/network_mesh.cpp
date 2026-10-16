@@ -2288,9 +2288,6 @@ static const char *const kCmdAliases[][2] = {
   {"BSX", "BATTERY_SAVER_STOP"},  {"BSQ", "BATTERY_SAVER_STATUS"},   {"CS", "CAMPAIGN_START"},
   {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
-  {"CIM", "CSI_MOTION_START"},    {"CIE", "CSI_EXCLUDE"},
-  {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
-  {"CIR", "CSI_RECAL"},
 };
 
 static String meshExpandCommand(const String &cmd)
