@@ -71,6 +71,9 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Mesh-fed Remote ID claim and channel assignment tables are capped.
 - A Device Scan started with no channel list sweeps this node's share from Reassign / `CHAN_ASSIGN`. Before, the assignment had no effect.
 - Boot banner and web footer show v1.0.5.
+- `TRIANGULATE_STOP` sent while the initiator waits for node ACKs cancels the run and stops the child nodes. Before, the node acknowledged the stop, then sent the cycle start and scanned for the full duration, and a new `TRIANGULATE_START` was refused until it finished.
+- Stable and Beta (S3): a boot could reset with `Stack canary watchpoint triggered (ipc1)` while installing the GPIO interrupt service. The IPC task stack is 2048 bytes (was 1024); the S3 builds compile the Arduino ESP-IDF libraries with this setting.
+- Stable: the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, `CIR` are removed. They map to CSI commands, which only Beta and Experimental have.
 
 ## Firmware size
 
@@ -78,12 +81,12 @@ App image size against the v1.0.4 release bins. Full builds shrink because the w
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,370,496 B | -231,376 B | 77.8% -> 70.9% |
-| Beta full | 2,787,152 B | 2,428,192 B | -358,960 B | 83.4% -> 72.6% |
-| C5 full | 3,141,952 B | 2,774,336 B | -367,616 B | 74.9% -> 66.1% |
-| Stable headless | 1,897,584 B | 1,952,720 B | +55,136 B | 56.8% -> 58.4% |
-| Beta headless | 1,966,272 B | 2,006,480 B | +40,208 B | 58.8% -> 60.0% |
-| C5 headless | 2,321,776 B | 2,363,392 B | +41,616 B | 55.4% -> 56.3% |
+| Stable full | 2,601,872 B | 2,372,912 B | -228,960 B | 77.8% -> 71.0% |
+| Beta full | 2,787,152 B | 2,430,688 B | -356,464 B | 83.4% -> 72.7% |
+| C5 full | 3,141,952 B | 2,774,416 B | -367,536 B | 74.9% -> 66.1% |
+| Stable headless | 1,897,584 B | 1,955,232 B | +57,648 B | 56.8% -> 58.5% |
+| Beta headless | 1,966,272 B | 2,009,104 B | +42,832 B | 58.8% -> 60.1% |
+| C5 headless | 2,321,776 B | 2,363,648 B | +41,872 B | 55.4% -> 56.4% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 
