@@ -1,6 +1,6 @@
 # AntiHunter v1.0.5
 
-User-set erase key, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
+User-set erase key, Sentinel in Stable, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -8,22 +8,22 @@ User-set erase key, headless scheduler and baseline watch, Sentinel detector car
 | Beta | v1.0.5-beta1 | ESP32-S3 | v1.0.4-beta1 (2026-10-04) |
 | Experimental | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
 
-Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTINEL=0`).
+Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, detector cards, incidents and the Sentinel mesh commands. Sentinel stays off until started.
 
 ## Erase key (all channels; read before upgrading)
 
 - A wipe needs an erase key you set: web UI, flasher `CONFIG` `erasePSK`, or `CONFIG_ERASE_PSK:<new>:<current>`. Until then erase commands reply `ERASE_ACK:SET_KEY_FIRST`.
 - Full: the AP password serves as `<current>` for setting the key, once the AP password is no longer the default. Headless: no key until set in the flasher.
-- `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_*` and `CONFIG_ERASE_PSK` take the key directly. HMAC token answers still work for scripts and C2; each token is valid for one answer.
-- One `ERASE_REQUEST` per 20 s. 5 wrong keys lock erase commands for 10 min.
-- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config.
+- Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE` and `FACTORY_RESET` take a one-time answer to an `ERASE_REQUEST` token (the first 8 hex characters of HMAC-SHA256 of the token keyed with the erase key), not the key. A captured command can't be replayed. `CONFIG_ERASE_PSK` takes the current key. The web UI takes the key.
+- One `ERASE_REQUEST` per 20 s; each token takes one attempt and expires after 300 s. 5 wrong keys or answers lock erase commands for 10 min, on the web and over mesh.
+- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config. Keys and answers show as `***` in serial logs and `/mesh_cmd.jsonl`.
 
 ## New
 
 - Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
 - Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits.
-- Mesh, Full and headless **(Beta/C5)**: `DETECT_COUNTS`.
-- Detection tab **(Beta/C5)**: Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
+- Mesh, Full and headless: `DETECT_COUNTS`.
+- Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
 - Target card: Targets and Allow list above the scan options; trend badges Steady and Measuring; Movement toggle in the Forever/Triangulate row.
@@ -41,11 +41,10 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 
 ## Fixed
 
-- **(Beta/C5)** STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
-- **(Beta/C5)** Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
-- **(Beta/C5)** `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
+- STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
+- Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
+- `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
 - Battery saver now lowers the CPU clock to 80 MHz (restores 240 MHz on exit). Before, the clock never changed.
-- Headless: boot forensics (previous uptime, restored results) reach the mesh again.
 - `CONFIG_TARGETS` over mesh splits on `|`; mesh text has no newlines.
 - Auto-erase counts vibrations within the detection window and triggers at the configured count.
 - Targets list saves on blur; the block list saves in privacy mode.
@@ -55,8 +54,23 @@ Items marked **(Beta/C5)** need Sentinel, which Stable builds without (`AH_SENTI
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
 - BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - Data tab search keeps the selected sort column.
-- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 353,360 B to 78,218 B). The full image is 307,096 B smaller.
+- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 451,990 B to 101,321 B). The full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
+- Web: no CORS headers; requests are refused (`403`) when `Host` is not the node's IP, `Sec-Fetch-Site` is cross-site, or `Origin` doesn't match. Another site's page can't read from the node or send it commands, and DNS rebinding is blocked.
+- Web: `GET /wifi-config` no longer returns the AP password; leaving the password field empty keeps the current one. The AP password is no longer written to the SD config.
+- Web erase endpoints compare the key in constant time and share the 5-failure lockout.
+- Over-the-air SSIDs and Remote ID values with control characters can no longer split a mesh line into a second command.
+- OTA SSIDs are JSON-escaped in every detector log.
+- A channel range such as `1..2147483647` (mesh or web) hung the node; ranges are clamped to 1-255.
+- USB serial input is read by one task only. Before, a list scan read it too and could corrupt memory.
+- Commands from USB, mesh and the scheduler run one at a time.
+- Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe, and replies `ERASE_ACK:COMPLETE` or `FAILED` when done, `BUSY` if a wipe is running.
+- `VIBSCAN_SET` mode 8 (pcap) with duration 0 never captured; it is now refused.
+- Headless `VIBSCAN_SET` reads the interrupt field, and an interrupted scheduled scan resumes.
+- Saving a target list larger than NVS holds reports an error (`507`, `CONFIG_ACK:TARGETS:FAILED`) instead of success.
+- Mesh-fed Remote ID claim and channel assignment tables are capped.
+- A Device Scan started with no channel list sweeps this node's share from Reassign / `CHAN_ASSIGN`. Before, the assignment had no effect.
+- Boot banner and web footer show v1.0.5.
 
 ## Firmware size
 
@@ -64,10 +78,10 @@ App image size against the v1.0.4 release bins. Full builds shrink because the w
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,321,584 B | -280,288 B | 77.8% -> 69.5% |
+| Stable full | 2,601,872 B | 2,367,536 B | -234,336 B | 77.8% -> 70.8% |
 | Beta full | 2,787,152 B | 2,421,936 B | -365,216 B | 83.4% -> 72.5% |
 | C5 full | 3,141,952 B | 2,768,816 B | -373,136 B | 74.9% -> 66.0% |
-| Stable headless | 1,897,584 B | 1,919,488 B | +21,904 B | 56.8% -> 57.4% |
+| Stable headless | 1,897,584 B | 1,948,768 B | +51,184 B | 56.8% -> 58.3% |
 | Beta headless | 1,966,272 B | 2,003,792 B | +37,520 B | 58.8% -> 60.0% |
 | C5 headless | 2,321,776 B | 2,359,152 B | +37,376 B | 55.4% -> 56.2% |
 
