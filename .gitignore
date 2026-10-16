@@ -21,3 +21,8 @@ scripts/__pycache__/
 idf_component.yml
 .code-journal.md
 docs/csi-data/
+managed_components/
+.dummy/
+sdkconfig.defaults
+sdkconfig.AntiHunter-*
+dependencies.lock
