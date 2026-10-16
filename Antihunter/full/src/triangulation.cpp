@@ -969,6 +969,12 @@ void requestTriangulationStop() {
     }
 }
 
+void triangulationAbortSetup() {
+    if (coordinatorSetupTaskHandle == nullptr) return;
+    triSetupAbort.store(true);
+    Serial.println("[TRIANGULATE] Stop during setup - signaling coordinator abort");
+}
+
 void stopTriangulation() {
     if (coordinatorSetupTaskHandle != nullptr) {
         triSetupAbort.store(true);
