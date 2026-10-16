@@ -1122,6 +1122,13 @@ R"HTML(
             <p class="card-sub" style="margin:6px 0 0;">Clients must enter the SSID manually and will probe for it by name.</p>
 
             <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save Wi-Fi Settings</button>
+
+            <hr>
+            <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()">Require web login (user admin)</label>
+            <p class="card-sub" style="margin:4px 0 8px;">Off: anyone on this Wi-Fi can use the web UI.</p>
+            <label style="font-size:11px;">Web login password (user admin)</label>
+            <input type="password" id="webPass" minlength="8" maxlength="63" placeholder="Same as the Wi-Fi password until set" style="margin-bottom:8px;">
+            <button class="btn primary" type="button" onclick="saveWebPass()" style="width:100%;">Save Web Password</button>
           </div>
         </div>
 
@@ -3107,9 +3114,42 @@ R"HTML(
           document.getElementById('apSsid').value = cfg.ssid;
           if (cfg.auth !== undefined) document.getElementById('apAuth').value = cfg.auth;
           if (cfg.hidden !== undefined) document.getElementById('apHidden').checked = !!cfg.hidden;
+          if (cfg.webPassSet) document.getElementById('webPass').placeholder = 'Set - enter 8-63 characters to change';
+          if (cfg.webAuth !== undefined) document.getElementById('webAuth').checked = !!cfg.webAuth;
         } catch(e) {}
       }
       
+      async function saveWebAuth() {
+        const box = document.getElementById('webAuth');
+        const fd = new FormData();
+        fd.append('enabled', box.checked ? '1' : '0');
+        try {
+          const r = await fetch('/web-auth', {method: 'POST', body: fd});
+          toast(await r.text());
+          if (!r.ok) box.checked = !box.checked;
+        } catch(e) {
+          box.checked = !box.checked;
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function saveWebPass() {
+        const pass = document.getElementById('webPass').value;
+        if (pass.length < 8 || pass.length > 63 || pass.includes(':')) {
+          toast('Web password must be 8-63 characters, no :');
+          return;
+        }
+        const fd = new FormData();
+        fd.append('pass', pass);
+        try {
+          const r = await fetch('/web-pass', {method: 'POST', body: fd});
+          toast(await r.text());
+          if (r.ok) document.getElementById('webPass').value = '';
+        } catch(e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
       function toggleCard(cardId) {
         const card = document.getElementById(cardId);
         const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));

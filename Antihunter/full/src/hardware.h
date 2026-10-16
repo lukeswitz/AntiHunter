@@ -209,6 +209,11 @@ void setErasePSK(const String &key);
 bool erasePskUserSet();
 bool erasePskValid(const String &key);
 extern String erasePSK;
+bool webPassValid(const String &pass);
+String webPassEffective();
+void setWebPass(const String &pass);
+void setWebAuthEnabled(bool on);
+bool webPassCheck(const String &pass);
 
 // Battery Saver Functions
 void enterBatterySaver(uint32_t heartbeatIntervalMs = 300000);

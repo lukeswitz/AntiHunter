@@ -81,7 +81,7 @@ Run it at home, on a fence line, at an event, or off-grid on battery. No interne
 The flasher asks whether to erase the device first. Erase to clear saved settings. To flash from a terminal, see [Build & flash](#build--flash).
 
 **3. Connect to the node.**
-- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1.
+- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1. Log in as `admin` with the Wi-Fi password. Set a separate web password, or turn the login off, under System → Wi-Fi Access Point.
 - Headless: open a serial monitor at 115200 baud.
 
 **4. Set up the Meshtastic radio.**

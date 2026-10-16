@@ -9,6 +9,7 @@
 #include "campaign.h"
 #include "ble_class.h"
 #include <AsyncTCP.h>
+#include <WebAuthentication.h>
 #include <RTClib.h>
 #include <esp_timer.h>
 #include <algorithm>
@@ -351,6 +352,23 @@ static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack,
     return true;
 }
 
+static const char *WEB_USER = "admin";
+static const char *WEB_REALM = "AntiHunter";
+static std::mutex s_webAuthMutex;
+static String s_webAuthHash;
+static std::atomic<bool> s_webAuthOn{true};
+static AsyncAuthenticationMiddleware s_webAuth;
+
+void webAuthApply()
+{
+  String hash = generateDigestHash(WEB_USER, webPassEffective().c_str(), WEB_REALM);
+  {
+    std::lock_guard<std::mutex> lock(s_webAuthMutex);
+    s_webAuthHash = hash;
+  }
+  s_webAuthOn.store(prefs.getBool("webAuth", true));
+}
+
 void startWebServer()
 {
   if (!server) {
@@ -371,6 +389,22 @@ void startWebServer()
       }
       next();
     });
+    webAuthApply();
+    {
+      std::lock_guard<std::mutex> lock(s_webAuthMutex);
+      s_webAuth.setUsername(WEB_USER);
+      s_webAuth.setPasswordHash(s_webAuthHash.c_str());
+    }
+    s_webAuth.setRealm(WEB_REALM);
+    s_webAuth.setAuthType(AsyncAuthType::AUTH_DIGEST);
+    s_webAuth.setAuthFailureMessage("Login required: user admin");
+    s_webAuth.setAuthentificationFunction([](AsyncWebServerRequest *r) {
+      if (!s_webAuthOn.load()) return true;
+      if (r->client() && r->client()->remoteIP() == IPAddress(127, 0, 0, 1)) return true;
+      std::lock_guard<std::mutex> lock(s_webAuthMutex);
+      return r->authenticate(WEB_USER, s_webAuthHash.c_str(), WEB_REALM, true);
+    });
+    server->addMiddleware(&s_webAuth);
   }
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -2431,9 +2465,33 @@ void registerRemainingRoutes() {
     String json = "{";
     json += "\"ssid\":\"" + jsonEscape(ssid) + "\",";
     json += "\"auth\":" + String(prefs.getUChar("apAuth", 0)) + ",";
-    json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false");
+    json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false") + ",";
+    json += "\"webPassSet\":" + String(prefsGetString("webPass", "").length() > 0 ? "true" : "false") + ",";
+    json += "\"webAuth\":" + String(prefs.getBool("webAuth", true) ? "true" : "false");
     json += "}";
     req->send(200, "application/json", json);
+  });
+
+  server->on("/web-auth", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (!req->hasParam("enabled", true)) {
+          req->send(400, "text/plain", "Missing enabled parameter");
+          return;
+      }
+      bool on = req->getParam("enabled", true)->value().toInt() == 1;
+      setWebAuthEnabled(on);
+      saveConfiguration();
+      req->send(200, "text/plain", on ? "Login required" : "Login off - anyone on the Wi-Fi can use the web UI");
+  });
+
+  server->on("/web-pass", HTTP_POST, [](AsyncWebServerRequest *req) {
+      String pass = req->hasParam("pass", true) ? req->getParam("pass", true)->value() : String();
+      if (!webPassValid(pass)) {
+          req->send(400, "text/plain", "Web password must be 8-63 characters, no ':'");
+          return;
+      }
+      setWebPass(pass);
+      Serial.println("[WEB] Web password changed");
+      req->send(200, "text/plain", "Web password saved. Log in again as admin.");
   });
 
   server->on("/clear-results", HTTP_POST, [](AsyncWebServerRequest *req) {

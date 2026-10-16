@@ -1744,6 +1744,44 @@ static void handleConfigErasePsk(const String &command)
   sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:SET", true);
 }
 
+static void handleConfigWebPass(const String &command)
+{
+  String body = command.substring(16);
+  int lastColon = body.lastIndexOf(':');
+  String pass = (lastColon > 0) ? body.substring(0, lastColon) : "";
+  String current = (lastColon > 0) ? body.substring(lastColon + 1) : "";
+  if (!webPassValid(pass)) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:WEB_PASS:INVALID", true);
+    return;
+  }
+  if (!webPassCheck(current)) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:WEB_PASS:DENIED", true);
+    return;
+  }
+  setWebPass(pass);
+  Serial.println("[WEB] Web password changed");
+  sendToSerial1(nodeId + ": CONFIG_ACK:WEB_PASS:SET", true);
+}
+
+static void handleConfigWebAuth(const String &command)
+{
+  String body = command.substring(16);
+  int colon = body.indexOf(':');
+  String flag = (colon > 0) ? body.substring(0, colon) : "";
+  String current = (colon > 0) ? body.substring(colon + 1) : "";
+  if (flag != "0" && flag != "1") {
+    sendToSerial1(nodeId + ": CONFIG_ACK:WEB_AUTH:INVALID", true);
+    return;
+  }
+  if (!webPassCheck(current)) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:WEB_AUTH:DENIED", true);
+    return;
+  }
+  setWebAuthEnabled(flag == "1");
+  saveConfiguration();
+  sendToSerial1(nodeId + ": CONFIG_ACK:WEB_AUTH:" + (flag == "1" ? "ON" : "OFF"), true);
+}
+
 static void handleEraseCancel(const String &command)
 {
   String credential = (command.length() > 13 && command.charAt(12) == ':') ? command.substring(13) : "";
@@ -2315,9 +2353,11 @@ String meshRedactSecrets(const String &line)
   String cmd = meshExpandCommand(rest);
   int cut = rest.indexOf(':');
   if (cut < 0) return line;
-  if (cmd.startsWith("FACTORY_RESET:") || cmd.startsWith("AUTOERASE_ENABLE:")) cut = rest.lastIndexOf(':');
+  if (cmd.startsWith("FACTORY_RESET:") || cmd.startsWith("AUTOERASE_ENABLE:") ||
+      cmd.startsWith("CONFIG_WEB_AUTH:")) cut = rest.lastIndexOf(':');
   else if (!cmd.startsWith("ERASE_FORCE:") && !cmd.startsWith("ERASE_CANCEL:") &&
-           !cmd.startsWith("AUTOERASE_DISABLE:") && !cmd.startsWith("CONFIG_ERASE_PSK:")) return line;
+           !cmd.startsWith("AUTOERASE_DISABLE:") && !cmd.startsWith("CONFIG_ERASE_PSK:") &&
+           !cmd.startsWith("CONFIG_WEB_PASS:")) return line;
   return line.substring(0, line.length() - rest.length() + cut + 1) + "***";
 }
 
@@ -2338,6 +2378,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   }
   if (command.startsWith("CONFIG_CHANNELS:"))          handleConfigChannels(command);
   else if (command.startsWith("CONFIG_ERASE_PSK:"))     handleConfigErasePsk(command);
+  else if (command.startsWith("CONFIG_WEB_PASS:"))      handleConfigWebPass(command);
+  else if (command.startsWith("CONFIG_WEB_AUTH:"))      handleConfigWebAuth(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))     handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
   else if (command == "MESH_DEDUP_CLEAR")               handleMeshDedupClear();

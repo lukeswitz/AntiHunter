@@ -582,6 +582,8 @@ static uint32_t configSignature() {
     mixStr(prefsGetString("maclist", ""));
     mixStr(prefsGetString("apSsid", AP_SSID));
     mix(&hbEnabled, 1);
+    bool webAuthOn = prefs.getBool("webAuth", true);
+    mix(&webAuthOn, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
     mix(&vibAutoScanEnabled, 1);
@@ -689,6 +691,7 @@ void saveConfiguration() {
     configFile_w.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
     configFile_w.printf(" \"apSsid\":\"%s\",\n", jsonEscape(prefsGetString("apSsid", AP_SSID)).c_str());
     configFile_w.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
+    configFile_w.printf(" \"webAuth\":%s,\n", prefs.getBool("webAuth", true) ? "true" : "false");
     configFile_w.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile_w.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
     configFile_w.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
@@ -1012,6 +1015,10 @@ void loadConfiguration() {
         prefs.putBool("hbEnabled", hbEnabled);
     }
 
+    if (doc.containsKey("webAuth")) {
+        setWebAuthEnabled(doc["webAuth"].as<bool>());
+    }
+
     if (doc.containsKey("hbInterval")) {
         uint32_t minutes = doc["hbInterval"].as<uint32_t>();
         if (minutes < 1) minutes = 1;
@@ -1177,6 +1184,17 @@ bool waitForInitialConfig() {
             Serial.println("[CONFIG] Erase key rejected: needs 8-64 chars, no ':'");
         }
         doc.remove("erasePSK");
+    }
+
+    if (doc.containsKey("webPass")) {
+        String webPass = doc["webPass"].as<String>();
+        if (webPassValid(webPass)) {
+            setWebPass(webPass);
+            Serial.println("[CONFIG] Web password set");
+        } else {
+            Serial.println("[CONFIG] Web password rejected: needs 8-63 chars, no ':'");
+        }
+        doc.remove("webPass");
     }
 
     if (doc.containsKey("apPass")) {
@@ -2491,6 +2509,46 @@ static bool eraseCheck(const String &response, bool allowKey) {
         s_fails = 0;
         s_lockUntil = millis() + 600000;
         Serial.println("[ERASE] 5 wrong keys - erase commands locked for 10 min");
+    }
+    return false;
+}
+
+bool webPassValid(const String &pass) {
+    return pass.length() >= 8 && pass.length() <= 63 && pass.indexOf(':') < 0;
+}
+
+String webPassEffective() {
+    String pass = prefsGetString("webPass", "");
+    return pass.length() > 0 ? pass : prefsGetString("apPass", AP_PASS);
+}
+
+void setWebPass(const String &pass) {
+    prefs.putString("webPass", pass);
+    webAuthApply();
+}
+
+void setWebAuthEnabled(bool on) {
+    if (prefs.getBool("webAuth", true) != on) prefs.putBool("webAuth", on);
+    webAuthApply();
+    Serial.printf("[WEB] Login %s\n", on ? "required" : "off");
+}
+
+bool webPassCheck(const String &pass) {
+    static uint8_t s_fails = 0;
+    static uint32_t s_lockUntil = 0;
+    if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {
+        Serial.println("[WEB] Locked out after repeated wrong passwords");
+        return false;
+    }
+    if (eraseConstEq(pass, webPassEffective())) {
+        s_fails = 0;
+        s_lockUntil = 0;
+        return true;
+    }
+    if (++s_fails >= 5) {
+        s_fails = 0;
+        s_lockUntil = millis() + 600000;
+        Serial.println("[WEB] 5 wrong passwords - CONFIG_WEB_PASS locked for 10 min");
     }
     return false;
 }

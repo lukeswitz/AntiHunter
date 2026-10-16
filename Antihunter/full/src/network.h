@@ -80,6 +80,7 @@ extern volatile uint32_t apScanSuppressUntilMs;
 void initializeNetwork();
 void initializeMesh();
 void startWebServer();
+void webAuthApply();
 
 // Mesh communication
 void sendMeshNotification(const Hit &hit);
