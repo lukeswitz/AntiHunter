@@ -20,7 +20,9 @@ jobs:
         environment:
           - AntiHunter-c5-full
           - AntiHunter-c5-headless
-    
+          - AntiHunter-c5-full-selftest
+          - AntiHunter-c5-headless-selftest
+
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -40,7 +42,7 @@ jobs:
         python-version: '3.11'
     
     - name: Install PlatformIO
-      run: pip install --upgrade platformio
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
     
     - name: Build ${{ matrix.environment }}
       run: pio run -e ${{ matrix.environment }}
