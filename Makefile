@@ -1,11 +1,6 @@
 CPPCHECK := cppcheck
-CPPCHECK_FLAGS := --enable=all --std=c++17 \
-	--suppress=missingIncludeSystem \
-	--suppress=missingInclude \
-	--suppress=checkersReport \
-	--suppress=normalCheckLevelMaxBranches \
-	--suppress=checkLevelNormal \
-	--suppress=unmatchedSuppression \
+CPPCHECK_FLAGS := --enable=warning,style,performance,portability,unusedFunction --std=c++17 \
+	--check-level=exhaustive \
 	--suppress=useStlAlgorithm \
 	--inline-suppr \
 	-DPROGMEM= \
@@ -19,7 +14,11 @@ EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c \
 	--suppress=*:*/opendroneid.h --suppress=*:*/odid_wifi.h
 
-.PHONY: lint lint-full lint-headless build build-full build-headless clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-ble clean
+
+test-ble:
+	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_ble_class.cpp $(FULL_SRC)/ble_class.cpp -o /tmp/test_ble_class
+	/tmp/test_ble_class
 
 lint: lint-full lint-headless
 

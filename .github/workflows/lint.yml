@@ -18,14 +18,26 @@ jobs:
 
     - name: Install cppcheck 2.20
       run: |
+        sudo apt-get update
         sudo apt-get install -y cmake build-essential libpcre3-dev
-        curl -sL https://github.com/danmar/cppcheck/archive/refs/tags/2.20.0.tar.gz | tar xz
+        curl -sL -o cppcheck-2.20.0.tar.gz https://github.com/danmar/cppcheck/archive/refs/tags/2.20.0.tar.gz
+        echo "7be7992439339017edb551d8e7d2315f9bb57c402da50c2cee9cd0e2724600a1  cppcheck-2.20.0.tar.gz" | sha256sum -c -
+        tar xzf cppcheck-2.20.0.tar.gz
         cmake -S cppcheck-2.20.0 -B cppcheck-build -DCMAKE_BUILD_TYPE=Release
         cmake --build cppcheck-build -j"$(nproc)"
         sudo cmake --install cppcheck-build
 
     - name: Run cppcheck (full + headless)
       run: make lint
+
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+    - name: Run host unit tests
+      run: make test-ble
 
   build:
     runs-on: ubuntu-latest
@@ -49,10 +61,15 @@ jobs:
         python-version: '3.11'
 
     - name: Install PlatformIO
-      run: pip install --upgrade platformio
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
 
     - name: Build AntiHunter-full
       run: pio run -e AntiHunter-full
 
     - name: Build AntiHunter-headless
       run: pio run -e AntiHunter-headless
+
+    - name: Build selftest envs
+      run: |
+        pio run -e AntiHunter-full-selftest
+        pio run -e AntiHunter-headless-selftest

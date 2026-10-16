@@ -39,12 +39,12 @@ jobs:
 
     - name: Resolve what to build
       id: plan
+      env:
+        C5_BRANCH: ${{ github.event.inputs.c5_branch }}
+        RADAR_BRANCH: ${{ github.event.inputs.radar_branch }}
+        C5_VERSION: ${{ github.event.inputs.c5_version }}
+        RADAR_VERSION: ${{ github.event.inputs.radar_version }}
       run: |
-        C5_BRANCH="${{ github.event.inputs.c5_branch }}"
-        RADAR_BRANCH="${{ github.event.inputs.radar_branch }}"
-        C5_VERSION="${{ github.event.inputs.c5_version }}"
-        RADAR_VERSION="${{ github.event.inputs.radar_version }}"
-
         if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
           TAG="${GITHUB_REF#refs/tags/}"
           case "$TAG" in
@@ -65,10 +65,18 @@ jobs:
           echo "c5_branch=${C5_BRANCH}"
           echo "radar_branch=${RADAR_BRANCH}"
           echo "release=${RELEASE}"
-        } >> $GITHUB_OUTPUT
+        } >> "$GITHUB_OUTPUT"
 
         if [ -z "${C5_VERSION}" ] && [ -z "${RADAR_VERSION}" ]; then
           echo "Nothing to build: set c5_version and/or radar_version" >&2
+          exit 1
+        fi
+        if [ -n "${C5_VERSION}" ] && ! git ls-remote --exit-code --heads origin "${C5_BRANCH}" >/dev/null; then
+          echo "c5 branch ${C5_BRANCH} is not on origin - push it or set c5_branch" >&2
+          exit 1
+        fi
+        if [ -n "${RADAR_VERSION}" ] && ! git ls-remote --exit-code --heads origin "${RADAR_BRANCH}" >/dev/null; then
+          echo "radar branch ${RADAR_BRANCH} is not on origin - push it or set radar_branch" >&2
           exit 1
         fi
         echo "C5=${C5_VERSION:-skip} RADAR=${RADAR_VERSION:-skip}"
@@ -88,14 +96,16 @@ jobs:
 
     - name: Install PlatformIO
       # pyserial: the C5 envs load set_rtc_time.py, which imports serial at module scope
-      run: pip install --upgrade platformio pyserial
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip" pyserial
 
     - name: Build AntiHunter C5 full and headless
       if: steps.plan.outputs.c5_version != ''
+      env:
+        VERSION: ${{ steps.plan.outputs.c5_version }}
+        C5_BRANCH: ${{ steps.plan.outputs.c5_branch }}
       run: |
-        VERSION="${{ steps.plan.outputs.c5_version }}"
         mkdir -p release
-        git checkout -B ci-c5 "origin/${{ steps.plan.outputs.c5_branch }}"
+        git checkout -B ci-c5 "origin/${C5_BRANCH}"
 
         for VARIANT in full headless; do
           pio run -e "AntiHunter-c5-${VARIANT}"
@@ -106,10 +116,12 @@ jobs:
 
     - name: Build RadarNode C5
       if: steps.plan.outputs.radar_version != ''
+      env:
+        VERSION: ${{ steps.plan.outputs.radar_version }}
+        RADAR_BRANCH: ${{ steps.plan.outputs.radar_branch }}
       run: |
-        VERSION="${{ steps.plan.outputs.radar_version }}"
         mkdir -p release
-        git checkout -B ci-radar "origin/${{ steps.plan.outputs.radar_branch }}"
+        git checkout -B ci-radar "origin/${RADAR_BRANCH}"
 
         pio run -e RadarNode-c5
         SRC=".pio/build/RadarNode-c5/firmware.factory.bin"
@@ -118,8 +130,9 @@ jobs:
 
     - name: Stable release must exist before experimental assets attach to it
       if: startsWith(github.ref, 'refs/tags/')
+      env:
+        REL: ${{ steps.plan.outputs.release }}
       run: |
-        REL="${{ steps.plan.outputs.release }}"
         if ! git ls-remote --exit-code --tags origin "refs/tags/${REL}" >/dev/null; then
           echo "tag ${REL} is not on origin - push the stable tag before this one" >&2
           exit 1
@@ -132,13 +145,14 @@ jobs:
     - name: Generate checksums
       run: |
         cd release
-        sha256sum *.factory.bin > "SHA256SUMS-${GITHUB_REF_NAME}.txt"
-        cat "SHA256SUMS-${GITHUB_REF_NAME}.txt"
+        sha256sum -- *.factory.bin > "SHA256SUMS-${GITHUB_REF_NAME//\//-}.txt"
+        cat "SHA256SUMS-${GITHUB_REF_NAME//\//-}.txt"
 
     - name: Publish bins and manifests to main
+      env:
+        C5_VERSION: ${{ steps.plan.outputs.c5_version }}
+        RADAR_VERSION: ${{ steps.plan.outputs.radar_version }}
       run: |
-        C5_VERSION="${{ steps.plan.outputs.c5_version }}"
-        RADAR_VERSION="${{ steps.plan.outputs.radar_version }}"
         RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist"
 
         git config user.name "github-actions[bot]"
@@ -198,6 +212,7 @@ jobs:
         git commit -m "dist: experimental C5 ${C5_VERSION:-}${RADAR_VERSION:+ ${RADAR_VERSION}}"
         for i in 1 2 3 4 5; do
           git push origin HEAD:main && break
+          [ "$i" -lt 5 ] || { echo "push to main failed after ${i} attempts" >&2; exit 1; }
           echo "push rejected, rebasing on latest main (attempt ${i})"
           git fetch origin main
           git rebase origin/main || { git rebase --abort; exit 1; }

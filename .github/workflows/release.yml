@@ -20,15 +20,15 @@ jobs:
       id: get_version
       run: |
         TAG="${GITHUB_REF#refs/tags/}"
-        echo "version=${TAG}" >> $GITHUB_OUTPUT
+        echo "version=${TAG}" >> "$GITHUB_OUTPUT"
         # v*-beta* builds beta, plain v* builds main; every channel attaches to the release named by the stable tag
-        echo "release=${TAG%%-beta*}" >> $GITHUB_OUTPUT
+        echo "release=${TAG%%-beta*}" >> "$GITHUB_OUTPUT"
         if [[ "$TAG" == *-beta* ]]; then
-          echo "channel=beta" >> $GITHUB_OUTPUT
-          echo "branch=beta" >> $GITHUB_OUTPUT
+          echo "channel=beta" >> "$GITHUB_OUTPUT"
+          echo "branch=beta" >> "$GITHUB_OUTPUT"
         else
-          echo "channel=stable" >> $GITHUB_OUTPUT
-          echo "branch=main" >> $GITHUB_OUTPUT
+          echo "channel=stable" >> "$GITHUB_OUTPUT"
+          echo "branch=main" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Stable release must exist before a beta attaches to it
@@ -54,7 +54,7 @@ jobs:
           ${{ runner.os }}-pio-release-
 
     - name: Install PlatformIO
-      run: pip install --upgrade platformio
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
 
     - name: Build firmware and collect artifacts
       run: |
@@ -86,7 +86,7 @@ jobs:
         cp release/partitions.bin "publish/partitions-${VERSION}.bin"
         cp release/flashAntihunter.sh publish/
         cd publish
-        sha256sum *.bin flashAntihunter.sh > "SHA256SUMS-${VERSION}.txt"
+        sha256sum -- *.bin flashAntihunter.sh > "SHA256SUMS-${VERSION}.txt"
 
     - name: Update Dist bins and web flasher manifests
       run: |
@@ -106,12 +106,12 @@ jobs:
         mkdir -p docs/flasher
 
         CHANNEL="${{ steps.get_version.outputs.channel }}"
-        CHANNEL_TITLE="$(echo "${CHANNEL}" | sed 's/^./\U&/')"
+        CHANNEL_TITLE="${CHANNEL^}"
 
         # Manifest name carries the channel, and the body declares channel/variant
         # so docs/index.html can reject a manifest that does not match the selection.
         for VARIANT in full headless; do
-          VARIANT_TITLE="$(echo "${VARIANT}" | sed 's/^./\U&/')"
+          VARIANT_TITLE="${VARIANT^}"
           cat > "docs/flasher/manifest-${VARIANT}-${CHANNEL}.json" <<EOF
         {
           "name": "AntiHunter ${VARIANT_TITLE} - ${CHANNEL_TITLE} (${VERSION})",
@@ -158,11 +158,12 @@ jobs:
         mkdir -p docs/flasher
         cp /tmp/ah-flasher/manifest-*.json docs/flasher/
 
-        git add Dist/antihunter-*.bin Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
+        git add -A -- 'Dist/antihunter-*.bin' Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
         for i in 1 2 3 4 5; do
           git push origin "HEAD:${BRANCH}" && break
+          [ "$i" -lt 5 ] || { echo "push to ${BRANCH} failed after ${i} attempts" >&2; exit 1; }
           echo "push rejected, rebasing on latest ${BRANCH} (attempt ${i})"
           git fetch origin "${BRANCH}"
           git rebase "origin/${BRANCH}" || { git rebase --abort; exit 1; }
@@ -194,6 +195,7 @@ jobs:
         git commit -m "docs: flasher manifests for ${VERSION} (${CHANNEL})"
         for i in 1 2 3 4 5; do
           git push origin HEAD:main && break
+          [ "$i" -lt 5 ] || { echo "push to main failed after ${i} attempts" >&2; exit 1; }
           echo "push rejected, rebasing on latest main (attempt ${i})"
           git fetch origin main
           git rebase origin/main || { git rebase --abort; exit 1; }
