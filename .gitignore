@@ -19,3 +19,8 @@ scripts/ah_bench.py
 scripts/__pycache__/
 
 idf_component.yml
+managed_components/
+.dummy/
+sdkconfig.defaults
+sdkconfig.AntiHunter-*
+dependencies.lock

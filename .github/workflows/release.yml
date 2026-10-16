@@ -48,10 +48,10 @@ jobs:
     - name: Cache PlatformIO
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
       with:
-        path: ~/.platformio
-        key: ${{ runner.os }}-pio-release-${{ hashFiles('platformio.ini') }}
+        path: .pio/core
+        key: ${{ runner.os }}-pio-core-release-${{ hashFiles('platformio.ini') }}
         restore-keys: |
-          ${{ runner.os }}-pio-release-
+          ${{ runner.os }}-pio-core-release-
 
     - name: Install PlatformIO
       run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"

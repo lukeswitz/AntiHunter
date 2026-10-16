@@ -809,6 +809,8 @@ pio run -e AntiHunter-full -t upload               # Full: web UI on its own AP
 pio run -e AntiHunter-headless -t upload           # Headless: serial + mesh only
 ```
 
+The S3 builds use a project-local PlatformIO core in `.pio/core` (about 6 GB) and rebuild the Arduino ESP-IDF libraries once with `CONFIG_ESP_IPC_TASK_STACK_SIZE=2048`. The first build downloads the toolchain and compiles the libraries, which takes a few minutes; later builds reuse them. The global `~/.platformio` is not modified.
+
 Watch the serial output:
 
 ```bash
