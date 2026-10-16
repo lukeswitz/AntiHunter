@@ -2478,6 +2478,11 @@ void registerRemainingRoutes() {
           return;
       }
       bool on = req->getParam("enabled", true)->value().toInt() == 1;
+      String current = req->hasParam("current", true) ? req->getParam("current", true)->value() : String();
+      if (!webPassCheck(current)) {
+          req->send(403, "text/plain", "Wrong current web password");
+          return;
+      }
       setWebAuthEnabled(on);
       saveConfiguration();
       req->send(200, "text/plain", on ? "Login required" : "Login off - anyone on the Wi-Fi can use the web UI");
@@ -2487,6 +2492,11 @@ void registerRemainingRoutes() {
       String pass = req->hasParam("pass", true) ? req->getParam("pass", true)->value() : String();
       if (!webPassValid(pass)) {
           req->send(400, "text/plain", "Web password must be 8-63 characters, no ':'");
+          return;
+      }
+      String current = req->hasParam("current", true) ? req->getParam("current", true)->value() : String();
+      if (!webPassCheck(current)) {
+          req->send(403, "text/plain", "Wrong current web password");
           return;
       }
       setWebPass(pass);

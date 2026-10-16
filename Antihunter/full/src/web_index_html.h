@@ -1124,6 +1124,8 @@ R"HTML(
             <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save Wi-Fi Settings</button>
 
             <hr>
+            <label style="font-size:11px;">Current web password (needed for the changes below)</label>
+            <input type="password" id="webPassCur" maxlength="63" placeholder="Wi-Fi password if no web password is set" style="margin-bottom:8px;">
             <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()">Require web login (user admin)</label>
             <p class="card-sub" style="margin:4px 0 8px;">Off: anyone on this Wi-Fi can use the web UI.</p>
             <label style="font-size:11px;">Web login password (user admin)</label>
@@ -3121,12 +3123,20 @@ R"HTML(
       
       async function saveWebAuth() {
         const box = document.getElementById('webAuth');
+        const cur = document.getElementById('webPassCur').value;
+        if (!cur) {
+          box.checked = !box.checked;
+          toast('Enter the current web password first');
+          return;
+        }
         const fd = new FormData();
         fd.append('enabled', box.checked ? '1' : '0');
+        fd.append('current', cur);
         try {
           const r = await fetch('/web-auth', {method: 'POST', body: fd});
           toast(await r.text());
           if (!r.ok) box.checked = !box.checked;
+          else document.getElementById('webPassCur').value = '';
         } catch(e) {
           box.checked = !box.checked;
           toast('Error: ' + e.message);
@@ -3139,12 +3149,21 @@ R"HTML(
           toast('Web password must be 8-63 characters, no :');
           return;
         }
+        const cur = document.getElementById('webPassCur').value;
+        if (!cur) {
+          toast('Enter the current web password first');
+          return;
+        }
         const fd = new FormData();
         fd.append('pass', pass);
+        fd.append('current', cur);
         try {
           const r = await fetch('/web-pass', {method: 'POST', body: fd});
           toast(await r.text());
-          if (r.ok) document.getElementById('webPass').value = '';
+          if (r.ok) {
+            document.getElementById('webPass').value = '';
+            document.getElementById('webPassCur').value = '';
+          }
         } catch(e) {
           toast('Error: ' + e.message);
         }

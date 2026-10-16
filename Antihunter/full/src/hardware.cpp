@@ -2548,7 +2548,7 @@ bool webPassCheck(const String &pass) {
     if (++s_fails >= 5) {
         s_fails = 0;
         s_lockUntil = millis() + 600000;
-        Serial.println("[WEB] 5 wrong passwords - CONFIG_WEB_PASS locked for 10 min");
+        Serial.println("[WEB] 5 wrong passwords - web login changes locked for 10 min");
     }
     return false;
 }
