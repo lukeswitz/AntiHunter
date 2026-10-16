@@ -73,8 +73,6 @@ Commands are case-insensitive and accept the alias in the Alias column, e.g. `@A
 | `AUTOERASE_DISABLE` | `AE0` | `answer` | | `@AH01 AUTOERASE_DISABLE:<answer>` |
 | `AUTOERASE_STATUS` | `AEQ` | | | `@AH01 AUTOERASE_STATUS` |
 | `CONFIG_ERASE_PSK` | `CEP` | `new:current`, 8-64 chars, no `:` | `CONFIG_ACK:ERASE_PSK:SET\|DENIED\|INVALID` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey:<current>` |
-| `CONFIG_WEB_PASS` | | `new:current`, 8-63 chars, no `:`. Full only. `current` is the web password, or the AP password until one is set | `CONFIG_ACK:WEB_PASS:SET\|DENIED\|INVALID` | `@AH01 CONFIG_WEB_PASS:myWebPass1:<current>` |
-| `CONFIG_WEB_AUTH` | | `0\|1:current`. Full only. `0` turns the web login off, `1` on | `CONFIG_ACK:WEB_AUTH:ON\|OFF\|DENIED\|INVALID` | `@AH01 CONFIG_WEB_AUTH:0:<current>` |
 | `FACTORY_RESET` | `FR` | `FULL\|CONFIG\|DATA:answer` | `FACTORY_RESET_ACK:<tier>\|DENIED\|BAD_TIER\|BUSY` | `@AH01 FACTORY_RESET:FULL:<answer>` |
 | `VIBRATION_ON` / `VIBRATION_OFF` | `V1` / `V0` | | | `@AH01 VIBRATION_ON` |
 | `VIBRATION_STATUS` | `VQ` | | | `@AH01 VIBRATION_STATUS` |
