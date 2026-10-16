@@ -405,6 +405,7 @@ void startWebServer()
       return r->authenticate(WEB_USER, s_webAuthHash.c_str(), WEB_REALM, true);
     });
     server->addMiddleware(&s_webAuth);
+    Serial.printf("[WEB] Login %s\n", s_webAuthOn.load() ? "required" : "off");
   }
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -2484,7 +2485,6 @@ void registerRemainingRoutes() {
           return;
       }
       setWebAuthEnabled(on);
-      saveConfiguration();
       req->send(200, "text/plain", on ? "Login required" : "Login off - anyone on the Wi-Fi can use the web UI");
   });
 

@@ -10,7 +10,7 @@ Back to the [README](../README.md).
 > Every request must address the node by its own IP (`192.168.4.1` on the AP, or its station IP); the node's own loopback requests from the scheduler are allowed. The server returns `403` when the `Host` header names anything else, when `Sec-Fetch-Site` is `cross-site` or `same-site`, or when `Origin` is not `http://<Host>`. Responses carry no CORS headers. A page on another site can't read from the node or send it commands, and DNS-rebinding hostnames are refused.
 
 > [!IMPORTANT]
-> Every route needs HTTP Digest login, user `admin`, realm `AntiHunter`. The password is the web password, or the AP password until one is set (`/web-pass` or `webPass` in the flasher config). Without valid credentials the server returns `401` with a `WWW-Authenticate: Digest` challenge; browsers ask once and remember the login. The scheduler's loopback requests are exempt. Turn the login off with `/web-auth` or `"webAuth":false` in the config; then anyone on the AP can use the web UI. Neither setting is available over mesh.
+> Every route needs HTTP Digest login, user `admin`, realm `AntiHunter`. The password is the web password, or the AP password until one is set (`/web-pass` or `webPass` in the flasher config). Without valid credentials the server returns `401` with a `WWW-Authenticate: Digest` challenge; browsers ask once and remember the login. The scheduler's loopback requests are exempt. Turn the login off with `/web-auth` or `"webAuth":false` in the flasher config (stored in NVS, not in the SD config file); then anyone on the AP can use the web UI. Neither setting is available over mesh.
 
 ### Core
 
@@ -205,7 +205,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/rf-config` | POST | `bandMode` (0-2) | **C5 only.** Band: 0=2.4GHz, 1=5GHz, 2=both. Also returned by GET, and accepted on `/config` GET/POST and in the serial `CONFIG:` JSON |
 | `/wifi-config` | GET | - | Wi-Fi AP settings (JSON: `ssid`, `auth`, `hidden`, `webPassSet`, `webAuth`; passwords are not returned) |
 | `/web-pass` | POST | `pass` (8-63, no `:`), `current` | Set the web login password. `current` is the web password, or the AP password until one is set. `400` invalid, `403` wrong current password; 5 wrong tries lock `/web-pass` and `/web-auth` for 10 min |
-| `/web-auth` | POST | `enabled` (0/1), `current` | Turn the web login off (`0`) or on (`1`); saved to the SD config. `400` missing parameter, `403` wrong current password |
+| `/web-auth` | POST | `enabled` (0/1), `current` | Turn the web login off (`0`) or on (`1`); stored in NVS, not in the SD config. `400` missing parameter, `403` wrong current password |
 | `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63, or empty to keep the current one), `auth` (0=WPA2/WPA3, 1=WPA2), `hidden` (0/1) | Update AP credentials and mode (triggers reboot). `hidden=1` stops the SSID beacon; clients must then enter the SSID manually and will probe for it by name, so the network name travels with them. Auth remains the access control |
 
 </details>
