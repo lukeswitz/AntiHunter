@@ -13,7 +13,8 @@ Thank you for your interest in contributing to AntiHunter. **Use the provided te
 ```bash
 git clone https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
-pio run
+pio run -e AntiHunter-full
+pio run -e AntiHunter-headless
 ```
 
 ### Code Style
