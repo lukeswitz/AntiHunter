@@ -823,7 +823,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long movement must continue before it reports">Movement needed before alerting (s)</label>
-                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="12">
+                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="8">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long stillness must last before it says all-clear">Stillness before all-clear (s)</label>
