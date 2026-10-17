@@ -346,7 +346,7 @@ bool csiAddPeerMac(const uint8_t *m) {
 
 static void csiAnnounceSelf() {
     uint8_t m[6];
-    if (esp_wifi_get_mac(WIFI_IF_AP, m) != ESP_OK) return;
+    if (esp_wifi_get_mac(WIFI_IF_STA, m) != ESP_OK) return;
     char buf[18];
     snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
     meshEnqueuePrio(getNodeId() + ": CSI_PEER:" + String(buf), PRIO_CONTROL);
@@ -1284,7 +1284,7 @@ static bool csiArmCsi(uint8_t ch) {
 }
 
 static bool csiRadioStart(uint8_t ch) {
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_MODE_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
 
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
