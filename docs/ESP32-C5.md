@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. The C5 build is on the web flasher's **Experimental** channel; the S3 build on `main`/`beta` is the stable one.
+> **Testing phase.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. The C5 build is on the web flasher's **Experimental** channel; the S3 build on `main` is the stable one.
 
 The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band Wi-Fi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
 
@@ -24,8 +24,10 @@ The node has one radio, so it works on one band at a time. Pick the band and it 
 | 5 GHz | `1` | channels above 14 |
 | both | `2` | everything on your channel list |
 
-If your channel list has nothing in the band you pick, the node adds the usual channels for
-that band itself. Edit the list under RF Settings.
+The default is `2` (both). Bands `1` and `2` add 36/40/44/48/149/153/157/161/165 if your
+channel list has no 5 GHz channel. Band `2` also adds 1/6/11 if it has no 2.4 GHz channel.
+Band `0` adds nothing; if the list has no 2.4 GHz channel it scans the whole list. Edit the
+list under RF Settings.
 
 Change it in the web interface under RF Settings (the Band row appears only on C5 hardware),
 or over mesh with `@<NODE> CONFIG_BAND:<0|1|2>`. Stop any running scan first. The setting is
@@ -55,7 +57,7 @@ Same pads as the S3 node, different GPIO numbers. No wiring change on an assembl
 
 ## Build & Flash
 
-**Web flasher** — [open it](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, tick the acknowledgement, then Connect & Flash.
+**Web flasher** — [open it](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, check the acknowledgment box, then Connect & Flash.
 
 **From source:**
 
@@ -82,9 +84,9 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 room a C5 separates movement from background less cleanly than an S3. The cause is still
 open. Prefer an S3 where detection matters.
 
-The default sensitivity differs from the S3's and is not interchangeable with it: the C5
-reads a higher idle level, so an S3 value silences it and a C5 value floods an S3. Each chip
-carries its own default.
+The C5 build's compiled default sensitivity is 0.020; the S3 build on `beta` uses 0.140.
+The values are not interchangeable: the C5 reads a higher idle level, so an S3 value
+silences it and a C5 value floods an S3.
 
 Set sensitivity from the room: read it empty, read it with someone walking, set between the
 two. If they overlap, move the node. `CSI_RECAL` restores the default.
@@ -98,7 +100,9 @@ fields the firmware reads. Nothing below is needed to set up or run a node.
 
 ### Open upstream issues
 
-Open bugs in Espressif's CSI support on C5/C61, none with a fix:
+Espressif CSI issues on C5/C61. #18982, #14271 and esp-csi#258 are open. #18118 was closed
+on 2026-02-26 as fixed by commit aa097c8e. #18493 was closed on 2026-04-23 as a hardware
+limit.
 
 - [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
   L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
@@ -153,8 +157,9 @@ The decoder relies on four documented properties of the C5 CSI path. Source:
   reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real for that layout. The measured C5
   L-LTF payload does not match it and takes the 12-bit path; see esp-idf#18982 above.
 - "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes
-  of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips two
-  complex words, four bytes, when the flag is set.
+  of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips the
+  first four bytes when the flag is set: one 4-byte subcarrier on the 106-byte L-LTF path,
+  two 2-byte subcarriers otherwise.
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
   valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
   in the status line; `csiRequireCeVld` gates on it.
