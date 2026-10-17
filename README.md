@@ -356,7 +356,7 @@ Tells you when something moves nearby, even through walls. The web UI marks it a
 | Devices that must agree | How many devices must see the movement at the same time | 2 |
 | Trigger level | Lower catches smaller movement | set by sensitivity |
 | Packets in a row before alerting | Consecutive readings above the trigger before a device counts as moving | 3 |
-| Listen only, never transmit | The node never sends probes. Turn off only if it sees too little Wi-Fi | On |
+| Listen only, never transmit | The node never sends probes or null-data polls. Turn off only if it sees too little Wi-Fi | On |
 | Include randomized-MAC devices | Also listen to phones and watches, not just routers | On |
 
 </details>
@@ -364,7 +364,7 @@ Tells you when something moves nearby, even through walls. The web UI marks it a
 **False alarms with nobody there?** Turn on **Per-packet score to serial**, watch the `sig` numbers while the room is empty, and set Trigger level just above the highest one.
 
 > [!WARNING]
-> **This mode can transmit if you let it.** Off by default. If you turn off **Listen only, never transmit**, the node sends Wi-Fi probe requests when it hears too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.
+> **This mode can transmit if you let it.** Off by default. If you turn off **Listen only, never transmit**, the node sends Wi-Fi probe requests when it hears too little traffic to measure, and null-data frames to stations on its AP and to tracked links. Anyone nearby can see them. Check local rules before turning it on.
 
 ---
 
@@ -803,7 +803,7 @@ cd AntiHunter
 pio device list                                    # list connected devices
 ```
 
-Flash one of the two builds:
+Flash one of the two builds. On `feat/c5` the envs are `AntiHunter-c5-full` and `AntiHunter-c5-headless`; the S3 envs below build from `main` or `beta`.
 
 ```bash
 pio run -e AntiHunter-full -t upload               # Full: web UI on its own AP
