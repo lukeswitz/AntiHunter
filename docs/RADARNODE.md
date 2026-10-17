@@ -1,7 +1,7 @@
 # RadarNode
 
 > [!WARNING]
-> **Experimental.** Test build `v0.1.0-radarexp2` is published as a binary: the web flasher's Experimental channel (RadarNode) and option 3 in `Dist/flashAntihunter.sh`. Its source branch is not public, so this repository can't build it.
+> **Experimental.** Test build `v0.1.0-radarexp2` is published as a binary: the web flasher's Experimental channel (RadarNode) and channel 3 (Experimental) then RadarNode in `Dist/flashAntihunter.sh`. Its source branch is not public, so this repository can't build it.
 
 A 24GHz radar node that detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
 
@@ -60,8 +60,8 @@ XIAO ESP32-C5 on the standard AntiHunter PCB. The HLK-LD2451 takes the RTC's foo
 
 | Function | Pin | GPIO | Notes |
 |---|---|---|---|
-| Mesh UART TX→ | D3 | 7 | to Meshtastic radio RX |
-| Mesh UART RX← | D4 | 23 | from Meshtastic radio TX |
+| Mesh UART RX← | D3 | 7 | from Meshtastic radio TX |
+| Mesh UART TX→ | D4 | 23 | to Meshtastic radio RX |
 | Radar RX← | D2 | 25 | from HLK **TX** — old RTC **Data**/SDA pad |
 | Radar TX→ | D5 | 24 | to HLK **RX** — old RTC **Clock**/SCL pad |
 | GPS RX← | D7 | 12 | from GPS TX (SoftwareSerial) |
@@ -94,16 +94,16 @@ Serial at boot confirms the link:
 
 ```
 [RADAR] Starting sensor RX=GPIO25 TX=GPIO24 @ 115200
-[RADAR] after reset -> maxDist=60m dir=2 minSpd=1km/h
+[RADAR] restore saved config ... -> maxDist=<m>m dir=<d> minSpd=<s>km/h delay=<s>s trig=<n> snr=<n>
 ```
 
-`maxDist=0 ... (0/1=no-response)` means the sensor is not answering — check TX/RX orientation first, then that power and ground come from the fan rail rather than the RTC header, then whether the 5 V rail holds under load.
+If the restore line never appears, the sensor is not answering — check TX/RX orientation first, then that power and ground come from the fan rail rather than the RTC header, then whether the 5 V rail holds under load.
 
 ---
 
 ## Build & Flash
 
-Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Experimental → RadarNode) or `Dist/flashAntihunter.sh` option 3. Building from source needs the RadarNode branch, which is not published.
+Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Experimental → RadarNode) or `Dist/flashAntihunter.sh` channel 3 (Experimental) then RadarNode. The binary is on the `main` branch. Building from source needs the RadarNode branch, which is not published.
 
 ---
 
@@ -111,12 +111,12 @@ Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Exp
 
 The node hosts its own access point. Connect and browse to `http://192.168.4.1/`.
 
-The default AP name is `RN-` plus the last MAC bytes; SSID and password are changeable in Config. The node ID is `RN` plus four hex digits.
+The default AP name is `RN-` plus the last MAC bytes; SSID and password are changeable in Config. The node ID is `RN` plus three random digits (`RN100`–`RN999`).
 
 | Panel | Shows |
 |---|---|
 | Scope | Live PPI sweep — range rings to 100 m, 20° field of view, target track and callout |
-| Distance / Speed / Heatmap | Rolling detection history |
+| Activity (Timeline / Heatmap / Distance) | Rolling detection history |
 | RF Enrichment | Candidates from the last sweep — score, band, MAC, name, manufacturer, signal bars, dBm |
 | Traffic Baseline | Learning state and how current activity compares to the learned ambient |
 | DiGI Mesh | Nodes seen on the mesh, typed `RADAR` or `DIGI` |
@@ -138,9 +138,9 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 
 | Setting | Range | Default | Meaning |
 |---|---|---|---|
-| Max Distance | 1–100 m | 60 | Ignore targets beyond this range |
-| Direction | away / towards / both | both | Which way a target must travel to count |
-| Min Speed | 0–250 km/h | 1 | Slower targets are ignored |
+| Max Distance | 10–100 m | 80 | Ignore targets beyond this range |
+| Direction | away / toward / both | both | Which way a target must travel to count |
+| Min Speed | 0–120 km/h | 1 | Slower targets are ignored |
 | Report Delay | 0–255 | 1 | Sensor-side hold before reporting |
 
 ### Sensitivity
@@ -186,7 +186,7 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 | `RADAR_CONFIG:DIST=<m> SPD=<m/s> ANG=<deg> CLS=<0-2>` | Set alarm thresholds | `RADAR_CONFIG_ACK:OK …` or `:ERR` |
 | `TIME_SYNC_REQ:` | Clock sync | `TIME_SYNC_RESP:<epoch>:0:<micros>:0` |
 
-`RADAR_CONFIG` bounds: `DIST` 0–200 m, `SPD` 0–50 m/s, `ANG` 0–90°, `CLS` 0–2. Out of range returns `RADAR_CONFIG_ACK:ERR Invalid params` and changes nothing.
+`RADAR_CONFIG` bounds: `DIST` above 0 up to 200 m, `SPD` above 0 up to 50 m/s, `ANG` above 0 up to 90°, `CLS` 0–2. Out of range returns `RADAR_CONFIG_ACK:ERR Invalid params` and changes nothing.
 
 `ANG` narrows the alarm to targets within `±ANG` of boresight. `CLS` restricts it to one class — `0` any, `1` person, `2` vehicle. Because the class is voted over a rolling history, the first frames of a new track read `UNKNOWN` and will not alarm while `CLS` is non-zero.
 
@@ -197,12 +197,12 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 ```
 <NODEID>: STARTUP: System initialized GPS:<state> TEMP: <c>C / <f>F
 <NODEID>: STATUS: TYPE:RADAR RADAR:<state> SCAN:<Y|N> GPS:<state> Temp:<c>C Up:<s> DETS:<n> ALMS:<n>
-<NODEID> DET <dist>m <speed>km/h <angle>° <twd|awy> <CLASS>[ ALARM]
-<NODEID> SCAN done: <n> WiFi <n> BLE <n> moving
+<NODEID> DET <dist>m <speed>km/h <angle>° <twd|awy> <CLASS>[ ALM]
+<NODEID> SCAN done: <n> WiFi <n> BLE <n> moving +<lag>ms
 <NODEID> CAND<1-3> <MAC> <rssi>dBm <WiFi|BLE> [label][ mov]
 ```
 
-`TYPE:RADAR` is how the RadarNode's own mesh list and the Command Center tell a RadarNode from a DIGI node. A peer reporting no `TYPE` field is treated as DIGI. DIGI firmware does not read the field.
+`TYPE:RADAR` is how the RadarNode's own mesh list and the Command Center tell a RadarNode from a DIGI node. A peer with no `TYPE` field is typed `RADAR` if it reports a `RADAR:` field, otherwise DIGI. DIGI Full firmware reads both fields for its fleet list; Headless does not.
 
 At most **three** candidates are sent per detection, ranked by score, to bound mesh traffic.
 
