@@ -29,11 +29,14 @@ Field deployment case with external GPS.
 | Back cover | `BackCover.stl` |
 | Front cover, open fan | `FrontCover-Open-Fan.stl` |
 | Front cover, hidden fan | `FrontCover-Hidden-Fan.stl` |
+| Front cover, hidden 10 mm fan | `FrontCover-Hidden-Fan-10mm.stl` |
 | Battery enclosure bracket | `universalbracket-for-battery-enclousure.stl` |
 | Fast-charge main housing | `FastCharge enlosure/Main-Housing-USBFast-Version.stl` |
 | Fast-charge battery housing | `FastCharge enlosure/Battery-Housing-USBFast-with-side-hole.stl`, `…-no-side-hole.stl` |
 | Side-charge main housing | `SideCharge enclosure/Main-Housing-SideCharge-Version.stl` |
 | Side-charge battery housing | `SideCharge enclosure/Battery-Housing-SideCharge.stl` |
+| Side-charge full housing | `SideCharge enclosure/FullSideChargeHousing.stl` |
+| Side-charge one-piece housing | `SideCharge enclosure/One-Piece-Housing-SideCharge-Version.stl` |
 
 ### Extensions
 
