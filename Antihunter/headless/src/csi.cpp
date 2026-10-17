@@ -265,7 +265,7 @@ static volatile uint8_t g_lenFmt[CSI_LEN_SLOTS];
 
 static void csiLenSeen(uint16_t len, uint8_t fmt) {
     for (uint8_t i = 0; i < CSI_LEN_SLOTS; i++) {
-        if (g_lenCnt[i] && g_lenVal[i] == len && g_lenFmt[i] == fmt) { g_lenCnt[i]++; return; }
+        if (g_lenCnt[i] && g_lenVal[i] == len && g_lenFmt[i] == fmt) { g_lenCnt[i] = g_lenCnt[i] + 1; return; }
     }
     for (uint8_t i = 0; i < CSI_LEN_SLOTS; i++) {
         if (!g_lenCnt[i]) { g_lenVal[i] = len; g_lenFmt[i] = fmt; g_lenCnt[i] = 1; return; }
