@@ -4,7 +4,9 @@
 
 Send `@<NODE> CMD` or `@ALL CMD`. Node ID: 2-5 chars, A-Z 0-9. `secs`: 0-86400. `mode`: `0` Wi-Fi, `1` BLE, `2` both. `FOREVER`: run until `STOP`.
 
-Commands are case-insensitive and accept the alias in the Alias column, e.g. `@AH01 ts:AA:BB:CC:DD:EE:FF:60` = `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60`; aliases work only on `@`-addressed lines.
+Commands are case-insensitive and accept the alias in the Alias column, e.g. `@AH01 ts:AA:BB:CC:DD:EE:FF:60` = `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60`.
+
+A line runs only when it starts with `@<NODE>` or `@ALL`, then a space, then the command; lines without the address are ignored, on mesh and on USB serial. The command must be the exact name or alias, alone or followed by `:` and its arguments; anything else is ignored with no reply (`@AH01 INCIDENTSX` does nothing, `@AH01 INCIDENTS:5` runs).
 
 ### Core
 
