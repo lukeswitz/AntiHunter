@@ -569,7 +569,9 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h3>7.4 Quiet-ops settings</h3>
   <ul>
-    <li><b>Screen off</b> and <b>LED off</b> removes the visual signature and saves power. Physically removing the Heltec screen saves more.</li>
+    <li><b>Screen off</b> and <b>LED off</b> removes the visual signature and saves power. Leave the screen in place and run <code>python3 scripts/meshtastic_config.py --screen off --led off</code>.</li>
+    <li><b>Assembly:</b> the Heltec screen does not need to come off. Unscrew the three screws under it, hold the screen back to reach the pins near the glass and flex cable, solder them, then put the screen back and refit the screws.</li>
+    <li><b>Screenless node (optional):</b> the screen can be removed permanently, but this is advanced and at your own risk. Heltec states the display is soldered on and publishes no removal procedure, so there are no vendor steps to follow. Without a screen, configure the node over serial: set the pairing PIN with <code>python3 scripts/meshtastic_config.py --pin NNNNNN</code> (6 digits, or <code>none</code>), since <code>random</code> would show the PIN on the now-absent screen. The same script, or the Meshtastic serial CLI, configures everything else.</li>
     <li><b>BLE off</b> on the radio removes its Bluetooth signature. Set a pairing PIN first if you intend to turn it back on later.</li>
     <li><b>Headless firmware</b> on the node gives no Wi-Fi AP at all.</li>
   </ul>
