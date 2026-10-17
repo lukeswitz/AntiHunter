@@ -13,7 +13,7 @@
 [![Code Quality](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml)
 [![PlatformIO CI](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml)
 [![CodeQL](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql)
-[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
+[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter)
 
 </div>
 
@@ -466,7 +466,7 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 | **Sensor Alerts** | Vibration sensing and what it triggers |
 | **Secure Data Destruction** | Erase key, setup and erase delays, vibration count and window, cooldown |
 | **Factory Wipe** | Clears settings and stored data back to defaults |
-| **Battery Saver Mode** | Stops scans and turns BLE off, drops the CPU to 80 MHz with light sleep, and polls GPS once a minute. Mesh commands, heartbeats, and vibration alerts keep working |
+| **Battery Saver Mode** | Stops scans and turns BLE off, drops the CPU to 80 MHz, and polls GPS once a minute. Mesh commands, heartbeats, and vibration alerts keep working |
 | **Accent Colors** | Recolors the destructive controls and Sentinel banners. Stored in the browser |
 
 <img width="800" height="731" alt="Settings" src="https://github.com/user-attachments/assets/56587f1b-7759-4d1f-adb1-edf488105e0b" />
@@ -480,14 +480,14 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 ### Field controls
 
 - **Allowlist** - devices that Target Scan and Baseline ignore. Scan tab → **Allow list** tab next to Targets, one MAC per line.
-- **Privacy Mode** - the Privacy button (Results, System, and Data tabs) hides MACs, GPS, and SSIDs in the web UI for screenshots. Exported files keep them.
+- **Privacy Mode** - the Privacy button (Results, System, Data, and Sentinel tabs) masks MACs and GPS and replaces SSIDs with hashes in the web UI for screenshots. Exported files keep them.
 - **Vibration trigger** - starts a scan when the node is moved. Full: System tab → Sensor Alerts. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>`:
 
   | Part | Value |
   |------|-------|
   | on | `1` on, `0` off |
   | scan | `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target, `5` drone, `6` deauth, `7` baseline, `8` packet capture |
-  | secs | Scan length in seconds. `0` runs until `STOP` |
+  | secs | Scan length in seconds. `0` runs until `STOP`, except scan 8 (packet capture), which needs a duration |
   | cooldown | Seconds to wait before the next trigger, 5-86400 |
 
   Examples:
@@ -511,7 +511,7 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
   Headless runs entries only once its clock is set, from GPS or `SETTIME:<unix seconds>` on USB serial.
 - **Campaigns** - tags a block of work so its logs can be pulled out later. While a campaign runs, every SD log line carries `[C:<name>]`, and start and stop times go to `/campaigns.csv`. It survives a reboot. Full: Data tab → name → **Start**; tick other mesh nodes to start them too. A **REC** badge in the header shows the active campaign; click it to stop. Review: pick the campaign in the Data tab to filter every dataset, **Export campaign** downloads all its rows in one file. Mesh `STATUS` adds `Camp:<name>`. Both builds, over mesh: `@AH01 CAMPAIGN_START:site-a`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `scripts/campaign_report.py <sd_dir> --campaign <name>` summarizes a copied SD card per file for that campaign.
 - **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
-- **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, enables light sleep, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
+- **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
 - **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → RF Settings → Wi-Fi Access Point → **Hidden network**.
 - **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to remount now. `:NOW` erases the card only if every mount attempt fails.
 
@@ -539,7 +539,7 @@ Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE
 
 5 wrong keys or answers lock erase commands for 10 minutes, on the web and over mesh.
 
-- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations required** vibrations within the **Detection window** start the erase countdown. Cancel with `@AH01 ERASE_REQUEST`, then `@AH01 ERASE_CANCEL:<answer>`
+- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations Required** vibrations within the **Detection Window** start the erase countdown. Cancel with `@AH01 ERASE_REQUEST`, then `@AH01 ERASE_CANCEL:<answer>`
 - **Decoy file:** after the wipe, the node erases its settings and SD files, then writes `/weather-air-feed.txt` with a weather-monitor error message
 
 > [!WARNING]
