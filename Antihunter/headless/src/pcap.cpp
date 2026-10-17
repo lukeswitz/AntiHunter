@@ -496,7 +496,7 @@ static void pcapApplyRadioBand(uint8_t band) {
 #endif
 
 static bool pcapRadioStartWifi() {
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_MODE_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
 
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
