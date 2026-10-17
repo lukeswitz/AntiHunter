@@ -89,7 +89,7 @@ The flasher asks whether to erase the device first. Erase to clear saved setting
 
 **5. Lock it down.**
 <a id="before-you-deploy"></a>
-- Change the AP name and password under RF Settings. Every unit ships with the same published defaults, so anyone can join an unchanged node.
+- Change the AP name and password under System → Wi-Fi Access Point. Every unit ships with the same published defaults, so anyone can join an unchanged node.
 - Set the node ID in the web UI, or with `CONFIG_NODEID` over mesh.
 - On the radio, set the region and a new BLE pairing pin: `python3 scripts/meshtastic_config.py --region US --pin 481920` (use your region and your own 6-digit pin). Then in the Meshtastic app, under Channels, make your own encrypted channel primary and turn the public channel off.
 - Set your erase key. Wipe is off until you do. See [Secure data destruction](#secure-data-destruction).
@@ -442,7 +442,7 @@ Both builds share the detectors and scan engine. Full adds a Wi-Fi access point 
 
 ### Web UI
 
-The web UI has four tabs: **Scan**, **Results**, **System**, and **Data** (plus **Sentinel** on Beta). On the Scan tab, pick the scan, the radio, and how long, then select **Start Scan**. Results show on the Results tab and save to SD. **Schedule this scan** runs the current scan at a set time.
+The web UI has five tabs: **Scan**, **Results**, **System**, **Data**, and **Sentinel**. On the Scan tab, pick the scan, the radio, and how long, then select **Start Scan**. Results show on the Results tab and save to SD. **Schedule this scan** runs the current scan at a set time.
 
 <p align="center">
 <img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
@@ -461,7 +461,8 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 |---|---|
 | **System Diagnostics** | Three subtabs, all fed from `GET /diag`. **Overview** - uptime, Wi-Fi and BLE frame counts, target hits, unique devices, CPU temperature. **Hardware** - last reset and previous uptime, results restored, free and minimum-free internal heap, scan stack headroom, SD card, GPS, RTC, and vibration sensor. **Network** - AP address, mesh state, Wi-Fi channels |
 | **Fleet** | Live roster of nodes and radios with mode, uptime, temperature, hits, and GPS. Ping the fleet or clear the list |
-| **RF Settings** | Global RSSI filter and RF environment (Open Sky to Industrial, used for distance estimates). Scan preset (Relaxed, Balanced, Aggressive, Custom). Wi-Fi channel dwell, scan interval, and channel list. BLE scan duration and interval. Also holds the **Wi-Fi Access Point** section: SSID, password, WPA2/WPA3 or WPA2 only, and hidden network |
+| **RF Settings** | Global RSSI filter and RF environment (Open Sky to Industrial, used for distance estimates). Scan preset (Relaxed, Balanced, Aggressive, Custom). Wi-Fi channel dwell, scan interval, and channel list. BLE scan duration and interval |
+| **Wi-Fi Access Point** | SSID, password, WPA2/WPA3 or WPA2 only, hidden network, web login on/off and web login password (user `admin`) |
 | **Node Configuration** | Node ID, mesh on/off, status heartbeat, mesh send interval, mesh dedup TTL, and session dedup |
 | **Sensor Alerts** | Vibration sensing and what it triggers |
 | **Secure Data Destruction** | Erase key, setup and erase delays, vibration count and window, cooldown |
@@ -512,7 +513,7 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 - **Campaigns** - tags a block of work so its logs can be pulled out later. While a campaign runs, every SD log line carries `[C:<name>]`, and start and stop times go to `/campaigns.csv`. It survives a reboot. Full: Data tab → name → **Start**; tick other mesh nodes to start them too. A **REC** badge in the header shows the active campaign; click it to stop. Review: pick the campaign in the Data tab to filter every dataset, **Export campaign** downloads all its rows in one file. Mesh `STATUS` adds `Camp:<name>`. Both builds, over mesh: `@AH01 CAMPAIGN_START:site-a`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `scripts/campaign_report.py <sd_dir> --campaign <name>` summarizes a copied SD card per file for that campaign.
 - **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
 - **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
-- **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → RF Settings → Wi-Fi Access Point → **Hidden network**.
+- **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → Wi-Fi Access Point → **Hidden network**.
 - **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to remount now. `:NOW` erases the card only if every mount attempt fails.
 
 The [mesh command reference](docs/mesh-commands.md) lists every parameter.
