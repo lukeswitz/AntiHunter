@@ -39,7 +39,7 @@ pio run -e AntiHunter-headless
 - Reference related issues
 - Include testing details and hardware used
 - Ensure code compiles without warnings
-- Run `make lint` (cppcheck 2.20, the CI version) and `make test-ble`; CI runs both and fails on any finding
+- Run `make lint` (cppcheck 2.20, the CI version) , `make test-csi` and `make test-ble`; CI runs all three and fails on any finding
 - Keep PRs focused on single features/fixes
 
 ### Reporting Issues
