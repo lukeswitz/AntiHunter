@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assembly Manual Page 7</title>
+<style>
+  @page { size: 595pt 842pt; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { width: 595pt; height: 842pt; position: relative; overflow: hidden; font-family: "Microsoft Sans Serif", Arial, sans-serif; font-size: 12pt; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a { position: absolute; margin: 0; }
+  .hdr { left: 0; top: 0; width: 107.5pt; height: 46.5pt; background: #a4063e; }
+  .num { left: 50.2pt; top: 15.5pt; color: #fff; font-size: 12pt; }
+  .bar { left: 107.2pt; top: 35pt; font-size: 12pt; }
+  .rule { left: 57.5pt; top: 360.5pt; width: 480.5pt; height: 2pt; background: #a0a0a0; }
+  .foot { left: 0; top: 805.5pt; width: 595pt; height: 36.5pt; background: #161718; }
+  .foottxt { left: 0; top: 817pt; width: 595pt; text-align: center; color: #fff; font-size: 12pt; }
+  .tip { left: 57.6pt; top: 626pt; width: 480pt; line-height: 15pt; }
+  .tip p { margin: 0 0 7pt 0; }
+</style>
+</head>
+<body>
+  <div class="a hdr"></div>
+  <div class="a num">7</div>
+  <div class="a bar">|</div>
+  <p class="a" style="left:57.6pt;top:94.5pt">Examples:</p>
+  <p class="a" style="left:57.6pt;top:121.3pt">GPS Module, &#9888;&#65039; make sure the antenna IPX connector is facing upwards.</p>
+  <img class="a" src="img/p7-0.jpg" alt="GPS module pin headers" style="left:57pt;top:150.5pt;width:225.5pt;height:186.5pt">
+  <img class="a" src="img/p7-1.jpg" alt="GPS module on headers" style="left:285.5pt;top:150.5pt;width:249pt;height:186.5pt">
+  <div class="a rule"></div>
+  <p class="a" style="left:57.6pt;top:406.4pt">SDCard module</p>
+  <img class="a" src="img/p7-2.jpg" alt="SD card module pin headers" style="left:57pt;top:418.5pt;width:245pt;height:193.5pt">
+  <img class="a" src="img/p7-3.jpg" alt="SD card module on headers" style="left:305.5pt;top:418.5pt;width:222pt;height:193.5pt">
+  <div class="a tip">
+    <p>Lora module (TIP: the screen does not need to come off before soldering)</p>
+    <p>Unscrew the three screws under the screen and hold the screen back to reach the pins near the glass and flex cable. Solder the pins, then put the screen back and refit the screws.</p>
+    <p>To save power, leave the screen fitted and turn it off with <span style="white-space:nowrap">scripts/meshtastic_config.py --screen off</span>.</p>
+    <p>The screen can also be desoldered permanently. This is advanced and at your own risk: Heltec publishes no removal procedure. A node without a screen must have its Bluetooth pairing PIN set over serial with <span style="white-space:nowrap">scripts/meshtastic_config.py --pin NNNNNN</span>.</p>
+  </div>
+  <div class="a foot"></div>
+  <div class="a foottxt">AntiHunter &nbsp;| Perimeter Defense Systems</div>
+</body>
+</html>
