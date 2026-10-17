@@ -2522,6 +2522,12 @@ String meshRedactSecrets(const String &line)
 
 static std::recursive_mutex g_cmdMutex;
 
+static bool cmdIs(const String &command, const char *verb)
+{
+  const size_t n = strlen(verb);
+  return command.startsWith(verb) && (command.length() == n || command.charAt(n) == ':');
+}
+
 void processCommand(const String &commandRaw, const String &targetId = "")
 {
   std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
@@ -2626,8 +2632,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PROBE_HIT "))            handleProbeHit(command);
   else if (command.startsWith("PCAP_START:"))           handlePcapStart(command);
   else if (command == "PCAP_STOP")                      handlePcapStop(command);
-  else if (command.startsWith("PCAP_LIMITS"))           handlePcapLimits(command);
-  else if (command.startsWith("SD_REPAIR"))             handleSdRepair(command);
+  else if (cmdIs(command, "PCAP_LIMITS"))               handlePcapLimits(command);
+  else if (cmdIs(command, "SD_REPAIR"))                 handleSdRepair(command);
   else if (command == "STOP")                           handleStop(command);
   else if (command == "SENTINEL_ON")                    handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                   handleSentinelOff(command);
@@ -2635,10 +2641,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SENTINEL_MODE:"))        handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))        handleSentinelBoot(command);
   else if (command.startsWith("GROUP:"))                handleGroup(command);
-  else if (command.startsWith("DETECT_CFG_GET"))        handleDetectCfgGet(command);
+  else if (cmdIs(command, "DETECT_CFG_GET"))            handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))           handleDetectCfg(command);
-  else if (command.startsWith("INCIDENTS_CLEAR"))       handleIncidentsClear(command);
-  else if (command.startsWith("INCIDENTS"))             handleIncidents(command);
+  else if (cmdIs(command, "INCIDENTS_CLEAR"))           handleIncidentsClear(command);
+  else if (cmdIs(command, "INCIDENTS"))                 handleIncidents(command);
   else if (command == "DETECT_COUNTS")                  handleDetectCounts(command);
   else if (command == "PCAP_AUTO" || command.startsWith("PCAP_AUTO:")) handlePcapAuto(command);
   else if (command == "STATUS")                         handleStatus(command);
@@ -2658,16 +2664,17 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("TRI_CYCLE_START:"))      handleTriCycleStart(command);
   else if (command == "TRIANGULATE_RESULTS")            handleTriangulateResults(command);
   else if (command.startsWith("ERASE_FORCE:"))          handleEraseForce(command);
-  else if (command.startsWith("ERASE_CANCEL"))          handleEraseCancel(command);
+  else if (cmdIs(command, "ERASE_CANCEL"))              handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                  handleEraseRequest(command);
   else if (command.startsWith("FACTORY_RESET:"))        handleFactoryReset(command);
-  else if (command.startsWith("AUTOERASE_ENABLE"))      handleAutoeraseEnable(command);
-  else if (command.startsWith("AUTOERASE_DISABLE"))     handleAutoeraseDisable(command);
+  else if (cmdIs(command, "AUTOERASE_ENABLE"))          handleAutoeraseEnable(command);
+  else if (cmdIs(command, "AUTOERASE_DISABLE"))         handleAutoeraseDisable(command);
   else if (command == "AUTOERASE_STATUS")               handleAutoeraseStatus(command);
-  else if (command.startsWith("BATTERY_SAVER_START"))   handleBatterySaverStart(command);
+  else if (cmdIs(command, "BATTERY_SAVER_START"))       handleBatterySaverStart(command);
   else if (command == "BATTERY_SAVER_STOP")             handleBatterySaverStop(command);
   else if (command == "BATTERY_SAVER_STATUS")           handleBatterySaverStatus(command);
-  else if (command.startsWith("CAMPAIGN_"))             handleCampaign(command);
+  else if (command.startsWith("CAMPAIGN_START:") || command == "CAMPAIGN_STOP" ||
+           command == "CAMPAIGN_STATUS")                handleCampaign(command);
   else if (command.startsWith("BLE_CLASSIFY:"))         handleBleClassify(command);
   else if (command == "HB_ON")                          handleHbOn(command);
   else if (command == "HB_OFF")                         handleHbOff(command);
@@ -3448,8 +3455,6 @@ void processMeshMessage(const String &message) {
           String command = meshExpandCommand(payload.substring(spaceIndex + 1));
           processCommand(command, targetId);
       }
-    } else if (!meshIsNodeIdToken(sendingNode)) {
-        processCommand(payload, "");
     }
 }
 
