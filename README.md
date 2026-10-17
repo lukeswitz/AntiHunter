@@ -686,7 +686,7 @@ No tier comes with AntiHunter firmware installed. That's for integrity and regul
 |---|---|---|
 | **Bare PCB** ([note](docs/note-tier4-bare-pcb.pdf)) | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
 | **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.pdf)) | A fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Optional: enclosure, regulated 5V power, external antennas |
-| **Parts Kit** ([note](docs/note-tier2-parts-kit.pdf)) | Every BOM part except the GPS antenna and 18650 cells, loose. PCB, modules, 8GB card, enclosure, and TPU seals. 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails, and bulkheads. Fan, thermal switch, power switch, waterproof USB-C panel jack, UPS board, and fasteners. Nothing soldered, nothing flashed | Soldering and assembly per the manual, Meshtastic on the radio, two 18650 cells, active GPS antenna |
+| **Parts Kit** ([note](docs/note-tier2-parts-kit.pdf)) | Every BOM part except an active GPS antenna and 18650 cells, loose. The GPS module comes with its factory ceramic antenna. PCB, modules, 8GB card, enclosure, and TPU seals. 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails, and bulkheads. Fan, thermal switch, power switch, waterproof USB-C panel jack, UPS board, and fasteners. Nothing soldered, nothing flashed | Soldering and assembly per the manual, Meshtastic on the radio, two 18650 cells, active GPS antenna |
 | **Assembled** ([note](docs/note-tier1-assembled.pdf)) | Built, sealed, and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | Two 18650 cells |
 
 ### Core components
@@ -736,7 +736,7 @@ No tier comes with AntiHunter firmware installed. That's for integrity and regul
 **Power and thermal**
 - 1 × 30mm 5V Fan (7-10mm), JST 2.54
 - 1 × 3-Pin Mini On/Off Switch
-- 1 × KSD9700 Normally Open Thermal Wire Sensor (30-40C)
+- 1 × KSD9700 Normally Open Thermal Wire Sensor (40C)
 - 1 × Type-C Female Chassis Jack, waterproof (2-pin, 22 AWG leads, 14mm panel nut, dust cap)
 - 1 × Type-C 15W 3A 5V Fast Charge UPS Power Supply
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88 × 41 × 22mm)

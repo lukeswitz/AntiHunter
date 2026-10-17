@@ -46,9 +46,9 @@ A detection record holds both halves: distance, speed, angle, direction and targ
 | `TRIGGERED` | Target confirmed, detection recorded |
 | `LINGER` | Target lost, holding before returning to idle (default 3 s) |
 
-**Target classes** — `UNKNOWN`, `PERSON`, `VEHICLE`, voted over a 12-frame rolling history rather than per-frame, so one noisy frame cannot flip the class. `PERSON` scores on speeds up to 8 km/h and is weighted up by speed and angle variance (gait); `VEHICLE` scores from 15 km/h up and is weighted up by track stability. Both are scaled by SNR confidence, and `VEHICLE` is suppressed inside 5 m.
+**Target classes** — `UNKNOWN`, `PERSON`, `VEHICLE`, chosen by a decaying vote (each frame's evidence is added to 0.75× the previous total), so one noisy frame cannot flip the class. Speed and angle variance come from a 12-frame history. `PERSON` scores fully up to 8 km/h, falling to zero at 20 km/h, and is weighted up by speed and angle variance (gait); `VEHICLE` scores from 15 km/h up and is weighted up by track stability. Both are scaled by SNR confidence, and `VEHICLE` evidence is cut to 0.3× inside 5 m.
 
-**Alarm** — fires only when every gate passes: the target is approaching, within Alarm Distance, at or above Alarm Speed, within `±ANG` of boresight, and of the class selected by `CLS`. Angle and class default to open (90°, any class), so out of the box only distance, speed and direction decide. Both are set over mesh with `RADAR_CONFIG` and persist across reboot.
+**Alarm** — fires only when every gate passes: the target travels in the configured Direction (default both), within Alarm Distance, at or above Alarm Speed, within `±ANG` of boresight, and of the class selected by `CLS`. Angle and class default to open (90°, any class), so out of the box only distance and speed decide. Both are set over mesh with `RADAR_CONFIG` and persist across reboot.
 
 **Traffic baseline** — learns ambient detection rate and device count over a chosen window, then reports how current activity compares. Radar events feed the detection rate; each RF sweep feeds the device count.
 
@@ -142,6 +142,7 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 | Direction | away / toward / both | both | Which way a target must travel to count |
 | Min Speed | 0–120 km/h | 1 | Slower targets are ignored |
 | Report Delay | 0–255 | 1 | Sensor-side hold before reporting |
+| Distance Scale | 0.1–5.0 | 1.0 | Multiplier on reported range; 1.0 is uncorrected |
 
 ### Sensitivity
 
@@ -156,6 +157,8 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 |---|---|---|
 | Alarm Distance | 1–100 m | 50 |
 | Alarm Speed | 0–80 m/s | 5 |
+| Alarm Angle | 1–90° | 90 |
+| Alarm Class | Any / Person / Vehicle | Any |
 
 ### RF Enrichment
 
@@ -199,12 +202,12 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 <NODEID>: STATUS: TYPE:RADAR RADAR:<state> SCAN:<Y|N> GPS:<state> Temp:<c>C Up:<s> DETS:<n> ALMS:<n>
 <NODEID> DET <dist>m <speed>km/h <angle>° <twd|awy> <CLASS>[ ALM]
 <NODEID> SCAN done: <n> WiFi <n> BLE <n> moving +<lag>ms
-<NODEID> CAND<1-3> <MAC> <rssi>dBm <WiFi|BLE> [label][ mov]
+<NODEID> CAND<1-3> <MAC> <rssi>dBm <WiFi|BLE> ["name"|manufacturer][ mov]
 ```
 
 `TYPE:RADAR` is how the RadarNode's own mesh list and the Command Center tell a RadarNode from a DIGI node. A peer with no `TYPE` field is typed `RADAR` if it reports a `RADAR:` field, otherwise DIGI. DIGI Full firmware reads both fields for its fleet list; Headless does not.
 
-At most **three** candidates are sent per detection, ranked by score, to bound mesh traffic.
+At most **three** candidates are sent per detection, moving ones first and the rest by score, to bound mesh traffic.
 
 ---
 

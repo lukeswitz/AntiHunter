@@ -30,7 +30,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 2× | JST Power Male Cables (switch, power board) |
-| 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
+| 1× | KSD9700 Thermal Switch — Normally Open, 40°C |
 | 2× | 18650 Cells — protected, flat-top (not supplied with any tier) |
 | 1× | Weatherproof Enclosure |
 | 1× | TPU Seal Kit — housing, USB-C, GPS antenna |
@@ -78,7 +78,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 |:---:|------|:---:|------|------|-----|
 | 1× | **Type-C 15W 3A 5V UPS** (2S 18650)<br>*Board ID HW-465A · 88×41×22 mm* | <img width="110" src="../../docs/img/bom-ups.jpg" /> | Commodity (HW-465A) | [DWEII](https://www.amazon.com/dp/B0DCVRXTW8) · [JUZITAO 2-Pack](https://www.amazon.com/dp/B0DNMVSD65) | [Search](https://www.aliexpress.com/w/wholesale-HW-465A-UPS-18650.html) |
 | 1× | **Type-C Female Chassis Jack**<br>*Waterproof, 2-pin 22 AWG leads · 14mm panel nut · dust cap · external 5V input* | <img width="110" src="../../docs/img/bom-usbc-jack.jpg" /> | Commodity | [View](https://www.amazon.com/dp/B0CXLZBD2V) | [Search](https://www.aliexpress.com/w/wholesale-type-c-female-panel-mount-2-pin-waterproof.html) |
-| 1× | **KSD9700 Normally Open Thermal Switch** 30–40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="../../docs/img/bom-thermal.jpg"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
+| 1× | **KSD9700 Normally Open Thermal Switch** 40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="../../docs/img/bom-thermal.jpg"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
 | 2× | **JST Power Male Cables**<br>*Switch, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |

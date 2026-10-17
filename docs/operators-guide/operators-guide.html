@@ -158,7 +158,7 @@
   <table>
     <tr><th style="width:26%">Tier</th><th>What is in the box</th><th style="width:32%">What you still have to do</th></tr>
     <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two 18650 cells, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
-    <tr><td><b>2 · Complete Parts Kit</b></td><td>Every part on the bill of materials, unassembled, as it comes from the supplier. Passive GPS antenna. Nothing is soldered and nothing is flashed.</td><td>Solder and assemble it (§3), flash Meshtastic on the radio (§7.1), then flash AntiHunter (§5) and configure.</td></tr>
+    <tr><td><b>2 · Complete Parts Kit</b></td><td>Every part on the bill of materials, unassembled, as it comes from the supplier. 3× U.FL-to-SMA pigtails; the GPS module comes with its factory ceramic antenna. Nothing is soldered and nothing is flashed.</td><td>Solder and assemble it (§3), flash Meshtastic on the radio (§7.1), then flash AntiHunter (§5) and configure.</td></tr>
     <tr><td><b>3 · Populated PCB</b></td><td>A fully assembled PCB. Core modules soldered, bench-tested, 8 GB SD card fitted. Factory U.FL antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Attach the antennas (§2), supply power over USB or 18650s, build the housing if you want one, flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
     <tr><td><b>4 · Bare PCB</b></td><td>One 82 mm board, unpopulated.</td><td>Source the BOM, solder the modules, flash Meshtastic on the radio, fit an SD card, then follow this guide from §3.</td></tr>
   </table>
@@ -225,14 +225,14 @@
     <li>SMA bulkheads</li>
     <li>2.4 GHz Wi-Fi/BLE antenna, 6 dBi</li>
     <li>LoRa antenna for your region</li>
-    <li>Passive ceramic GPS antenna, the one supplied with the GPS module</li>
+    <li>GPS module with its factory ceramic antenna (no separate GPS antenna)</li>
     <li>30 mm 5 V fan with JST lead</li>
     <li>KSD9700 normally-open thermal switch, 40 °C</li>
     <li>3-pin mini on/off switch with rubber cover</li>
     <li>Waterproof Type-C female chassis jack, 2-pin 22 AWG leads, panel nut and dust cap</li>
     <li>Type-C 15 W 3 A 5 V UPS charger board, dual 18650</li>
-    <li>6× JST 2.54 2-pin terminals</li>
-    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>5× JST 2.54 2-pin terminals</li>
+    <li>2× JST power male cables for the switch and power board</li>
     <li>M3 heat-set inserts, plus 4× M2 for the power board</li>
     <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
     <li>2× M2.5 screws, supplied with the fan</li>
@@ -1260,8 +1260,8 @@ docker compose up -d --build</pre>
   </ul>
   <h4>Connectors and fasteners</h4>
   <ul class="small">
-    <li>6× JST 2.54 2-pin terminals</li>
-    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>5× JST 2.54 2-pin terminals</li>
+    <li>2× JST power male cables for the switch and power board</li>
     <li>10× M3 heat-set inserts</li>
     <li>4× M2 heat-set inserts for the power board</li>
     <li>2× M3 15 mm brass standoffs</li>
