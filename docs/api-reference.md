@@ -49,6 +49,8 @@ Back to the [README](../README.md).
 | `/randomization-results` | GET | Randomization correlation results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
+| `/csi-results` | GET | CSI motion results (text). Beta and C5 |
+| `/csi-json` | GET | CSI motion state (JSON). Beta and C5 |
 
 ### Fleet
 
@@ -155,6 +157,9 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 | `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
 | `/api/apclients.json` | GET | Stations associated to this node's AP |
 | `/api/incidents/clear` | POST | Clear all incidents |
+| `/api/pmkid.jsonl` `/api/eviltwin.jsonl` `/api/ssid_confusion.jsonl` `/api/sae_dos.jsonl` `/api/owe_abuse.jsonl` `/api/fragattack.jsonl` `/api/ble_malformed.jsonl` | GET | Recent events from that detector's RAM log (JSONL) |
+| `/api/jamming.jsonl` `/api/meshguard.jsonl` `/api/ble_attack.jsonl` `/api/probe_flood.jsonl` `/api/assoc_sleep.jsonl` `/api/pmkid_forge.jsonl` `/api/eapol_bait.jsonl` `/api/deauth_flood.jsonl` `/api/deauth_ap.jsonl` `/api/probe_ap.jsonl` | GET | That detector's log from SD (JSONL); empty when the file does not exist |
+| `/api/jamming/clear` `/api/meshguard/clear` `/api/ble_attack/clear` `/api/probe_flood/clear` `/api/assoc_sleep/clear` `/api/pmkid_forge/clear` `/api/eapol_bait/clear` `/api/deauth_flood/clear` `/api/eviltwin/clear` | POST | Delete that detector's SD log (`/eviltwin/clear` removes `/eviltwin.jsonl` on SD; `/api/eviltwin.jsonl` reads the RAM log) |
 | `/api/sentinel/ble/start` | POST | Start the BLE scan; `409` below 60000 bytes free heap |
 | `/api/sentinel/boot` | GET | Boot auto-start setting (JSON: `boot`) |
 | `/api/sentinel/boot` | POST | Set boot auto-start (`on` 0/1). Returns the same JSON as GET |
