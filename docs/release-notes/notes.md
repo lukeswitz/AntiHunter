@@ -42,6 +42,8 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 
 ## Fixed
 
+- Full and headless set random Wi-Fi STA, SoftAP and BLE addresses at every boot, before the radios start. Before, active Wi-Fi scans and BLE scans sent the factory MACs.
+- Karma bait probes use a new random source MAC, sequence number and SSID for each probe. Before, every bait probe came from the same fixed source MAC and its SSID contained the node ID.
 - STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
 - Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
 - `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
