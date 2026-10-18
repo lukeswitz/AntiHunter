@@ -14,6 +14,9 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_mac.h"
+#include "esp_random.h"
+#include "bootloader_random.h"
 
 #ifndef AH_EXTMEM_THRESHOLD
 #define AH_EXTMEM_THRESHOLD 16
@@ -201,6 +204,20 @@ void sendNodeIdUpdate() {
     }
 }
 
+static void randomizeRadioIdentity() {
+    static const esp_mac_type_t kTypes[] = {ESP_MAC_BASE, ESP_MAC_WIFI_STA, ESP_MAC_WIFI_SOFTAP, ESP_MAC_BT};
+    bootloader_random_enable();
+    for (esp_mac_type_t t : kTypes) {
+        uint8_t mac[6];
+        esp_fill_random(mac, sizeof(mac));
+        mac[0] = (uint8_t)((mac[0] & 0xFE) | 0x02);
+        esp_err_t err = esp_iface_mac_addr_set(mac, t);
+        Serial.printf("[MAC] type=%d %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n", (int)t,
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], err);
+    }
+    bootloader_random_disable();
+}
+
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
@@ -211,6 +228,7 @@ void setup() {
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== AntiHunter v1.0.5-c5exp1 C5 [HEADLESS] Boot ===");
     Serial.printf("[BUILD] sha=%s epoch=%lu\n", AH_GIT_SHA, (unsigned long)AH_BUILD_EPOCH);
+    randomizeRadioIdentity();
     recordBootReason();
 
 #ifdef ARDUINO_XIAO_ESP32C5

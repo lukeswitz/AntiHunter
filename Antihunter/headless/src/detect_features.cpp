@@ -221,14 +221,19 @@ static const uint8_t kSupportedRates[10] = {
 };
 
 void karmaEmitBait(const uint8_t *targetBssid) {
-    uint32_t seq = (uint32_t)esp_timer_get_time() & 0xFFFFFF;
+    static const char kSsidChars[] = "abcdefghijklmnopqrstuvwxyz0123456789";
     char ssid[33];
-    snprintf(ssid, sizeof(ssid), "H%s_%06X", getNodeId().c_str(), (unsigned)seq);
-    size_t ssidLen = strlen(ssid);
-    if (ssidLen > 32) ssidLen = 32;
+    size_t ssidLen = 8 + (esp_random() % 9);
+    for (size_t i = 0; i < ssidLen; ++i) ssid[i] = kSsidChars[esp_random() % (sizeof(kSsidChars) - 1)];
+    ssid[ssidLen] = '\0';
 
     uint8_t frame[24 + 2 + 32 + sizeof(kSupportedRates)];
     memcpy(frame, kProbeReqHeader, 24);
+    esp_fill_random(frame + 10, 6);
+    frame[10] = (uint8_t)((frame[10] & 0xFE) | 0x02);
+    uint16_t seqCtl = (uint16_t)((esp_random() & 0x0FFF) << 4);
+    frame[22] = (uint8_t)(seqCtl & 0xFF);
+    frame[23] = (uint8_t)(seqCtl >> 8);
     frame[24] = 0x00;
     frame[25] = (uint8_t)ssidLen;
     memcpy(frame + 26, ssid, ssidLen);
