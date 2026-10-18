@@ -12,6 +12,7 @@ extern volatile uint32_t g_memcpyBadLenLast;
 
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_random.h>
 #include <Preferences.h>
 #include <math.h>
 #include <string.h>
@@ -286,9 +287,17 @@ static std::atomic<uint8_t> g_peerCount{0};
 static uint8_t g_surveyPickMac[6];
 static std::atomic<bool> g_peerWonSurvey{false};
 
+static const uint8_t *csiSolicitSrc() {
+    struct Src {
+        uint8_t m[6];
+        Src() { esp_fill_random(m, sizeof(m)); m[0] = (uint8_t)((m[0] & 0xFE) | 0x02); }
+    };
+    static const Src src;
+    return src.m;
+}
+
 static bool csiIsPeer(const uint8_t *m) {
-    static const uint8_t kNodeProbeSrc[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
-    if (memcmp(m, kNodeProbeSrc, 6) == 0) return true;
+    if (memcmp(m, csiSolicitSrc(), 6) == 0) return true;
     const uint8_t n = g_peerCount.load(std::memory_order_acquire);
     for (uint8_t i = 0; i < n; i++) {
         if (memcmp(g_peerMac[i], m, 6) == 0) return true;
@@ -311,12 +320,16 @@ bool csiAddPeerMac(const uint8_t *m) {
     return true;
 }
 
-static void csiAnnounceSelf() {
-    uint8_t m[6];
-    if (esp_wifi_get_mac(WIFI_IF_STA, m) != ESP_OK) return;
+static void csiAnnounceMac(const uint8_t *m) {
     char buf[18];
     snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
     meshEnqueuePrio(getNodeId() + ": CSI_PEER:" + String(buf), PRIO_CONTROL);
+}
+
+static void csiAnnounceSelf() {
+    uint8_t m[6];
+    if (esp_wifi_get_mac(WIFI_IF_STA, m) == ESP_OK) csiAnnounceMac(m);
+    csiAnnounceMac(csiSolicitSrc());
 }
 
 void csiAnnouncePeer() {
@@ -504,6 +517,7 @@ static void csiSolicit() {
     if (csiNoTx.load()) return;
     uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
     memcpy(frame, kCsiProbeHdr, 24);
+    memcpy(frame + 10, csiSolicitSrc(), 6);
     if (g_probeTargetSet) {
         memcpy(frame + 4, g_probeTarget, 6);
         memcpy(frame + 16, g_probeTarget, 6);
