@@ -126,7 +126,7 @@ Headless: use `SENTINEL_MODE:scan`.
 | `CSI_JSON` | `CIJ` | | `@AH01 CSI_JSON` |
 | `CSI_RECAL` | `CIR` | | `@ALL CSI_RECAL` |
 
-Nodes exchange `CSI_PEER:<AP MAC>` and skip each other's MACs.
+Nodes exchange `CSI_PEER:<MAC>` over mesh for their AP MAC (Full) or STA MAC (headless) and for their CSI probe source MAC, which is random at each boot, and skip each other's MACs.
 
 ### Branch-only
 
