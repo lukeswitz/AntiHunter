@@ -1,12 +1,26 @@
 # Mesh Commands
 
-[README](../README.md)
+[Back](../README.md)
 
-Send `@<NODE> CMD` or `@ALL CMD`. Node ID: 2-5 chars, A-Z 0-9. `secs`: 0-86400. `mode`: `0` Wi-Fi, `1` BLE, `2` both. `FOREVER`: run until `STOP`.
+### Notes
 
-Commands are case-insensitive and accept the alias in the Alias column, e.g. `@AH01 ts:AA:BB:CC:DD:EE:FF:60` = `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60`.
+Send `@<NODE> CMD` or `@ALL CMD`. 
 
-A line runs only when it starts with `@<NODE>` or `@ALL`, then a space, then the command; lines without the address are ignored, on mesh and on USB serial. The command must be the exact name or alias, alone or followed by `:` and its arguments; anything else is ignored with no reply (`@AH01 INCIDENTSX` does nothing, `@AH01 INCIDENTS:5` runs).
+- Node ID: 2-5 chars, A-Z 0-9. 
+- `secs`: 0-86400
+- `mode`: `0` Wi-Fi, `1` BLE, `2` both
+- `FOREVER`: run until `STOP`.
+
+> [!TIP]
+> Commands are case-insensitive and accept the alias in the Alias column,
+> e.g. `ts‘ = `TRIANGULATE_START`.
+
+- A line runs only when it starts with `@<NODE>` or `@ALL`, then a space, then the command; *lines without the address are ignored*. 
+
+- It must be the exact command or alias, alone or followed by `:` and arguments; anything else is **ignored with no reply** (`@AH01 INCIDENTSX` does nothing, `@AH01 INCIDENTS:5` runs).
+
+
+## Commands 
 
 ### Core
 
@@ -81,8 +95,9 @@ A line runs only when it starts with `@<NODE>` or `@ALL`, then a space, then the
 | `VIBSCAN_SET` | `VSS` | `en:mode:dur[:cooldown[:interrupt]]` | `VIBSCAN_ACK:...\|INVALID\|INVALID_MODE` | `@AH01 VIBSCAN_SET:1:2:60:300` |
 | `VIBSCAN_STATUS` | `VSQ` | | | `@AH01 VIBSCAN_STATUS` |
 
-`answer`: send `ERASE_REQUEST`, then the first 8 (or all 64) hex characters of HMAC-SHA256 of the returned token, keyed with the erase key: `printf %s '<token>' | openssl dgst -sha256 -hmac '<key>'`. Each token takes one attempt and expires after 300 s. Mesh erase commands refuse the key itself. `CONFIG_ERASE_PSK` takes the current key.
-Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys or answers: 10 min lockout. Keys and answers are logged as `***`.
+`answer`: send `ERASE_REQUEST`, then the first 8 (or all 64) hex characters of HMAC-SHA256 of the returned token, keyed with the erase key: `printf %s '<token>' | openssl dgst -sha256 -hmac '<key>'`. Each token takes one attempt and expires after 300 s. 
+Mesh erase commands refuse the key itself. `CONFIG_ERASE_PSK` takes the current key. Erase key unset: `ERASE_ACK:SET_KEY_FIRST`. 5 bad keys or answers: 10 min lockout. Keys and answers are logged as `***`.
+
 `VIBSCAN_SET` mode: `0` off, `1` device, `2` probe, `3` rand-MAC, `4` list, `5` drone, `6` deauth, `7` baseline, `8` pcap. `dur` 0 = until stopped, except mode `8` (pcap), which needs `dur` > 0 and replies `INVALID` otherwise. `cooldown` 5-86400. `interrupt` `1` preempts a scheduled scan; that scan resumes after if 10 s or more were left. Reply ends `Pre:0|1`.
 
 ### Power
