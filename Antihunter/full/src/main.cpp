@@ -15,6 +15,9 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_mac.h"
+#include "esp_random.h"
+#include "bootloader_random.h"
 
 
 Preferences prefs;
@@ -201,6 +204,20 @@ void randomizeMacAddress() {
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
 }
 
+static void randomizeRadioIdentity() {
+    static const esp_mac_type_t kTypes[] = {ESP_MAC_BASE, ESP_MAC_WIFI_STA, ESP_MAC_WIFI_SOFTAP, ESP_MAC_BT};
+    bootloader_random_enable();
+    for (esp_mac_type_t t : kTypes) {
+        uint8_t mac[6];
+        esp_fill_random(mac, sizeof(mac));
+        mac[0] = (uint8_t)((mac[0] & 0xFE) | 0x02);
+        esp_err_t err = esp_iface_mac_addr_set(mac, t);
+        Serial.printf("[MAC] type=%d %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n", (int)t,
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], err);
+    }
+    bootloader_random_disable();
+}
+
 void memMark(const char *what) {
     Serial.printf("[MEM] %-16s internal=%u largest=%u psram=%u tasks=%u\n", what,
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -216,6 +233,7 @@ void setup() {
     delay(300);
 
     Serial.println("\n=== Antihunter [FULL] Boot ===");
+    randomizeRadioIdentity();
     recordBootReason();
 
     if (psramFound()) {
