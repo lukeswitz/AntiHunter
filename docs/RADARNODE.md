@@ -1,11 +1,9 @@
 # RadarNode
 
 > [!WARNING]
-> **Experimental.** Test build `v0.1.0-radarexp2` is published as a binary: the web flasher's Experimental channel (RadarNode) and channel 3 (Experimental) then RadarNode in `Dist/flashAntihunter.sh`. Its source branch is not public, so this repository can't build it.
+> **Experimental.** Test build `v0.1.0-radarexp2`, published as a binary only. Its source branch is not public, so this repository can't build it.
 
-A 24GHz radar node that detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
-
-Separate firmware from the DIGI node — different sensor, different app, same PCB and same mesh.
+A 24GHz radar node that detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment. It is separate firmware from the DIGI node, on the same PCB and the same LoRa mesh, and appears in DIGI node lists.
 
 - [How it works](#how-it-works)
 - [Hardware](#hardware)
@@ -20,37 +18,21 @@ Separate firmware from the DIGI node — different sensor, different app, same P
 
 ## How it works
 
-The radar is the primary sensor and runs continuously. Wi-Fi/BLE scanning is not a separate mode you launch — it is enrichment triggered by the radar.
+The radar runs all the time. When it confirms a moving target, the node logs a detection to SD and the mesh and, if RF enrichment is on and the sweep cooldown has passed, scans BLE and Wi-Fi (2.4 and 5 GHz). The top 3 devices from that sweep go out with the detection.
 
-```
-HLK-LD2451 frame  ──►  radarTask
-                         │  IDLE ──► TRIGGERED ──► LINGER ──► IDLE
-                         │                │
-                         │                ├─► detection logged to SD + mesh
-                         │                └─► RF sweep (if enabled, past cooldown)
-                         ▼                        │
-                    traffic baseline              ├─ BLE scan
-                                                  └─ Wi-Fi scan (2.4 + 5GHz)
-                                                        │
-                                                        ▼
-                                              candidates scored, top 3 meshed
-```
-
-A detection record holds both halves: distance, speed, angle, direction and target class from the radar, plus the Wi-Fi/BLE candidates seen at that instant.
-
-**State machine**
+A detection holds distance, speed, angle, direction and target class from the radar, plus the Wi-Fi/BLE devices seen at that moment.
 
 | State | Meaning |
 |---|---|
 | `IDLE` | No target |
 | `TRIGGERED` | Target confirmed, detection recorded |
-| `LINGER` | Target lost, holding before returning to idle (default 3 s) |
+| `LINGER` | Target lost, waiting before returning to idle (default 3 s) |
 
-**Target classes** — `UNKNOWN`, `PERSON`, `VEHICLE`, chosen by a decaying vote (each frame's evidence is added to 0.75× the previous total), so one noisy frame cannot flip the class. Speed and angle variance come from a 12-frame history. `PERSON` scores fully up to 8 km/h, falling to zero at 20 km/h, and is weighted up by speed and angle variance (gait); `VEHICLE` scores from 15 km/h up and is weighted up by track stability. Both are scaled by SNR confidence, and `VEHICLE` evidence is cut to 0.3× inside 5 m.
+**Target classes**: `UNKNOWN`, `PERSON`, `VEHICLE`. The class is voted over recent frames, so a new track reads `UNKNOWN` for its first frames. `PERSON` fits walking speeds up to 20 km/h, `VEHICLE` speeds from 15 km/h up.
 
-**Alarm** — fires only when every gate passes: the target travels in the configured Direction (default both), within Alarm Distance, at or above Alarm Speed, within `±ANG` of boresight, and of the class selected by `CLS`. Angle and class default to open (90°, any class), so out of the box only distance and speed decide. Both are set over mesh with `RADAR_CONFIG` and persist across reboot.
+**Alarm**: raised when a target moves in the set Direction, inside Alarm Distance, at or above Alarm Speed, within Alarm Angle of straight ahead, and matches Alarm Class. Angle and class default to open (90°, any class), so by default only distance and speed decide.
 
-**Traffic baseline** — learns ambient detection rate and device count over a chosen window, then reports how current activity compares. Radar events feed the detection rate; each RF sweep feeds the device count.
+**Traffic baseline**: learns the normal detection rate and device count over a set time, then reports how current activity compares.
 
 ---
 
@@ -71,7 +53,7 @@ XIAO ESP32-C5 on the standard AntiHunter PCB. The HLK-LD2451 takes the RTC's foo
 | SD MISO | D9 | 9 | |
 | SD MOSI | D10 | 10 | |
 
-The C5 has two hardware UARTs. Mesh takes UART0 and radar takes UART1, so GPS runs on SoftwareSerial at 9600 — the C5's LP_UART pins are fixed to back pads the XIAO does not break out.
+Mesh and radar use the C5's two hardware UARTs, so GPS runs on SoftwareSerial at 9600 baud.
 
 ### Wiring the HLK-LD2451
 
@@ -103,7 +85,7 @@ If the restore line never appears, the sensor is not answering — check TX/RX o
 
 ## Build & Flash
 
-Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Experimental → RadarNode) or `Dist/flashAntihunter.sh` channel 3 (Experimental) then RadarNode. The binary is on the `main` branch. Building from source needs the RadarNode branch, which is not published.
+Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with the web flasher (Experimental → RadarNode) or `Dist/flashAntihunter.sh` channel 3 (Experimental), then RadarNode.
 
 ---
 
@@ -124,7 +106,7 @@ The default AP name is `RN-` plus the last MAC bytes; SSID and password are chan
 
 **Header controls** — theme toggle (light/dark), redaction toggle, Config panel.
 
-**Redaction** replaces MACs with `XX:XX` and device names with `REDACTED` for screenshots. Manufacturer and class labels stay visible, so `Handoff`, `Nearby-Action` and similar remain readable. The setting persists in the browser.
+**Redaction** replaces MACs with `XX:XX` and device names with `REDACTED` for screenshots. Manufacturer names and BLE type labels such as `Handoff` stay visible. The setting persists in the browser.
 
 **Column width** — drag the divider between the scope and the results. Double-click resets it.
 
@@ -140,8 +122,8 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 |---|---|---|---|
 | Max Distance | 10–100 m | 80 | Ignore targets beyond this range |
 | Direction | away / toward / both | both | Which way a target must travel to count |
-| Min Speed | 0–120 km/h | 1 | Slower targets are ignored |
-| Report Delay | 0–255 | 1 | Sensor-side hold before reporting |
+| Min Speed | 0–120 km/h | 1 | Slower targets are ignored. In km/h; the Alarm settings use m/s |
+| Report Delay | 0–255 s | 1 | Time the sensor holds a target before reporting it |
 | Distance Scale | 0.1–5.0 | 1.0 | Multiplier on reported range; 1.0 is uncorrected |
 
 ### Sensitivity
@@ -149,16 +131,16 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 | Setting | Range | Default | Meaning |
 |---|---|---|---|
 | Trigger Count | 1–10 | 1 | Consecutive hits before a target is reported |
-| SNR Threshold | 0–8 | 4 | Lower triggers more easily |
+| SNR Threshold | 0–8 | 4 | Signal level a return needs. `0` most sensitive, `8` least |
 
 ### Alarm
 
-| Setting | Range | Default |
-|---|---|---|
-| Alarm Distance | 1–100 m | 50 |
-| Alarm Speed | 0–80 m/s | 5 |
-| Alarm Angle | 1–90° | 90 |
-| Alarm Class | Any / Person / Vehicle | Any |
+| Setting | Meaning | Web UI range | `RADAR_CONFIG` key and range | Default |
+|---|---|---|---|---|
+| Alarm Distance | Alarm inside this range | 1–100 m | `DIST`, above 0 to 200 m | 50 |
+| Alarm Speed | Alarm at or above this speed | 0–80 m/s | `SPD`, above 0 to 50 m/s | 5 |
+| Alarm Angle | Alarm within this angle of straight ahead | 1–90° | `ANG`, above 0 to 90 | 90 |
+| Alarm Class | Alarm only on this class | Any / Person / Vehicle | `CLS`, `0` any, `1` person, `2` vehicle | Any |
 
 ### RF Enrichment
 
@@ -167,7 +149,7 @@ Config panel, or `POST /api/radar/config`. Values persist to NVS.
 | Enabled | on/off | on | Sweep BLE + Wi-Fi on a radar trigger |
 | Sweep Cooldown | 0–600 s | 15 | Minimum gap between sweeps |
 | Linger | 1–60 s | 3 | Hold TRIGGERED after the last frame |
-| RSSI Floor | −100…−30 dBm | −95 | Drop weaker devices — about 100 m line of sight, matching radar range |
+| RSSI Floor | −100…−30 dBm | −95 | Drop weaker devices |
 | BLE Dwell | 500–10000 ms | 2000 | Listen window per sweep |
 
 **Sweep now** forces a sweep regardless of radar state or cooldown, including when enrichment is off. The serial console does the same on `s`; `d` prints peripheral diagnostics.
@@ -181,17 +163,15 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 | Command | Effect | Reply |
 |---|---|---|
 | `STATUS` | Report state | `STATUS: TYPE:RADAR …` |
-| `SCAN_START:<n>` | Force an RF sweep | `SCAN_ACK:STARTED` |
+| `SCAN_START:<any>` | Force an RF sweep. The argument is ignored | `SCAN_ACK:STARTED` |
 | `STOP` | Stop the running sweep | `STOP_ACK:OK` |
 | `BASELINE:START[:secs]` | Start learning (default 300 s, floor 60 s) | `BASELINE:ACK:START:<secs>` |
 | `BASELINE:STOP` | Stop learning | `BASELINE:ACK:STOP` |
 | `BASELINE:STATUS` | Baseline state as JSON | `BASELINE:STATUS:{…}` |
 | `RADAR_CONFIG:DIST=<m> SPD=<m/s> ANG=<deg> CLS=<0-2>` | Set alarm thresholds | `RADAR_CONFIG_ACK:OK …` or `:ERR` |
-| `TIME_SYNC_REQ:` | Clock sync | `TIME_SYNC_RESP:<epoch>:0:<micros>:0` |
+| `TIME_SYNC_REQ:` | Clock sync | `TIME_SYNC_RESP:<epoch>:0:<micros>:0`, the node's Unix time and its microsecond counter |
 
-`RADAR_CONFIG` bounds: `DIST` above 0 up to 200 m, `SPD` above 0 up to 50 m/s, `ANG` above 0 up to 90°, `CLS` 0–2. Out of range returns `RADAR_CONFIG_ACK:ERR Invalid params` and changes nothing.
-
-`ANG` narrows the alarm to targets within `±ANG` of boresight. `CLS` restricts it to one class — `0` any, `1` person, `2` vehicle. Because the class is voted over a rolling history, the first frames of a new track read `UNKNOWN` and will not alarm while `CLS` is non-zero.
+`RADAR_CONFIG` keys and ranges are in the [Alarm table](#alarm). Any value out of range returns `RADAR_CONFIG_ACK:ERR Invalid params` and changes nothing. With `CLS` set to `1` or `2`, the first frames of a new track read `UNKNOWN` and don't alarm.
 
 ---
 
@@ -205,9 +185,9 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 <NODEID> CAND<1-3> <MAC> <rssi>dBm <WiFi|BLE> ["name"|manufacturer][ mov]
 ```
 
-`TYPE:RADAR` is how the RadarNode's own mesh list and the Command Center tell a RadarNode from a DIGI node. A peer with no `TYPE` field is typed `RADAR` if it reports a `RADAR:` field, otherwise DIGI. DIGI Full firmware reads both fields for its fleet list; Headless does not.
-
-At most **three** candidates are sent per detection, moving ones first and the rest by score, to bound mesh traffic.
+- `DET`: `twd` toward the sensor, `awy` away. `ALM` marks a detection that raised the alarm.
+- `CAND1`-`CAND3`: the top three devices from the sweep, moving ones first (`mov`), then by score.
+- `TYPE:RADAR` tells the RadarNode's mesh list and the Command Center that the sender is a RadarNode. A peer with no `TYPE` field counts as `RADAR` if it reports a `RADAR:` field, otherwise DIGI. DIGI Full reads both fields for its fleet list; Headless does not.
 
 ---
 

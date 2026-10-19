@@ -135,7 +135,7 @@
       Covers all four tiers: <b>Fully Assembled Unit</b> · <b>Complete Parts Kit</b> · <b>Populated PCB</b> · <b>Bare PCB</b>
     </div>
     <div class="foot">
-      Guide revision 1.2 · 17 October 2026 · Firmware v1.0.5 · Written for the current Stable and Beta firmware channels<br>
+      Guide revision 1.3 · 19 October 2026 · Firmware v1.0.5 · Written for the current Stable and Beta firmware channels<br>
       github.com/lukeswitz/AntiHunter · Web flasher: lukeswitz.github.io/AntiHunter
     </div>
   </div>
@@ -143,7 +143,7 @@
 
 <div class="sec">
   <h2>Hello, operator</h2>
-  <p class="lead">Welcome to AntiHunter. This node is a self-contained Wi-Fi, Bluetooth and LoRa mesh sensor. It runs everything on the device: no cloud, no account, no server needed. It is fully open source. Read the firmware, write your own mesh commands, wire it into your own IDS. Make it yours.</p>
+  <p class="lead">The DIGI node is a sensor board built around an ESP32 and a Meshtastic LoRa radio. AntiHunter, its firmware, listens to the Wi-Fi and Bluetooth around it and reports what it finds. You control the node from its web UI (Full build), or by sending it text commands over LoRa from any Meshtastic radio on your channel. It needs no internet connection, cloud account or server. The firmware is open source.</p>
 
   <p>This guide takes you from opening the box to a tuned node in the field, whichever tier you bought. Sections that only apply to one tier are marked. Everything else applies to every node.</p>
 
@@ -166,7 +166,7 @@
   <div class="box tier">
     <span class="t">Tiers 1 and 3: the radio is already done</span>
     <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
-    <p>On the Complete Parts Kit and the Bare PCB you flash the radio yourself first. §7.1 has the settings. The ESP32 ships empty on <i>every</i> tier, so you always flash AntiHunter yourself and know exactly what is on it.</p>
+    <p>On the Complete Parts Kit and the Bare PCB you flash the radio yourself first. §7.1 has the settings. The ESP32 ships empty on <i>every</i> tier. You flash AntiHunter yourself.</p>
   </div>
 
   <h3>Contents</h3>
@@ -289,7 +289,7 @@
 
   <div class="box warn">
     <span class="t">Power rules</span>
-    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
+    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A 2 A fast-blow fuse in the battery line, in series with the switch wiring, is optional and not supplied with any tier.</p>
   </div>
 
   <h3>1.4 Thermal</h3>
@@ -304,7 +304,7 @@
 
 <div class="sec">
   <h2 id="s2"><span class="num">2</span>Antennas</h2>
-  <p class="lead">More nodes are damaged fitting antennas than in any other step. The U.FL connectors are small, fragile and unforgiving of a crooked press. Take your time here.</p>
+  <p class="lead">U.FL connectors are small and break if pressed on at an angle.</p>
 
   <h3>2.1 Which antenna goes where</h3>
   <table>
@@ -422,13 +422,13 @@
     <tr><td><b>Device database</b></td><td><span class="mono">/devicedb.jsonl</span>, which is what the Data Explorer browses</td><td>Written on Beta and C5, not on Stable; no Data Explorer</td></tr>
     <tr><td><b>Best for</b></td><td>Bench work, first setup, anything where you want the UI</td><td>Covert and long-term field deployments</td></tr>
   </table>
-  <p>Start with Full while you learn the device. Reflash to Headless before a quiet deployment. It takes two minutes and your settings live on the SD card.</p>
+  <p>Start with Full while you learn the device. Reflash to Headless before a quiet deployment. Settings are kept unless you check <b>Erase Device</b>.</p>
 
   <h3>5.2 Release channels</h3>
   <table class="tight">
     <tr><th>Channel</th><th>Source</th><th>Use it when</th></tr>
     <tr><td><b>Stable</b></td><td><span class="mono">main</span> branch</td><td>Default. Field deployments.</td></tr>
-    <tr><td><b>Beta</b></td><td><span class="mono">beta</span> branch</td><td>New features first, with the risk that implies.</td></tr>
+    <tr><td><b>Beta</b></td><td><span class="mono">beta</span> branch</td><td>New features first, less tested.</td></tr>
     <tr><td><b>Experimental</b></td><td>ESP32-C5 builds (2.4 + 5 GHz) and RadarNode</td><td>Only on C5 hardware. The flasher asks you to acknowledge these are test builds.</td></tr>
   </table>
 
@@ -441,7 +441,7 @@
     <li>Optionally set your device parameters before flashing. The <b>Sentinel &amp; Detectors</b> panel configures the whole detection engine: start-on-boot, radio mode, every detector toggle, mesh flags, thresholds. Anything left on <i>Default</i> keeps the firmware's own setting.</li>
   </ol>
   <div class="box"><span class="t">Erase Device</span>
-    <p>Check it when upgrading from firmware older than v0.9.2, or when you want to clear saved settings. Otherwise leave it off. Settings persist in NVS and are mirrored to the SD card, and self-heal if they are corrupted.</p>
+    <p>Check it when upgrading from firmware older than v0.9.2, or when you want to clear saved settings. Otherwise leave it off. Settings persist in NVS and are mirrored to the SD card.</p>
   </div>
 
   <h3>5.4 Method B: command line</h3>
@@ -469,11 +469,11 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
   </ul>
 
   <div class="box warn"><span class="t">Do this before anything else</span>
-    <p>The default AP name and password are published in the documentation. Until you change them under <b>Wi-Fi Access Point</b> in the System tab, treat the node as an open door. §8.1.</p>
+    <p>The default AP name and password are published in the documentation. Until you change them under System tab → <b>RF Settings</b> → <b>Wi-Fi Access Point</b>, anyone nearby can join the node. §8.1.</p>
   </div>
 
   <h3>5.7 Board variants</h3>
-  <p>The XIAO ESP32-C5 is a drop-in replacement for the S3 on the same board, with the same pads and peripherals, and it adds 5 GHz scanning. Those builds are in testing and live under the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment.</p>
+  <p>The XIAO ESP32-C5 is a drop-in replacement for the S3 on the same board, with the same pads and peripherals, and it adds 5 GHz scanning. Those builds are in testing, on the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present at that moment.</p>
 </div>
 
 <div class="sec">
@@ -485,10 +485,10 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
   <h3>6.2 Getting notified</h3>
   <ol>
     <li>Open <b>github.com/lukeswitz/AntiHunter</b> and sign in.</li>
-    <li>Click <b>Watch</b> → <b>Custom</b> → check <b>Releases</b> → Apply. You now get an email or notification for every release, without the noise of every commit.</li>
+    <li>Click <b>Watch</b> → <b>Custom</b> → check <b>Releases</b> → Apply. GitHub then notifies you of each release.</li>
     <li>Read the release notes before flashing: <span class="mono">docs/release-notes/notes.md</span> in the repository, and on each release page.</li>
   </ol>
-  <p>Discussions and issues on the same repository are where behavior changes, hardware alternatives and field reports get talked through.</p>
+  <p>Behavior changes, hardware alternatives and field reports are discussed in the repository's Discussions and Issues.</p>
 
   <h3>6.3 Updating a deployed node</h3>
   <ol>
@@ -508,7 +508,7 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
 
 <div class="sec">
   <h2><span class="num">7</span>Mesh radio setup</h2>
-  <p class="lead">The LoRa mesh gives you long-range control and alerting with no infrastructure. It is entirely optional, since a single node works standalone, but it is what turns several nodes into a system.</p>
+  <p class="lead">The LoRa mesh carries commands and alerts between your phone and your nodes with no other infrastructure. It is optional; a single node works on its own.</p>
 
   <figure><img src="../img/mesh-screenshot.jpg" alt=""><figcaption>A device scan sending its results over the mesh. The header badge tracks the transmit queue draining at the LoRa airtime cap, 32 of 55 rows sent, and the Privacy button has masked the addresses.</figcaption></figure>
 
@@ -564,7 +564,7 @@ python3 scripts/meshtastic_config.py</pre>
   </ol>
 
   <div class="box warn"><span class="t">The factory preset is not private</span>
-    <p>A node left on the default channel broadcasts its detections, its position and its command traffic to anyone listening. Changing the channel is the single most important mesh setting you will touch.</p>
+    <p>A node left on the default channel broadcasts its detections, its position and its command traffic to anyone listening.</p>
   </div>
 
   <h3>7.4 Quiet-ops settings</h3>
@@ -595,12 +595,12 @@ python3 scripts/meshtastic_config.py</pre>
 
 <div class="sec">
   <h2><span class="num">8</span>First configuration</h2>
-  <p class="lead">Ten minutes on the bench before the node ever leaves the building.</p>
+  <p class="lead">Do this on the bench before you deploy the node.</p>
 
   <h3>8.1 Change the credentials</h3>
   <ul>
-    <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>Wi-Fi Access Point</b> in the System tab, then <b>Save Wi-Fi Settings</b>.</li>
-    <li><b>Hidden network.</b> Off by default. Turn it on under <b>Wi-Fi Access Point</b> and the node stops beaconing its SSID, so the AP does not appear in a scan of the area. It is not access control. A hidden SSID forces the client to send directed probe requests carrying the network name, so the phone or laptop you connect with advertises that name everywhere it goes afterwards. The WPA2/WPA3 passphrase is still what keeps people out. The node reboots on save and you type the SSID by hand to reconnect.</li>
+    <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under System tab → <b>RF Settings</b> → <b>Wi-Fi Access Point</b>, then <b>Save Wi-Fi Settings</b>.</li>
+    <li><b>Hidden network.</b> Off by default. Turn it on in the same section and the node stops broadcasting its network name. It does not keep anyone out; the password does. The phone or laptop you connect with then sends the network name in its probe requests wherever it goes. The node reboots on save; type the network name by hand to reconnect.</li>
     <li><b>Erase key.</b> Authorizes every wipe, abort, auto-erase change and factory reset. 8 to 64 characters, no <span class="mono">:</span>. Erase commands are refused (<span class="mono">ERASE_ACK:SET_KEY_FIRST</span>) until you set one: in the web UI, in the flasher (<span class="mono">erasePSK</span>), or with <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. Full: until a key is set, <span class="mono">&lt;current&gt;</span> is the AP password, once it is changed from the default. Headless: set it in the flasher. Record it; the node never prints it.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
@@ -632,7 +632,7 @@ python3 scripts/meshtastic_config.py</pre>
   </ul>
 
   <div class="box"><span class="t">One radio, two jobs</span>
-    <p>Wi-Fi and BLE share a single 2.4 GHz radio and the scan loop is single-threaded. A BLE scan holds the radio for its full duration, and Wi-Fi capture is off-air for that time. BLE scan duration is literally the fraction of each cycle Wi-Fi is dark. The presets split it evenly by setting BLE duration to half the BLE interval.</p>
+    <p>Wi-Fi and BLE share a single 2.4 GHz radio and the scan loop is single-threaded. A BLE scan holds the radio for its full duration, and Wi-Fi capture is off-air for that time. BLE scan duration is the part of each cycle Wi-Fi can't listen. The presets split it evenly by setting BLE duration to half the BLE interval.</p>
   </div>
 
   <h3>8.4 Field controls worth knowing now</h3>
@@ -663,18 +663,18 @@ python3 scripts/meshtastic_config.py</pre>
   <p>In the web UI a target card shows <b>Getting closer</b> or <b>Moving away</b> when its signal has clearly risen or fallen: at least 6 sightings over at least 15 s, a change of at least 6 dB, and a t-statistic of at least 3. Otherwise the card shows <b>Measuring</b> or <b>Steady</b>. The <b>Movement</b> checkbox shows or hides these.</p>
 
   <h3>9.2 Device Scanner</h3>
-  <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
+  <p>Captures everything nearby, Wi-Fi and BLE, with RSSI, channel and names. Run it first at a new site.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE   <span class="c"># +PROBE also fills the probe database</span></pre>
   <p><b>What a BLE device is</b> (badge in Full; <span class="mono">C=</span> field in both builds). Device, Target and Baseline results show a badge naming what the device advertises: an Apple service (AirDrop, Handoff, AirPods, Find My, iPhone activity state), or a class and vendor read from its Bluetooth service or company ID, for example <span class="mono">Wearable-Garmin</span>, <span class="mono">Tag-Tile</span>, <span class="mono">Vehicle-Tesla</span>, <span class="mono">Drone-RemoteID</span>. The text results carry it as <span class="mono">C=</span>. Wi-Fi devices with a fixed MAC show their vendor from the MAC prefix instead.</p>
 
   <h3>9.3 Probe Request Scanner</h3>
-  <p>Passive sniffing of the probe requests devices emit while looking for networks they know. It reveals the SSIDs a device is searching for, which is often more identifying than the device itself.</p>
+  <p>Passive sniffing of the probe requests devices emit while looking for networks they know. It records the SSIDs each device is searching for.</p>
   <pre>@ALL PROBE_START:2:300:+ALL     <span class="c"># +ALL broadcasts every probe, not just watchlist hits</span></pre>
   <p>Hits: <span class="mono">NODE: PROBE_HIT MAC [Randomized|Vendor] RSSI=dBm CH=N [SSID="net" [GHOST]]</span></p>
   <p><b>Ghost SSID detection</b> flags a probed SSID with no matching AP responding nearby: a network the device remembers but that is not here.</p>
 
   <h3>9.4 Baseline Anomaly Detection</h3>
-  <p>Learn, then alert. The node observes a site for a set period and records what belongs there. Afterwards it reports what is new, what has gone, and what has changed signal.</p>
+  <p>The node observes a site for a set period and records what belongs there. Afterwards it reports what is new, what has gone, and what has changed signal.</p>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
@@ -696,7 +696,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
 
   <h3>9.7 Sentinel counter-intelligence</h3>
-  <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
+  <p>Passive detection of Wi-Fi attacks and the tools that run them: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognizable template, Sentinel names the tool behind it.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
 @ALL SENTINEL_BOOT:1           <span class="c"># start automatically on boot</span>
@@ -720,7 +720,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h4>Acting on a confirmed attack</h4>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
   <p>The <b>On confirmed attack</b> panel picks what runs when a detector confirms an attack with a source MAC: triangulate, packet capture, device discovery, probe sweep, drone RID, each with its own duration. Only one can hold the radio, so several checked run in that order, one at a time, as it frees up. The queue is dropped after 15 minutes if the radio never frees.</p>
-  <p>Same panel sets the auto-capture budget. Captures made this way are <span class="mono">auto_</span> files, pruned oldest-first to stay inside the budget and keep the card's free-space floor. Manual captures are never touched.</p>
+  <p>Same panel sets the auto-capture budget. Captures made this way are <span class="mono">auto_</span> files, pruned to stay inside the budget and keep the card's free-space floor. Manual captures are never touched.</p>
   <div class="box warn"><span class="t">A response is a scan</span>
     <p>Detection pauses for the duration of each action. On a site that trips often, keep the durations short.</p>
   </div>
@@ -735,7 +735,7 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0
 @AH01 TRIANGULATE_RESULTS
 @ALL TRIANGULATE_STOP</pre>
-  <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
+  <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. A wrong environment skews the distance estimate. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
   <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, Beta and C5 firmware)</span></h3>
   <p>Tells you when someone is moving nearby, even through walls. Indoors only. It notices movement, not someone sitting still.</p>
@@ -759,7 +759,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Include randomized-MAC devices</td><td>Also listen to phones and watches, not just routers</td><td>On</td></tr>
     <tr><td>Min. seconds between mesh motion alerts</td><td>Wait at least this many seconds between motion alerts sent over mesh</td><td>0 (no limit)</td></tr>
   </table>
-  <p><b>Getting false alarms with nobody there?</b> Turn on "Per-packet score to serial", watch the <span class="mono">sig</span> numbers while the room is empty, and set Trigger level just above the highest one.</p>
+  <p><b>False alarms in an empty room:</b> turn on "Per-packet score to serial", note the highest <span class="mono">sig</span> score printed while the room is empty, and set Trigger level slightly above it.</p>
   <div class="box"><span class="t">Can transmit</span>
     <p>Off by default. If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.</p>
   </div>
@@ -830,7 +830,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h2><span class="num">10</span>Vibration sensor and tamper response</h2>
 
   <h3>10.1 How it works</h3>
-  <p>The SW-420 is a mechanical vibration switch with a comparator and a trimpot on board. It has one job: pull its digital output high when movement exceeds the threshold the trimpot sets. That output goes to GPIO 2 on the ESP32-S3 (GPIO 0 on the C5), configured as a pull-down input with a rising-edge interrupt.</p>
+  <p>The SW-420 is a mechanical vibration switch with a comparator and a trimpot on board. Its digital output goes high when movement exceeds the threshold the trimpot sets. That output goes to GPIO 2 on the ESP32-S3 (GPIO 0 on the C5), configured as a pull-down input with a rising-edge interrupt.</p>
   <p>When it fires, the firmware:</p>
   <ul>
     <li>Sends a mesh alert if vibration alerts are enabled: <span class="mono">NODE: VIBRATION: Movement detected at TIME [GPS:lat,lon]</span></li>
@@ -838,11 +838,11 @@ python3 scripts/meshtastic_config.py</pre>
     <li>Optionally starts a scan (§10.3)</li>
     <li>Counts toward the tamper auto-erase trigger if that is armed (§10.4)</li>
   </ul>
-  <p>Alerts are rate-limited to one every 3 seconds, so continuous shaking produces a steady trickle rather than a flood. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
+  <p>Alerts are rate-limited to one every 3 seconds. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
   <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the toggle in the web UI's Sensor Alerts card. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
 
   <h3 id="s10-2">10.2 Tuning the trimpot</h3>
-  <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends entirely on where the node is mounted. A pole in the wind is not a shelf indoors. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
+  <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends on where the node is mounted. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
   <ol>
     <li>Power the node and watch the sensor's own indicator LED, or open a serial monitor and watch for <span class="mono">[VIBRATION]</span> lines.</li>
     <li>Leave the node completely still. If it is triggering by itself, turn the screw an eighth of a turn at a time in the direction that stops it. Wait several seconds between adjustments. The module reacts slowly.</li>
@@ -861,7 +861,7 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h3>10.3 Vibration auto-scan</h3>
-  <p>Movement can start a scan automatically. This suits a node used as a trip sensor rather than a continuous monitor.</p>
+  <p>Movement can start a scan automatically.</p>
   <pre>@AH01 VIBSCAN_SET:1:2:60:60:1  <span class="c"># on : mode : secs : cooldown s : interrupt schedule</span>
 @AH01 VIBSCAN_STATUS</pre>
   <table class="tight">
@@ -875,38 +875,45 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Duration 0 means run until stopped, except mode 8, which needs a duration above 0. The trigger is skipped if a scan is already running or the node is in battery saver. Mode 8 writes an <span class="mono">auto_</span> capture, which is subject to the auto-capture budget rather than kept forever.</p>
 
   <h3>10.4 Tamper auto-erase</h3>
-  <p>The node can destroy its own data when it is moved. This is <b>off by default</b>, and it is permanent and irreversible.</p>
+  <p>The node erases its settings and SD files when it is moved. <b>Off by default.</b> A wipe can't be undone and needs an SD card in the node.</p>
   <table class="tight">
-    <tr><th>Parameter</th><th>Range</th><th>What it does</th></tr>
-    <tr><td>Setup delay</td><td>30 s to 10 min</td><td>Grace period after arming, so installing the node does not wipe it</td></tr>
-    <tr><td>Vibrations required</td><td>2 to 5, default 3</td><td>How many movement events count as tampering</td></tr>
-    <tr><td>Detection window</td><td>10 to 60 s (web UI from 5 s)</td><td>The period those events must fall within</td></tr>
-    <tr><td>Erase delay</td><td>10 to 300 s</td><td>Countdown before destruction, your window to cancel</td></tr>
-    <tr><td>Cooldown</td><td>5 to 60 min (web UI from 1 min)</td><td>Minimum time between tamper attempts, to blunt false triggers</td></tr>
+    <tr><th>Setting</th><th>What it does</th><th>Default</th><th>Web UI</th><th>Mesh</th></tr>
+    <tr><td>Setup delay</td><td>Time before auto-erase arms. Place the node and leave</td><td>2 min</td><td>30 s to 10 min</td><td>30 to 600 s</td></tr>
+    <tr><td>Vibrations required</td><td>Movement events that start the countdown</td><td>3</td><td>2 to 5</td><td>2 to 5</td></tr>
+    <tr><td>Detection window</td><td>Time in which those events must happen</td><td>20 s</td><td>5 to 60 s</td><td>10 to 60 s</td></tr>
+    <tr><td>Erase delay</td><td>Countdown from tamper to wipe. Cancel in this time</td><td>30 s</td><td>10 to 300 s</td><td>10 to 300 s</td></tr>
+    <tr><td>Cooldown</td><td>Shortest time between two countdowns</td><td>5 min</td><td>1 to 60 min</td><td>300 to 3600 s</td></tr>
   </table>
+  <p>Over mesh, send all five values or none to keep the current ones. Out-of-range values are clamped.</p>
   <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300:&lt;answer&gt;   <span class="c"># setup:erase:vibs:window:cooldown:answer</span>
+@AH01 AUTOERASE_ENABLE:&lt;answer&gt;                  <span class="c"># keep current values</span>
 @AH01 AUTOERASE_STATUS
-@AH01 AUTOERASE_DISABLE:&lt;answer&gt;
-@AH01 ERASE_CANCEL:&lt;answer&gt;                       <span class="c"># abort a running countdown</span></pre>
-  <p>During the setup period the node still reports movement, so you can watch the arming from a distance: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When it triggers you get <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>.</p>
+@AH01 AUTOERASE_DISABLE:&lt;answer&gt;</pre>
+  <p>During the setup delay the node still reports movement: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When a tamper starts the countdown it sends <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>. To cancel, send <span class="mono">ERASE_REQUEST</span> after that alert, then <span class="mono">ERASE_CANCEL:&lt;answer&gt;</span> before the countdown ends.</p>
 
   <h4>Remote erase</h4>
-  <p>Every mesh command marked <span class="mono">&lt;answer&gt;</span> takes a one-time answer to a token. The erase key (§8.1) never goes on the mesh for these commands, so a captured command can't be replayed:</p>
+  <p>Mesh erase commands take a one-time <span class="mono">&lt;answer&gt;</span>, not the erase key (§8.1). A captured command can't be replayed.</p>
   <ol>
-    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span> (one per 20 s). The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
-    <li>Sign the token: <span class="mono">printf '%s' 'AH_3F2A…' | openssl dgst -sha256 -hmac 'yourKey'</span>.</li>
-    <li>Within 300 s send the 64 hex characters, or the first 8, as <span class="mono">&lt;answer&gt;</span>: <span class="mono">@AH01 ERASE_FORCE:&lt;answer&gt;</span>. A token takes one attempt, right or wrong.</li>
+    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span>. The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
+    <li>Compute the answer from the token and your key: <span class="mono">printf %s 'AH_3F2A91C0_77B0E412_000004D2' | openssl dgst -sha256 -hmac 'yourKey' | awk '{print $NF}' | cut -c1-8</span>.</li>
+    <li>Within 300 s: <span class="mono">@AH01 ERASE_FORCE:&lt;answer&gt;</span>.</li>
   </ol>
-  <p>The key itself is refused over mesh. 5 wrong answers, or 5 wrong keys on the web, lock erase commands for 10 min. Logs show keys and answers as <span class="mono">***</span>.</p>
+  <ul>
+    <li>The answer is 8 hex characters (the full 64 also work), upper or lower case.</li>
+    <li>One attempt uses up the token, right or wrong. The node holds one token at a time; a new <span class="mono">ERASE_REQUEST</span> or a tamper trigger replaces it. One request per 20 s.</li>
+    <li><span class="mono">ERASE_FORCE</span> wipes and keeps the node running. Replies: <span class="mono">ERASE_EXECUTING</span>, <span class="mono">ERASE_COMPLETE</span>, <span class="mono">ERASE_ACK:COMPLETE</span>, or <span class="mono">ERASE_ACK:FAILED|BUSY|DENIED</span>.</li>
+    <li><span class="mono">DENIED</span>: wrong key, expired or used token. <span class="mono">FAILED</span>: no SD card. <span class="mono">ERASE_ACK:SET_KEY_FIRST</span>: no key set.</li>
+    <li>5 wrong answers, or 5 wrong keys on the web, lock erase commands for 10 min. Logs show keys and answers as <span class="mono">***</span>.</li>
+  </ul>
   <p>In the web UI, enter the key in the Authorization field.</p>
-  <p>After a wipe the node leaves a decoy <span class="mono">/weather-air-feed.txt</span> with a weather-monitor error message, so a recovered device does not obviously read as a sensor.</p>
+  <p>After a wipe the node writes one decoy file, <span class="mono">/weather-air-feed.txt</span>, holding a weather-monitor error message.</p>
 
   <h4>Factory reset</h4>
-  <pre>@AH01 FACTORY_RESET:FULL:&lt;answer&gt;    <span class="c"># FULL | CONFIG | DATA</span></pre>
-  <p>Single node only.</p>
+  <pre>@AH01 FACTORY_RESET:&lt;FULL|CONFIG|DATA&gt;:&lt;answer&gt;</pre>
+  <p><span class="mono">FULL</span> erases settings and SD files, <span class="mono">CONFIG</span> settings only, <span class="mono">DATA</span> SD files only. The node then reboots. Send it to one node at a time: each node issues its own token.</p>
 
   <div class="box warn"><span class="t">Data destruction is irreversible</span>
-    <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone, and the countdown is short by design.</p>
+    <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone.</p>
   </div>
 </div>
 
@@ -969,7 +976,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">SENTINEL_MODE</span></td><td>Pin a channel or hop</td><td><span class="mono">defend</span> or <span class="mono">scan</span></td></tr>
     <tr><td><span class="mono">SENTINEL_BOOT</span></td><td>Auto-start at power-on</td><td>1 or 0</td></tr>
     <tr><td><span class="mono">GROUP</span></td><td>Toggle a detector group</td><td><span class="mono">&lt;dos|rogue|recon|physical|mesh|all&gt;:&lt;on|off&gt;</span></td></tr>
-    <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector tunables</td><td>JSON, 180 characters or fewer</td></tr>
+    <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector settings; keys in the mesh command reference</td><td>JSON that fits in one mesh message</td></tr>
     <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td>Dump or clear the incident log</td><td><span class="mono">[:1-200]</span></td></tr>
     <tr><td><span class="mono">ATTACKER_TRILAT</span> and <span class="mono">ATTACKER_TRILAT_STATUS</span></td><td>Triangulate a confirmed attacker, or report the setting</td><td>1 or 0, off by default</td></tr>
     <tr><td><span class="mono">DETECT_COUNTS</span></td><td>Entry count per detector, pending attack responses</td><td>None</td></tr>
@@ -997,7 +1004,7 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL CONFIG_TARGETS:AA:BB:CC|MyWiFi  <span class="c"># set the watchlist</span>
 @ALL SCAN_START:2:600:1..11          <span class="c"># 10 min watchlist scan, Wi-Fi + BLE</span>
 @ALL DEVICE_SCAN_START:2:300         <span class="c"># survey everything nearby</span>
-@ALL BASELINE_START:900              <span class="c"># learn the site for 15 min</span>
+@ALL BASELINE_START:900              <span class="c"># learn, then watch for 15 min</span>
 @ALL SENTINEL_ON                     <span class="c"># attacker-tool detection</span>
 @ALL DRONE_START:0                   <span class="c"># drone watch until stopped</span>
 @AH01 BATTERY_SAVER_START:10         <span class="c"># idle a node without losing the mesh</span></pre>
@@ -1078,7 +1085,7 @@ docker compose up -d --build</pre>
   <h3>13.1 Siting</h3>
   <figure class="third"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds. The enclosure changes. The node does not.</figcaption></figure>
   <ul>
-    <li><b>Height helps more than power.</b> Get the node above metal, vehicles and crowds. A few meters of elevation beats any antenna change.</li>
+    <li><b>Mount it high</b>, above metal, vehicles and crowds.</li>
     <li><b>Antennas vertical</b>, and clear of the enclosure's own metalwork and of each other.</li>
     <li><b>GPS wants sky.</b> The helix or patch needs a clear upward view. Indoors it may never lock, and without a fix your detections carry no coordinates and triangulation cannot run.</li>
     <li><b>Keep LoRa and Wi-Fi antennas apart</b> as far as the enclosure allows.</li>
@@ -1100,7 +1107,7 @@ docker compose up -d --build</pre>
   <h3>13.3 Power planning</h3>
   <ul>
     <li>Roughly 160 mA idle, 600 mA scanning. Aggressive presets and continuous promiscuous capture sit at the top of that range.</li>
-    <li>Battery Saver stops scanning, drops the CPU to 80 MHz and polls GPS once a minute while keeping the mesh alive. That is the right state for a node that only needs to be reachable.</li>
+    <li>Battery Saver stops scanning, drops the CPU to 80 MHz and polls GPS once a minute while keeping the mesh alive.</li>
     <li>Solar mount frames are in the STL folder. Feed solar through the UPS board, never directly to the PCB.</li>
     <li>Never use the chassis USB input and the UPS fast-charge input at the same time.</li>
   </ul>
@@ -1116,7 +1123,7 @@ docker compose up -d --build</pre>
   <p>You get <span class="mono">ANOMALY-NEW</span> for a device that was not there at dusk, and Sentinel alerts for deauth, evil twins and similar attacks.</p>
 
   <h4>Someone casing the place</h4>
-  <p>The same phone or car showing up on different days is the tell. Run a device scan while they are around, put the MACs you care about on the watchlist, then hunt them on a schedule.</p>
+  <p>To catch the same phone or car showing up on different days, run a device scan while they are around, put the MACs you care about on the watchlist, then hunt them on a schedule.</p>
   <pre>@AH01 DEVICE_SCAN_START:2:600
 @ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33
 @ALL SCAN_START:2:0:1..11:FOREVER                                   <span class="c"># or schedule it:</span>
@@ -1174,7 +1181,7 @@ docker compose up -d --build</pre>
     <tr><td>Constant vibration alerts</td><td>Trimpot too sensitive, or a resonant mount</td><td>Retune in place (§10.2), pad the mount.</td></tr>
     <tr><td>Vibration never fires</td><td>Trimpot too insensitive, or a bad joint on the sensor header</td><td>Retune, check the diagnostics line and the solder joints.</td></tr>
     <tr><td>Node scans forever</td><td>A scan was started with <span class="mono">:FOREVER</span> or duration 0</td><td><span class="mono">@ALL STOP</span>, or the Stop button in the UI.</td></tr>
-    <tr><td>Settings gone after flashing</td><td>Erase Device was checked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
+    <tr><td>Settings gone after flashing</td><td>Erase Device was checked</td><td>Reconfigure.</td></tr>
     <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
     <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behavior. Position is only attached when the fix is valid.</td></tr>
   </table>
@@ -1283,7 +1290,7 @@ docker compose up -d --build</pre>
     <li>1× 3-pin mini on/off switch</li>
     <li>1× waterproof Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
     <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
-    <li>1× 2 A fast-blow fuse, recommended, not supplied</li>
+    <li>1× 2 A fast-blow fuse, optional, not supplied</li>
     <li>2× 18650 cells, protected flat-top, never supplied with any tier</li>
   </ul>
   <h4>Enclosure</h4>
@@ -1325,7 +1332,7 @@ docker compose up -d --build</pre>
     <tr><td><span class="mono">/devicedb.jsonl</span></td><td>Device database, browsed by the Data Explorer. Headless writes it on Beta and C5 only</td></tr>
     <tr><td><span class="mono">/vibrations.jsonl</span></td><td>Structured vibration events</td></tr>
     <tr><td><span class="mono">/pcap/wifi_*.pcap</span> and <span class="mono">/pcap/ble_*.pcap</span></td><td>Packet captures you started by hand. Never pruned automatically</td></tr>
-    <tr><td><span class="mono">/pcap/wifi_auto_*.pcap</span> and <span class="mono">/pcap/ble_auto_*.pcap</span></td><td>Captures started by a vibration trigger or a Sentinel attack response. Oldest are deleted to stay inside the budget and keep the card's free-space floor</td></tr>
+    <tr><td><span class="mono">/pcap/wifi_auto_*.pcap</span> and <span class="mono">/pcap/ble_auto_*.pcap</span></td><td>Captures started by a vibration trigger or a Sentinel attack response. Deleted as needed to stay inside the budget and keep the card's free-space floor</td></tr>
   </table>
 
   <h2 style="margin-top:10mm">Appendix D · Glossary</h2>
@@ -1376,7 +1383,7 @@ docker compose up -d --build</pre>
 @ALL CONFIG_TARGETS:AA:BB:CC|MyWiFi  set the watchlist
 @ALL SCAN_START:2:600:1..11          watchlist scan, 10 min
 @ALL DEVICE_SCAN_START:2:300         survey everything
-@ALL BASELINE_START:900              learn the site
+@ALL BASELINE_START:900              learn, then watch 15 min
 @ALL SENTINEL_ON                     attacker-tool detection
 @ALL DRONE_START:0                   drone watch until stopped
 @AH01 BATTERY_SAVER_START:10         idle, mesh stays up</pre>
@@ -1397,7 +1404,7 @@ docker compose up -d --build</pre>
   </div>
 
   <p class="small" style="margin-top:3mm; text-align:center; color:var(--mut)">
-    AntiHunter DIGI NODE Operator's Guide · revision 1.2 · 17 October 2026 · GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
+    AntiHunter DIGI NODE Operator's Guide · revision 1.3 · 19 October 2026 · GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
   </p>
 </div>
 

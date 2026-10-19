@@ -21,8 +21,8 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 ## New
 
 - Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
-- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits.
-- Mesh, Full and headless: `DETECT_COUNTS`.
+- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` limits captures started by Sentinel: total size they may use (default 512 MB) and free space to keep on SD (default 256 MB).
+- Mesh, Full and headless: `DETECT_COUNTS` replies with Sentinel tracker counts (Karma candidates and confirmed, Pwnagotchi, handshakes, hunts, mesh peers).
 - Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
@@ -38,7 +38,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Campaign UX: one Data tab panel starts/stops on this node and checked mesh nodes; header REC badge; Export campaign; jsonl rows carry `campaign` and filter by it; mesh `STATUS` adds `Camp:<name>`.
 - `/api/fleet/send` accepts `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for headless nodes.
-- Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System → Wi-Fi Access Point or with `webPass` in the flasher config. Turn the login off there or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. Neither setting can be changed over mesh. Scheduled scans are not affected.
+- Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System → RF Settings → Wi-Fi Access Point or with `webPass` in the flasher config. Turn the login off there or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. Neither setting can be changed over mesh. Scheduled scans are not affected.
 
 ## Fixed
 
@@ -101,8 +101,7 @@ Settings and SD card files survive a flash. Erase commands stay refused until yo
 
 All three builds attach to the one v1.0.5 release.
 Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
-Also `bootloader`, `partitions` and `SHA256SUMS` per version.
-Builds are reproducible; verify with `shasum -a 256`.
+Also `bootloader`, `partitions` and `SHA256SUMS` per version. Check a download with `shasum -a 256`.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|

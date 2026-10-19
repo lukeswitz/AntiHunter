@@ -35,11 +35,9 @@
 
 ## What is AntiHunter?
 
-***A wireless and physical tripwire for your perimeter. No subscription, no cloud. Your data stays yours.***
+AntiHunter is detection firmware for the DIGI node, a sensor board built around an ESP32 and a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and Wi-Fi attacks. It can also record packet captures, list the networks nearby phones are searching for, and alert you when someone moves the node. Everything it finds is saved to the SD card.
 
-AntiHunter turns the hunt around. Drones, phones, and attack tools give themselves away by transmitting, and AntiHunter listens. It flags watchlist targets, new devices, drones, wireless attacks, and tampering, then alerts, collects evidence, and can erase itself.
-
-Run it at home, on a fence line, at an event, or off-grid on battery. No internet needed; everything logs to SD. One node works alone. Add more and they share alerts and can pinpoint a device together (experimental). Control the whole fleet from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+You control a node from its web UI (Full build), or by sending it text commands over LoRa from any Meshtastic radio on your channel (Full and Headless builds). The web UI shows results on its Results tab. Over LoRa, the node sends its replies and alerts to your channel as text messages. A node works on its own, needs no internet connection, and runs on battery. Several nodes can work together to estimate where a device is (experimental), and the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) shows a whole fleet on one map. A node can also wipe its own data on command, or when someone tampers with it.
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
@@ -81,7 +79,7 @@ Run it at home, on a fence line, at an event, or off-grid on battery. No interne
 The flasher asks whether to erase the device first. Erase to clear saved settings. To flash from a terminal, see [Build & flash](#build--flash).
 
 **3. Connect to the node.**
-- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1. Log in as `admin` with the Wi-Fi password. Set a separate web password, or turn the login off, under System → Wi-Fi Access Point.
+- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1. Log in as `admin` with the Wi-Fi password. Set a separate web password, or turn the login off, under System → RF Settings → Wi-Fi Access Point.
 - Headless: open a serial monitor at 115200 baud.
 
 **4. Set up the Meshtastic radio.**
@@ -92,7 +90,7 @@ The flasher asks whether to erase the device first. Erase to clear saved setting
 - Change the AP name and password under RF Settings. Every unit ships with the same published defaults, so anyone can join an unchanged node.
 - Set the node ID in the web UI, or with `CONFIG_NODEID` over mesh.
 - On the radio, set the region and a new BLE pairing pin: `python3 scripts/meshtastic_config.py --region US --pin 481920` (use your region and your own 6-digit pin). Then in the Meshtastic app, under Channels, make your own encrypted channel primary and turn the public channel off.
-- Set your erase key. Wipe is off until you do. See [Secure data destruction](#secure-data-destruction).
+- Set your erase key. Erase commands are refused until you do. See [Secure data destruction](#secure-data-destruction).
 - For covert work, run Headless, which has no access point, and turn off the radio's screen, LED, and Bluetooth with the radio plugged in on its own USB: `python3 scripts/meshtastic_config.py --screen off --led off --ble off`
 - Privacy Mode hides MACs, SSIDs, and GPS in the web UI only. Exported logs and SD files still contain them, and GPS coordinates identify places. Check files before posting them.
 - Passive reception differs from interception, and the rules differ by country. Scan only where you have authority. See the [legal disclaimer](#legal-disclaimer).
@@ -191,7 +189,7 @@ Wi-Fi devices send probe requests that name the networks they want to join. This
 
 ### Recon: Randomized MAC tracer (experimental)
 
-Modern phones change their MAC address to avoid tracking. The tracer scores how alike two MACs are. It compares MAC prefix, information elements and their order, timing, signal pattern, and sequence numbers. Close matches become one identity with a confidence score and an ID (`T-XXXX`) saved to SD.
+Phones change their MAC address. The tracer compares how each MAC behaves on air and groups close matches into one identity, with a confidence score and an ID (`T-XXXX`) saved to SD. Use the ID in `CONFIG_TARGETS` or `TRIANGULATE_START`.
 
 <p align="center">
   <img width="880" alt="Randomized MAC Tracer" src="docs/img/randomization.jpg" />
@@ -204,7 +202,6 @@ Modern phones change their MAC address to avoid tracking. The tracer scores how 
 **Operational notes**
 - It tracks up to 256 devices at once. Past that, it drops the one not seen for longest
 - It flags devices that also send from their real (global) MAC
-- Press the Privacy button to hide MACs, GPS, and SSIDs before taking screenshots
 
 ---
 
@@ -221,16 +218,16 @@ Detects drones broadcasting Remote ID under the FAA and EASA rules, and reports 
 - Mesh: `@ALL DRONE_START:300` watches for 300 s. `@ALL DRONE_START:0:FOREVER` runs until `@ALL STOP`
 
 **Operational notes**
-- Wi-Fi: ODID/ASTM F3411 in NAN action frames and beacons. The node stays on channel 6 during a drone scan
-- BLE: legacy advertising, service UUID `0xFFFA`. BLE 5 long-range advertising isn't received
-- It also reads French drone ID
+- Wi-Fi: reads Remote ID from beacons and NAN frames. The node stays on channel 6 during a drone scan
+- BLE: reads Bluetooth 4 Remote ID broadcasts. Bluetooth 5 long-range broadcasts aren't received
+- It also reads the French national drone ID format
 - When a drone sends both a serial number and a CAA registration ID, the node reports the serial number
 
 ---
 
 ### Detection: Baseline anomaly
 
-Learns which access points and BLE devices are normally present, then reports devices that are new, gone, back again, or whose signal changed by more than the RSSI variation setting (default 20 dB).
+Learns which access points and BLE devices are normally present, then reports devices that are new, gone, back again, or whose signal changed by more than the RSSI variation setting.
 
 <p align="center">
 <img width="800" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
@@ -252,7 +249,18 @@ Learns which access points and BLE devices are normally present, then reports de
 
   Full shows it in Results. Headless prints the list to serial when the scan ends and sends `BASELINE_WATCH: New=<n> Gone=<n> Moved=<n> Both=<n>` over mesh
 - With an SD card, the baseline survives a reboot. Recent devices stay in memory, and the node moves the rest to SD
-- Baseline uses its own RSSI threshold (default −60 dBm), not the global RSSI floor
+
+**Settings**: Full, Scan tab → Baseline Anomaly Sniffer. Either build, the Web Flasher's Baseline Detection section at flash time. Ranges below are the web UI's.
+
+| Setting | What it does | Default | Range |
+|---|---|---|---|
+| RSSI | Ignores devices weaker than this. Baseline uses this, not the global RSSI floor | −60 dBm | −40 to −80 |
+| Baseline | Learning time before monitoring starts | 5 min | 5, 10, 15 min |
+| Marked Absent | Seconds unseen before a device counts as gone | 120 | 30-600 |
+| Seen Reappear | Seconds after going missing in which a return is reported | 300 | 60-1800 |
+| RSSI Variation | Signal change that counts as moving closer or away | 20 dB | 5-50 |
+| RAM Cache | Devices kept in memory | 400 | 200-500 |
+| SD Device Storage | Devices kept on SD | 50000 | 1000-100000 |
 
 ---
 
@@ -294,20 +302,20 @@ Once you start it, Sentinel listens for Wi-Fi attack frames in the background an
 
 **Operational notes**
 - Sentinel writes each detection to serial and SD. With the mesh on and that detector's broadcast flag set, it also sends it to other nodes, rate-limited
-- When Sentinel confirms an attack, it can start a follow-up: triangulate, packet capture, device discovery, probe sweep, or drone RID. They run one at a time, and detection pauses while they do
+- When Sentinel confirms an attack, it can start a follow-up: triangulate, packet capture, device discovery, probe sweep, or drone RID. They run one at a time, and detection pauses while they do. Off by default. Turn them on under Sentinel tab → **On confirmed attack**, or over mesh with `ATTACKER_TRILAT` and `DETECT_CFG` `attack_resp_mask` (see the [mesh command reference](docs/mesh-commands.md#sentinel))
 - Karma bait is the only detector that transmits. While on, it sends one bait probe request every 8 s, plus one when a suspect AP is first seen. Off by default. Turn it on with `GROUP:rogue:on`
 - Per-detector logs on SD start fresh at each boot so counts begin at zero. The full history stays in `/incidents.jsonl`
 
 <details>
 <summary>Detectors, outputs, and test coverage</summary>
 
-| Group | Detectors | How they're caught |
+| Group | Detectors | What it reports |
 |---|---|---|
-| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed Marauder seqCtrl, reason 7 with duration 0x013A, sawtooth sequence numbers, alternating deauth/disassoc, and deauth rate. Impersonation bursts. 40+ distinct nearby BSSIDs beaconing within 10 s, plus known static beacon templates. Open-system auth flood. Assoc-req PM-bit floods. SAE commit floods (algo 3 / txn 1). Reasons 1/2/6/7 alone never alert. Reason 14, or reason 2 with fixed seqCtrl 0xFFF0, alerts on its own |
-| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Another BSSID beaconing the node's own SSID. A new-vendor BSSID reusing a learned SSID. TSF restarts and known beacon-forgery templates. OWE-transition downgrade. Bait probe answered by an AP that never beacons that SSID |
-| **Recon** | PMKID harvest, probe flood, forced handshake | Orphaned-M1 / KDE PMKID solicitation. Probes with fixed seq 0x0001, 40+ distinct MACs probing one SSID within 5 s, or probe-rate floods. A WPA 4-way handshake completed right after a deauth burst, meaning someone knocked a client off to capture it. Sentinel ignores handshakes without a deauth burst |
-| **Physical** | FragAttacks, TSF / multi-channel twin, Wi-Fi interference | Fragment packet-number gaps and mixed encrypted/plaintext fragments (CVE-2020-26146/26147, off by default). Same BSSID on ≥2 channels within 5s. Per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
-| **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound. Inbound rate DoS. Logs every inbound mesh command (lines starting with `@`) with the radio id that sent it, even when this detector is off. The log is an **audit trail**, not an alert: on a shared channel an injected command looks like a normal one, so the node records the source |
+| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Deauth and disassociation floods and forged frames, with the tool name when the frames match one. Beacon floods of 40 or more APs within 10 s. Open-auth floods, power-save association floods, and WPA3 (SAE) commit floods |
+| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Another AP using the node's own network name. A new AP reusing a known network name. Forged beacons. OWE downgrade. An AP that answers a bait probe for a network it never advertises |
+| **Recon** | PMKID harvest, probe flood, forced handshake | Requests for a PMKID, used to crack a Wi-Fi password offline. Probe floods, including 40 or more MACs probing one network within 5 s. A WPA handshake right after a deauth burst. Attackers knock a client off this way to capture the handshake |
+| **Physical** | FragAttacks, TSF / multi-channel twin, Wi-Fi interference | Fragmented-frame attacks (CVE-2020-26146/26147, off by default). One AP on 2 or more channels within 5 s. A collapse in good frames on a channel, a sign of interference |
+| **Mesh disruption** | Self-spoof, channel flood, command audit | Another radio using this node's ID. Floods of inbound mesh messages. Every inbound mesh command and the radio that sent it, logged even when this detector is off. The log is a record, not an alert |
 
 - **Phone hotspots:** the crypto and beacon detectors skip locally administered BSSIDs, which phone hotspots use. Flood detectors don't, because real floods spoof them
 - **Output:** `[DETECT]` serial lines, `.jsonl` files on SD (some detectors share a file), `/incidents.jsonl`, and a mesh broadcast so other nodes can confirm
@@ -361,7 +369,7 @@ Tells you when something moves nearby, even through walls. The web UI marks it a
 
 </details>
 
-**False alarms with nobody there?** Turn on **Per-packet score to serial**, watch the `sig` numbers while the room is empty, and set Trigger level just above the highest one.
+**False alarms in an empty room:** turn on **Per-packet score to serial**, note the highest `sig` score printed while the room is empty, and set Trigger level slightly above it.
 
 > [!WARNING]
 > **This mode can transmit if you let it.** Off by default. If you turn off **Listen only, never transmit**, the node sends Wi-Fi probe requests when it hears too little traffic to measure. Anyone nearby can see them. Check local rules before turning it on.
@@ -396,7 +404,7 @@ Records raw traffic to SD as a standard pcap that Wireshark opens.
 
 ### Locate: Triangulation (experimental)
 
-Nodes listen for the same device at once. Each records RSSI and its own GPS position, and the mesh combines the results (weighted trilateration with Kalman filtering) into a location estimate. A position needs at least three nodes with a GPS fix. With two, the results only compare GPS distance with RSSI.
+Nodes listen for the same device at once. Each records RSSI and its own GPS position, and the mesh combines the results into a location estimate. A position needs at least three nodes with a GPS fix. With two, the results only compare GPS distance with RSSI.
 
 **Start**
 - Mesh: `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60`. AH01 coordinates a 60 s run for that MAC with the other nodes on the mesh
@@ -480,15 +488,16 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 ### Field controls
 
 - **Allowlist** - devices that Target Scan and Baseline ignore. Scan tab → **Allow list** tab next to Targets, one MAC per line.
-- **Privacy Mode** - the Privacy button (Results, System, Data, and Sentinel tabs) masks MACs and GPS and replaces SSIDs with hashes in the web UI for screenshots. Exported files keep them.
-- **Vibration trigger** - starts a scan when the node is moved. Full: System tab → Sensor Alerts. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>`:
+- **Privacy Mode** - the Privacy button (Results, System, Data, and Sentinel tabs) masks MACs and GPS and replaces SSIDs with hashes in the web UI for screenshots.
+- **Vibration trigger** - starts a scan when the node is moved. Full: System tab → Sensor Alerts. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>:<interrupt>`:
 
   | Part | Value |
   |------|-------|
   | on | `1` on, `0` off |
   | scan | `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target, `5` drone, `6` deauth, `7` baseline, `8` packet capture |
   | secs | Scan length in seconds. `0` runs until `STOP`, except scan 8 (packet capture), which needs a duration |
-  | cooldown | Seconds to wait before the next trigger, 5-86400 |
+  | cooldown | Seconds to wait before the next trigger, 5-86400. Optional |
+  | interrupt | `1` interrupts a running scheduled scan, which resumes after if it had 10 s or more left. Optional, default `0` |
 
   Examples:
   - `@AH01 VIBSCAN_SET:1:2:60:300` - probe scan for 60 s when moved, then at most once per 5 min
@@ -519,48 +528,45 @@ The [mesh command reference](docs/mesh-commands.md) lists every parameter.
 
 ### Secure data destruction
 
-Wipe the node's data if someone moves it, or on command.
+Erases the node's settings and SD files on command, or when the node is moved with auto-erase on. Needs an SD card. A wipe can't be undone.
 
-Wipe is off until you set your own erase key (8-64 characters, no `:`).
+**How it works.** You set an erase key. Over mesh the key is never sent: the node gives you a one-time token, you compute an answer from the token and your key, and the node checks it. A captured command can't be replayed. After a wipe the node writes one decoy file, `/weather-air-feed.txt`, holding a weather-monitor error message.
 
-**Set your key**
-- Full: System → Secure Data Destruction. The current key is your AP password (change the default first). Or over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`
-- Headless: the **Erase key** field in the web flasher
+**Set your key** (8-64 characters, no `:`). Erase commands are refused until you do.
+- Full: System → Secure Data Destruction. Until a key is set, the current key is the AP password, once you change it from the default. Over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`. This command carries the key, so send it on your own encrypted channel
+- Headless: the **Erase key** field in the Web Flasher
 
-**Wipe**
+**Wipe now**
 - Web UI: enter your key, press **WIPE NOW**
-- Mesh: `@AH01 ERASE_REQUEST` replies `ERASE_TOKEN:<token>`. Within 300 s send `@AH01 ERASE_FORCE:<answer>`, where `<answer>` is the first 8 hex characters of HMAC-SHA256 of the token keyed with your erase key:
-  `printf %s '<token>' | openssl dgst -sha256 -hmac '<your key>' | awk '{print $NF}' | cut -c1-8`
-  A token works for one attempt. `ERASE_REQUEST` is limited to one per 20 s.
+- Mesh:
+  1. `@AH01 ERASE_REQUEST`. The node replies `ERASE_TOKEN:<token> Expires:300s`
+  2. `printf %s '<token>' | openssl dgst -sha256 -hmac '<your key>' | awk '{print $NF}' | cut -c1-8`
+  3. Within 300 s: `@AH01 ERASE_FORCE:<answer>`
 
-Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE` and `FACTORY_RESET` take this answer, not the key. A captured command can't be replayed.
+`ERASE_FORCE` wipes and keeps the node running. `FACTORY_RESET:<FULL|CONFIG|DATA>:<answer>` wipes settings and SD, settings only, or SD only, then reboots.
 
-**Change your key:** `@AH01 CONFIG_ERASE_PSK:<new key>:<current key>`. This is the only mesh command that carries the key, so use your own encrypted channel.
+**Auto-erase on tamper.** Off by default. After the setup delay, the set number of vibrations within the detection window starts the erase countdown and sends `TAMPER_DETECTED: Auto-erase in <s>s`. To cancel: `ERASE_REQUEST`, then `ERASE_CANCEL:<answer>` before the countdown ends.
 
-5 wrong keys or answers lock erase commands for 10 minutes, on the web and over mesh.
-
-- **Auto-erase on tamper:** off by default. After the setup delay, **Vibrations Required** vibrations within the **Detection Window** start the erase countdown. Cancel with `@AH01 ERASE_REQUEST`, then `@AH01 ERASE_CANCEL:<answer>`
-- **Decoy file:** after the wipe, the node erases its settings and SD files, then writes `/weather-air-feed.txt` with a weather-monitor error message
-
-> [!WARNING]
-> A wipe is permanent. You can't undo it.
-
-<details>
-<summary>Auto-erase settings</summary>
-
-| Parameter | Range | Description |
-|-----------|-------|-------------|
-| Setup delay | 30s - 10min | Grace period before auto-erase activates |
-| Erase delay | 10-300s | Countdown before destruction |
-| Cooldown period | 1-60min in the web UI, 5-60min over mesh | Shortest time between tamper attempts |
-| Vibrations required | 2-5 | Vibrations needed to start the countdown |
-| Detection window | 5-60s in the web UI, 10-60s over mesh | Time window for counting vibrations |
-
-1. Turn on auto-erase in the web UI with a setup delay
+1. Turn it on: System → Secure Data Destruction, or `@AH01 AUTOERASE_ENABLE:<answer>`
 2. Place the node and leave during the setup delay
 3. Watch the mesh for tamper alerts
 
-</details>
+| Setting | What it does | Default | Web UI | Mesh |
+|---|---|---|---|---|
+| Setup delay | Time before auto-erase arms | 2 min | 30 s-10 min | 30-600 s |
+| Erase delay | Countdown from tamper to wipe | 30 s | 10-300 s | 10-300 s |
+| Vibrations required | Vibrations that start the countdown | 3 | 2-5 | 2-5 |
+| Detection window | Time in which they must happen | 20 s | 5-60 s | 10-60 s |
+| Cooldown | Shortest time between two countdowns | 5 min | 1-60 min | 300-3600 s |
+
+**Problems**
+- `ERASE_ACK:SET_KEY_FIRST`: no key set. Set one as above
+- `DENIED` on a correct answer: the token expired, was already used, or was replaced by a newer `ERASE_REQUEST`. Request a new one. Each token takes one attempt
+- `ERASE_TOKEN:RATE_LIMITED`: one request per 20 s
+- `ERASE_ACK:FAILED`: no SD card, or the wipe failed
+- 5 wrong keys or answers lock erase commands for 10 minutes, on the web and over mesh
+
+Every erase command and reply: [mesh command reference](docs/mesh-commands.md#erase).
 
 ---
 
@@ -644,9 +650,9 @@ Repeated scans of the same place would resend the same devices over the mesh. To
 
 | Setting | Effect |
 |---------|--------|
-| `meshDedupTtl = 0` (off) | Every scan sends every device |
-| `meshDedupTtl = 300` (5 min, default) | Skips a MAC sent in the last 5 min |
-| `meshDedupTtl = 3600` (1 hr max) | Sends each MAC at most once an hour |
+| `0` (off) | Every scan sends every device |
+| `300` (5 min, default) | Skips a MAC sent in the last 5 min |
+| `3600` (1 hr, max) | Sends each MAC at most once an hour |
 
 Dedup applies only to the `DEVICE:` rows of Device discovery. The node always sends triangulation (`T_F:/T_C:/T_D:`), anomaly alerts (`ANOMALY:`, `DEVICE_DISAPPEARED:`), drone alerts (`DRONE:`, `DRONE_LOST:`), attack alerts (`DEAUTH_FLOOD:`, `ATTACK:`), summaries (`SCAN_DONE:`, `DEAUTH_DONE:`, `BASELINE_DONE:`), and identities (`IDENTITY:`).
 
@@ -659,7 +665,7 @@ Set it in the web UI (System tab → Node Configuration → Mesh Dedup TTL, show
 <details>
 <summary>How mesh sending works</summary>
 
-Scans only queue messages and finish immediately. A background task (`meshTxTask`) sends them through a token-bucket rate limiter (`SerialRateLimiter`: 1000-byte burst, refilled at 400 B/s), and sends device rows one frame every 2.2 s. Three priority queues hold 256 messages - CTRL 16, EVENT 32, BULK 208 - sent in that order, so a `STOP` never waits behind a device list. The node packs device rows into frames up to 230 B, under Meshtastic's 237 B limit.
+Scans queue their messages and a background task sends them. Control messages such as `STOP` go first, then alerts, then device lists. Device rows are packed into frames of up to 230 bytes, one frame every 2.2 s.
 
 - A new scan never waits for the last scan's messages to finish sending
 - `STOP` (web or mesh) clears the queue
@@ -676,17 +682,17 @@ Buy a node from the [store](https://lectronz.com/stores/antihunter), or build yo
 <img width="600" height="600" alt="AntiHunter hardware" src="https://github.com/user-attachments/assets/57cae988-b5cf-480e-a076-9bf7f3b1ded8" />
 
 > [!IMPORTANT]
-> Use a regulated 5V power supply. Unregulated batteries cause voltage instability. A 2A fast-blow inline fuse on the battery line adds protection.
+> Use a regulated 5V power supply. Unregulated batteries cause voltage instability. An inline 2A fast-blow fuse on the battery line is optional and not supplied.
 
 ### Deployment steps by tier
 
-No tier comes with AntiHunter firmware installed. That's for integrity and regulatory reasons. You flash it yourself (Quick start, step 2).
+No tier comes with AntiHunter firmware installed. Flash it yourself (Quick start, step 2).
 
 | Tier | What ships | What you supply |
 |---|---|---|
-| **Bare PCB** ([note](docs/note-tier4-bare-pcb.pdf)) | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
+| **Bare PCB** ([note](docs/note-tier4-bare-pcb.pdf)) | One unpopulated 82mm board | Everything: source the [BOM](hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
 | **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.pdf)) | A fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Optional: enclosure, regulated 5V power, external antennas |
-| **Parts Kit** ([note](docs/note-tier2-parts-kit.pdf)) | Every BOM part except an active GPS antenna and 18650 cells, loose. The GPS module comes with its factory ceramic antenna. PCB, modules, 8GB card, enclosure, and TPU seals. 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails, and bulkheads. Fan, thermal switch, power switch, waterproof USB-C panel jack, UPS board, and fasteners. Nothing soldered, nothing flashed | Soldering and assembly per the manual, Meshtastic on the radio, two 18650 cells, active GPS antenna |
+| **Parts Kit** ([note](docs/note-tier2-parts-kit.pdf)) | Every BOM part, loose, except the active GPS antenna and 18650 cells. The GPS module has its factory ceramic antenna. Nothing soldered or flashed | Soldering and assembly per the manual, Meshtastic on the radio, two 18650 cells, active GPS antenna |
 | **Assembled** ([note](docs/note-tier1-assembled.pdf)) | Built, sealed, and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | Two 18650 cells |
 
 ### Core components
@@ -697,61 +703,11 @@ No tier comes with AntiHunter firmware installed. That's for integrity and regul
 
 ### Assembling the PCB
 
-- [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf) - unboxing, antennas, flashing, mesh setup, deployment
-- Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
-- PCB [welcome letter](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/ahwelcome.txt)
-- BOM parts [links & images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
-
-<details>
-<summary>Bill of Materials</summary>
-
-**Core components**
-- 1 × DIGI PCB (82mm)
-- 1 × Seeed Studio XIAO ESP32-S3
-- 1 × Heltec Wi-Fi LoRa 32 V3.2 (T114 also works, V3.2 preferred)
-- 1 × ATGM336H GPS Module
-- 1 × Micro SD SDHC TF Card Adapter Reader Module
-- 1 × SD Card (FAT32, 8GB shipped with every built tier, 32GB+ not recommended)
-- 1 × SW-420 Vibration Sensor
-- 1 × DS3231 Real Time Clock Module
-
-**Connectors and fasteners**
-- 5 × JST 2.54 2-Pin Terminals
-- 10 × M3 Mounting Inserts
-- 4 × M2 Mounting Inserts (power board)
-- 2 × M3 × 15mm Brass Standoffs
-- 1 × 1/4" Tripod Insert
-- 2 × JST Power Male Cable (switch, power board)
-- 8 × M3 × 4-6mm Flat Top Screws (for enclosure lids, max 6mm heads)
-- 6 × M3 × 4-6mm Screws (for PCB and front/rear covers)
-- 4 × M2 × 4-6mm Screws (for power board, or M3 × 4-6mm straight into the plastic without inserts)
-- 2-4 × M2.5 13-15mm Screws (for fan)
-
-**Antennas and cabling**
-- 3 × U.FL to SMA Pigtail Cable (SMA bulkhead, 10cm)
-- 1 × 6dBi Antenna 2.4GHz (Wi-Fi/BLE)
-- 1 × 6dBi Antenna LoRa (by region: 868MHz EU, 915MHz US, 923MHz Asia)
-- 1 × Active GPS Antenna (L1, SMA)
-
-**Power and thermal**
-- 1 × 30mm 5V Fan (7-10mm), JST 2.54
-- 1 × 3-Pin Mini On/Off Switch
-- 1 × KSD9700 Normally Open Thermal Wire Sensor (40C)
-- 1 × Type-C Female Chassis Jack, waterproof (2-pin, 22 AWG leads, 14mm panel nut, dust cap)
-- 1 × Type-C 15W 3A 5V Fast Charge UPS Power Supply
-  (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88 × 41 × 22mm)
-- 2 × 18650 cells, protected flat-top (no tier includes them)
-
-**Enclosure**
-- 1 × Weatherproof Enclosure (3D printable)
-  - STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
-- 1 × TPU Seal Kit (housing, USB-C, GPS antenna)
-
-**Fan notes**
-- The sticker side isn't always the exhaust side. Run the fan for a second and feel which way it blows before you screw it down. Assembled units ship with the fan set to exhaust.
-- Shorting the two THERMO pins bypasses the thermal switch and runs the fan whenever the node has power.
-
-</details>
+- [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) - unboxing, antennas, flashing, mesh setup, deployment
+- Illustrated [assembly manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+- PCB [welcome letter](hw/Prototype_STL_Files/ahwelcome.txt)
+- [Bill of materials](hw/Prototype_STL_Files/BOM-Links.md) with part links, images, and builder notes
+- Enclosure [STL files](hw/Prototype_STL_Files)
 
 <details>
 <summary>Pinout reference</summary>
@@ -780,12 +736,12 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 ## Build & flash
 
-The [Web Flasher](https://lukeswitz.github.io/AntiHunter/) is the easiest way. Use these to flash from a terminal or build from source.
+To flash without the [Web Flasher](https://lukeswitz.github.io/AntiHunter/), use the script or build from source.
 
 ### CLI flash
 
 ```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
@@ -794,7 +750,7 @@ The script asks for a release channel: Stable (from `main`), Beta (from `beta`),
 
 ### Build from source
 
-You need PlatformIO, Git, and a USB cable. VS Code with the PlatformIO extension helps but isn't required.
+You need PlatformIO, Git, and a USB cable. VS Code with the PlatformIO extension is optional.
 
 ```bash
 git clone https://github.com/lukeswitz/AntiHunter.git
@@ -809,7 +765,7 @@ pio run -e AntiHunter-full -t upload               # Full: web UI on its own AP
 pio run -e AntiHunter-headless -t upload           # Headless: serial + mesh only
 ```
 
-The S3 builds use a project-local PlatformIO core in `.pio/core` (about 6 GB) and rebuild the Arduino ESP-IDF libraries once with `CONFIG_ESP_IPC_TASK_STACK_SIZE=2048`. The first build downloads the toolchain and compiles the libraries, which takes a few minutes; later builds reuse them. The global `~/.platformio` is not modified.
+The S3 builds keep their own PlatformIO core in `.pio/core` (about 6 GB) and leave `~/.platformio` untouched. The first build downloads the toolchain and compiles the libraries, which takes a few minutes. Later builds reuse them.
 
 Watch the serial output:
 
@@ -834,7 +790,7 @@ pio run -e AntiHunter-full -t erase
 
 ### RF scan presets
 
-Set under System → RF Settings. The presets only change scan timing and the RSSI threshold.
+Set under System → RF Settings. A preset sets scan timing and the RSSI threshold, and resets the channel list to 1-11.
 
 | Preset | Wi-Fi Chan Time | Wi-Fi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | UI label |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|

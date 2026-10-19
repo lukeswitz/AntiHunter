@@ -1,13 +1,13 @@
 # Contributing to AntiHunter
 
-Thank you for your interest in contributing to AntiHunter. **Use the provided templates [here](https://github.com/lukeswitz/AntiHunter/issues/new/choose) to get started.**
+Open issues with the [templates](https://github.com/lukeswitz/AntiHunter/issues/new/choose). Ask questions in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions). Before a pull request, sign the [CLA](CLA.md) by adding your name to its Signatories table.
 
 ## Development Setup
 
 ### Prerequisites
-- PlatformIO IDE or PlatformIO Core
-- ESP32 toolchain
-- Supported [hardware](https://github.com/lukeswitz/AntiHunter?tab=readme-ov-file#hardware) 
+- PlatformIO IDE or PlatformIO Core. It installs the ESP32 toolchain on the first build
+- Supported [hardware](README.md#hardware)
+- cppcheck 2.20 for `make lint`, the version CI uses. CI builds it from source; see `.github/workflows/lint.yml`
 
 ### Building from Source
 ```bash
@@ -19,37 +19,31 @@ pio run -e AntiHunter-headless
 
 ### Code Style
 
-- Use consistent indentation (existing codebase style)
-- Add comments for complex logic
-- Follow existing naming conventions
-- Test on actual hardware before submitting
+- Match the indentation and naming of the file you edit
+- Test on hardware before submitting
 
 ### Submitting Changes
 
-- Fork the repository
-- Create a feature branch (git checkout -b feature/your-feature)
-- Commit changes with clear messages
-- Test thoroughly on hardware
-- Push to your fork
-- Open a Pull Request
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit with clear messages
+4. Test on hardware
+5. Push to your fork and open a pull request
 
 ### Pull Request Guidelines
 
-- Describe what your PR does and why
+- Describe what the PR does and why
 - Reference related issues
-- Include testing details and hardware used
-- Ensure code compiles without warnings
-- Run `make lint` (cppcheck 2.20, the CI version) and `make test-ble`; CI runs both and fails on any finding
-- Keep PRs focused on single features/fixes
+- Include testing details and the hardware used
+- Code must compile without warnings
+- Run `make lint` and `make test-ble`. CI runs both and fails on any finding
+- One feature or fix per PR
 
 ### Reporting Issues
 - Use the bug report template
 - Include serial output when relevant
-- Specify hardware configuration
-- Describe steps to reproduce
+- Give the hardware configuration
+- List the steps to reproduce
 
 ### Code of Conduct
-- Be respectful, inclusive, and constructive
-
-### Questions
-Open a discussion on GitHub Discussions for questions.
+- Be respectful and constructive
