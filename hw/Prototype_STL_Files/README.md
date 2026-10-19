@@ -4,7 +4,7 @@
 
 | Enclosure | Folder | Power | Credit |
 |---|---|---|---|
-| [AH Case v2](#ah-case-v2) | `AH-DIGINODE-v2/` | UPS board or DIY 2S 18650 | @TheRealSirHaxAlot |
+| [AH Case v2](#ah-case-v2) | `AH-DIGINODE-v2/` | UPS board or DIY 2S 18650 | @TheRealSirHaXalot |
 | [Puck Case](#puck-case) | `AHPuckCase/` | USB-C | @nitekry |
 
 ## AH Case v2

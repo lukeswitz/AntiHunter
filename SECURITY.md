@@ -1,6 +1,6 @@
 # Security Policy
 
-AntiHunter DIGI node firmware is operator-controlled firmware for a private, operator-run mesh. The device operates as a standalone Wi-Fi access point without internet connectivity. We welcome responsible disclosure of issues that are exploitable within the trust model below.
+AntiHunter DIGI node firmware runs on nodes controlled by one operator over a private mesh, with no internet connection. The Full build also runs a Wi-Fi access point for its web UI. Headless runs none. Report issues that are exploitable within the trust model below.
 
 ## Supported Versions
 
@@ -12,7 +12,7 @@ AntiHunter DIGI node firmware is operator-controlled firmware for a private, ope
 
 ## Trust model
 
-The scope below follows directly from how AntiHunter is deployed. Three boundaries define it:
+Three boundaries define the scope:
 
 - **The encrypted mesh channel is the authentication boundary.** Operators configure their own encrypted Meshtastic channel and disable the public channel before deployment (see [Radio Setup](README.md#radio-setup)). Meshtastic does not decode or deliver text to a node on a channel it holds no key for. A party that can send a command to a deployed node therefore already holds the operator's channel key, and is treated as an authorized operator. Commands accepted from a keyed channel member are by design, not an authentication flaw.
 - **Physical and wired access implies device control.** The USB serial console, the mesh UART (Serial1), and the on-board microSD all require physical possession of the node — opening the enclosure, and in the SD's case removing a brass standoff to reach the card. Anyone with that access already controls the device; behavior reachable only by opening the case or touching those interfaces is not a vulnerability in this model.
@@ -22,8 +22,8 @@ The scope below follows directly from how AntiHunter is deployed. Three boundari
 
 **In scope** — reachable by a party that does **not** hold the operator's encrypted-channel key and does **not** have physical access to the node (no opened enclosure, no USB/UART, no SD):
 
-- Memory-safety or remote-code-execution in the firmware's parsing of radio traffic the sensor ingests by design — malformed 802.11 Wi-Fi frames, BLE advertisements, or drone RID frames handled by the scan/detection paths. This is the device's real unauthenticated attack surface: it listens to hostile RF.
-- The on-device HTTP interface on the node's Wi-Fi AP, and its authentication, where reachable over Wi-Fi without the mesh channel key.
+- Memory-safety or remote-code-execution in the firmware's parsing of radio traffic the sensor receives: malformed 802.11 frames, BLE advertisements, or drone RID frames handled by the scan and detection paths.
+- The Full build's HTTP interface on its Wi-Fi AP, and its authentication, where reachable over Wi-Fi without the mesh channel key.
 - Cryptographic weaknesses that let a party **without** the channel key or erase PSK forge, recover, or replay erase/tamper authorization.
 - Secrets (keys, PSK, location) leaked in telemetry or logs readable without the channel key.
 

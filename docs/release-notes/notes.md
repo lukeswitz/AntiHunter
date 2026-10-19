@@ -21,8 +21,8 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 ## New
 
 - Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
-- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` sets auto-capture limits.
-- Mesh, Full and headless: `DETECT_COUNTS`.
+- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` limits captures started by Sentinel: total size they may use (default 512 MB) and free space to keep on SD (default 256 MB).
+- Mesh, Full and headless: `DETECT_COUNTS` replies with Sentinel tracker counts (Karma candidates and confirmed, Pwnagotchi, handshakes, hunts, mesh peers).
 - Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
@@ -44,7 +44,6 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 
 - Full and headless set random Wi-Fi STA, SoftAP and BLE addresses at every boot, before the radios start. Before, active Wi-Fi scans and BLE scans sent the factory MACs.
 - Karma bait probes use a new random source MAC, sequence number and SSID for each probe. Before, every bait probe came from the same fixed source MAC and its SSID contained the node ID.
-- CSI solicit probes (Beta and Experimental) come from a random MAC chosen at each boot instead of a fixed source MAC. Nodes announce it with `CSI_PEER` over mesh and skip it. A node on older firmware still sends the fixed address, which updated nodes no longer skip, so update every CSI node together.
 - STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
 - Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
 - `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
@@ -102,8 +101,7 @@ Settings and SD card files survive a flash. Erase commands stay refused until yo
 
 All three builds attach to the one v1.0.5 release.
 Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
-Also `bootloader`, `partitions` and `SHA256SUMS` per version.
-Builds are reproducible; verify with `shasum -a 256`.
+Also `bootloader`, `partitions` and `SHA256SUMS` per version. Check a download with `shasum -a 256`.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
