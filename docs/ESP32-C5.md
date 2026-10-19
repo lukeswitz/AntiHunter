@@ -1,11 +1,11 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. The C5 build is on the web flasher's **Experimental** channel; the S3 build on `main` is the stable one.
+> **Testing phase.** Breadboard the C5 and test it before you solder anything. A C5 soldered into a PCB can only go back to stable firmware by desoldering it and fitting an ESP32-S3. The C5 build is on the web flasher's **Experimental** channel; the S3 build on `main` is the stable one.
 
-The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band Wi-Fi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
+The XIAO ESP32-C5 replaces the XIAO ESP32-S3 on the same AntiHunter PCB: same footprint, same peripherals, same mesh. Its radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
 
-Everything the S3 node does — target scan, device scanner, probe scanner, baseline, deauth detection, Sentinel, drone RID, CSI motion, packet capture, triangulation, mesh, SD, GPS, vibration wipe — runs on the C5. The rest of this page covers only what differs.
+Every S3 feature runs on the C5: target scan, device scanner, probe scanner, baseline, deauth detection, Sentinel, drone RID, CSI motion, packet capture, triangulation, mesh, SD, GPS, vibration wipe. This page covers only what differs.
 
 - [Bands and channels](#bands-and-channels)
 - [Pinout](#pinout)
@@ -57,7 +57,7 @@ Same pads as the S3 node, different GPIO numbers. No wiring change on an assembl
 
 ## Build & Flash
 
-**Web flasher** — [open it](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, check the acknowledgment box, then Connect & Flash.
+**Web flasher**: [open it](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, check the acknowledgment box, then Connect & Flash.
 
 **From source:**
 
@@ -68,110 +68,21 @@ pio run -e AntiHunter-c5-full -t upload        # web UI build
 pio run -e AntiHunter-c5-headless -t upload    # serial + mesh only
 ```
 
-Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioarduino. Post-flash setup is identical to the S3 node.
+Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioarduino. Post-flash setup is the same as the S3 node.
 
 ---
 
 ## Known limits
 
-- Experimental build — it does not follow the stable release schedule.
 - 5 GHz is for scanning only. The node's own Wi-Fi access point stays on 2.4 GHz.
 - Changing band briefly restarts that access point, so a browser connected to the node reconnects.
 
 ### Motion detection on a C5
 
-**In testing.** It runs and it detects, but against the same labeled walk-ins in the same
-room a C5 separates movement from background less cleanly than an S3. The cause is still
-open. Prefer an S3 where detection matters.
+**In testing.** In the same room, a C5 separates movement from background less cleanly than an S3. Use an S3 where detection matters.
 
-The C5 build's compiled default sensitivity is 0.020; the S3 build on `beta` uses 0.140.
-The values are not interchangeable: the C5 reads a higher idle level, so an S3 value
-silences it and a C5 value floods an S3.
+The C5 default trigger level is 0.020; the S3 Beta build's is 0.140. Don't copy a value between them: the C5 reads a higher idle level, so an S3 value silences a C5 and a C5 value floods an S3.
 
-Set sensitivity from the room: read it empty, read it with someone walking, set between the
-two. If they overlap, move the node. `CSI_RECAL` restores the default.
+Set the trigger from the room: watch the score with the room empty, then with someone walking, and set it between the two with `@AH01 CSI_CFG:SENSITIVITY=<value>`. If they overlap, move the node. `@AH01 CSI_RECAL` clears the value you set and returns to the default.
 
----
-
-## Firmware notes
-
-Developer reference. Chip-level detail, open bugs in Espressif's own code, and the exact
-fields the firmware reads. Nothing below is needed to set up or run a node.
-
-### Open upstream issues
-
-Espressif CSI issues on C5/C61. #18982, #14271 and esp-csi#258 are open. #18118 was closed
-on 2026-02-26 as fixed by commit aa097c8e. #18493 was closed on 2026-04-23 as a hardware
-limit.
-
-- [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
-  L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
-  Measured on ch6 with `acquire_csi_force_lltf = 1`, 611 raw records: in every 4-byte group
-  bytes 1 and 3 stay in 0-15 (16497 and 15886 samples, no exceptions) while bytes 0 and 2
-  span the signed range. The buffer is 12-bit words in 2-byte containers, 26 complex
-  subcarriers, and `csiAmplitudesLen` decodes it that way through `csiWord12`.
-- [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
-  static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
-- [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
-  unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
-  `acquire_csi_force_lltf = 1` is the documented workaround. A capture on 2026-09-09
-  collapsed to one distinct 106-byte payload over 887 packets and 22 transmitters, so
-  this firmware ran with it off; it is now on, which restricts CSI to L-LTF and keeps a
-  link's payload length constant. A 300-packet capture on 2026-09-16 held per-subcarrier
-  variation of 0.72 to 1.54, so the payloads differ.
-- [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
-  order differs from the S3 on HE parts. This is reached: a ch6 capture measured 2.71M
-  106-byte L-LTF and 454k 114-byte HT-LTF records, so roughly 14% of traffic arrives as
-  HT-LTF. It is contained rather than fixed - each link locks to the first payload
-  length it sees and rejects the other format, so a link's scorer never mixes the two
-  layouts. The counter is reported as `fmtdrop` in the status line.
-- [esp-csi#258](https://github.com/espressif/esp-csi/issues/258) - Espressif publishes a
-  chip CSI ranking of `C5 > C6 > C3 ~= S3 > ESP32` and has not said what it measures.
-
-#### Why the C5 ingests more
-
-Measured on ch6, same room, same 15s intervals, no SoftAP client on either board:
-
-| per 15s | DSSS | legacy 11g | HT |
-|---|---|---|---|
-| S3 | 5983-7279 | 1129 | 3-12 |
-| C5 | 5983 | 3020 | 194-666 |
-
-The S3 hears more DSSS, so both radios are getting the same air. Ruled out by measurement:
-receiver sensitivity (the gap is widest on the strongest frames), STA and AP bandwidth,
-the `esp_wifi_set_protocol` bits (`0x07`, 11N on), the promiscuous filter, and
-misclassification (`sig_mode==0` frames all read `aggregation=0`, `mcs=0`). Matches
-[esp-idf#736](https://github.com/espressif/esp-idf/issues/736), closed on the grounds that no
-11n was in the air - here a C5 12 cm away was decoding hundreds per 15s.
-
-Channel-specific, not a chip verdict: on ch1 the same S3 decoded 10120 HT frames, 15.7% of
-its OFDM against the C5's 33.6% on ch6. Why ch6 starved it is unexplained. Let the survey
-pick the channel.
-
-### CSI field reference
-
-The decoder relies on four documented properties of the C5 CSI path. Source:
-[ESP-IDF v5.5.3, Wi-Fi Driver, ESP32-C5](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c5/api-guides/wifi.html).
-
-- "Each item is stored as two bytes: imaginary part followed by real part." `csiAmplitudesLen`
-  reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real for that layout. The measured C5
-  L-LTF payload does not match it and takes the 12-bit path; see esp-idf#18982 above.
-- "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes
-  of CSI data is invalid due to a hardware limitation in ESP32-C5." The decoder skips the
-  first four bytes when the flag is set: one 4-byte subcarrier on the 106-byte L-LTF path,
-  two 2-byte subcarriers otherwise.
-- "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is
-  valid; otherwise, the CSI data is invalid." Counted per packet as `ce=<valid>/<invalid>`
-  in the status line; `csiRequireCeVld` gates on it.
-- `val_scale_cfg`, `esp_wifi_he_types.h:61`: "value 0-8", set to 0. **Open.** C5 reads far
-  quieter than S3, same channel and trigger, 30 min: 1.6% over the line against 21.7%. Looks
-  like too few quantization steps, which this field should widen. No documented semantics —
-  needs testing, not guessing.
-- `lltf_bit_mode`, `esp_wifi_he_types.h:63`: "0 : 12-bit, 1 : 8-bit, default : 12-bit".
-  `csiArmCsi` sets 0; the 106-byte L-LTF payload is 12-bit words in 2-byte containers and
-  `csiAmplitudesLen` decodes it with `csiWord12` (26 subcarriers). The int8-pair path stays
-  for the other buffer lengths.
-
-`CSIR` raw dump lines end with `,L<len>,F<0|1>` - the packet's `ev.len` and `first_word_invalid`.
-Without them a capture cannot be decoded correctly, because the values are dumped as a fixed
-114-byte buffer while only `len` bytes are valid.
+Chip-level detail and open Espressif issues: [C5 firmware notes](ESP32-C5-firmware-notes.md).
