@@ -644,6 +644,8 @@ static uint32_t configSignature() {
     mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
     mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
     mix(&vibAutoScanPreempt, 1);
+    { bool sb = prefs.getBool("sentBoot", false); mix(&sb, 1); }
+    mixStr(detect_getConfigJson());
     return h;
 }
 
@@ -752,7 +754,9 @@ void saveConfiguration() {
     cw.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
     cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
     cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
-    cw.printf(" \"pcapMaxFileMB\":%u\n", (unsigned)getPcapMaxFileMB());
+    cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
+    cw.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
+    cw.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
     cw.println("}");
 
     configFile.flush();
