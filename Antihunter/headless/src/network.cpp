@@ -601,7 +601,9 @@ static void handleScanStart(const String &command)
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
     }
+    else sendToSerial1(nodeId + ": SCAN_ACK:INVALID", true);
   }
+  else sendToSerial1(nodeId + ": SCAN_ACK:INVALID", true);
 }
 
 static void handleBaselineStart(const String &command)
@@ -846,6 +848,7 @@ static void handleDeviceScanStart(const String &command)
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
   }
+  else sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:INVALID", true);
 }
 
 static void handleDroneStart(const String &command)
@@ -962,6 +965,7 @@ static void handleRandomizationStart(const String &command)
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
   }
+  else sendToSerial1(nodeId + ": RANDOMIZATION_ACK:INVALID", true);
 }
 
 static void handleProbeStart(const String &command)
@@ -999,7 +1003,10 @@ static void handleProbeStart(const String &command)
   if (secs < 1 && !forever) secs = 1;
   if (secs > 86400) secs = 86400;
 
-  if (mode < 0 || mode > 2) return;
+  if (mode < 0 || mode > 2) {
+    sendToSerial1(nodeId + ": PROBE_ACK:INVALID", true);
+    return;
+  }
 
   if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
@@ -2207,7 +2214,7 @@ static bool s_schedLoaded = false;
 
 static void schedLoad() {
   if (s_schedLoaded) return;
-  s_sched = prefs.getString("sched", "");
+  s_sched = prefsGetString("sched", "");
   s_schedLoaded = true;
 }
 

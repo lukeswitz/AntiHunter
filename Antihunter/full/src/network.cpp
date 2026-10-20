@@ -1039,7 +1039,7 @@ bool spawnSecureErase(const String &reason) {
 void registerRemainingRoutes() {
   {
     std::lock_guard<std::mutex> lk(s_schedMutex);
-    s_sched = prefs.getString("sched", "");
+    s_sched = prefsGetString("sched", "");
   }
 
   server->on("/schedule", HTTP_GET, [](AsyncWebServerRequest *req) {
