@@ -119,6 +119,20 @@ struct ProbeDBEntry {
     uint8_t channel;
 };
 
+struct DeviceDBEntry {
+    char mac[18];
+    uint32_t totalSeen;
+    uint32_t firstEpoch;
+    uint32_t lastEpoch;
+    uint16_t sessionCount;
+    int8_t bestRssi;
+    char vendor[24];
+    char name[32];
+    bool isRandomized;
+    bool isBLE;
+    uint8_t channel;
+};
+
 struct TriangulationAccumulator {
     uint8_t targetMac[6];
 
@@ -230,6 +244,13 @@ void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
+
+// SD device database
+void loadDeviceDB();
+void saveDeviceDB();
+void mergeHitToDeviceDB(const Hit &h);
+uint32_t getDeviceDBSize();
+void clearDeviceDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s

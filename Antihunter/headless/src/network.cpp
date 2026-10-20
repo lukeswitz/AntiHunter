@@ -500,6 +500,13 @@ static void handleMeshDedupClear()
   sendToSerial1(nodeId + ": DEDUP_CLEAR_ACK:OK", true);
 }
 
+static void handleDeviceDbClear()
+{
+  clearDeviceDB();
+  Serial.println("[DEVICE] Device database cleared");
+  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:OK", true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   String nodeID = command.substring(14);
@@ -1082,9 +1089,9 @@ static void handleSummary(const String &command)
   String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
   uint32_t up = millis() / 1000;
   char buf[MAX_MESH_SIZE];
-  int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Tgt:%u Hits:%d",
+  int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Dev:%u Tgt:%u Hits:%d",
                    nodeId.c_str(), modeStr.c_str(), scanning.load() ? "ACTIVE" : "IDLE",
-                   (unsigned)getTargetCount(), totalHits.load());
+                   (unsigned)getDeviceDBSize(), (unsigned)getTargetCount(), totalHits.load());
 #if AH_SENTINEL
   if (n > 0 && n < (int)sizeof(buf)) n += snprintf(buf + n, sizeof(buf) - n, " Inc:%u", (unsigned)detect_incidentCount());
 #endif
@@ -2419,7 +2426,8 @@ static void selftestCampaignCheck() {
 
 static const char *const kCmdAliases[][2] = {
   {"CC", "CONFIG_CHANNELS"},      {"CEP", "CONFIG_ERASE_PSK"},       {"CDT", "CONFIG_DEDUP_TTL"},
-  {"CSD", "CONFIG_SESSION_DEDUP"}, {"MDC", "MESH_DEDUP_CLEAR"},      {"CT", "CONFIG_TARGETS"},
+  {"CSD", "CONFIG_SESSION_DEDUP"}, {"MDC", "MESH_DEDUP_CLEAR"},      {"DBX", "DEVICE_DB_CLEAR"},
+  {"CT", "CONFIG_TARGETS"},
   {"CN", "CONFIG_NODEID"},        {"CR", "CONFIG_RSSI"},             {"SS", "SCAN_START"},
   {"BLS", "BASELINE_START"},      {"BLQ", "BASELINE_STATUS"},        {"BLW", "BASELINE_WATCH"},
   {"DS", "DEVICE_SCAN_START"},    {"DR", "DRONE_START"},             {"DA", "DEAUTH_START"},
@@ -2503,6 +2511,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
   else if (command == "MESH_DEDUP_CLEAR")             handleMeshDedupClear();
+  else if (command == "DEVICE_DB_CLEAR")              handleDeviceDbClear();
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("SCHED_ADD:"))          handleSchedAdd(command);
   else if (command == "SCHED_LIST")                   handleSchedList();

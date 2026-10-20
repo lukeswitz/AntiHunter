@@ -277,7 +277,7 @@ Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` starts a 3
 
 | Command | Alias | Build | Args | Example |
 |---|---|---|---|---|
-| `DEVICE_DB_CLEAR` | `DBX` | Beta and C5 headless | | `@AH01 DEVICE_DB_CLEAR` |
+| `DEVICE_DB_CLEAR` | `DBX` | Headless | | `@AH01 DEVICE_DB_CLEAR` |
 | `CONFIG_BAND` | `CB` | C5 | `0` 2.4, `1` 5, `2` both | `@AH01 CONFIG_BAND:2` |
 
 ### Alerts
