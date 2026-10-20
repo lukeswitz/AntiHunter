@@ -595,12 +595,16 @@ static void handleScanStart(const String &command)
             workerTaskHandle = nullptr;
             scanSetCountdown(0, false);
             Serial.println("[SCAN] task create failed: scan");
+            sendToSerial1(nodeId + ": SCAN_ACK:FAILED", true);
+            return;
         }
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
     }
+    else sendToSerial1(nodeId + ": SCAN_ACK:INVALID", true);
   }
+  else sendToSerial1(nodeId + ": SCAN_ACK:INVALID", true);
 }
 
 static void handleBaselineStart(const String &command)
@@ -631,6 +635,8 @@ static void handleBaselineStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: baseline");
+        sendToSerial1(nodeId + ": BASELINE_ACK:FAILED", true);
+        return;
     }
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
@@ -852,11 +858,14 @@ static void handleDeviceScanStart(const String &command)
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);
           Serial.println("[SCAN] task create failed: sniffer");
+          sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
+          return;
       }
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
   }
+  else sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:INVALID", true);
 }
 
 static void handleDroneStart(const String &command)
@@ -890,6 +899,8 @@ static void handleDroneStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: drone");
+        sendToSerial1(nodeId + ": DRONE_ACK:FAILED", true);
+        return;
     }
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
@@ -1107,6 +1118,8 @@ static void handleDeauthStart(const String &command)
         blueTeamTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: blueteam");
+        sendToSerial1(nodeId + ": DEAUTH_ACK:FAILED", true);
+        return;
     }
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
@@ -1148,11 +1161,14 @@ static void handleRandomizationStart(const String &command)
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);
           Serial.println("[SCAN] task create failed: randdetect");
+          sendToSerial1(nodeId + ": RANDOMIZATION_ACK:FAILED", true);
+          return;
       }
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
   }
+  else sendToSerial1(nodeId + ": RANDOMIZATION_ACK:INVALID", true);
 }
 
 static void handleProbeStart(const String &command)
@@ -1190,7 +1206,10 @@ static void handleProbeStart(const String &command)
   if (secs < 1 && !forever) secs = 1;
   if (secs > 86400) secs = 86400;
 
-  if (mode < 0 || mode > 2) return;
+  if (mode < 0 || mode > 2) {
+    sendToSerial1(nodeId + ": PROBE_ACK:INVALID", true);
+    return;
+  }
 
   if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
@@ -1205,6 +1224,8 @@ static void handleProbeStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: probedet");
+        sendToSerial1(nodeId + ": PROBE_ACK:FAILED", true);
+        return;
     }
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
@@ -1272,9 +1293,9 @@ static void handleSummary(const String &command)
   String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
   uint32_t up = millis() / 1000;
   char buf[MAX_MESH_SIZE];
-  int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Tgt:%u Hits:%d",
+  int n = snprintf(buf, sizeof(buf), "%s: SUMMARY: Mode:%s Scan:%s Dev:%u Tgt:%u Hits:%d",
                    nodeId.c_str(), modeStr.c_str(), scanning.load() ? "ACTIVE" : "IDLE",
-                   (unsigned)getTargetCount(), totalHits.load());
+                   (unsigned)getDeviceDBSize(), (unsigned)getTargetCount(), totalHits.load());
   if (n > 0 && n < (int)sizeof(buf)) n += snprintf(buf + n, sizeof(buf) - n, " Inc:%u", (unsigned)detect_incidentCount());
   if (n > 0 && n < (int)sizeof(buf) && campaignName()[0])
     n += snprintf(buf + n, sizeof(buf) - n, " Camp:%s", campaignName());
@@ -2389,7 +2410,7 @@ static bool s_schedLoaded = false;
 
 static void schedLoad() {
   if (s_schedLoaded) return;
-  s_sched = prefs.getString("sched", "");
+  s_sched = prefsGetString("sched", "");
   s_schedLoaded = true;
 }
 
@@ -2578,6 +2599,26 @@ static void selftestReport(const char *name, bool pass, const String &detail) {
   Serial.printf("[SELFTEST] %s %s %s\n", name, pass ? "PASS" : "FAIL", detail.c_str());
 }
 
+static std::vector<void *> g_selftestBlocks;
+static void selftestSqueezeInternal(uint32_t targetFreeBytes) {
+  size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  while (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) > targetFreeBytes) {
+    void *p = heap_caps_malloc(2048, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!p) break;
+    g_selftestBlocks.push_back(p);
+  }
+  Serial.printf("[SELFTEST] squeeze internal %u -> %u (%u blocks) integrity=%s\n",
+                (unsigned)before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)g_selftestBlocks.size(),
+                heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
+}
+static void selftestRelease() {
+  for (void *p : g_selftestBlocks) heap_caps_free(p);
+  g_selftestBlocks.clear();
+  Serial.printf("[SELFTEST] released, internal=%u\n",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+}
+
 static void selftestCampaignCheck() {
   bool stopped = campaignStop();
   selftestReport("camp_stop", stopped && !campaignName()[0], String("name='") + campaignName() + "'");
@@ -2720,6 +2761,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
   }
   else if (command == "SELFTEST_CAMP2")               selftestCampaignCheck();
+  else if (command.startsWith("SELFTEST_SQUEEZE:"))   selftestSqueezeInternal((uint32_t)command.substring(17).toInt());
+  else if (command == "SELFTEST_RELEASE")             selftestRelease();
   else if (command.startsWith("SELFTEST_TX:")) { Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true)); }
   else if (command.startsWith("SELFTEST_DUMP:")) {
       String p = command.substring(14);

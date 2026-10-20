@@ -18,7 +18,7 @@ static void appendEvent(const char *ev) {
 }
 
 void campaignInit() {
-    String n = prefs.getString("campaign", "");
+    String n = prefsGetString("campaign", "");
     strlcpy(g_name, n.c_str(), sizeof(g_name));
     if (g_name[0]) appendEvent("RESUME");
 }
@@ -26,16 +26,13 @@ void campaignInit() {
 const char *campaignName() { return g_name; }
 
 bool campaignStart(const String &name) {
-    char clean[sizeof(g_name)];
-    size_t j = 0;
-    for (size_t i = 0; i < name.length() && j < sizeof(clean) - 1; i++) {
+    if (name.length() == 0 || name.length() >= sizeof(g_name)) return false;
+    for (size_t i = 0; i < name.length(); i++) {
         char c = name[i];
-        if (isalnum((unsigned char)c) || c == '-' || c == '_') clean[j++] = c;
+        if (!isalnum((unsigned char)c) && c != '-' && c != '_') return false;
     }
-    clean[j] = '\0';
-    if (!j) return false;
     if (g_name[0]) campaignStop();
-    strlcpy(g_name, clean, sizeof(g_name));
+    strlcpy(g_name, name.c_str(), sizeof(g_name));
     prefs.putString("campaign", g_name);
     appendEvent("START");
     logToSD(String("CAMPAIGN START ") + g_name);
