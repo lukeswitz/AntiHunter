@@ -79,6 +79,13 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Stable: the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, `CIR` are removed. They map to CSI commands, which only Beta and Experimental have.
 - Commands run only on `@<NODE>` or `@ALL` lines. Before, an unaddressed line (`STATUS` on USB serial, or any Meshtastic text from a non-node sender) ran as a command.
 - Command names must match exactly or be followed by `:`. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, `BATTERY_SAVER_START` ran on any line starting with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
+- `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START` and `PROBE_START` reply `<name>_ACK:INVALID` when the radio mode is out of range or a field is missing. Before, the node sent no reply and the command looked lost.
+- `CAMPAIGN_START` with characters outside `A-Z a-z 0-9 - _` replies `CAMPAIGN_ACK:INVALID`. Before, it silently dropped the bad characters and started a campaign under the stripped name.
+- Headless replies `<name>_ACK:FAILED` and stops when a scan task cannot be created. Before, it reported `STARTED` while nothing ran.
+- Headless `SUMMARY` reports `Dev:<count>` from the device database, matching Full.
+- A node with no campaign or schedule saved no longer logs an error line at boot.
+- `DETECT_CFG_GET` no longer lists `mesh_guard` twice; `CONFIG_NODEID` no longer prints debug lines.
+- The node stores its settings in two places: its own built-in memory and the SD card. If the built-in memory is wiped, the node now rebuilds the detector settings and the start-Sentinel-at-boot flag from the SD card. The erase key and the web password are the exception: they live only in the built-in memory and are never written to the card.
 
 ## Firmware size
 
