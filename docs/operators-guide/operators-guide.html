@@ -601,7 +601,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under System tab → <b>RF Settings</b> → <b>Wi-Fi Access Point</b>, then <b>Save Wi-Fi Settings</b>.</li>
     <li><b>Hidden network.</b> Off by default. Turn it on in the same section and the node stops broadcasting its network name. It does not keep anyone out; the password does. The phone or laptop you connect with then sends the network name in its probe requests wherever it goes. The node reboots on save; type the network name by hand to reconnect.</li>
-    <li><b>Erase key.</b> Authorizes every wipe, abort, auto-erase change and factory reset. 8 to 64 characters, no <span class="mono">:</span>. Erase commands are refused (<span class="mono">ERASE_ACK:SET_KEY_FIRST</span>) until you set one: in the web UI, in the flasher (<span class="mono">erasePSK</span>), or with <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. Full: until a key is set, <span class="mono">&lt;current&gt;</span> is the AP password, once it is changed from the default. Headless: set it in the flasher. Record it; the node never prints it.</li>
+    <li><b>Erase key.</b> The password you choose that lets you wipe the node. You need it for every wipe, cancel, auto-erase change and factory reset. 8 to 64 characters, no <span class="mono">:</span>. Until you set one, the node refuses every erase command (<span class="mono">ERASE_ACK:SET_KEY_FIRST</span>). Set it in the web UI, in the flasher (<span class="mono">erasePSK</span>), or with <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. On Full, until you set a key, <span class="mono">&lt;current&gt;</span> is the AP password, once you have changed it from the default. On Headless, set it in the flasher. Write it down; the node never shows it again.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
@@ -892,11 +892,11 @@ python3 scripts/meshtastic_config.py</pre>
   <p>During the setup delay the node still reports movement: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When a tamper starts the countdown it sends <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>. To cancel, send <span class="mono">ERASE_REQUEST</span> after that alert, then <span class="mono">ERASE_CANCEL:&lt;answer&gt;</span> before the countdown ends.</p>
 
   <h4>Remote erase</h4>
-  <p>Mesh erase commands take a one-time <span class="mono">&lt;answer&gt;</span>, not the erase key (§8.1). A captured command can't be replayed.</p>
+  <p>A wipe can't be undone, so the node only wipes if you prove you know its erase key (§8.1) &mdash; and the key itself never travels over the radio. The node hands you a one-time <b>token</b> (a random challenge). You turn that token and your key into a short <b>answer</b> code and send the answer back. The token lasts 5 minutes and works once, so an answer someone copies off the air is useless by the time they try it.</p>
   <ol>
-    <li>Send <span class="mono">@AH01 ERASE_REQUEST</span>. The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
-    <li>Compute the answer from the token and your key: <span class="mono">printf %s 'AH_3F2A91C0_77B0E412_000004D2' | openssl dgst -sha256 -hmac 'yourKey' | awk '{print $NF}' | cut -c1-8</span>.</li>
-    <li>Within 300 s: <span class="mono">@AH01 ERASE_FORCE:&lt;answer&gt;</span>.</li>
+    <li>Ask for a token: <span class="mono">@AH01 ERASE_REQUEST</span>. The node replies <span class="mono">AH01: ERASE_TOKEN:AH_3F2A91C0_77B0E412_000004D2 Expires:300s</span>.</li>
+    <li>Work out the answer from the token and your key: <span class="mono">printf %s 'AH_3F2A91C0_77B0E412_000004D2' | openssl dgst -sha256 -hmac 'yourKey' | awk '{print $NF}' | cut -c1-8</span>.</li>
+    <li>Within 5 minutes, send the command with the answer: <span class="mono">@AH01 ERASE_FORCE:&lt;answer&gt;</span>.</li>
   </ol>
   <ul>
     <li>The answer is 8 hex characters (the full 64 also work), upper or lower case.</li>

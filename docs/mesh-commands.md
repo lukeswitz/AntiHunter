@@ -101,18 +101,24 @@ Arguments used by many commands:
 
 ### Erase
 
-Every erase command except `ERASE_REQUEST` and `AUTOERASE_STATUS` takes a one-time **answer** instead of the erase key. The key never goes over the mesh, except in `CONFIG_ERASE_PSK`.
+A wipe cannot be undone, so the node only does one if you prove you know its **erase key** (the password you chose for wiping). You never send that key over the radio. Instead:
+
+- The node gives you a **token**: a one-time random challenge, good for 5 minutes.
+- You turn the token plus your key into a short **answer** code.
+- You send the answer. The node checks it and wipes.
+
+A token works once, so an answer that someone copies off the air is useless by the time they try it. The one exception is `CONFIG_ERASE_PSK`, which carries the key itself to set a new one.
 
 **To send an erase command:**
 
-1. Send `@AH01 ERASE_REQUEST`. The node replies `AH01: ERASE_TOKEN:AH_<hex>_<hex>_<hex> Expires:300s`.
-2. Compute the answer from the token (everything from `AH_` up to the space) and your erase key:
+1. Ask for a token: `@AH01 ERASE_REQUEST`. The node replies `AH01: ERASE_TOKEN:AH_<hex>_<hex>_<hex> Expires:300s`.
+2. Turn the token (everything from `AH_` up to the space) and your key into the answer:
    ```
    printf %s 'AH_<hex>_<hex>_<hex>' | openssl dgst -sha256 -hmac '<your key>' | awk '{print $NF}' | cut -c1-8
    ```
-3. Within 300 s, send the command with the answer: `@AH01 ERASE_FORCE:<answer>`.
+3. Within 5 minutes, send the command with the answer: `@AH01 ERASE_FORCE:<answer>`.
 
-The answer is 8 hex characters, upper or lower case. The full 64 also works. One attempt uses up the token, right or wrong, so request a new token for each command. The node holds one token at a time: a new `ERASE_REQUEST`, or a tamper trigger, replaces the old one. `ERASE_REQUEST` works once per 20 s.
+The answer is 8 hex characters, in upper or lower case (the full 64 also work). Each token allows one try, right or wrong, so ask for a new token before each command. The node keeps only the newest token: a fresh `ERASE_REQUEST`, or someone moving the node, replaces it. You can ask for a token once every 20 seconds.
 
 | Command | Alias | Args | What it does | Reply | Example |
 |---|---|---|---|---|---|
