@@ -302,7 +302,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.5 C5 BETA HEADLESS BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.5-c5exp1 HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
