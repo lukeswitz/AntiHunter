@@ -590,6 +590,8 @@ static uint32_t configSignature() {
     mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
     mix(&vibAutoScanPreempt, 1);
     mixStr(prefsGetString("apPass", AP_PASS));
+    { bool sb = prefs.getBool("sentBoot", false); mix(&sb, 1); }
+    mixStr(detect_getConfigJson());
     return h;
 }
 
@@ -700,7 +702,9 @@ void saveConfiguration() {
     configFile_w.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     configFile_w.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
     configFile_w.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
-    configFile_w.printf(" \"apHidden\":%s\n", prefs.getBool("apHidden", false) ? "true" : "false");
+    configFile_w.printf(" \"apHidden\":%s,\n", prefs.getBool("apHidden", false) ? "true" : "false");
+    configFile_w.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
+    configFile_w.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
     configFile_w.println("}");
 
     configFile.flush();

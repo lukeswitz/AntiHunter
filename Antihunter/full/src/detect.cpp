@@ -3358,6 +3358,8 @@ void detect_persistTunables() {
     p.putBool("pflOn",   ah_detect::g_probeFloodEnabled.load());
     p.putBool("aslOn",   ah_detect::g_assocSleepEnabled.load());
     p.putBool("blatkOn", ah_detect::g_bleAttackEnabled.load());
+    p.putBool("detMig5", true);
+    p.putBool("trlMig2", true);
     p.end();
 }
 
