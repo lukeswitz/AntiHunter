@@ -471,9 +471,7 @@ static void handleMeshDedupClear()
 
 static void handleConfigNodeId(const String &command)
 {
-  Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
   String nodeID = command.substring(14);
-  Serial.printf("[DEBUG] nodeID='%s' length=%d\n", nodeID.c_str(), nodeID.length());
 
   if (nodeID.length() >= 2 && nodeID.length() <= 5) {
     bool valid = true;
@@ -490,11 +488,9 @@ static void handleConfigNodeId(const String &command)
       Serial.printf("[MESH] Updated Node ID\n");
       sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:OK", true);
     } else {
-      Serial.printf("[DEBUG] INVALID_CHARS\n");
       sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:INVALID_CHARS", true);
     }
   } else {
-    Serial.printf("[DEBUG] INVALID_LENGTH (got %d)\n", nodeID.length());
     sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:INVALID_LENGTH", true);
   }
 }

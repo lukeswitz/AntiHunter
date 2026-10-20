@@ -4566,7 +4566,6 @@ String detect_getConfigJson() {
     j += _bjson("mesh_frag", g_meshFrag.load());
     j += _bjson("mesh_tsf", g_meshTsf.load());
     j += _bjson("mesh_jam", g_meshJam.load());
-    j += _bjson("mesh_guard", g_meshGuardEnabled.load());
     // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
@@ -4655,7 +4654,6 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "mesh_frag", g_meshFrag);
     _setb(b, "mesh_tsf", g_meshTsf);
     _setb(b, "mesh_jam", g_meshJam);
-    _setb(b, "mesh_guard", g_meshGuardEnabled);
     _setb(b, "probe_flood", g_probeFloodEnabled);
     _setb(b, "assoc_sleep", g_assocSleepEnabled);
     _setb(b, "ble_attack",  g_bleAttackEnabled);

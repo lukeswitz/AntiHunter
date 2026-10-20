@@ -290,6 +290,7 @@ Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` starts a 3
 | Tri cycle | `@ALL TRI_CYCLE_START:<ms>:<node,...>` (firmware-sent; alias `TCS`) |
 | Probe hit | `NODE: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="x" [GHOST]] [DST]` |
 | PCAP | `NODE: PCAP_START: WIFI\|BLE D=secs` · `PCAP_DONE: F=frames B=bytes D=dropped` |
+| Scan complete | `NODE: SCAN_DONE: W=wifiAPs B=bleDevices U=unique H=hits TX=sent DUP=duplicates` (device discovery) · `LIST_SCAN_DONE: Hits=n Unique=n Targets=n TX=sent PEND=unsent` (target scan) · `DRONE_DONE: Detected=n Unique=n TX=sent` · `DEAUTH_DONE: Total=n Deauth=n Disassoc=n TX=sent` · `RANDOMIZATION_DONE: Identities=n Sessions=n TX=sent` · `BASELINE_DONE: Devices=n Anomalies=n WiFi=n BLE=n TX=sent PEND=unsent`. A probe scan (`PROBE_START`) sends no completion line |
 | Tamper | `NODE: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status | `NODE: STATUS: Mode:TYPE Scan:ACTIVE\|IDLE Hits:N Temp:XX.XC Up:HH:MM:SS [Camp:name] [GPS:lat,lon HDOP=x]` |
 | Summary | `NODE: SUMMARY: Mode:TYPE Scan:ACTIVE\|IDLE Dev:N Tgt:N Hits:N [Inc:N] [Camp:name] Up:HH:MM:SS` |
