@@ -93,12 +93,12 @@ App image size against the v1.0.4 release bins. Full builds shrink because the w
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,384,976 B | -216,896 B | 77.8% -> 71.4% |
-| Beta full | 2,787,152 B | 2,442,400 B | -344,752 B | 83.4% -> 73.1% |
-| C5 full | 3,141,952 B | 2,787,504 B | -354,448 B | 74.9% -> 66.5% |
-| Stable headless | 1,897,584 B | 1,955,184 B | +57,600 B | 56.8% -> 58.5% |
-| Beta headless | 1,966,272 B | 2,009,120 B | +42,848 B | 58.8% -> 60.1% |
-| C5 headless | 2,321,776 B | 2,363,728 B | +41,952 B | 55.4% -> 56.4% |
+| Stable full | 2,601,872 B | 2,386,592 B | -215,280 B | 77.8% -> 71.4% |
+| Beta full | 2,787,152 B | 2,444,224 B | -342,928 B | 83.4% -> 73.1% |
+| C5 full | 3,141,952 B | 2,789,392 B | -352,560 B | 74.9% -> 66.5% |
+| Stable headless | 1,897,584 B | 1,956,800 B | +59,216 B | 56.8% -> 58.5% |
+| Beta headless | 1,966,272 B | 2,011,424 B | +45,152 B | 58.8% -> 60.2% |
+| C5 headless | 2,321,776 B | 2,366,048 B | +44,272 B | 55.4% -> 56.4% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 
