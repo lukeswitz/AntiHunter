@@ -225,7 +225,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/baseline/stats` | GET | Baseline statistics (JSON) |
 | `/baseline/config` | GET/POST | Baseline config: `rssiThreshold` (dBm), `baselineDuration` (learning seconds), `ramCacheSize` and `sdMaxDevices` (devices), `absenceThreshold` and `reappearanceWindow` (seconds), `rssiChangeDelta` (dB). Meanings and defaults: [README baseline settings](../README.md#detection-baseline-anomaly) |
 | `/baseline/reset` | POST | Reset baseline |
-| `/baseline/mark` | POST | Watch for changes from now; 409 if no baseline is running |
+| `/baseline/mark` | POST | Compare from now: splits the running baseline scan into before and after this moment; 409 if no baseline is running |
 
 </details>
 

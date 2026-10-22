@@ -25,6 +25,10 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Mesh, Full and headless: `DETECT_COUNTS` replies with Sentinel tracker counts (Karma candidates and confirmed, Pwnagotchi, handshakes, hunts, mesh peers).
 - Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
+- System tab: the settings cards are replaced by one **Settings** area. A menu on the left (a row of tabs on a phone) picks the section: Scanning, Node & mesh, Access point, Sensors & power, Storage, Appearance, Danger zone. Each row has its name and a one-line explanation on the left and the control on the right. Switches apply at once; the Node & mesh number fields save when you leave them.
+- Theme: Paper dark is the new default. Blue dark and Light stay available under Settings → Appearance; the header button switches between Light and the chosen dark theme.
+- Scan tab: the split device scan moved here from the Fleet card, as **Split across nodes** under Schedule when Device Discovery is selected.
+- Baseline: the button is now **Compare from now** and appears only once the baseline is built and the node is monitoring.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
 - Target card: Targets and Allow list above the scan options; trend badges Steady and Measuring; Movement toggle in the Forever/Triangulate row.
 - Results toolbar is a full-width bar with a mobile grid layout.
@@ -32,7 +36,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - PCAP files carry the radiotap MCS field for HT frames.
 - Campaigns, Full and headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot.
 - Data tab: campaign picker, From/To date filter for every dataset, Start/Stop campaign, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the RTC; without it only system log lines match a campaign.
-- BLE classifier on/off: Data tab checkbox or mesh `BLE_CLASSIFY:0|1`. Off skips advertisement parsing during scans. On by default; the setting persists.
+- BLE classifier on/off: Scan tab **Classify BLE devices** switch, Data tab checkbox, or mesh `BLE_CLASSIFY:0|1`. Off skips advertisement parsing during scans. On by default; the setting persists.
 - BLE classifier, headless: list and device scan results carry `C=<class>`; mesh `BLE_CLASSIFY:0|1`.
 - BLE classifier reads every manufacturer, service-data and service-UUID block in an advertisement plus scan response, not only the first.
 - Campaign UX: one Data tab panel starts/stops on this node and checked mesh nodes; header REC badge; Export campaign; jsonl rows carry `campaign` and filter by it; mesh `STATUS` adds `Camp:<name>`.
@@ -57,6 +61,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
 - BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - Data tab search keeps the selected sort column.
+- Split scan, Schedule **Run on** and the campaign node list showed this node twice, as "This node" and by its node ID.
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 451,990 B to 101,321 B). The full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
 - Web: no CORS headers; requests are refused (`403`) when `Host` is not the node's IP, `Sec-Fetch-Site` is cross-site, or `Origin` doesn't match. Another site's page can't read from the node or send it commands, and DNS rebinding is blocked.

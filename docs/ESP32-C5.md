@@ -27,9 +27,9 @@ The node has one radio, so it works on one band at a time. Pick the band and it 
 The default is `2` (both). Bands `1` and `2` add 36/40/44/48/149/153/157/161/165 if your
 channel list has no 5 GHz channel. Band `2` also adds 1/6/11 if it has no 2.4 GHz channel.
 Band `0` adds nothing; if the list has no 2.4 GHz channel it scans the whole list. Edit the
-list under RF Settings.
+list under System → Settings → Scanning.
 
-Change it in the web interface under RF Settings (the Band row appears only on C5 hardware),
+Change it in the web interface under System → Settings → Scanning (the Band row appears only on C5 hardware),
 or over mesh with `@<NODE> CONFIG_BAND:<0|1|2>`. Stop any running scan first. The setting is
 remembered across reboots.
 

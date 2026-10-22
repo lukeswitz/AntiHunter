@@ -79,7 +79,7 @@ You control a node from its web UI (Full build), or by sending it text commands 
 The flasher asks whether to erase the device first. Erase to clear saved settings. To flash from a terminal, see [Build & flash](#build--flash).
 
 **3. Connect to the node.**
-- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1. Log in as `admin` with the Wi-Fi password. Set a separate web password, or turn the login off, under System → RF Settings → Wi-Fi Access Point.
+- Full: join the `Antihunter` Wi-Fi network (password `antihunt3r123`) and open http://192.168.4.1. Log in as `admin` with the Wi-Fi password. Set a separate web password, or turn the login off, under System → Settings → **Access point**.
 - Headless: open a serial monitor at 115200 baud.
 
 **4. Set up the Meshtastic radio.**
@@ -87,7 +87,7 @@ The flasher asks whether to erase the device first. Erase to clear saved setting
 
 **5. Lock it down.**
 <a id="before-you-deploy"></a>
-- Change the AP name and password under RF Settings. Every unit ships with the same published defaults, so anyone can join an unchanged node.
+- Change the AP name and password under System → Settings → **Access point**. Every unit ships with the same published defaults, so anyone can join an unchanged node.
 - Set the node ID in the web UI, or with `CONFIG_NODEID` over mesh.
 - On the radio, set the region and a new BLE pairing pin: `python3 scripts/meshtastic_config.py --region US --pin 481920` (use your region and your own 6-digit pin). Then in the Meshtastic app, under Channels, make your own encrypted channel primary and turn the public channel off.
 - Set your erase key. Erase commands are refused until you do. See [Secure data destruction](#secure-data-destruction).
@@ -171,7 +171,7 @@ Lists nearby Wi-Fi access points and BLE devices (up to 200 of each): MAC, SSID,
 Wi-Fi devices send probe requests that name the networks they want to join. This scanner records the network names each device asks for.
 
 <p align="center">
-  <img width="615" alt="Probe Request Scanner" src="docs/img/probe-scanner.jpg" />
+  <img width="880" alt="Probe Request Scanner" src="docs/img/probe-scanner.jpg" />
 </p>
 
 **Start**
@@ -230,7 +230,7 @@ Detects drones broadcasting Remote ID under the FAA and EASA rules, and reports 
 Learns which access points and BLE devices are normally present, then reports devices that are new, gone, back again, or whose signal changed by more than the RSSI variation setting.
 
 <p align="center">
-<img width="800" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
+<img width="880" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
 </p>
 
 **Start**
@@ -239,7 +239,7 @@ Learns which access points and BLE devices are normally present, then reports de
 - Check progress: `@ALL BASELINE_STATUS`
 
 **Operational notes**
-- **Watch for changes from now** - splits the learning phase into before and after a moment you pick. Send it while the node is still learning: press **Watch for changes from now** (Full), or send `@ALL BASELINE_WATCH`. The node replies `BASELINE_ACK:WATCHING`, or `BASELINE_ACK:NOT_RUNNING` if no baseline scan is running
+- **Compare from now** - splits the scan into before and after a moment you pick. On Full, the **Compare from now** button appears under the scan options once the learning phase ends and the node is monitoring. Over mesh, send `@ALL BASELINE_WATCH` at any time while a baseline scan runs. The node replies `BASELINE_ACK:WATCHING`, or `BASELINE_ACK:NOT_RUNNING` if no baseline scan is running
 
   | Result | Meaning |
   |--------|---------|
@@ -286,7 +286,7 @@ Once you start it, Sentinel listens for Wi-Fi attack frames in the background an
 **Tools it names:** Marauder, MDK4, ESP Deauther, aireplay-ng, bettercap, hcxdumptool, Bruce, Pwnagotchi
 
 <p align="center">
-  <img width="560" alt="Sentinel" src="docs/img/sentinel.jpg" />
+  <img width="880" alt="Sentinel" src="docs/img/sentinel.jpg" />
 </p>
 
 **Start**
@@ -393,7 +393,7 @@ Records raw traffic to SD as a standard pcap that Wireshark opens.
 **Operational notes**
 - Wi-Fi frames carry a radiotap header with channel and RSSI, plus the rate on legacy frames and the MCS index on 802.11n frames. Both bands on C5
 - BLE saves the raw HCI events the Bluetooth controller reports, link type 187. HCI has no RF channel field, so the capture shows no channel
-- It sweeps the RF Settings channels, or a channel list and dwell set under Advanced. There's an optional management-frames-only filter
+- It sweeps the channel list under System → Settings → **Scanning**, or a channel list and dwell set under Advanced. There's an optional management-frames-only filter
 - The Scan tab lists captures to download or delete. You can't delete the file in progress
 - A Sentinel attack response can also start a capture. The node prunes automatic (`auto_`) captures to stay under a size budget and keep free space. It never prunes manual ones
 
@@ -456,31 +456,33 @@ The web UI has five tabs: **Scan**, **Results**, **System**, **Data**, and **Sen
 <img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
 </p>
 
-The **System** tab holds the node-wide settings. Its **Fleet** card lists the nodes and mesh radios this node has heard. The **Data** tab is the Data Explorer for findings, device logs, and scan data.
+The **System** tab shows the node's diagnostics and the **Fleet** card, which lists the nodes and mesh radios this node has heard. Below them, **Settings** holds the node-wide settings, one section at a time: pick a section in the menu on the left, or in the row of tabs on a phone. The **Data** tab is the Data Explorer for findings, device logs, and scan data.
 
 <details>
-<summary>System tab cards and screenshots</summary>
+<summary>System tab contents and screenshots</summary>
 
 <p align="center">
   <img width="880" alt="System tab" src="docs/img/system-tab.jpg" />
 </p>
 
-| Card | What it holds |
+| Card or section | What it holds |
 |---|---|
 | **System Diagnostics** | Three subtabs, all fed from `GET /diag`. **Overview** - uptime, Wi-Fi and BLE frame counts, target hits, unique devices, CPU temperature. **Hardware** - last reset and previous uptime, results restored, free and minimum-free internal heap, scan stack headroom, SD card, GPS, RTC, and vibration sensor. **Network** - AP address, mesh state, Wi-Fi channels |
 | **Fleet** | Live roster of nodes and radios with mode, uptime, temperature, hits, and GPS. Ping the fleet or clear the list |
-| **RF Settings** | Global RSSI filter and RF environment (Open Sky to Industrial, used for distance estimates). Scan preset (Relaxed, Balanced, Aggressive, Custom). Wi-Fi channel dwell, scan interval, and channel list. BLE scan duration and interval. Also holds the **Wi-Fi Access Point** section: SSID, password, WPA2/WPA3 or WPA2 only, and hidden network |
-| **Node Configuration** | Node ID, mesh on/off, status heartbeat, mesh send interval, mesh dedup TTL, and session dedup |
-| **Sensor Alerts** | Vibration sensing and what it triggers |
-| **Secure Data Destruction** | Erase key, setup and erase delays, vibration count and window, cooldown |
-| **Factory Wipe** | Clears settings and stored data back to defaults |
-| **Battery Saver Mode** | Stops scans and turns BLE off, drops the CPU to 80 MHz, and polls GPS once a minute. Mesh commands, heartbeats, and vibration alerts keep working |
-| **Accent Colors** | Recolors the destructive controls and Sentinel banners. Stored in the browser |
-
-<img width="800" height="731" alt="Settings" src="https://github.com/user-attachments/assets/56587f1b-7759-4d1f-adb1-edf488105e0b" />
+| Settings → **Scanning** | RSSI filter and RF environment (Open Sky to Industrial, used for distance estimates). Scan profile (Relaxed, Balanced, Aggressive, Custom). Wi-Fi channel time, scan interval, and channel list. BLE scan duration and interval |
+| Settings → **Node & mesh** | Node ID, mesh on/off, status heartbeat, alert send interval, repeat filter (mesh dedup TTL), send only new devices (session dedup), and the sent-device cache. The number fields save when you leave them |
+| Settings → **Access point** | Network name (SSID), password, WPA2/WPA3 or WPA2 only, hidden network, web login on/off, and web password |
+| Settings → **Sensors & power** | Mesh alert on vibration, the scan to start when the node is moved, and Battery Saver. Battery Saver stops scans and turns BLE off, drops the CPU to 80 MHz, and polls GPS once a minute. Mesh commands, heartbeats, and vibration alerts keep working |
+| Settings → **Storage** | SD card status, automatic rebuild of an unmountable card, and Repair now |
+| Settings → **Appearance** | Theme (Paper dark, Blue dark, or Light) and the accent colors for the destructive controls and Sentinel banners. Stored in the browser |
+| Settings → **Danger zone** | Erase key and Wipe now; auto-erase on tampering (setup and erase delays, vibration count and window, cooldown); factory reset |
 
 <p align="center">
- <img width="800" alt="Fleet viewer" src="https://github.com/user-attachments/assets/8c21a1be-1912-4560-9592-66551447c84d" />
+  <img width="880" alt="Settings, Sensors and power section" src="docs/img/settings.jpg" />
+</p>
+
+<p align="center">
+  <img width="880" alt="Fleet card" src="docs/img/fleet.jpg" />
 </p>
 
 </details>
@@ -489,7 +491,7 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 
 - **Allowlist** - devices that Target Scan and Baseline ignore. Scan tab → **Allow list** tab next to Targets, one MAC per line.
 - **Privacy Mode** - the Privacy button (Results, System, Data, and Sentinel tabs) masks MACs and GPS and replaces SSIDs with hashes in the web UI for screenshots.
-- **Vibration trigger** - starts a scan when the node is moved. Full: System tab → Sensor Alerts. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>:<interrupt>`:
+- **Vibration trigger** - starts a scan when the node is moved. Full: System → Settings → **Sensors & power**. Both builds, over mesh, `VIBSCAN_SET:<on>:<scan>:<secs>:<cooldown>:<interrupt>`:
 
   | Part | Value |
   |------|-------|
@@ -519,10 +521,10 @@ The **System** tab holds the node-wide settings. Its **Fleet** card lists the no
 
   Headless runs entries only once its clock is set, from GPS or `SETTIME:<unix seconds>` on USB serial.
 - **Campaigns** - tags a block of work so its logs can be pulled out later. While a campaign runs, every SD log line carries `[C:<name>]`, and start and stop times go to `/campaigns.csv`. It survives a reboot. Full: Data tab → name → **Start**; tick other mesh nodes to start them too. A **REC** badge in the header shows the active campaign; click it to stop. Review: pick the campaign in the Data tab to filter every dataset, **Export campaign** downloads all its rows in one file. Mesh `STATUS` adds `Camp:<name>`. Both builds, over mesh: `@AH01 CAMPAIGN_START:site-a`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `scripts/campaign_report.py <sd_dir> --campaign <name>` summarizes a copied SD card per file for that campaign.
-- **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
+- **BLE classifier** - labels BLE hits by advertisement content (`C=` in results, `Class=` in logs), e.g. `AirPods`, `FindMy`, `FastPair`, `Tile`. On by default. Full: Scan tab → **Classify BLE devices** switch, or the Data tab checkbox. Both builds, over mesh: `@AH01 BLE_CLASSIFY:0` turns it off, `:1` on. The setting persists.
 - **Battery Saver** - stops Wi-Fi/BLE scanning, drops the CPU to 80 MHz, and polls GPS once a minute. The mesh stays connected and sends a heartbeat. `@AH01 BATTERY_SAVER_START:10` starts it with a heartbeat every 10 min (1-30), `@AH01 BATTERY_SAVER_STOP` ends it.
-- **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → RF Settings → Wi-Fi Access Point → **Hidden network**.
-- **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System tab, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to remount now. `:NOW` erases the card only if every mount attempt fails.
+- **Hidden SoftAP** - the access point stops broadcasting its name. It doesn't keep anyone out. System → Settings → **Access point** → **Hidden network**.
+- **SD Repair** - lets the node rebuild an SD card it can't mount. Off by default, and rebuilding erases the card. System → Settings → **Storage**, or over mesh: `@AH01 SD_REPAIR:ON`, `:OFF`, or `:NOW` to remount now. `:NOW` erases the card only if every mount attempt fails.
 
 The [mesh command reference](docs/mesh-commands.md) lists every parameter.
 
@@ -533,7 +535,7 @@ Erases the node's settings and SD files on command, or when the node is moved wi
 **How it works.** You set an erase key. Over mesh the key is never sent: the node gives you a one-time token, you compute an answer from the token and your key, and the node checks it. A captured command can't be replayed. After a wipe the node writes one decoy file, `/weather-air-feed.txt`, holding a weather-monitor error message.
 
 **Set your key** (8-64 characters, no `:`). Erase commands are refused until you do.
-- Full: System → Secure Data Destruction. Until a key is set, the current key is the AP password, once you change it from the default. Over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`. This command carries the key, so send it on your own encrypted channel
+- Full: System → Settings → **Danger zone**. Until a key is set, the current key is the AP password, once you change it from the default. Over mesh: `@AH01 CONFIG_ERASE_PSK:<new key>:<AP password>`. This command carries the key, so send it on your own encrypted channel
 - Headless: the **Erase key** field in the Web Flasher
 
 **Wipe now**
@@ -547,7 +549,7 @@ Erases the node's settings and SD files on command, or when the node is moved wi
 
 **Auto-erase on tamper.** Off by default. After the setup delay, the set number of vibrations within the detection window starts the erase countdown and sends `TAMPER_DETECTED: Auto-erase in <s>s`. To cancel: `ERASE_REQUEST`, then `ERASE_CANCEL:<answer>` before the countdown ends.
 
-1. Turn it on: System → Secure Data Destruction, or `@AH01 AUTOERASE_ENABLE:<answer>`
+1. Turn it on: System → Settings → **Danger zone** → **Auto-erase**, then **Save**, or `@AH01 AUTOERASE_ENABLE:<answer>`
 2. Place the node and leave during the setup delay
 3. Watch the mesh for tamper alerts
 
@@ -576,7 +578,7 @@ The mesh is optional. A single node works fully on its own. With a mesh, you con
 
 - `@ALL COMMAND` goes to every node, `@AH01 COMMAND` to one. Node IDs are 2-5 letters or digits
 - Replies and alerts come back on the same channel, public or encrypted
-- Alerts go out at most one per send interval (default 3 s, set under Node Configuration). Device lists go out every 2.2 s. Triangulation messages skip the interval
+- Alerts go out at most one per send interval (default 3 s, set as **Alert send interval** under System → Settings → **Node & mesh**). Device lists go out every 2.2 s. Triangulation messages skip the interval
 - The node strips emoji and non-ASCII from sender names and still runs the command. It ignores a radio whose short name matches its own node ID as an echo, so keep them different
 
 The [mesh command reference](docs/mesh-commands.md) lists the commands, parameters, and alert formats.
@@ -658,7 +660,7 @@ Dedup applies only to the `DEVICE:` rows of Device discovery. The node always se
 
 `SCAN_DONE` reports `U` (unique MACs seen), `TX` (MACs sent this scan), and `DUP` (MACs skipped by dedup in the final pass).
 
-Set it in the web UI (System tab → Node Configuration → Mesh Dedup TTL, shown once mesh is on), with `POST /mesh-dedup-ttl` and form field `ttl=N`, or with `@ALL CONFIG_DEDUP_TTL:N`. `POST /mesh-dedup-clear` clears the cache so the node sends every MAC again.
+Set it in the web UI (System → Settings → **Node & mesh** → **Repeat filter**, shown once mesh is on), with `POST /mesh-dedup-ttl` and form field `ttl=N`, or with `@ALL CONFIG_DEDUP_TTL:N`. `POST /mesh-dedup-clear` clears the cache so the node sends every MAC again.
 
 </details>
 
@@ -790,7 +792,7 @@ pio run -e AntiHunter-full -t erase
 
 ### RF scan presets
 
-Set under System → RF Settings. A preset sets scan timing and the RSSI threshold, and resets the channel list to 1-11.
+Set under System → Settings → **Scanning**. A preset sets scan timing and the RSSI threshold, and resets the channel list to 1-11.
 
 | Preset | Wi-Fi Chan Time | Wi-Fi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | UI label |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|

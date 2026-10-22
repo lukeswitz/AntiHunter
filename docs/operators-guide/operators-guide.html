@@ -469,7 +469,7 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
   </ul>
 
   <div class="box warn"><span class="t">Do this before anything else</span>
-    <p>The default AP name and password are published in the documentation. Until you change them under System tab → <b>RF Settings</b> → <b>Wi-Fi Access Point</b>, anyone nearby can join the node. §8.1.</p>
+    <p>The default AP name and password are published in the documentation. Until you change them under System tab → <b>Settings</b> → <b>Access point</b>, anyone nearby can join the node. §8.1.</p>
   </div>
 
   <h3>5.7 Board variants</h3>
@@ -510,7 +510,7 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
   <h2><span class="num">7</span>Mesh radio setup</h2>
   <p class="lead">The LoRa mesh carries commands and alerts between your phone and your nodes with no other infrastructure. It is optional; a single node works on its own.</p>
 
-  <figure><img src="../img/mesh-screenshot.jpg" alt=""><figcaption>A device scan sending its results over the mesh. The header badge tracks the transmit queue draining at the LoRa airtime cap, 32 of 55 rows sent, and the Privacy button has masked the addresses.</figcaption></figure>
+  <figure><img src="../img/mesh-screenshot.jpg" alt=""><figcaption>A device scan sending its results over the mesh. The header badge tracks the transmit queue draining at the LoRa airtime cap, 12 of 30 rows sent. The addresses and names in this picture are placeholders.</figcaption></figure>
 
   <h3>7.1 Flashing and linking the radio</h3>
   <p><b>Tiers 1 and 3: already done.</b> On the Fully Assembled Unit and the Populated PCB the radio arrives on the latest stable Meshtastic with the serial link to the node set: <b>TEXTMSG</b> mode, <b>115200</b> baud, on the right pins for the board (19 RX / 20 TX on Heltec V3, 10 RX / 9 TX on T114). The screen is set to blank after 1 s and the status LED is off. Verify it if you like; do not redo it.</p>
@@ -599,7 +599,7 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h3>8.1 Change the credentials</h3>
   <ul>
-    <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under System tab → <b>RF Settings</b> → <b>Wi-Fi Access Point</b>, then <b>Save Wi-Fi Settings</b>.</li>
+    <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under System tab → <b>Settings</b> → <b>Access point</b>, then <b>Save Wi-Fi settings</b>.</li>
     <li><b>Hidden network.</b> Off by default. Turn it on in the same section and the node stops broadcasting its network name. It does not keep anyone out; the password does. The phone or laptop you connect with then sends the network name in its probe requests wherever it goes. The node reboots on save; type the network name by hand to reconnect.</li>
     <li><b>Erase key.</b> The password you choose that lets you wipe the node. You need it for every wipe, cancel, auto-erase change and factory reset. 8 to 64 characters, no <span class="mono">:</span>. Until you set one, the node refuses every erase command (<span class="mono">ERASE_ACK:SET_KEY_FIRST</span>). Set it in the web UI, in the flasher (<span class="mono">erasePSK</span>), or with <span class="mono">@AH01 CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. On Full, until you set a key, <span class="mono">&lt;current&gt;</span> is the AP password, once you have changed it from the default. On Headless, set it in the flasher. Write it down; the node never shows it again.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
@@ -640,7 +640,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Privacy.</b> One click masks MACs and GPS and replaces SSIDs with hashes in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
     <li><b>Battery Saver.</b> Stops Wi-Fi and BLE scanning, drops the CPU to 80 MHz and sends a heartbeat (temperature, GPS) every interval. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
-    <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — of the Sentinel banners and of the movement hit color. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
+    <li><b>Theme and accent colors.</b> System tab → <b>Settings</b> → <b>Appearance</b>. The theme is Paper dark (the default), Blue dark, or Light; the sun and moon button in the header switches between Light and the dark theme picked there. The accent colors set the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — of the Sentinel banners and of the movement hit color. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
     <li><b>Fleet</b> (System tab, full). Lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers; <b>Clear</b> empties the list.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
   </ul>
@@ -678,11 +678,11 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
 @ALL BASELINE_STATUS</pre>
   <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
-  <p><b>Watch for changes from now</b>. While a baseline runs, press the button (full firmware) or send <span class="mono">@ALL BASELINE_WATCH</span>. The node replies <span class="mono">BASELINE_ACK:WATCHING</span>, or <span class="mono">BASELINE_ACK:NOT_RUNNING</span> if no baseline is running. When the baseline ends, it reports what is new here, what is gone, and what moved closer or away since that moment. Full firmware shows this in a <i>Since</i> section in Results. Headless prints the device list to serial and sends <span class="mono">BASELINE_WATCH: New=&lt;n&gt; Gone=&lt;n&gt; Moved=&lt;n&gt; Both=&lt;n&gt;</span> over mesh. Use it when you leave a site and want to see what changed while you were away.</p>
+  <p><b>Compare from now</b>. On full firmware, the <b>Compare from now</b> button appears under the scan options once the learning phase ends and the node is monitoring. Over mesh, send <span class="mono">@ALL BASELINE_WATCH</span> at any time while a baseline runs. The node replies <span class="mono">BASELINE_ACK:WATCHING</span>, or <span class="mono">BASELINE_ACK:NOT_RUNNING</span> if no baseline is running. When the baseline ends, it reports what is new here, what is gone, and what moved closer or away since that moment. Full firmware shows this in a <i>Since</i> section in Results. Headless prints the device list to serial and sends <span class="mono">BASELINE_WATCH: New=&lt;n&gt; Gone=&lt;n&gt; Moved=&lt;n&gt; Both=&lt;n&gt;</span> over mesh. Use it when you leave a site and want to see what changed while you were away.</p>
   <div class="row">
     <figure><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results (§9.1).</figcaption></figure>
     <figure><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices, probes, SSIDs and saved records (§9.3).</figcaption></figure>
-    <figure><img src="../img/baseline.jpg" alt=""><figcaption>Baseline learning phase: device counts and the anomaly total (§9.4).</figcaption></figure>
+    <figure><img src="../img/baseline.jpg" alt=""><figcaption>Baseline monitoring phase: device counts, the anomaly totals and each anomaly (§9.4).</figcaption></figure>
   </div>
 
   <h3>9.5 MAC Randomization Correlation</h3>
@@ -718,7 +718,7 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h4>Acting on a confirmed attack</h4>
-  <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
+  <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the clients associated with the node's access point, the mesh command log, and the session incident log.</figcaption></figure>
   <p>The <b>On confirmed attack</b> panel picks what runs when a detector confirms an attack with a source MAC: triangulate, packet capture, device discovery, probe sweep, drone RID, each with its own duration. Only one can hold the radio, so several checked run in that order, one at a time, as it frees up. The queue is dropped after 15 minutes if the radio never frees.</p>
   <p>Same panel sets the auto-capture budget. Captures made this way are <span class="mono">auto_</span> files, pruned to stay inside the budget and keep the card's free-space floor. Manual captures are never touched.</p>
   <div class="box warn"><span class="t">A response is a scan</span>
@@ -804,7 +804,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>Time zone.</b> The node picks its zone from the GPS fix, daylight saving included. Daily and weekly blocks keep the same clock time across a daylight saving change. With no GPS fix, or outside the zone table, times are UTC.</li>
     <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees. A repeating block then moves to its next slot. If a mesh command or another start takes the radio at the same moment, the block is not lost; it tries again 5 seconds later.</li>
-    <li><b>Vibration and attack scans.</b> By default they wait for a scheduled scan: a vibration auto-scan is skipped, an attack response runs when the scan ends. Turn on <b>Interrupt scheduled scans</b> in Vibration Auto-Scan (System tab) or in the attack-response panel (Sentinel tab) to let that trigger stop the scheduled scan, run, and then resume the scheduled scan for its remaining time. A resumed Baseline starts its learning phase again. A scheduled block never takes the radio while a vibration or attack scan is waiting for it.</li>
+    <li><b>Vibration and attack scans.</b> By default they wait for a scheduled scan: a vibration auto-scan is skipped, an attack response runs when the scan ends. Turn on <b>Interrupt scheduled scans</b> under System tab → <b>Settings</b> → <b>Sensors &amp; power</b> or in the attack-response panel (Sentinel tab) to let that trigger stop the scheduled scan, run, and then resume the scheduled scan for its remaining time. A resumed Baseline starts its learning phase again. A scheduled block never takes the radio while a vibration or attack scan is waiting for it.</li>
     <li><b>Over mesh.</b> <span class="mono">SCHED_ADD:2026-09-30T02:00|86400|/sniffer|detection=device-scan&amp;deviceScanMode=2&amp;secs=600</span> adds a daily block. <span class="mono">SCHED_LIST</span> prints the blocks to serial, <span class="mono">SCHED_DEL:2</span> deletes the second one.</li>
     <li><b>Battery Saver.</b> Schedules pause while Battery Saver is on. A block that came due runs once when it ends.</li>
     <li><b>Limits.</b> 8 blocks. They are kept in NVS and survive reboots.</li>
@@ -839,7 +839,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li>Counts toward the tamper auto-erase trigger if that is armed (§10.4)</li>
   </ul>
   <p>Alerts are rate-limited to one every 3 seconds. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
-  <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the toggle in the web UI's Sensor Alerts card. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
+  <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the <b>Mesh alert</b> switch under System tab → <b>Settings</b> → <b>Sensors &amp; power</b>. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
 
   <h3 id="s10-2">10.2 Tuning the trimpot</h3>
   <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends on where the node is mounted. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
@@ -861,7 +861,7 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h3>10.3 Vibration auto-scan</h3>
-  <p>Movement can start a scan automatically.</p>
+  <p>Movement can start a scan automatically. In the web UI, set it under <b>Scan on vibration</b> in System tab → <b>Settings</b> → <b>Sensors &amp; power</b>, then press <b>Save</b> in the Vibration sensor group. Over mesh:</p>
   <pre>@AH01 VIBSCAN_SET:1:2:60:60:1  <span class="c"># on : mode : secs : cooldown s : interrupt schedule</span>
 @AH01 VIBSCAN_STATUS</pre>
   <table class="tight">
@@ -950,7 +950,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td>List everything in range</td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
     <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td>Collect probe requests</td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
     <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td>Learn the area, then flag changes</td><td><span class="mono">duration[:FOREVER]</span>, min 60 s</td></tr>
-    <tr><td><span class="mono">BASELINE_WATCH</span></td><td>Watch for changes from now</td><td>None; baseline must be running</td></tr>
+    <tr><td><span class="mono">BASELINE_WATCH</span></td><td>Compare from now: split the baseline scan into before and after this moment</td><td>None; baseline must be running</td></tr>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
@@ -1131,7 +1131,7 @@ docker compose up -d --build</pre>
   <p>A hit sends <span class="mono">Target: MAC RSSI Type Name GPS V=vendor</span> at once; the web UI shows Getting closer or Moving away as it moves.</p>
 
   <h4>While you are away</h4>
-  <p>Start a baseline when you arrive. When you leave, press <b>Watch for changes from now</b> or send <span class="mono">@AH01 BASELINE_WATCH</span>. Back home, the results list what is new, what is gone, and what moved closer.</p>
+  <p>Start a baseline when you arrive. When you leave, press <b>Compare from now</b> or send <span class="mono">@AH01 BASELINE_WATCH</span>. Back home, the results list what is new, what is gone, and what moved closer.</p>
 
   <h4>Drones over the property</h4>
   <pre>@AH01 SCHED_ADD:2026-10-05T06:00|86400|/drone|droneScanMode=2&amp;secs=57600   <span class="c"># daylight hours</span></pre>
