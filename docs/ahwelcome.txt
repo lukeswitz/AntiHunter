@@ -45,7 +45,8 @@
    WEB FLASHER:  lukeswitz.github.io/AntiHunter
 
    FIRST BOOT: join the AP "Antihunter" (antihunt3r123), open 192.168.4.1, and
-   change those credentials under RF Settings first. They are published.
+   change those credentials under System > Settings > Access point first.
+   They are published.
 ==================================================================================
                                    !  POWER  !
 
