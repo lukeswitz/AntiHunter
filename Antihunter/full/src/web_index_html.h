@@ -7,7 +7,7 @@
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
-<html data-theme="light">
+<html data-theme="dark" data-palette="paper">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -16,6 +16,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       :root{--t:0.2s;--blur:12px}
       [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#2563eb;--c-ble-bg:rgba(37,99,235,0.08);--c-wifi:#15803d;--c-wifi-bg:rgba(21,128,61,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#b9e83c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.14),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#4c8dff;--c-ble-bg:rgba(76,141,255,0.12);--c-wifi:#34c77b;--c-wifi-bg:rgba(52,199,123,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#a2c95a;--c-err-bg:rgba(162,201,90,0.08);--dang-glow:rgba(185,232,60,0.22);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
+      [data-theme="dark"][data-palette="paper"]{--bg:#121211;--surf:#1b1b19;--surf-hover:#242421;--bord:#34342f;--bord-focus:rgba(203,230,66,0.45);--txt:#ededE8;--mut:#a9a9a2;--acc:#cbe642;--acch:#d8ef6a;--accbg:rgba(203,230,66,0.10);--succ:#cbe642;--warn:#e6a85a;--shad:0 1px 0 rgba(0,0,0,0.35);--shad-hover:0 4px 14px rgba(0,0,0,0.45);--glow:0 0 0 transparent;--backdrop:none;--c-known:#a9a9a2;--c-ap:#a9a9a2;--c-ok:#cbe642;--tgt:#cbe642;--tgtbg:rgba(203,230,66,0.10)}
+      [data-theme="dark"][data-palette="paper"] .btn.primary,[data-theme="dark"][data-palette="paper"] .chip-row .chip.active,[data-theme="dark"][data-palette="paper"] input[type="checkbox"]:checked::after{color:#0b0b0b}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -65,24 +67,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
       pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
       hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
-      .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:var(--c-err-bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
       .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
       .chip-row .chip{padding:6px 12px;border:1px solid var(--bord);border-radius:999px;background:var(--surf);color:var(--mut);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;user-select:none}
       .chip-row .chip:hover{border-color:var(--acc);color:var(--txt)}
       .chip-row .chip.active{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 0 10px var(--accbg)}
-      .field-row{margin-bottom:14px}
-      .field-row .field-name{font-size:11px;font-weight:700;display:block;margin-bottom:2px;color:var(--txt);text-transform:uppercase;letter-spacing:.04em}
-      .field-row .field-hint{font-size:10px;color:var(--mut);display:block;margin-bottom:6px}
       .psk-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--bord);font-size:11px;font-weight:700;letter-spacing:.03em}
       .psk-badge.set{color:var(--c-ok);border-color:var(--c-ok);background:var(--accbg)}
       .psk-badge.unset{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
       .psk-badge.tamper{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg);animation:scanPulse 1.2s ease-in-out infinite}
-      .subcard{padding:12px 14px;background:rgba(0,0,0,0.15);border:1px solid var(--bord);border-radius:10px;margin-bottom:12px;transition:border-color .15s}
-      .subcard:hover{border-color:var(--bord-focus)}
-      .subcard-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
-      .subcard-num{width:24px;height:24px;border-radius:50%;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-      .subcard-title{font-size:13px;font-weight:700;color:var(--txt);letter-spacing:.02em;line-height:1.2}
-      .subcard-sub{font-size:10px;color:var(--mut);margin-top:2px;line-height:1.4}
       #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
       .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
       .toast.show{opacity:1;transform:none}
@@ -143,8 +135,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary{list-style:none;cursor:pointer;font-weight:600;color:var(--acc);margin-bottom:12px;font-size:13px;padding:10px 0;transition:all 0.2s;border-radius:6px}
       details>summary:hover{color:var(--acch)}
       details>summary::-webkit-details-marker{display:none}
-      @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
-      @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
+      @media(min-width:900px){.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
+      @media(max-width:899px){.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
       @media(max-width:600px){.header{padding:14px 16px;gap:12px}.header h1{font-size:17px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:10.5px;padding:5px 11px;gap:6px}.status-item::before{width:6px;height:6px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -321,6 +313,60 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .sched-row b{font-size:13px;min-width:0}
       .sched-row small{grid-column:2;color:var(--mut);font-size:12px}
       .sched-row .btn{grid-row:1/3;grid-column:3}
+      .split-run{border-top:1px solid var(--bord);padding-top:12px}
+      .split-run>summary{cursor:pointer;user-select:none;color:var(--txt);margin:0;padding:0;font-size:15px}
+      .split-run>summary .collapse-icon{margin-left:auto}
+      .split-run[open]>summary .collapse-icon{transform:rotate(90deg)}
+      .split-nodes{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+      .scan-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 4px}
+      .scan-head .scan-title{margin:0}
+      .sw-lbl{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:600;color:var(--mut);text-transform:none;letter-spacing:0;cursor:pointer}
+      .dsw{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;flex-shrink:0}
+      .dsw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
+      .dsw-s{position:absolute;inset:0;background:rgba(120,128,160,.45);border:1px solid var(--bord);border-radius:20px;transition:.2s;}
+      .dsw-s:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.4);}
+      .dsw input:checked+.dsw-s{background:var(--succ);}
+      .dsw input:checked+.dsw-s:before{transform:translateX(16px);}
+      .dsw input:focus-visible+.dsw-s{outline:2px solid var(--acc);outline-offset:2px}
+      #page-system>.card{margin-bottom:16px}
+      .card-header:has(+.card-body.collapsed){margin-bottom:0}
+      .set-wrap{display:flex;flex-wrap:wrap;align-items:flex-start;gap:32px;margin-top:24px}
+      .set-nav{flex:0 1 220px;min-width:200px;display:flex;flex-direction:column;gap:2px}
+      .set-nav-h{padding:0 10px 10px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+      .set-nav-b{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--mut);font:inherit;font-size:14px;font-weight:500;text-align:left;cursor:pointer}
+      .set-nav-b::before{content:"";width:6px;height:6px;flex-shrink:0;background:transparent}
+      .set-nav-b:hover{color:var(--txt)}
+      .set-nav-b.on{background:var(--surf-hover);color:var(--txt)}
+      .set-nav-b.on::before{background:var(--acc)}
+      .set-nav-b.dz,.set-sec h2.dz{color:var(--dang)}
+      .set-nav-b.dz.on::before{background:var(--dang)}
+      .set-main{flex:999 1 560px;min-width:0}
+      .set-sec{display:none;flex-direction:column;gap:28px}
+      .set-sec.on{display:flex}
+      .set-sec>header h2{margin:0 0 6px;font-size:22px;font-weight:600}
+      .set-sec>header p{color:var(--mut);font-size:14px}
+      .set-grp>h3{margin:0 0 10px;font-size:14px;font-weight:600}
+      .set-box{border:1px solid var(--bord);border-radius:8px;background:var(--surf)}
+      .set-box.dz{border-color:color-mix(in srgb,var(--dang) 45%,var(--bord))}
+      .srow{display:flex;flex-wrap:wrap;align-items:center;gap:12px 32px;padding:16px 20px;border-top:1px solid var(--bord)}
+      .set-box>.srow:first-child{border-top:0}
+      .srow-l{flex:1 1 260px;min-width:0}
+      .srow-l>label,.srow-l>b{display:block;margin:0;font-size:14px;font-weight:500;color:var(--txt);text-transform:none;letter-spacing:0}
+      .srow-l>p{margin-top:4px;font-size:13px;line-height:1.45;color:var(--mut)}
+      .srow-c{flex:0 1 340px;min-width:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
+      .srow-c label.dsw{margin:0}
+      .srow-c .num{width:120px;flex:0 0 120px}
+      .srow-c input[type=range]{flex:1;min-width:0;padding:0;border:0;background:transparent;box-shadow:none;accent-color:var(--acc)}
+      .srow-u{color:var(--mut);font-size:13px}
+      .srow-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--txt)}
+      .srow-c .chip-row{margin:0;justify-content:flex-end}
+      .srow-msg{margin:0 20px 16px;padding:8px;background:var(--surf-hover);border:1px solid var(--bord);border-radius:6px;font-size:12px}
+      .sfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid var(--bord);background:var(--surf-hover);border-radius:0 0 8px 8px}
+      .sfoot-t{flex:1 1 260px;font-size:13px;color:var(--mut)}
+      .sfoot-b{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+      .set-pill{padding:4px 10px;border:1px solid var(--bord);border-radius:999px;font-size:12px}
+      @media(max-width:899px){.set-wrap{gap:20px}.set-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none}.set-nav-h,.set-nav-b::before{display:none}.set-nav-b{width:auto;flex-shrink:0;border:1px solid var(--bord);border-radius:999px;padding:0 14px;white-space:nowrap}.set-nav-b.on{border-color:var(--acc)}.srow{padding:14px 16px}.srow:not(.tog) .srow-c{flex:1 1 100%;justify-content:flex-start}.srow.tog{flex-wrap:nowrap}.srow.tog .srow-l{flex:1 1 0}.srow.tog .srow-c{flex:0 0 auto}.sfoot{padding:12px 16px}.srow-c .chip-row{justify-content:flex-start}}
+      .help-q{cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;vertical-align:middle}
       @media(max-width:899px){
         .scan-work{grid-template-columns:1fr}
         .scan-run{border-left:0;border-top:1px solid var(--bord)}
@@ -479,6 +525,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const ds=document.getElementById('dangSchemeSel'),ss=document.getElementById('sentSchemeSel');
         if(ds)ds.value=ahPref('dangScheme');
         if(ss)ss.value=ahPref('sentScheme');
+        const th=document.getElementById('themeSel');
+        if(th)th.value=ahThemeVal();
       }
       function ahSetScheme(k,v){
         try { localStorage.setItem(k,v); }
@@ -487,7 +535,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       let toggleHistory=[];
       function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();e.classList.add('theme-switching');requestAnimationFrame(function(){requestAnimationFrame(function(){e.classList.remove('theme-switching');});});toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
-      (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
+      (function(){const d=document.documentElement;d.setAttribute('data-theme',localStorage.getItem('theme')||'dark');d.setAttribute('data-palette',localStorage.getItem('palette')||'paper')})();
+      function ahThemeVal(){const d=document.documentElement,t=d.getAttribute('data-theme');return t==='dark'?(d.getAttribute('data-palette')==='paper'?'paper':'blue'):t;}
+      function ahSetTheme(v){
+        const d=document.documentElement;
+        if(v==='light'){d.setAttribute('data-theme','light');}
+        else{d.setAttribute('data-theme','dark');d.setAttribute('data-palette',v==='blue'?'blue':'paper');}
+        try{localStorage.setItem('theme',v==='light'?'light':'dark');if(v!=='light')localStorage.setItem('palette',v==='blue'?'blue':'paper');localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');}
+        catch(storageErr){console.warn('ahSetTheme: localStorage write failed (private mode?)',storageErr);}
+      }
       ahApplyScheme();
       document.addEventListener('DOMContentLoaded',ahApplyScheme);
     </script>
@@ -650,7 +706,10 @@ R"HTML(
         <div class="picker" id="scanPicker"></div>
         <div class="scan-work">
           <div class="scan-opts">
-            <h2 class="scan-title" id="scanTitle">Device Discovery</h2>
+            <div class="scan-head">
+              <h2 class="scan-title" id="scanTitle">Device Discovery</h2>
+              <label class="sw-lbl" title="Labels BLE devices by advertisement (AirPods, FindMy, Tile...) in every scan. Off saves CPU and heap; existing labels stay. Saved on the node.">Classify BLE devices<span class="dsw"><input type="checkbox" id="bleClassifyScan" onchange="saveBleClassify(this)"><span class="dsw-s"></span></span></label>
+            </div>
             <div id="paneTarget" style="display:none;">
             <div class="det-desc" style="margin:0 0 10px;">Scans for the MACs, OUIs and SSIDs in the Targets list.</div>
             <div class="wl">
@@ -892,10 +951,11 @@ R"HTML(
                 <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-                <button class="btn alt" type="button" onclick="markBaseline()" style="display:none;" id="markBaselineBtn" title="Results will show what is new, gone or moving from this moment on">Watch for changes from now</button>
+                <button class="btn alt" type="button" onclick="markBaseline()" style="display:none;" id="markBaselineBtn">Compare from now</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
               </div>
+              <div class="det-desc" id="markBaselineHint" style="display:none;"></div>
 
               <div id="pcapFiles" style="display:none;margin-top:12px;">
                 <div class="pcap-files-head" onclick="pcapToggleList()">
@@ -938,6 +998,16 @@ R"HTML(
             </div>
             <div class="sched-lbl">Scheduled</div>
             <div id="schedList"><div class="sched-empty">Nothing scheduled.</div></div>
+            <details class="split-run" id="splitRun" ontoggle="if(this.open)fleetPoll()">
+              <summary class="sched-head"><span class="card-ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 6h3l4 6M8.5 18h3l4-6"/></svg></span><b>Split across nodes</b><span class="collapse-icon">&#9654;</span></summary>
+              <div class="det-desc" style="margin:10px 0;">Runs one device scan across the checked nodes. By radio: nodes alternate Wi-Fi and BLE, so no node loses Wi-Fi time to BLE. By channel: each node sweeps its share of the Wi-Fi channel list.</div>
+              <div id="fleetSplitNodes" class="split-nodes"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
+                <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
+                <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" min="1" max="1440" value="10"></div>
+              </div>
+              <button class="btn primary" type="button" onclick="fleetSplit()" style="width:100%;margin-top:8px;">Start split scan</button>
+            </details>
           </div>
         </div>
       </div>
@@ -1019,16 +1089,6 @@ R"HTML(
             <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
           </div>
           <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
-          <div style="margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
-            <h4 style="margin:0 0 6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Split Device Scan</h4>
-            <div class="det-desc" style="margin:0 0 10px;">Runs one device scan across the checked nodes. By radio: nodes alternate Wi-Fi and BLE, so no node loses Wi-Fi time to BLE. By channel: each node sweeps its share of the Wi-Fi channel list.</div>
-            <div id="fleetSplitNodes" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"></div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end;">
-              <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
-              <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" min="1" max="1440" value="10"></div>
-              <button class="btn primary" type="button" onclick="fleetSplit()">Start Split Scan</button>
-            </div>
-          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
             <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
             <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
@@ -1037,356 +1097,432 @@ R"HTML(
         </div>
       </div>
 
-    <div class="grid-2" style="margin-bottom:16px;">
-      <div class="card">
-        <h3>RF Settings</h3>
-        <p class="card-sub">Signal filtering &amp; sensitivity profile</p>
-        <div class="" id="detectionCardBody">
-          <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
-          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
-            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-95" 
-                  oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
-            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-95 dBm</span>
-          </div>
-          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
+      <div class="set-wrap">
+        <nav class="set-nav" aria-label="Settings sections">
+          <div class="set-nav-h">Settings</div>
+          <button type="button" class="set-nav-b on" aria-current="true" data-sec="setScan" onclick="setSec(this)">Scanning</button>
+          <button type="button" class="set-nav-b" data-sec="setMesh" onclick="setSec(this)">Node &amp; mesh</button>
+          <button type="button" class="set-nav-b" data-sec="setAp" onclick="setSec(this)">Access point</button>
+          <button type="button" class="set-nav-b" data-sec="setSensors" onclick="setSec(this)">Sensors &amp; power</button>
+          <button type="button" class="set-nav-b" data-sec="setStorage" onclick="setSec(this)">Storage</button>
+          <button type="button" class="set-nav-b" data-sec="setLook" onclick="setSec(this)">Appearance</button>
+          <button type="button" class="set-nav-b dz" data-sec="setDanger" onclick="setSec(this)">Danger zone</button>
+        </nav>
+        <div class="set-main">
 
-          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
-
-          <label style="font-size:11px;">RF Environment</label>
-          <select id="rfEnv" onchange="saveRFEnv()" style="margin-bottom:6px;">
-            <option value="0">Open Sky &mdash; Clear LOS</option>
-            <option value="1">Suburban &mdash; Light Foliage</option>
-            <option value="2">Indoor &mdash; Some Walls</option>
-            <option value="3">Indoor Dense &mdash; Many Partitions</option>
-            <option value="4">Industrial &mdash; Heavy Obstruction</option>
-          </select>
-          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Path-loss model for range estimates and triangulation. Pick the one whose distances match reality on site.</p>
-
-          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
-
-          <select id="rfPreset" onchange="updateRFPresetUI()">
-            <option value="0">Relaxed (Quiet)</option>
-            <option value="1">Balanced (Default)</option>
-            <option value="2">Aggressive (Fast)</option>
-            <option value="3">Custom</option>
-          </select>
-          
-          <div id="customRFSettings" style="display:block;margin-top:10px;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div>
-                <label style="font-size:10px;color:var(--mut);">Wi-Fi Channel Time (ms)</label>
-                <input type="number" id="wifiChannelTime" min="110" max="300" value="160" style="padding:4px;font-size:11px;">
-              </div>
-              <div>
-                <label style="font-size:10px;color:var(--mut);">Wi-Fi Scan Interval (ms)</label>
-                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="3000" style="padding:4px;font-size:11px;">
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div>
-                <label style="font-size:10px;color:var(--mut);">BLE Scan Duration (ms)</label>
-                <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
-              </div>
-              <div>
-                <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
-                <input type="number" id="bleScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
-              </div>
-            </div>
-            <div style="margin-bottom:8px;">
-              <label style="font-size:10px;color:var(--mut);">Wi-Fi Channels</label>
-              <input type="text" id="wifiChannels" placeholder="1..11" value="1..11" style="padding:4px;font-size:11px;">
-            </div>
-          </div>
-        </div>
-        <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
-
-        <hr style="margin:16px 0;border:none;border-top:1px solid var(--bord);">
-        <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
-            <h4 style="margin:0;font-size:13px;">Wi-Fi Access Point</h4>
-            <span class="collapse-icon" id="wifiApCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="wifiApCardBody" style="max-height:0;">
-            <label style="font-size:11px;">SSID</label>
-            <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
-            
-            <label style="font-size:11px;">Password</label>
-            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Unchanged - enter 8-63 characters to change" style="margin-bottom:8px;">
-
-            <label style="font-size:11px;">Security</label>
-            <select id="apAuth" style="margin-bottom:8px;">
-              <option value="0">WPA2/WPA3 (Default)</option>
-              <option value="1">WPA2 Only</option>
-            </select>
-
-            <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="apHidden" value="1">Hidden network (no SSID beacon)</label>
-            <p class="card-sub" style="margin:6px 0 0;">Clients must enter the SSID manually and will probe for it by name.</p>
-
-            <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save Wi-Fi Settings</button>
-
-            <hr>
-            <label style="font-size:11px;">Current web password (needed for the changes below)</label>
-            <input type="password" id="webPassCur" maxlength="63" placeholder="Wi-Fi password if no web password is set" style="margin-bottom:8px;">
-            <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()">Require web login (user admin)</label>
-            <p class="card-sub" style="margin:4px 0 8px;">Off: anyone on this Wi-Fi can use the web UI.</p>
-            <label style="font-size:11px;">Web login password (user admin)</label>
-            <input type="password" id="webPass" minlength="8" maxlength="63" placeholder="Same as the Wi-Fi password until set" style="margin-bottom:8px;">
-            <button class="btn primary" type="button" onclick="saveWebPass()" style="width:100%;">Save Web Password</button>
-          </div>
-        </div>
-
-      <div class="card">
-          <h3>Node Configuration</h3>
-          <p class="card-sub">Identity &amp; mesh networking</p>
-          <form id="nodeForm" method="POST" action="/node-id" novalidate>
-            <label>Node ID</label>
-            <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;">
-            <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
-          </form>
-          
-          <hr>
-          
-          <div style="margin-top:12px;">
-            <label>Mesh Communications</label>
-            <div style="display:flex;gap:8px;margin-bottom:12px;">
-              <button class="btn" id="meshToggleBtn" onclick="toggleMesh()" style="flex:1;"></button>
-            </div>
-            
-            <div id="meshControls" style="display:none;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <input type="checkbox" id="hbEnabledCb" onchange="toggleHb()" style="width:20px;height:20px;">
-                <label style="margin:0;font-size:13px;cursor:pointer;" for="hbEnabledCb">Status Heartbeat</label>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                <input type="number" id="hbIntervalInput" min="1" max="60" step="1" value="10" style="flex:1;">
-                <label style="margin:0;font-size:12px;color:var(--mut);white-space:nowrap;">min interval</label>
-                <button class="btn" onclick="saveHbInterval()">Save</button>
-              </div>
-              <label>Mesh Send Interval (ms)</label>
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="3000" style="flex:1;">
-                <button class="btn" onclick="saveMeshInterval()">Save</button>
-              </div>
-
-              <label title="Skip rebroadcasting same MAC over LoRa within this window. 0 = disable (every scan broadcasts every device). Default 300s.">Mesh Dedup TTL (sec, 0=off)</label>
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
-                <input type="number" id="meshDedupTtl" min="0" max="3600" step="30" value="300" style="flex:1;">
-                <button class="btn" onclick="saveDedupTtl()">Save</button>
-                <button class="btn alt" onclick="clearDedup()">Clear Cache</button>
-              </div>
-              <div id="dedupCacheInfo" style="font-size:11px;color:var(--mut);margin-bottom:6px;">Cache: 0 MACs tracked</div>
-              <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:12px;cursor:pointer;" title="ON: subsequent scans send only devices not already sent this session (until Clear Cache). OFF: every scan re-broadcasts all devices it sees.">
-                <input type="checkbox" id="meshSessionDedup" onchange="saveSessionDedup()" style="width:auto;">
-                Session dedup — send only NEW devices across scans
-              </label>
-
-              <div style="display:flex;gap:8px;">
-                <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
-                <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
-              </div>
-            </div>
-          </div>
-
-          <hr>
-
-          <div style="margin-top:12px;">
-            <label>SD Card</label>
-            <div id="sdRepairState" style="font-size:11px;color:var(--mut);margin-bottom:6px;"></div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:8px;cursor:pointer;" title="If the card will not mount at boot or after a fault, the node rebuilds the filesystem itself. Rebuilding erases the card.">
-              <input type="checkbox" id="sdAutoRepair" onchange="saveSdAutoRepair()" style="width:auto;">
-              Rebuild an unmountable card automatically (erases it)
-            </label>
-            <button class="btn alt" onclick="sdRepairNow()" style="width:100%;">Repair now</button>
-          </div>
-
-        </div>
-
-      <div class="card">
-          <h3>Sensor Alerts</h3>
-          <p class="card-sub">Vibration sensor behavior</p>
-
-          <div style="margin-top:12px;">
-            <label>Vibration Sensor Alerts</label>
-            <div style="display:flex;gap:8px;margin-bottom:4px;">
-              <button class="btn" id="vibToggleBtn" onclick="toggleVibration()" style="flex:1;"></button>
-            </div>
-            <div style="font-size:10px;color:var(--mut);">Controls mesh broadcast alerts when vibration is detected</div>
-          </div>
-
-          <hr>
-
-          <div style="margin-top:12px;">
-            <label>Vibration Auto-Scan</label>
-            <div style="font-size:10px;color:var(--mut);margin-bottom:6px;">Automatically start a scan when the vibration sensor fires</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-              <label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label>
-              <span style="font-size:12px;color:var(--mut);">Enable</span>
-            </div>
-            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Scan to run</label>
-            <select id="vibScanMode" style="width:100%;margin-bottom:8px;">
-              <option value="0">None</option>
-              <option value="1">All-Device Scan</option>
-              <option value="2">Probe-Request Detect</option>
-              <option value="3">Randomized-MAC Detect</option>
-              <option value="4">List Scan (Targets)</option>
-              <option value="5">Drone / RemoteID</option>
-              <option value="6">Deauth (Blue-Team)</option>
-              <option value="7">Baseline Anomaly</option>
-              <option value="8">Packet Capture</option>
-            </select>
-            <div style="display:flex;gap:8px;">
-              <div style="flex:1;">
-                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Duration (s, 0=forever)</label>
-                <input type="number" id="vibScanDur" min="0" max="65535" value="60" style="width:100%;">
-              </div>
-              <div style="flex:1;">
-                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Cooldown (s)</label>
-                <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-              <label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label>
-              <span style="font-size:12px;color:var(--mut);">Interrupt scheduled scans; the schedule resumes after</span>
-            </div>
-            <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
-            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver, unless the running scan is scheduled and Interrupt is on</div>
-          </div>
-      </div>
-      </div>
-
-      <!-- Secure Data Destruction -->
-      <div class="card">
-        <div class="card-header" onclick="toggleCollapse('secureDataCard')">
-          <h3>Secure Data Destruction</h3>
-          <span class="collapse-icon" id="secureDataCardIcon">▶</span>
-        </div>
-        <div class="card-body collapsed" id="secureDataCardBody">
-          <div class="banner">WARNING: Permanent data wipe — no recovery</div>
-
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <span class="psk-badge unset" id="erasePskBadge">CHECKING...</span>
-            <span class="psk-badge tamper" id="eraseStateBadge" style="display:none">IDLE</span>
-          </div>
-
-          <div style="margin-top:8px">
-            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
-            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Your erase key</label>
-            <input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off">
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <input type="text" id="eraseNewPsk" placeholder="new key, 8+ chars" autocomplete="off" style="flex:1">
-              <button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">SET KEY</button>
-            </div>
-          </div>
-
-          <button class="btn danger" type="button" onclick="requestErase()" style="width:100%;margin-top:10px">WIPE NOW</button>
-          <button class="btn alt" type="button" onclick="cancelErase()" id="eraseAbortBtn" style="width:100%;margin-top:8px;display:none">ABORT TAMPER COUNTDOWN</button>
-
-          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
-
-          <hr>
-
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-            <span style="font-weight:700;color:var(--acc);font-size:14px">Auto-Erase on Tampering</span>
-            <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
-          </div>
-
-          <label style="display:flex;align-items:center;gap:10px;margin-bottom:18px;cursor:pointer">
-            <input type="checkbox" id="autoEraseEnabled" style="width:18px;height:18px;cursor:pointer">
-            <span style="font-weight:600">Enable auto-erase when tamper detected</span>
-          </label>
-
-          <div class="subcard field-row" data-field="setupDelay">
-            <div class="subcard-head">
-              <span class="subcard-num">1</span>
-              <div>
-                <div class="subcard-title">Setup Period</div>
-                <div class="subcard-sub">Grace period after enabling before tamper detection arms</div>
-              </div>
-            </div>
-            <div class="chip-row">
-              <span class="chip" data-value="30000">30s</span>
-              <span class="chip" data-value="60000">1m</span>
-              <span class="chip active" data-value="120000">2m</span>
-              <span class="chip" data-value="300000">5m</span>
-              <span class="chip" data-value="600000">10m</span>
-            </div>
-          </div>
-
-          <div class="subcard field-row" data-field="autoEraseDelay">
-            <div class="subcard-head">
-              <span class="subcard-num">2</span>
-              <div>
-                <div class="subcard-title">Erase Countdown</div>
-                <div class="subcard-sub">Time to cancel after tamper detected before wipe fires</div>
-              </div>
-            </div>
-            <div class="chip-row">
-              <span class="chip" data-value="10000">10s</span>
-              <span class="chip active" data-value="30000">30s</span>
-              <span class="chip" data-value="60000">1m</span>
-              <span class="chip" data-value="120000">2m</span>
-              <span class="chip" data-value="300000">5m</span>
-            </div>
-          </div>
-
-          <div class="subcard field-row" data-field="autoEraseCooldown">
-            <div class="subcard-head">
-              <span class="subcard-num">3</span>
-              <div>
-                <div class="subcard-title">Trigger Cooldown</div>
-                <div class="subcard-sub">Minimum gap before another tamper event can trigger erase</div>
-              </div>
-            </div>
-            <div class="chip-row">
-              <span class="chip" data-value="60000">1m</span>
-              <span class="chip active" data-value="300000">5m</span>
-              <span class="chip" data-value="600000">10m</span>
-              <span class="chip" data-value="1800000">30m</span>
-              <span class="chip" data-value="3600000">1h</span>
-            </div>
-          </div>
-
-          <details style="margin-bottom:14px">
-            <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:6px 0">Advanced Sensitivity</summary>
-            <div style="padding:10px 0 0 0">
-              <div class="field-row" data-field="vibrationsRequired">
-                <span class="field-name">Vibrations Required</span>
-                <span class="field-hint">Count within window to trigger</span>
-                <div class="chip-row">
-                  <span class="chip" data-value="2">2</span>
-                  <span class="chip active" data-value="3">3</span>
-                  <span class="chip" data-value="4">4</span>
-                  <span class="chip" data-value="5">5</span>
+          <section class="set-sec on" id="setScan">
+            <header><h2>Scanning</h2><p>How the radio listens. These settings apply to every scan on this node.</p></header>
+            <div class="set-grp">
+              <h3>Signal filter</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="globalRssiSlider">RSSI filter</label><p>Signals weaker than this are dropped. Triangulation still uses every signal.</p></div>
+                  <div class="srow-c"><input type="range" id="globalRssiSlider" min="-100" max="-10" value="-95" oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'"><span id="globalRssiValue" class="srow-v">-95 dBm</span></div>
                 </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="rfEnv">RF environment</label><p>Path-loss model for distance estimates and triangulation. Pick the one whose distances match the site.</p></div>
+                  <div class="srow-c">
+                    <select id="rfEnv" onchange="saveRFEnv()">
+                      <option value="0">Open sky, clear line of sight</option>
+                      <option value="1">Suburban, light foliage</option>
+                      <option value="2">Indoor, some walls</option>
+                      <option value="3">Indoor dense, many partitions</option>
+                      <option value="4">Industrial, heavy obstruction</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">RF environment applies as soon as you pick it.</span><button class="btn primary" type="button" onclick="saveRFConfig()">Save</button></div>
               </div>
+            </div>
+            <div class="set-grp">
+              <h3>Scan timing</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="rfPreset">Profile</label><p>Relaxed, Balanced and Aggressive set the timings below. Choose Custom to edit them.</p></div>
+                  <div class="srow-c">
+                    <select id="rfPreset" onchange="updateRFPresetUI()">
+                      <option value="0">Relaxed</option>
+                      <option value="1">Balanced (default)</option>
+                      <option value="2">Aggressive</option>
+                      <option value="3">Custom</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="customRFSettings" style="display:block;">
+                  <div class="srow">
+                    <div class="srow-l"><label for="wifiChannelTime">Wi-Fi channel time</label><p>How long the radio stays on each Wi-Fi channel. 110 to 300 ms.</p></div>
+                    <div class="srow-c"><input type="number" id="wifiChannelTime" class="num" min="110" max="300" value="160"><span class="srow-u">ms</span></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="wifiScanInterval">Wi-Fi scan interval</label><p>Time between Wi-Fi scan passes. 1000 to 10000 ms.</p></div>
+                    <div class="srow-c"><input type="number" id="wifiScanInterval" class="num" min="1000" max="10000" value="3000"><span class="srow-u">ms</span></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="bleScanDuration">BLE scan duration</label><p>How long each BLE scan listens. Wi-Fi capture pauses for that time. 1000 to 5000 ms.</p></div>
+                    <div class="srow-c"><input type="number" id="bleScanDuration" class="num" min="1000" max="5000" value="2000"><span class="srow-u">ms</span></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="bleScanInterval">BLE scan interval</label><p>Time between BLE scans. 1000 to 10000 ms.</p></div>
+                    <div class="srow-c"><input type="number" id="bleScanInterval" class="num" min="1000" max="10000" value="4000"><span class="srow-u">ms</span></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="wifiChannels">Wi-Fi channels</label><p>Channels to scan, as a list or a range: 1,6,11 or 1..13.</p></div>
+                    <div class="srow-c"><input type="text" id="wifiChannels" placeholder="1..11" value="1..11"></div>
+                  </div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">A profile applies as soon as you pick it. Custom timings save with the button.</span><button class="btn primary" type="button" onclick="saveRFConfig()">Save</button></div>
+              </div>
+            </div>
+          </section>
 
-              <div class="field-row" data-field="detectionWindow" style="margin-bottom:0">
-                <span class="field-name">Detection Window</span>
-                <span class="field-hint">Time span for counting vibrations</span>
-                <div class="chip-row">
-                  <span class="chip" data-value="5000">5s</span>
-                  <span class="chip" data-value="10000">10s</span>
-                  <span class="chip active" data-value="20000">20s</span>
-                  <span class="chip" data-value="30000">30s</span>
-                  <span class="chip" data-value="60000">1m</span>
+          <section class="set-sec" id="setMesh">
+            <header><h2>Node &amp; mesh</h2><p>How this node names itself and what it sends over the mesh radio.</p></header>
+            <div class="set-grp">
+              <h3>Identity</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="nodeId">Node ID</label><p>2 to 5 letters or digits. Mesh commands address the node by this ID.</p></div>
+                  <form id="nodeForm" class="srow-c" method="POST" action="/node-id" novalidate>
+                    <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="flex:1;text-transform:uppercase;">
+                    <button class="btn alt" type="submit">Update</button>
+                  </form>
                 </div>
               </div>
             </div>
-          </details>
+            <div class="set-grp">
+              <h3>Mesh radio</h3>
+              <div class="set-box">
+                <div class="srow tog">
+                  <div class="srow-l"><label for="meshToggle">Mesh</label><p>Send and receive over the attached mesh radio. Off hides the settings below.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="meshToggle" onchange="toggleMesh()"><span class="dsw-s"></span></label></div>
+                </div>
+                <div id="meshControls" style="display:none;">
+                  <div class="srow">
+                    <div class="srow-l"><label for="hbEnabledCb">Status heartbeat</label><p>Send a status message on a timer. 1 to 60 minutes.</p></div>
+                    <div class="srow-c"><input type="number" id="hbIntervalInput" class="num" min="1" max="60" step="1" value="10" aria-label="Heartbeat interval in minutes" onchange="saveHbInterval()"><span class="srow-u">min</span><label class="dsw"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()"><span class="dsw-s"></span></label></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="meshInterval">Alert send interval</label><p>Minimum gap between alert messages. Device lists and command replies are paced separately. 1500 to 30000 ms.</p></div>
+                    <div class="srow-c"><input type="number" id="meshInterval" class="num" min="1500" max="30000" step="100" value="3000" onchange="saveMeshInterval()"><span class="srow-u">ms</span></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><label for="meshDedupTtl">Repeat filter</label><p>Skip re-sending the same MAC within this many seconds. 0 sends every device on every scan.</p></div>
+                    <div class="srow-c"><input type="number" id="meshDedupTtl" class="num" min="0" max="3600" step="30" value="300" onchange="saveDedupTtl()"><span class="srow-u">s</span></div>
+                  </div>
+                  <div class="srow tog">
+                    <div class="srow-l"><label for="meshSessionDedup">Send only new devices</label><p>Later scans send only devices not already sent this session, until you clear the cache. Off: every scan re-sends every device it sees.</p></div>
+                    <div class="srow-c"><label class="dsw"><input type="checkbox" id="meshSessionDedup" onchange="saveSessionDedup()"><span class="dsw-s"></span></label></div>
+                  </div>
+                  <div class="srow">
+                    <div class="srow-l"><b>Sent-device cache</b><p id="dedupCacheInfo">Cache: 0 MACs tracked</p></div>
+                    <div class="srow-c"><button class="btn alt" type="button" onclick="clearDedup()">Clear cache</button></div>
+                  </div>
+                  <div class="sfoot"><span class="sfoot-t">Switches apply at once. Numbers save when you leave the field.</span><span class="sfoot-b"><a class="btn alt" href="/mesh-test" data-ajax="true">Send test message</a><a class="btn alt" href="/gps" data-ajax="false">Show GPS</a></span></div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;margin-top:6px">Save Auto-Erase Config</button>
-          <div id="autoEraseStatus" style="margin-top:10px;padding:8px;border-radius:6px;font-size:11px;text-align:center;border:1px solid var(--bord);background:var(--surf)">DISABLED</div>
-        </div>
-      </div>
+          <section class="set-sec" id="setAp">
+            <header><h2>Access point</h2><p>The Wi-Fi network this node broadcasts for the web UI, and who may log in.</p></header>
+            <div class="set-grp">
+              <h3>Wi-Fi network</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="apSsid">Network name (SSID)</label><p>Up to 32 characters.</p></div>
+                  <div class="srow-c"><input type="text" id="apSsid" maxlength="32" placeholder="Antihunter"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="apPass">Password</label><p>Leave blank to keep the current one. 8 to 63 characters.</p></div>
+                  <div class="srow-c"><input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Unchanged"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="apAuth">Security</label></div>
+                  <div class="srow-c">
+                    <select id="apAuth">
+                      <option value="0">WPA2/WPA3 (default)</option>
+                      <option value="1">WPA2 only</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="apHidden">Hidden network</label><p>Stops broadcasting the network name. Clients must type it, and probe for it by name.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="apHidden" value="1"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">The hidden setting saves with the button.</span><button class="btn primary" type="button" onclick="saveWiFiConfig()">Save Wi-Fi settings</button></div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Web login</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="webPassCur">Current web password</label><p>Needed for any change in this group. Until you set a web password, it is the Wi-Fi password.</p></div>
+                  <div class="srow-c"><input type="password" id="webPassCur" maxlength="63"></div>
+                </div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="webAuth">Require login</label><p>User name admin. Off: anyone on this Wi-Fi can use the web UI.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="webPass">New web password</label><p>8 to 63 characters, no colon.</p></div>
+                  <div class="srow-c"><input type="password" id="webPass" minlength="8" maxlength="63" placeholder="Same as the Wi-Fi password until set"></div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">Require login applies as soon as you switch it.</span><button class="btn primary" type="button" onclick="saveWebPass()">Save web password</button></div>
+              </div>
+            </div>
+          </section>
 
-      <!-- Factory Wipe -->
-      <div class="card">
-        <div class="card-header" onclick="toggleCollapse('factoryWipeCard')">
-          <h3>Factory Wipe</h3>
-          <span class="collapse-icon" id="factoryWipeCardIcon">&#9654;</span>
-        </div>
-        <div class="card-body collapsed" id="factoryWipeCardBody">
-          <div class="banner">WARNING: Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
-          <div style="margin-top:10px;font-size:11px;color:var(--mut);line-height:1.5;">
+          <section class="set-sec" id="setSensors">
+            <header><h2>Sensors &amp; power</h2><p>What the node does when it is moved, and how it saves power.</p></header>
+            <div class="set-grp">
+              <h3>Vibration sensor</h3>
+              <div class="set-box">
+                <div class="srow tog">
+                  <div class="srow-l"><label for="vibToggle">Mesh alert</label><p>Broadcast an alert on the mesh when the sensor fires. Applies at once.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibToggle" onchange="toggleVibration()"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="vibScanEn">Scan on vibration</label><p>Start a scan when the sensor fires.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="vibScanMode">Scan to run</label></div>
+                  <div class="srow-c">
+                    <select id="vibScanMode">
+                      <option value="0">None</option>
+                      <option value="1">All-device scan</option>
+                      <option value="2">Probe-request detect</option>
+                      <option value="3">Randomized-MAC detect</option>
+                      <option value="4">List scan (targets)</option>
+                      <option value="5">Drone / Remote ID</option>
+                      <option value="6">Deauth (blue team)</option>
+                      <option value="7">Baseline anomaly</option>
+                      <option value="8">Packet capture</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="vibScanDur">Duration</label><p>0 runs until stopped. Packet capture needs a duration.</p></div>
+                  <div class="srow-c"><input type="number" id="vibScanDur" class="num" min="0" max="65535" value="60"><span class="srow-u">s</span></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="vibScanCd">Cooldown</label><p>Minimum time before the sensor can start another scan. 5 to 86400 s.</p></div>
+                  <div class="srow-c"><input type="number" id="vibScanCd" class="num" min="5" max="86400" value="60"><span class="srow-u">s</span></div>
+                </div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="vibScanPre">Interrupt scheduled scans</label><p>Stop a running scheduled scan to run this one. The schedule resumes after.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">Skipped if a scan is already running or during battery saver, unless the running scan is scheduled and Interrupt is on.</span><button class="btn primary" type="button" onclick="saveVibScanConfig()">Save</button></div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Battery saver<span class="help-q" onclick="showBatterySaverHelp()" title="Click for help">?</span></h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><b>Status</b><p>Stops Wi-Fi and BLE scanning, lowers the CPU clock and sends only heartbeats. The access point, web UI and mesh stay on.</p></div>
+                  <div class="srow-c"><span id="batterySaverStatus" class="set-pill srow-v">INACTIVE</span></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="batterySaverInterval">Heartbeat interval</label><p>How often to send a status heartbeat while saving power.</p></div>
+                  <div class="srow-c">
+                    <select id="batterySaverInterval">
+                      <option value="1">1 minute</option>
+                      <option value="2">2 minutes</option>
+                      <option value="5" selected>5 minutes</option>
+                      <option value="10">10 minutes</option>
+                      <option value="15">15 minutes</option>
+                      <option value="30">30 minutes</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="sfoot"><span class="sfoot-b"><button class="btn alt" type="button" onclick="disableBatterySaver()">Disable</button><button class="btn primary" type="button" onclick="enableBatterySaver()">Enable battery saver</button></span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="set-sec" id="setStorage">
+            <header><h2>Storage</h2><p>The SD card that holds logs, captures and the device database.</p></header>
+            <div class="set-grp">
+              <h3>SD card</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><b>Status</b></div>
+                  <div class="srow-c"><span id="sdRepairState" class="srow-v"></span></div>
+                </div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="sdAutoRepair">Rebuild an unmountable card</label><p>If the card will not mount at boot or after a fault, the node rebuilds the filesystem. Rebuilding erases the card. Off by default.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="sdAutoRepair" onchange="saveSdAutoRepair()"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>Repair now</b><p>Remount the card now. It is erased only if every mount attempt fails.</p></div>
+                  <div class="srow-c"><button class="btn alt" type="button" onclick="sdRepairNow()">Repair now</button></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="set-sec" id="setLook">
+            <header><h2>Appearance</h2><p>Saved in this browser only. Another browser or another node keeps its own choice.</p></header>
+            <div class="set-grp">
+              <h3>Theme</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="themeSel">Theme</label><p>The sun and moon button in the header switches between light and the dark theme picked here.</p></div>
+                  <div class="srow-c">
+                    <select id="themeSel" onchange="ahSetTheme(this.value)">
+                      <option value="paper">Paper dark (default)</option>
+                      <option value="blue">Blue dark</option>
+                      <option value="light">Light</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Accent colors</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="dangSchemeSel">Stop and clear buttons</label><p>STOP, the wipe buttons, Clear, error toasts and danger badges.</p></div>
+                  <div class="srow-c">
+                    <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
+                      <option value="default">Default (Electric Cyan)</option>
+                      <option value="magenta">Magenta</option>
+                      <option value="orange">Signal Orange</option>
+                      <option value="cyan">Electric Cyan</option>
+                      <option value="lime">Acid Lime</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="sentSchemeSel">Sentinel banners</label><p>The Sentinel tab header and the active-alert strip.</p></div>
+                  <div class="srow-c">
+                    <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
+                      <option value="default">Default (Ice Blue)</option>
+                      <option value="violet">Violet</option>
+                      <option value="teal">Teal</option>
+                      <option value="copper">Copper</option>
+                      <option value="steel">Steel</option>
+                      <option value="ice">Ice Blue</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>Preview</b></div>
+                  <div class="srow-c"><span class="btn danger" style="padding:7px 14px;font-size:12px;">STOP</span><span class="res-badge danger">Deauth</span><span style="background:var(--sent-alert-bg);border:1px solid var(--sent-alert-bord);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--txt);">Sentinel alert strip</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="set-sec" id="setDanger">
+            <header><h2 class="dz">Danger zone</h2><p>Everything here erases data. There is no recovery.</p></header>
+            <div class="set-grp">
+              <h3>Erase key and wipe</h3>
+              <div class="set-box dz">
+                <div class="srow">
+                  <div class="srow-l"><b>Status</b></div>
+                  <div class="srow-c"><span class="psk-badge unset" id="erasePskBadge">CHECKING...</span><span class="psk-badge tamper" id="eraseStateBadge" style="display:none">IDLE</span></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="eraseConfirm">Erase key</label><p><span id="eraseConfirmHint">Your erase key</span>. Every wipe asks for this key, and wipes are refused until one is set.</p></div>
+                  <div class="srow-c"><input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="eraseNewPsk">New erase key</label><p>8 characters or more. The key above authorizes the change.</p></div>
+                  <div class="srow-c"><input type="text" id="eraseNewPsk" placeholder="new key, 8+ chars" autocomplete="off" style="flex:1;"><button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">Set key</button></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>Wipe now</b><p>Permanently wipes the node's data with the key above.</p></div>
+                  <div class="srow-c"><button class="btn danger" type="button" onclick="requestErase()">Wipe now</button><button class="btn alt" type="button" onclick="cancelErase()" id="eraseAbortBtn" style="display:none">Abort tamper countdown</button></div>
+                </div>
+                <div id="eraseStatus" class="srow-msg" style="display:none;"></div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Auto-erase on tampering<span class="help-q" onclick="showAutoEraseHelp()" title="Click for help">?</span></h3>
+              <div class="set-box dz">
+                <div class="srow tog">
+                  <div class="srow-l"><label for="autoEraseEnabled">Auto-erase</label><p>Wipe when the vibration sensor reports tampering and the countdown runs out. Takes effect on Save.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="autoEraseEnabled"><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="srow field-row" data-field="setupDelay">
+                  <div class="srow-l"><b>Setup period</b><p>Grace period after you turn it on, before tamper detection arms.</p></div>
+                  <div class="srow-c">
+                    <div class="chip-row">
+                      <span class="chip" data-value="30000">30s</span>
+                      <span class="chip" data-value="60000">1m</span>
+                      <span class="chip active" data-value="120000">2m</span>
+                      <span class="chip" data-value="300000">5m</span>
+                      <span class="chip" data-value="600000">10m</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="srow field-row" data-field="autoEraseDelay">
+                  <div class="srow-l"><b>Erase countdown</b><p>Time you have to cancel after tamper is detected.</p></div>
+                  <div class="srow-c">
+                    <div class="chip-row">
+                      <span class="chip" data-value="10000">10s</span>
+                      <span class="chip active" data-value="30000">30s</span>
+                      <span class="chip" data-value="60000">1m</span>
+                      <span class="chip" data-value="120000">2m</span>
+                      <span class="chip" data-value="300000">5m</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="srow field-row" data-field="autoEraseCooldown">
+                  <div class="srow-l"><b>Trigger cooldown</b><p>Minimum gap before another tamper event can trigger an erase.</p></div>
+                  <div class="srow-c">
+                    <div class="chip-row">
+                      <span class="chip" data-value="60000">1m</span>
+                      <span class="chip active" data-value="300000">5m</span>
+                      <span class="chip" data-value="600000">10m</span>
+                      <span class="chip" data-value="1800000">30m</span>
+                      <span class="chip" data-value="3600000">1h</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="srow field-row" data-field="vibrationsRequired">
+                  <div class="srow-l"><b>Vibrations required</b><p>How many vibrations inside the window count as tampering.</p></div>
+                  <div class="srow-c">
+                    <div class="chip-row">
+                      <span class="chip" data-value="2">2</span>
+                      <span class="chip active" data-value="3">3</span>
+                      <span class="chip" data-value="4">4</span>
+                      <span class="chip" data-value="5">5</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="srow field-row" data-field="detectionWindow">
+                  <div class="srow-l"><b>Detection window</b><p>Time span for counting vibrations.</p></div>
+                  <div class="srow-c">
+                    <div class="chip-row">
+                      <span class="chip" data-value="5000">5s</span>
+                      <span class="chip" data-value="10000">10s</span>
+                      <span class="chip active" data-value="20000">20s</span>
+                      <span class="chip" data-value="30000">30s</span>
+                      <span class="chip" data-value="60000">1m</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t"><span id="autoEraseStatus">DISABLED</span></span><button class="btn primary" type="button" onclick="saveAutoEraseConfig()">Save</button></div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Factory reset</h3>
+              <div class="set-box dz">
+                <div class="srow">
+                  <div class="srow-l"><label for="factoryResetTier">What to reset</label><p id="factoryResetScopeHint">Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</p></div>
+                  <div class="srow-c">
+                    <select id="factoryResetTier" onchange="updateFactoryResetTier()">
+                      <option value="full">Full reset: data and settings</option>
+                      <option value="config">Settings only, keep captured data</option>
+                      <option value="data">Data only, keep settings</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>What a full reset clears</b><p>
 )HTML"
 #if AH_SENTINEL
 R"HTML(
@@ -1398,101 +1534,17 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-            Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
-          </div>
-          <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Reset Scope</label>
-          <select id="factoryResetTier" onchange="updateFactoryResetTier()" style="width:100%;margin-top:4px;margin-bottom:4px">
-            <option value="full">Full Reset — Wipe SD Data + Reset NVS Config</option>
-            <option value="config">Config Only — Reset Settings, Keep Captured Data</option>
-            <option value="data">Data Only — Erase Captured Data, Keep Settings</option>
-          </select>
-          <div id="factoryResetScopeHint" style="font-size:10px;color:var(--mut);margin-bottom:6px;line-height:1.4">Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
-          <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
-          <label class="field-hint" id="factoryWipeHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Type FACTORY_WIPE exactly</label>
-          <input type="text" id="factoryWipeConfirm" placeholder="FACTORY_WIPE" autocomplete="off">
-          <button class="btn danger" type="button" id="factoryWipeBtn" onclick="requestFactoryWipe()" style="width:100%;margin-top:8px;">WIPE EVERYTHING</button>
-          <div id="factoryWipeStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
-        </div>
-      </div>
+            Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.</p></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="factoryWipeConfirm">Erase key</label><p id="factoryWipeHint">Enter your erase key</p></div>
+                  <div class="srow-c"><input type="text" id="factoryWipeConfirm" placeholder="erase key" autocomplete="off" style="flex:1;"><button class="btn danger" type="button" id="factoryWipeBtn" onclick="requestFactoryWipe()">WIPE EVERYTHING</button></div>
+                </div>
+                <div id="factoryWipeStatus" class="srow-msg" style="display:none;"></div>
+              </div>
+            </div>
+          </section>
 
-      <!-- Battery Saver Mode -->
-      <div class="card">
-        <div class="card-header" onclick="toggleCollapse('batterySaverCard')">
-          <h3>Battery Saver Mode</h3>
-          <span class="collapse-icon" id="batterySaverCardIcon">&#9654;</span>
-        </div>
-        <div class="card-body collapsed" id="batterySaverCardBody">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
-          </div>
-
-          <p style="font-size:11px;color:var(--mut);margin-bottom:12px;">
-            Reduces power consumption by stopping Wi-Fi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. Wi-Fi AP and web UI remain active. Mesh UART remains active for receiving commands.
-          </p>
-
-          <div style="margin-bottom:16px;">
-            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
-            <select id="batterySaverInterval">
-              <option value="1">1 Minute</option>
-              <option value="2">2 Minutes</option>
-              <option value="5" selected>5 Minutes</option>
-              <option value="10">10 Minutes</option>
-              <option value="15">15 Minutes</option>
-              <option value="30">30 Minutes</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:8px;">
-            <button class="btn primary" type="button" onclick="enableBatterySaver()" style="flex:1;">Enable Battery Saver</button>
-            <button class="btn alt" type="button" onclick="disableBatterySaver()" style="flex:1;">Disable</button>
-          </div>
-          <div id="batterySaverStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;background:rgba(0,0,0,0.2);">INACTIVE</div>
-        </div>
-      </div>
-
-      <!-- Accent Colors -->
-      <div class="card">
-        <div class="card-header" onclick="toggleCollapse('accentCard')">
-          <h3>Accent Colors</h3>
-          <span class="collapse-icon" id="accentCardIcon">&#9654;</span>
-        </div>
-        <div class="card-body collapsed" id="accentCardBody">
-          <p style="font-size:11px;color:var(--mut);margin-bottom:12px;">
-            Recolors the destructive controls and the Sentinel banners. Applies to all three themes. Saved in this browser only, not on the node, so another browser or another node keeps its own choice.
-          </p>
-
-          <div style="margin-bottom:16px;">
-            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Stop and Clear Buttons</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is electric cyan.</label>
-            <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
-              <option value="default">Default (Electric Cyan)</option>
-              <option value="magenta">Magenta</option>
-              <option value="orange">Signal Orange</option>
-              <option value="cyan">Electric Cyan</option>
-              <option value="lime">Acid Lime</option>
-            </select>
-          </div>
-
-          <div style="margin-bottom:16px;">
-            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel Banners</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is ice blue.</label>
-            <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-              <option value="default">Default (Ice Blue)</option>
-              <option value="violet">Violet</option>
-              <option value="teal">Teal</option>
-              <option value="copper">Copper</option>
-              <option value="steel">Steel</option>
-              <option value="ice">Ice Blue</option>
-            </select>
-          </div>
-
-          <label style="font-size:11px;font-weight:bold;margin-bottom:6px;display:block;">Preview</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-            <span class="btn danger" style="padding:7px 14px;font-size:12px;">STOP</span>
-            <span class="res-badge danger">Deauth</span>
-          </div>
-          <div style="background:var(--sent-alert-bg);border:1px solid var(--sent-alert-bord);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--txt);">Sentinel alert strip</div>
         </div>
       </div>
 
@@ -1536,7 +1588,7 @@ R"HTML(
           <span id="campState" style="font-size:12px;color:var(--mut);align-self:center;"></span>
           <div id="campNodes" style="display:none;flex-wrap:wrap;gap:10px;font-size:12px;align-items:center;"></div>
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;" title="Off skips BLE advertisement classification during scans to save CPU and heap. Existing labels stay.">
-            <input type="checkbox" id="bleClassify" onchange="saveBleClassify()" style="width:auto;">BLE classifier
+            <input type="checkbox" id="bleClassify" onchange="saveBleClassify(this)" style="width:auto;">BLE classifier
           </label>
         </div>
         <div id="dataSummary" style="font-size:12px;color:var(--mut);margin:6px 0;"></div>
@@ -1647,12 +1699,6 @@ R"HTML(
           .drow-last{font-size:12px;color:var(--mut);text-align:right;}
           .drow-ctrl{justify-self:end;}
           .don-pill{font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:10px;background:var(--accbg);color:var(--succ);border:1px solid var(--bord);}
-          .dsw{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;}
-          .dsw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
-          .dsw-s{position:absolute;inset:0;background:rgba(120,128,160,.45);border:1px solid var(--bord);border-radius:20px;transition:.2s;}
-          .dsw-s:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.4);}
-          .dsw input:checked+.dsw-s{background:var(--succ);}
-          .dsw input:checked+.dsw-s:before{transform:translateX(16px);}
           .sa-chip{cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .15s;white-space:nowrap;}
           .sa-chip:hover{filter:brightness(1.2);}
           .sa-wrap{max-height:62vh;overflow:auto;border:1px solid var(--bord);border-radius:10px;}
@@ -2473,7 +2519,7 @@ R"HTML(
         if (fb && !fb.classList.contains('collapsed')) fb.style.maxHeight = 'none';
       }
       function fleetAliveIds(peers) {
-        return (peers || []).filter(function(p) { return p.alive && /^[A-Za-z0-9]{2,5}$/.test(p.id); }).map(function(p) { return p.id; });
+        return (peers || []).filter(function(p) { return p.alive && !p.self && /^[A-Za-z0-9]{2,5}$/.test(p.id); }).map(function(p) { return p.id; });
       }
       function fleetSplitNodesRender(peers) {
         var box = document.getElementById('fleetSplitNodes');
@@ -2607,7 +2653,20 @@ R"HTML(
           console.warn('fleet: clear failed', e);
         }).then(fleetPoll);
       }
-      setInterval(function() { if (pageActive('system') || pageActive('detect')) fleetPoll(); }, 5000);
+      function splitOpen() {
+        var s = document.getElementById('splitRun');
+        return !!(s && s.open && s.style.display !== 'none' && pageActive('scan'));
+      }
+      setInterval(function() { if (pageActive('system') || pageActive('detect') || splitOpen()) fleetPoll(); }, 5000);
+
+      function setSec(b) {
+        document.querySelectorAll('.set-nav-b').forEach(function(x) {
+          x.classList.toggle('on', x === b);
+          if (x === b) x.setAttribute('aria-current', 'true'); else x.removeAttribute('aria-current');
+        });
+        document.querySelectorAll('.set-sec').forEach(function(s) { s.classList.toggle('on', s.id === b.dataset.sec); });
+        if (b.dataset.sec === 'setLook') ahApplyScheme();
+      }
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -2937,7 +2996,7 @@ R"HTML(
       }
 
       async function toggleMesh() {
-        meshEnabled = !meshEnabled;
+        meshEnabled = document.getElementById('meshToggle').checked;
         updateMeshUI();
         try {
           const r = await fetch('/mesh', {
@@ -2955,32 +3014,15 @@ R"HTML(
       }
       
       function updateMeshUI() {
-        const btn = document.getElementById('meshToggleBtn');
+        const sw = document.getElementById('meshToggle');
         const controls = document.getElementById('meshControls');
-        
-        if (!btn) return;
-        
-        if (meshEnabled) {
-          btn.textContent = 'Mesh: Enabled';
-          btn.classList.remove('danger');
-          btn.classList.add('primary');
-          btn.style.background = 'var(--succ)';
-          btn.style.borderColor = 'var(--succ)';
-          btn.style.color = '#fff';
-          if (controls) controls.style.display = 'block';
-        } else {
-          btn.textContent = 'Mesh: Disabled';
-          btn.classList.remove('primary');
-          btn.classList.add('danger');
-          btn.style.background = '';
-          btn.style.borderColor = '';
-          btn.style.color = '';
-          if (controls) controls.style.display = 'none';
-        }
+        if (!sw) return;
+        sw.checked = !!meshEnabled;
+        if (controls) controls.style.display = meshEnabled ? 'block' : 'none';
       }
       
       async function toggleVibration() {
-        vibrationEnabled = !vibrationEnabled;
+        vibrationEnabled = document.getElementById('vibToggle').checked;
         updateVibrationUI();
         try {
           const r = await fetch('/vibration', {
@@ -2998,21 +3040,8 @@ R"HTML(
       }
 
       function updateVibrationUI() {
-        const btn = document.getElementById('vibToggleBtn');
-        if (!btn) return;
-        if (vibrationEnabled) {
-          btn.textContent = 'Alerts: Enabled';
-          btn.classList.remove('danger');
-          btn.style.background = 'var(--succ)';
-          btn.style.borderColor = 'var(--succ)';
-          btn.style.color = '#fff';
-        } else {
-          btn.textContent = 'Alerts: Disabled';
-          btn.classList.add('danger');
-          btn.style.background = '';
-          btn.style.borderColor = '';
-          btn.style.color = '';
-        }
+        const sw = document.getElementById('vibToggle');
+        if (sw) sw.checked = !!vibrationEnabled;
       }
 
       function updateHbUI() {
@@ -3296,6 +3325,8 @@ R"HTML(
             prevUniqueDevices = cur;
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+          if (stats.scanning && !stats.phase1Complete) window._watchSince = '';
+          markBaselineUi(!!(stats.scanning && stats.phase1Complete));
 
           const startDetectionBtn = document.getElementById('startDetectionBtn');
           const detectionMode = document.getElementById('detectionMode')?.value;
@@ -3378,6 +3409,17 @@ R"HTML(
         }
       }
 
+      function markBaselineUi(show) {
+        const btn = document.getElementById('markBaselineBtn');
+        const hint = document.getElementById('markBaselineHint');
+        btn.style.display = show ? 'inline-block' : 'none';
+        hint.style.display = show ? '' : 'none';
+        btn.textContent = window._watchSince ? 'Start over from now' : 'Compare from now';
+        hint.textContent = window._watchSince
+          ? 'Comparing since ' + window._watchSince + '. Results lists devices that showed up, left, or moved closer or away since then.'
+          : 'Baseline is built. Compare from now marks this moment. Results then lists devices that show up, leave, or move closer or away after it.';
+      }
+
       async function markBaseline() {
         try {
           const response = await fetch('/baseline/mark', { method: 'POST' });
@@ -3385,8 +3427,8 @@ R"HTML(
           if (response.ok) {
             const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             window._watchSince = t;
-            document.getElementById('markBaselineBtn').textContent = 'Watching since ' + t + ' · restart';
-            toast('Watching for changes since ' + t, 'success');
+            markBaselineUi(true);
+            toast('Comparing from ' + t, 'success');
           } else {
             toast(msg, 'error');
           }
@@ -4448,7 +4490,7 @@ R"HTML(
           const num = re => { const m = sliceSection.match(re); return m ? m[1] : '0'; };
           const markerM = sliceSection.match(/Marker: (\d+)s/);
           const markAt = markerM ? Math.floor(markerM[1] / 60) + ':' + String(markerM[1] % 60).padStart(2, '0') : '';
-          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">Since ' + (window._watchSince || (markAt ? markAt + ' into the scan' : 'you pressed Watch')) + '</div></div>';
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">Since ' + (window._watchSince || (markAt ? markAt + ' into the scan' : 'you pressed Compare from now')) + '</div></div>';
           html += '<div class="res-stats">' + _resStat('New here', num(/Only after: (\d+)/), 'danger') + _resStat('Gone', num(/Only before: (\d+)/)) + _resStat('Still here', num(/Both: (\d+)/)) + '</div></div>';
           sl.filter(l => /^SLICE-(NEW|GONE|MOVED)\s/.test(l)).forEach(line => {
             const m = line.match(/^SLICE-(NEW|GONE|MOVED)\s+(WiFi|BLE)\s+([A-F0-9:]+)(?:\s+A:([-\d]+)dBm)?(?:\s+B:([-\d]+)dBm)?(?:\s+Delta:([-+\d]+))?(?:\s+"([^"]+)")?/);
@@ -5914,7 +5956,7 @@ R"HTML(
 
         cacheBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
-        document.getElementById('markBaselineBtn').style.display = 'none';
+        markBaselineUi(false);
         clearOldBtn.style.display = 'none';
         resetRandBtn.style.display = 'none';
         standardControls.style.display = 'none';
@@ -5931,7 +5973,6 @@ R"HTML(
         if (selectedMethod === 'baseline') {
           baselineControls.style.display = 'block';
           resetBaselineBtn.style.display = 'inline-block';
-          document.getElementById('markBaselineBtn').style.display = 'inline-block';
           document.getElementById('detectionDuration').disabled = true;
           document.getElementById('baselineMonitorDuration').disabled = false;
           updateBaselineStatus();
@@ -6127,6 +6168,7 @@ R"HTML(
         const tgt = v === 'target';
         document.getElementById('paneTarget').style.display = tgt ? '' : 'none';
         document.getElementById('paneRecon').style.display = tgt ? 'none' : '';
+        document.getElementById('splitRun').style.display = v === 'device-scan' ? '' : 'none';
         if (!tgt) {
           const dm = document.getElementById('detectionMode');
           if (dm.value !== v) { dm.value = v; dm.dispatchEvent(new Event('change')); }
@@ -6468,7 +6510,7 @@ R"HTML(
       }
       function loadCampaigns(){
         fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){
-          var cb=document.getElementById('bleClassify');if(cb)cb.checked=!!d.bleClassify;
+          ['bleClassify','bleClassifyScan'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=!!d.bleClassify;});
           document.getElementById('campState').textContent=d.campaign?'Recording: '+d.campaign:'No active campaign';
           campHdrSet(d.campaign);
         }).catch(function(e){console.error('[DATA] /data-cfg failed:',e);});
@@ -6492,7 +6534,7 @@ R"HTML(
           .then(function(r){return r.ok?r.json():r.text().then(function(t){throw new Error(t);});})
           .then(function(){loadCampaigns();return true;}).catch(function(e){toast(e.message||'Failed','error');return false;});
       }
-      function saveBleClassify(){dataCfgPost('bleClassify='+(document.getElementById('bleClassify').checked?1:0));}
+      function saveBleClassify(el){dataCfgPost('bleClassify='+(el.checked?1:0));}
       function dataRefilter(){
         var q=document.getElementById('dataSearch').value.toLowerCase();
         dataFiltered=dataRows.filter(function(row){
