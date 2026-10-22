@@ -26,7 +26,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, 
 - Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
 - System tab: set the RTC from the browser's clock.
 - System tab: the settings cards are replaced by one **Settings** area. A menu on the left (a row of tabs on a phone) picks the section: Scanning, Node & mesh, Access point, Sensors & power, Storage, Appearance, Danger zone. Each row has its name and a one-line explanation on the left and the control on the right. Switches apply at once; the Node & mesh number fields save when you leave them.
-- Theme: Paper dark is the new default. Blue dark and Light stay available under Settings → Appearance; the header button switches between Light and the chosen dark theme.
+- Theme: Paper dark is the new default. Blue dark and Light stay available under Settings → Appearance; the header button switches between Light and the chosen dark theme. In Paper dark, the Default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners; a chosen accent scheme still overrides them.
 - Scan tab: the split device scan moved here from the Fleet card, as **Split across nodes** under Schedule when Device Discovery is selected.
 - Baseline: the button is now **Compare from now** and appears only once the baseline is built and the node is monitoring.
 - Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.

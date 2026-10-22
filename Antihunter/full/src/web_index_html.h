@@ -517,6 +517,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           for(const t in bgA){const p=d[t];
             css+='[data-theme="'+t+'"]{--dang:'+p[0]+';--c-err:'+p[1]+';--c-err-bg:'+ahRgba(p[1],bgA[t])+';--dang-glow:'+ahRgba(p[0],'0.22')+'}';}}
         if(s){css+=':root{--sent-alert-bg:linear-gradient(90deg,'+ahRgba(s[0],'.20')+','+ahRgba(s[1],'.10')+');--sent-alert-bord:'+ahRgba(s[0],'.45')+';--sent-head-bg:linear-gradient(135deg,'+ahRgba(s[0],'.18')+','+ahRgba(s[1],'.08')+')}';}
+        const P='[data-theme="dark"][data-palette="paper"]';
+        if(ahPref('dangScheme')==='default')css+=P+'{--dang:#e8707d;--c-err:#d9707b;--c-err-bg:'+ahRgba('#d9707b','0.08')+';--dang-glow:'+ahRgba('#e8707d','0.22')+'}';
+        if(ahPref('sentScheme')==='default')css+=P+'{--sent-alert-bg:linear-gradient(90deg,'+ahRgba('#cbe642','.16')+','+ahRgba('#9fb83a','.08')+');--sent-alert-bord:'+ahRgba('#cbe642','.45')+';--sent-head-bg:linear-gradient(135deg,'+ahRgba('#cbe642','.14')+','+ahRgba('#9fb83a','.06')+')}';
         return css;
       }
       function ahApplyScheme(){
@@ -1386,7 +1389,7 @@ R"HTML(
                   <div class="srow-l"><label for="dangSchemeSel">Stop and clear buttons</label><p>STOP, the wipe buttons, Clear, error toasts and danger badges.</p></div>
                   <div class="srow-c">
                     <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
-                      <option value="default">Default (Electric Cyan)</option>
+                      <option value="default">Default (matches the theme)</option>
                       <option value="magenta">Magenta</option>
                       <option value="orange">Signal Orange</option>
                       <option value="cyan">Electric Cyan</option>
@@ -1398,7 +1401,7 @@ R"HTML(
                   <div class="srow-l"><label for="sentSchemeSel">Sentinel banners</label><p>The Sentinel tab header and the active-alert strip.</p></div>
                   <div class="srow-c">
                     <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-                      <option value="default">Default (Ice Blue)</option>
+                      <option value="default">Default (matches the theme)</option>
                       <option value="violet">Violet</option>
                       <option value="teal">Teal</option>
                       <option value="copper">Copper</option>
