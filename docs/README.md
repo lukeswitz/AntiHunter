@@ -65,7 +65,7 @@ Give every node its own ID and put them all on the same encrypted channel. They 
 |---|------|-------|
 | 1 | Fit the antennas — 2.4 GHz to the XIAO, LoRa to the radio, GPS to the GPS module | [§2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2) |
 | 2 | Flash AntiHunter, Full to start with | [Web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI](../README.md#cli-flash) |
-| 3 | Change the AP credentials — the defaults are published in this repo | RF Settings in the web UI |
+| 3 | Change the AP credentials — the defaults are published in this repo | System → Settings → Access point in the web UI |
 | 4 | Set the radio's LoRa region — it defaults to UNSET and receives without ever transmitting | [Radio Setup](../README.md#radio-setup) |
 | 5 | Create your own encrypted channel, make it primary, disable the public one | [Radio Setup](../README.md#radio-setup) |
 | 6 | Set the node ID — it prefixes every mesh message the node sends. The clock needs nothing: the RTC is set by the CLI flasher or the web flasher's Connect & Configure step, and kept in sync by GPS | Web UI, or `@AH01 CONFIG_NODEID:GATE1` · [§8.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s8-2) |
