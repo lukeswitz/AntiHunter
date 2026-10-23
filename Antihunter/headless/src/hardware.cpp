@@ -1670,7 +1670,8 @@ void checkAndSendVibrationAlert() {
                             " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
                 Serial.printf("[VIBRATION] Setup-mode alert: %s\n", vibrationMsg);
-                if (vibrationEnabled) {
+                if (vibrationEnabled && millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
+                    lastVibrationAlert = millis();
                     sendToSerial1(String(vibrationMsg), true);
                 }
                 return;
@@ -2107,16 +2108,58 @@ String generateEraseToken() {
     return String(tokenBuffer);
 }
 
+static bool eraseKeyLooksGenerated(const String &k) {
+    if (k.length() != 32) return false;
+    for (size_t i = 0; i < k.length(); i++) {
+        if (!isxdigit(k[i]) || isupper(k[i])) return false;
+    }
+    return true;
+}
+
+static String generateErasePSK() {
+    static const char kAlphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    String k;
+    for (int i = 0; i < 16; i++) {
+        if (i > 0 && i % 4 == 0) k += '-';
+        k += kAlphabet[esp_random() & 31];
+    }
+    return k;
+}
+
 void ensureErasePSK() {
-    erasePSK = prefsGetString("erasePSK", "");
-    Serial.println(erasePSK.length() > 0 ? "[ERASE] Erase key: set"
-                                         : "[ERASE] Erase key: not set - erase commands are refused until you set one in the web flasher");
+    String stored = prefsGetString("erasePSK", "");
+    if (stored.length() == 0) {
+        stored = generateErasePSK();
+        prefs.putString("erasePSK", stored);
+        prefs.putBool("erasePskUser", false);
+        prefs.putBool("erasePskGen", true);
+    } else if (!prefs.getBool("erasePskUser", false) && !prefs.getBool("erasePskGen", false)) {
+        if (eraseKeyLooksGenerated(stored)) prefs.putBool("erasePskGen", true);
+        else prefs.putBool("erasePskUser", true);
+    }
+    erasePSK = stored;
+    if (erasePskGenerated()) {
+        Serial.println("\n==================================================");
+        Serial.printf("  ERASE KEY:  %s\n", erasePSK.c_str());
+        Serial.println("  WRITE THIS DOWN. You need it to wipe this node.");
+        Serial.println("  Change it with CONFIG_ERASE_PSK:<new key>:<this key>");
+        Serial.println("  LOST IT? Reflash with Erase device for a new key.");
+        Serial.println("==================================================");
+        Serial.printf("[ERASE] Erase key: %s (generated on this node)\n", erasePSK.c_str());
+    } else {
+        Serial.println("[ERASE] Erase key: set by you");
+    }
+}
+
+bool erasePskGenerated() {
+    return prefs.getBool("erasePskGen", false) && !prefs.getBool("erasePskUser", false);
 }
 
 void setErasePSK(const String &key) {
     erasePSK = key;
     prefs.putString("erasePSK", key);
     prefs.putBool("erasePskUser", true);
+    prefs.putBool("erasePskGen", false);
 }
 
 bool erasePskUserSet() {

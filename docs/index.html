@@ -241,7 +241,7 @@
             </svg>
           </span>
           <div class="fw-name">Full</div>
-          <div class="fw-desc">Standalone Wi-Fi AP. WebUI for configuration and command</div>
+          <div class="fw-desc">Wi-Fi access point with the web UI. Also controlled by serial and mesh.</div>
         </div>
         <div class="fw-option" id="opt-headless" onclick="selectFirmware('headless')">
           <span class="fw-check"></span>
@@ -252,7 +252,7 @@
             </svg>
           </span>
           <div class="fw-name">Headless</div>
-          <div class="fw-desc">Mesh-only, no Wi-Fi AP. Config and control with mesh commands.</div>
+          <div class="fw-desc">No access point. Controlled by serial and mesh commands.</div>
         </div>
         <div class="fw-option" id="opt-radar" style="display:none" onclick="selectFirmware('radar')">
           <span class="fw-check"></span>
@@ -274,7 +274,7 @@
         <strong>http://192.168.4.1</strong> to configure.
       </div>
       <div id="headlessNote" class="banner info" style="display:none">
-        After flashing, use the serial terminal below to send configuration.
+        After flashing, use <strong>Connect &amp; Configure</strong> below to send settings over USB serial.
       </div>
       <div id="radarNote" class="banner info" style="display:none">
         After flashing, join the <strong>RN-</strong> Wi-Fi network the node creates
@@ -335,19 +335,102 @@
       </div>
     </div>
 
-    <!-- 2. Configure Device -->
+    <div class="card" id="keyCard">
+      <h3>2. Write Down Your Erase Key</h3>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px">
+        Do this right after flashing, with the node still plugged in.
+      </p>
+      <ol style="font-size:14px;margin:0 0 14px 18px;line-height:1.7">
+        <li>Press <b>Show my erase key</b>.</li>
+        <li>Pick the same port you flashed.</li>
+        <li>Wait up to a minute while the node restarts.</li>
+        <li>Write the key down and keep it safe.</li>
+      </ol>
+      <button class="btn primary" type="button" id="keyBtn" onclick="showEraseKey()" style="font-size:16px;padding:14px 32px">Show my erase key</button>
+      <div id="keyStatus" style="font-size:13px;color:var(--mut);margin-top:10px"></div>
+      <div id="keyResult" style="display:none;margin-top:14px;padding:16px;border:2px solid var(--warn);border-radius:10px;text-align:center">
+        <div style="font-size:13px;font-weight:700;letter-spacing:.06em;margin-bottom:8px">WRITE THIS DOWN</div>
+        <code id="keyValue" style="font-size:26px;letter-spacing:.08em;user-select:all"></code>
+        <div style="font-size:13px;color:var(--mut);margin-top:10px">You need this key to wipe the node. Change it any time in the web UI (System → Settings → <b>Danger zone</b>).<br><b>Lost it?</b> Flash again with <b>Erase device</b> checked, then press <b>Show my erase key</b> for a new one.</div>
+      </div>
+      <div id="keyKept" class="banner info" style="display:none;margin-top:14px">This node already has an erase key you set. It was kept. <b>Lost it?</b> Flash again with <b>Erase device</b> checked, then press <b>Show my erase key</b> for a new one.</div>
+    </div>
+    <script>
+      async function showEraseKey() {
+        const btn = document.getElementById('keyBtn');
+        const status = document.getElementById('keyStatus');
+        const say = t => { status.textContent = t; };
+        document.getElementById('keyResult').style.display = 'none';
+        document.getElementById('keyKept').style.display = 'none';
+        btn.disabled = true;
+        let kp = null, rd = null, found = false;
+        try {
+          kp = await navigator.serial.requestPort();
+          await kp.open({ baudRate: 115200 });
+          say('Restarting the node...');
+          await kp.setSignals({ dataTerminalReady: false, requestToSend: true });
+          await new Promise(r => setTimeout(r, 100));
+          await kp.setSignals({ dataTerminalReady: true, requestToSend: false });
+          await new Promise(r => setTimeout(r, 50));
+          await kp.setSignals({ dataTerminalReady: false, requestToSend: false });
+          say('Waiting for the key...');
+          const send = async t => { const w = kp.writable.getWriter(); await w.write(new TextEncoder().encode(t + '\n')); w.releaseLock(); };
+          rd = kp.readable.getReader();
+          const dec = new TextDecoder();
+          let buf = '', timedOut = false;
+          const stop = setTimeout(() => { timedOut = true; rd.cancel().catch(e => console.warn('key read cancel', e)); }, 90000);
+          while (!found && !timedOut) {
+            const { value, done } = await rd.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+            for (const raw of lines) {
+              const line = raw.trim();
+              if (line.includes('INITIAL CONFIGURATION MODE') || line.includes('Waiting for RECONFIG')) await send('SKIP');
+              const m = line.match(/\[ERASE\] Erase key: (\S+) \(generated/);
+              if (m) {
+                document.getElementById('keyValue').textContent = m[1];
+                document.getElementById('keyResult').style.display = 'block';
+                found = true;
+                break;
+              }
+              if (line.includes('[ERASE] Erase key: set by you')) {
+                document.getElementById('keyKept').style.display = 'block';
+                found = true;
+                break;
+              }
+            }
+          }
+          clearTimeout(stop);
+          say(found ? '' : 'The node did not report a key. Unplug it, plug it back in, and press the button again.');
+        } catch (e) {
+          say(e.name === 'NotFoundError' ? 'No port picked. Press the button and pick the node\'s port.'
+                                         : 'Could not read the node: ' + e.message + '. Close any other serial window and try again.');
+        } finally {
+          if (rd) {
+            await rd.cancel().catch(e => console.warn('key read cancel', e));
+            rd.releaseLock();
+          }
+          if (kp) await kp.close().catch(e => console.warn('port close', e));
+          btn.disabled = false;
+        }
+      }
+    </script>
+
+    <!-- 3. Configure Device -->
     <div class="card" id="termCard">
-      <h3>2. Configure Device</h3>
+      <h3>3. Configure Device (optional)</h3>
       <p style="font-size:13px;color:var(--mut);margin-bottom:16px">
-        Connect to the device over serial. This will reset it and send
-        your configuration automatically.
+        Connect to the node over USB serial. The flasher resets the node, sends your
+        settings, and sets its clock.
       </p>
 
       <details class="cfg-details" id="cfgDetails" style="margin-bottom:16px">
         <summary>Settings (optional)</summary>
         <div class="cfg-body">
         <p style="font-size:12px;color:var(--mut);margin-bottom:16px;">
-          Leave blank for firmware defaults. Applied when you click Connect & Configure.
+          Leave a field blank to keep the node's current value. The flasher sends the filled fields when you select Connect & Configure.
         </p>
 
         <div class="cfg-grid">
@@ -413,33 +496,37 @@
               <option value="1" selected>Balanced</option>
               <option value="0">Relaxed</option>
               <option value="2">Aggressive</option>
+              <option value="3">Custom</option>
             </select>
+            <div class="cfg-note">Relaxed: 300 ms dwell, -80 dBm. Balanced: 160 ms, -95 dBm. Aggressive: 110 ms, -100 dBm. Custom uses the four scan timings below, and needs all four filled in.</div>
           </div>
           <div>
             <label>Baseline RAM Cache</label>
             <input type="number" id="cfgBaselineRam" placeholder="400" min="50" max="2000">
           </div>
           <div class="full">
-            <label>Target MACs / OUIs / SSIDs</label>
+            <label>Targets (MACs, vendor prefixes, SSIDs)</label>
             <input type="text" id="cfgTargets"
-              placeholder="AA:BB:CC:DD:EE:FF, 11:22:33, MySSID (comma-separated)">
+              placeholder="AA:BB:CC:DD:EE:FF, 11:22:33, or MyNetwork">
+            <div class="cfg-note">Separate entries with commas. This replaces the node's watchlist.</div>
           </div>
         </div>
 
         <hr>
         <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Scan Timing</p>
+        <p class="cfg-note" style="margin:0 0 12px">These four timings apply only when RF Preset is Custom. Global RSSI Threshold applies with any preset and replaces the preset's floor.</p>
         <div class="cfg-grid">
           <div>
             <label>Wi-Fi Channel Dwell (ms)</label>
-            <input type="number" id="cfgWifiChannelTime" placeholder="110" min="20" max="500">
+            <input type="number" id="cfgWifiChannelTime" placeholder="160" min="20" max="500">
           </div>
           <div>
             <label>Wi-Fi Scan Interval (ms)</label>
-            <input type="number" id="cfgWifiScanInterval" placeholder="2000" min="500" max="30000">
+            <input type="number" id="cfgWifiScanInterval" placeholder="3000" min="500" max="30000">
           </div>
           <div>
             <label>BLE Scan Interval (ms)</label>
-            <input type="number" id="cfgBleScanInterval" placeholder="2000" min="500" max="30000">
+            <input type="number" id="cfgBleScanInterval" placeholder="4000" min="500" max="30000">
           </div>
           <div>
             <label>BLE Scan Duration (ms)</label>
@@ -464,7 +551,7 @@
           </div>
           <div>
             <label>Heartbeat Interval (min)</label>
-            <input type="number" id="cfgHbInterval" placeholder="5" min="1" max="60">
+            <input type="number" id="cfgHbInterval" placeholder="10" min="1" max="60">
           </div>
           <div>
             <label>Vibration Sensor</label>
@@ -503,7 +590,7 @@
           </div>
           <div>
             <label>Duration (sec, 0 = until stopped)</label>
-            <input type="number" id="cfgVibScanDuration" placeholder="60" min="0" max="86400">
+            <input type="number" id="cfgVibScanDuration" placeholder="60" min="0" max="65535">
           </div>
           <div>
             <label>Cooldown (sec)</label>
@@ -546,7 +633,7 @@
           </div>
           <div>
             <label>Erase Cooldown (sec)</label>
-            <input type="number" id="cfgAutoEraseCooldown" placeholder="60" min="10" max="3600">
+            <input type="number" id="cfgAutoEraseCooldown" placeholder="300" min="10" max="3600">
           </div>
           <div>
             <label>Vibrations Required</label>
@@ -554,11 +641,11 @@
           </div>
           <div>
             <label>Detection Window (sec)</label>
-            <input type="number" id="cfgDetectionWindow" placeholder="10" min="1" max="120">
+            <input type="number" id="cfgDetectionWindow" placeholder="20" min="1" max="120">
           </div>
           <div>
             <label>Setup Delay (sec)</label>
-            <input type="number" id="cfgSetupDelay" placeholder="60" min="5" max="600">
+            <input type="number" id="cfgSetupDelay" placeholder="120" min="5" max="600">
           </div>
         </div>
 
@@ -571,7 +658,7 @@
           </div>
           <div>
             <label>Baseline RSSI Threshold</label>
-            <input type="number" id="cfgBaselineRssiThreshold" placeholder="-75" min="-100" max="-10">
+            <input type="number" id="cfgBaselineRssiThreshold" placeholder="-70" min="-100" max="-10">
           </div>
           <div>
             <label>Baseline Duration (sec)</label>
@@ -579,15 +666,15 @@
           </div>
           <div>
             <label>Absence Threshold (sec)</label>
-            <input type="number" id="cfgAbsenceThreshold" placeholder="600" min="60" max="7200">
+            <input type="number" id="cfgAbsenceThreshold" placeholder="120" min="60" max="7200">
           </div>
           <div>
             <label>Reappearance Window (sec)</label>
-            <input type="number" id="cfgReappearanceWindow" placeholder="120" min="10" max="3600">
+            <input type="number" id="cfgReappearanceWindow" placeholder="300" min="10" max="3600">
           </div>
           <div>
             <label>RSSI Change Delta (dB)</label>
-            <input type="number" id="cfgRssiChangeDelta" placeholder="15" min="1" max="50">
+            <input type="number" id="cfgRssiChangeDelta" placeholder="20" min="1" max="50">
           </div>
         </div>
 
@@ -646,7 +733,7 @@
             </select>
           </div>
         </div>
-        <p style="font-size:11px;color:var(--mut);margin:10px 0 4px">Detector enables (leave Default to keep firmware setting)</p>
+        <p style="font-size:11px;color:var(--mut);margin:10px 0 4px">Leave Default to keep the node's current setting.</p>
         <div class="cfg-grid" id="cfgDetEnables"></div>
         <details style="margin-top:10px">
           <summary style="cursor:pointer;font-size:12px;color:var(--mut)">Mesh broadcast flags</summary>
@@ -661,6 +748,10 @@
         </div>
       </details>
 
+      <div id="genKeyBox" style="display:none;margin-bottom:12px;padding:12px 14px;border:1px solid var(--warn);border-radius:8px">
+        <div style="font-size:12px;color:var(--mut);margin-bottom:4px">Erase key generated on this node. Write it down. Wipes over mesh and in the web UI need it. Change it in the web UI, or with <code>CONFIG_ERASE_PSK:&lt;new&gt;:&lt;this key&gt;</code>.</div>
+        <code id="genKeyVal" style="font-size:18px;user-select:all"></code>
+      </div>
       <div class="term">
         <div class="term-bar">
           <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
@@ -677,6 +768,33 @@
         </div>
       </div>
     </div>
+
+    <div class="card" id="eraseAnswerCard">
+      <h3>Erase Answer</h3>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px">
+        To wipe a node over mesh, send <code>ERASE_REQUEST</code>. Paste the token from its <code>ERASE_TOKEN:</code> reply and your erase key here, then send the answer with <code>ERASE_FORCE:</code>, <code>ERASE_CANCEL:</code>, <code>AUTOERASE_ENABLE:</code>, <code>AUTOERASE_DISABLE:</code> or <code>FACTORY_RESET:</code>. Your key stays in this page and is never sent anywhere.
+      </p>
+      <div class="cfg-grid">
+        <div><label>Token</label><input type="text" id="eaToken" placeholder="AH_..." autocomplete="off"></div>
+        <div><label>Erase key</label><input type="password" id="eaKey" autocomplete="off"></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+        <button class="btn primary" type="button" onclick="eraseAnswer()">Get answer</button>
+        <code id="eaOut" style="font-size:16px"></code>
+      </div>
+    </div>
+    <script>
+      async function eraseAnswer() {
+        const token = document.getElementById('eaToken').value.trim().replace(/^ERASE_TOKEN:/, '').split(/\s/)[0];
+        const key = document.getElementById('eaKey').value;
+        const out = document.getElementById('eaOut');
+        if (!token || !key) { out.textContent = 'Enter the token and your key'; return; }
+        const enc = new TextEncoder();
+        const k = await crypto.subtle.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(token)));
+        out.textContent = Array.from(sig.slice(0, 4), b => b.toString(16).padStart(2, '0')).join('');
+      }
+    </script>
 
     <!-- Fallback -->
     <div class="card">
@@ -840,6 +958,7 @@ chmod +x flashAntihunter.sh
       function str(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = v; }
       function num(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = parseInt(v, 10); }
       function bool(id, key) { const v = document.getElementById(id).value; if (v !== '') cfg[key] = v === '1'; }
+      function ms(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = parseInt(v, 10) * 1000; }
 
       const nodeId = document.getElementById('cfgNodeId').value.trim().toUpperCase();
       if (nodeId) {
@@ -864,11 +983,12 @@ chmod +x flashAntihunter.sh
       bool('cfgVibScanEnabled', 'vibScanEnabled');
       num('cfgVibScanMode', 'vibScanMode');
       num('cfgVibScanDuration', 'vibScanDuration');
-      num('cfgVibScanCooldown', 'vibScanCooldown');
+      ms('cfgVibScanCooldown', 'vibScanCooldown');
       bool('cfgSdAutoRepair', 'sdAutoRepair');
       num('cfgPcapMaxFileMB', 'pcapMaxFileMB');
       num('cfgBaselineRam', 'baselineRamSize');
-      str('cfgTargets', 'targets');
+      const tgt = document.getElementById('cfgTargets').value.split(/[,|]/).map(s => s.trim()).filter(Boolean);
+      if (tgt.length) cfg.targets = tgt.join('\n');
       num('cfgWifiChannelTime', 'wifiChannelTime');
       num('cfgWifiScanInterval', 'wifiScanInterval');
       num('cfgBleScanInterval', 'bleScanInterval');
@@ -878,11 +998,11 @@ chmod +x flashAntihunter.sh
       num('cfgHbInterval', 'hbInterval');
       bool('cfgVibEnabled', 'vibEnabled');
       bool('cfgAutoEraseEnabled', 'autoEraseEnabled');
-      num('cfgAutoEraseDelay', 'autoEraseDelay');
-      num('cfgAutoEraseCooldown', 'autoEraseCooldown');
+      ms('cfgAutoEraseDelay', 'autoEraseDelay');
+      ms('cfgAutoEraseCooldown', 'autoEraseCooldown');
       num('cfgVibrationsRequired', 'vibrationsRequired');
-      num('cfgDetectionWindow', 'detectionWindow');
-      num('cfgSetupDelay', 'setupDelay');
+      ms('cfgDetectionWindow', 'detectionWindow');
+      ms('cfgSetupDelay', 'setupDelay');
       num('cfgBaselineSdMax', 'baselineSdMax');
       num('cfgBaselineRssiThreshold', 'baselineRssiThreshold');
       num('cfgBaselineDuration', 'baselineDuration');
@@ -898,7 +1018,7 @@ chmod +x flashAntihunter.sh
         bool('cfgApHidden', 'apHidden');
       }
 
-      if (selectedChannel !== 'stable') {
+      {
         const sb = document.getElementById('cfgSentinelBoot').value;
         if (sb !== '') cfg.sentinelBoot = (sb === '1');
         const det = {};
@@ -975,6 +1095,11 @@ chmod +x flashAntihunter.sh
             const line = raw.trim();
             if (!line) continue;
             tLog(line, 'rx');
+            const gk = line.match(/\[ERASE\] Erase key: (\S+) \(generated/);
+            if (gk) {
+              document.getElementById('genKeyVal').textContent = gk[1];
+              document.getElementById('genKeyBox').style.display = 'block';
+            }
 
             if (!configSent && line.includes('INITIAL CONFIGURATION MODE')) {
               clearInterval(reconfInterval);

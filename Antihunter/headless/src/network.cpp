@@ -1924,7 +1924,7 @@ static void handleConfigErasePsk(const String &command)
   }
   setErasePSK(key);
   saveConfiguration();
-  Serial.println("[ERASE] PSK changed");
+  Serial.println("[ERASE] Erase key changed");
   sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:SET", true);
 }
 

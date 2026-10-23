@@ -197,6 +197,7 @@ bool validateEraseResponse(const String &response);
 bool validateEraseKeyChange(const String &response);
 void setErasePSK(const String &key);
 bool erasePskUserSet();
+bool erasePskGenerated();
 bool erasePskValid(const String &key);
 extern String erasePSK;
 

@@ -1427,16 +1427,24 @@ R"HTML(
                   <div class="srow-l"><b>Status</b></div>
                   <div class="srow-c"><span class="psk-badge unset" id="erasePskBadge">CHECKING...</span><span class="psk-badge tamper" id="eraseStateBadge" style="display:none">IDLE</span></div>
                 </div>
-                <div class="srow">
-                  <div class="srow-l"><label for="eraseConfirm">Erase key</label><p><span id="eraseConfirmHint">Your erase key</span>. Every wipe asks for this key, and wipes are refused until one is set.</p></div>
-                  <div class="srow-c"><input type="text" id="eraseConfirm" placeholder="erase PSK" autocomplete="off"></div>
+                <div class="srow" id="eraseGenRow" style="display:none">
+                  <div class="srow-l"><b>Your erase key</b><p>The node made this key on first boot. Write it down, or change it below. Once you change it, it is no longer shown.</p></div>
+                  <div class="srow-c"><code id="eraseGenKey" style="font-size:15px;user-select:all;"></code></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="eraseNewPsk">New erase key</label><p>8 characters or more. The key above authorizes the change.</p></div>
-                  <div class="srow-c"><input type="text" id="eraseNewPsk" placeholder="new key, 8+ chars" autocomplete="off" style="flex:1;"><button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">Set key</button></div>
+                  <div class="srow-l"><label for="erasePskCur">Current key</label><p>Needed to change the key.</p></div>
+                  <div class="srow-c"><input type="password" id="erasePskCur" placeholder="current key" autocomplete="off"></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><b>Wipe now</b><p>Permanently wipes the node's data with the key above.</p></div>
+                  <div class="srow-l"><label for="eraseNewPsk">New erase key</label><p>8 to 64 characters, no colon.</p></div>
+                  <div class="srow-c"><input type="password" id="eraseNewPsk" placeholder="new key" autocomplete="off" style="flex:1;"><button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">Change key</button></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="eraseConfirm">Erase key</label><p>Enter your key to wipe now or to save the auto-erase settings below.</p></div>
+                  <div class="srow-c"><input type="password" id="eraseConfirm" placeholder="erase key" autocomplete="off"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>Wipe now</b><p>Permanently wipes the node's data. Uses the erase key above.</p></div>
                   <div class="srow-c"><button class="btn danger" type="button" onclick="requestErase()">Wipe now</button><button class="btn alt" type="button" onclick="cancelErase()" id="eraseAbortBtn" style="display:none">Abort tamper countdown</button></div>
                 </div>
                 <div id="eraseStatus" class="srow-msg" style="display:none;"></div>
@@ -5186,19 +5194,16 @@ R"HTML(
         fetch('/erase/psk-status').then(r => r.json()).then(d => {
           _erasePskSet = !!d.pskSet;
           const badge = document.getElementById('erasePskBadge');
-          const hint = document.getElementById('eraseConfirmHint');
-          const input = document.getElementById('eraseConfirm');
-          const fwHint = document.getElementById('factoryWipeHint');
-          const fwInput = document.getElementById('factoryWipeConfirm');
+          const genRow = document.getElementById('eraseGenRow');
+          const genKey = document.getElementById('eraseGenKey');
+          const cur = document.getElementById('erasePskCur');
           if (badge) {
-            badge.textContent = d.custom ? 'KEY SET' : (d.apDefault ? 'CHANGE AP PASSWORD FIRST' : 'SET A KEY');
-            badge.className = 'psk-badge ' + (d.custom ? 'set' : 'unset');
-            badge.title = 'Wipe needs your own key. Mesh: CONFIG_ERASE_PSK:<new>:<current>, then ERASE_FORCE:<key>';
+            badge.textContent = d.generated ? 'GENERATED KEY' : (_erasePskSet ? 'KEY SET BY YOU' : 'NO KEY');
+            badge.className = 'psk-badge ' + (d.generated ? 'unset' : 'set');
           }
-          if (hint) hint.textContent = d.custom ? 'Your erase key' : 'Current key is the AP password';
-          if (input) input.placeholder = d.custom ? 'erase key' : 'erase key (AP password)';
-          if (fwHint) fwHint.textContent = 'Enter your erase key';
-          if (fwInput) fwInput.placeholder = 'erase key';
+          if (genRow) genRow.style.display = d.generated ? '' : 'none';
+          if (genKey) genKey.textContent = d.generated ? (d.key || '') : '';
+          if (cur && d.generated && !cur.value) cur.value = d.key || '';
         }).catch(()=>{});
       }
       function pollSecureState() {
@@ -5269,13 +5274,19 @@ R"HTML(
       }
 
       function changeErasePsk() {
-        const body = 'confirm=' + encodeURIComponent(document.getElementById('eraseConfirm').value) +
-                     '&key=' + encodeURIComponent(document.getElementById('eraseNewPsk').value);
+        const cur = document.getElementById('erasePskCur');
+        const nk = document.getElementById('eraseNewPsk');
+        const body = 'confirm=' + encodeURIComponent(cur ? cur.value : '') +
+                     '&key=' + encodeURIComponent(nk.value);
         fetch('/erase/psk', {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
           body: body
-        }).then(r => r.text().then(t => { toast(t, r.ok ? 'success' : 'error'); refreshPskStatus(); }))
+        }).then(r => r.text().then(t => {
+          toast(t, r.ok ? 'success' : 'error');
+          if (r.ok) { nk.value = ''; if (cur) cur.value = ''; }
+          refreshPskStatus();
+        }))
           .catch(e => toast('PSK change error: ' + e, 'error'));
       }
 

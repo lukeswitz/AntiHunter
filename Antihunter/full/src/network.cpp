@@ -1553,9 +1553,12 @@ void registerRemainingRoutes() {
         r->send(200, "text/plain", s); });
 
   server->on("/erase/psk-status", HTTP_GET, [](AsyncWebServerRequest *req) {
+      const bool gen = erasePskGenerated();
       String json = String("{\"pskSet\":") + (erasePSK.length() > 0 ? "true" : "false") +
-                    ",\"custom\":" + (erasePskUserSet() ? "true" : "false") +
-                    ",\"apDefault\":" + (prefsGetString("apPass", AP_PASS) == AP_PASS ? "true" : "false") + "}";
+                    ",\"custom\":" + (gen ? "false" : "true") +
+                    ",\"generated\":" + (gen ? "true" : "false");
+      if (gen) json += ",\"key\":\"" + erasePSK + "\"";
+      json += "}";
       req->send(200, "application/json", json);
   });
 
@@ -1611,9 +1614,13 @@ void registerRemainingRoutes() {
     req->send(200, "text/plain", "Tamper erase canceled"); });
 
   server->on("/erase/psk", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (!req->hasParam("confirm", true) || !req->hasParam("key", true) ||
+    if (!req->hasParam("key", true)) {
+        req->send(400, "text/plain", "Missing key");
+        return;
+    }
+    if (!req->hasParam("confirm", true) ||
         !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
-        req->send(403, "text/plain", "Wrong key, or no key set");
+        req->send(403, "text/plain", "Wrong current key");
         return;
     }
     String key = req->getParam("key", true)->value();
@@ -1623,8 +1630,8 @@ void registerRemainingRoutes() {
     }
     setErasePSK(key);
     saveConfiguration();
-    Serial.println("[ERASE] PSK changed via web");
-    req->send(200, "text/plain", "Erase PSK changed");
+    Serial.println("[ERASE] Erase key changed via web");
+    req->send(200, "text/plain", "Erase key changed");
   });
 
   server->on("/factory-wipe", HTTP_POST, [](AsyncWebServerRequest *req) {
