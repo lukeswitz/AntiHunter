@@ -2365,6 +2365,22 @@ static void handleHbInterval(const String &command)
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
 
+static void handleCalibrate(const String &command)
+{
+  String rest = command.substring(10);
+  int c = rest.lastIndexOf(':');
+  String err = "INVALID";
+  bool ok = c > 0 && calibratePathLoss(rest.substring(0, c), rest.substring(c + 1).toFloat(), &err);
+  sendToSerial1(getNodeId() + ": CALIBRATE_ACK:" + (ok ? String("STARTED") : err), true);
+}
+
+static void handleCalibrateReset(const String &command)
+{
+  (void)command;
+  calibrationReset();
+  sendToSerial1(getNodeId() + ": CALIBRATE_ACK:RESET", true);
+}
+
 // Handler replies; must never re-enter the dispatcher as commands.
 static bool meshIsResponse(const String &payload)
 {
@@ -2381,7 +2397,7 @@ static bool meshIsResponse(const String &payload)
     "ATTACKER_TRILAT_ACK", "ATTACKER_TRILAT_STATUS: ", "STATUS_BOOT: ",
     "DETECT_JSON_ACK", "DETECT_JSON_LEN:", "DETECT_CLEAR_ACK", "DETECT_COUNTS: ",
     "DETECT_VERBOSE_ACK", "TOF_PING_ACK", "KARMA_ACK", "HUNT_COOLDOWN_ACK", "QUORUM_ACK",
-    "ATTACK_RESPONSE_ACK", "PCAP_AUTO_ACK", "PCAP_DELETE_ACK"
+    "ATTACK_RESPONSE_ACK", "PCAP_AUTO_ACK", "PCAP_DELETE_ACK", "CALIBRATE_ACK", "CALIBRATE_DONE:"
   };
   for (const char *p : kResponses) {
     if (payload.startsWith(p)) return true;
@@ -2649,6 +2665,7 @@ static const char *const kCmdAliases[][2] = {
   {"CIM", "CSI_MOTION_START"},    {"CIE", "CSI_EXCLUDE"},
   {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
   {"CIR", "CSI_RECAL"},           {"DBX", "DEVICE_DB_CLEAR"},
+  {"CAL", "CALIBRATE"},           {"CALX", "CALIBRATE_RESET"},
 };
 
 static String meshExpandCommand(const String &cmd)
@@ -2809,6 +2826,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
+  else if (command.startsWith("CALIBRATE:"))          handleCalibrate(command);
+  else if (command == "CALIBRATE_RESET")              handleCalibrateReset(command);
 }
 
 static String buildVibAutoScanCommand(uint8_t mode, uint16_t durSecs)
