@@ -109,6 +109,11 @@ String prefsGetString(const char *key, const String &defaultValue) {
     return prefs.getString(key, defaultValue);
 }
 
+float prefsGetFloat(const char *key, float defaultValue) {
+    if (!prefs.isKey(key)) return defaultValue;
+    return prefs.getFloat(key, defaultValue);
+}
+
 // GPS
 TinyGPSPlus gps;
 #ifdef ARDUINO_XIAO_ESP32C5
@@ -645,6 +650,7 @@ static uint32_t configSignature() {
     mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
     mix(&vibAutoScanPreempt, 1);
     { bool sb = prefs.getBool("sentBoot", false); mix(&sb, 1); }
+    { float c[3] = {prefsGetFloat("calDist", 0.0f), prefsGetFloat("calWifi", NAN), prefsGetFloat("calBle", NAN)}; mix(c, sizeof(c)); }
     mixStr(detect_getConfigJson());
     return h;
 }
@@ -756,6 +762,12 @@ void saveConfiguration() {
     cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
     cw.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
+    {
+        float calD = prefsGetFloat("calDist", 0.0f), calW = prefsGetFloat("calWifi", NAN), calB = prefsGetFloat("calBle", NAN);
+        cw.printf(" \"calDist\":%.2f,\n", calD > 0.0f ? calD : 0.0f);
+        if (isnan(calW)) cw.println(" \"calWifiRssi\":null,"); else cw.printf(" \"calWifiRssi\":%.2f,\n", calW);
+        if (isnan(calB)) cw.println(" \"calBleRssi\":null,"); else cw.printf(" \"calBleRssi\":%.2f,\n", calB);
+    }
     cw.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
     cw.println("}");
 
@@ -1047,6 +1059,19 @@ void loadConfiguration() {
     if (doc.containsKey("vibEnabled")) {
         vibrationEnabled = doc["vibEnabled"].as<bool>();
         prefs.putBool("vibEnabled", vibrationEnabled);
+    }
+
+    if (doc.containsKey("calDist")) {
+        float cd = doc["calDist"].as<float>();
+        if (cd >= 0.5f && cd <= 100.0f) {
+            prefs.putFloat("calDist", cd);
+            prefs.putFloat("calWifi", doc["calWifiRssi"].isNull() ? NAN : doc["calWifiRssi"].as<float>());
+            prefs.putFloat("calBle", doc["calBleRssi"].isNull() ? NAN : doc["calBleRssi"].as<float>());
+        } else {
+            prefs.remove("calDist");
+            prefs.remove("calWifi");
+            prefs.remove("calBle");
+        }
     }
 
     if (doc.containsKey("vibScanEnabled")) {

@@ -327,6 +327,7 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    calibrationLoad();
     campaignInit();
     heapMark("after config");
 

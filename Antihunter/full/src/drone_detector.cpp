@@ -758,20 +758,6 @@ String getDroneDetectionResults() {
     return results;
 }
 
-String getDroneEventLog() {
-    String log = "[\n";
-    {
-        std::lock_guard<std::mutex> lock(detectedDronesMutex);
-        for (size_t i = 0; i < droneEventLog.size(); i++) {
-            log += droneEventLog[i];
-            if (i < droneEventLog.size() - 1) log += ",";
-            log += "\n";
-        }
-    }
-    log += "]";
-    return log;
-}
-
 void cleanupDroneData() {
     const uint32_t now = millis();
     std::lock_guard<std::mutex> lock(detectedDronesMutex);

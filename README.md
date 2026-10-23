@@ -396,6 +396,8 @@ The node turns signal strength into distance with `distance = 10^((RSSI0 - RSSI)
 
 Two more optional values after the environment scale the Wi-Fi and BLE distance estimates, from 0.1 to 5.0 (default 1.0): `TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0`.
 
+To measure RSSI0 instead of using the table, calibrate each node. Place a Wi-Fi access point or BLE device a measured distance from the node, then send `@AH01 CALIBRATE:AA:BB:CC:DD:EE:FF:5` (5 m), or use System tab → **Settings** → **Scanning** → **Distance calibration**. The node listens for 30 seconds and keeps the result after a reboot. Send `@AH01 CALIBRATE_RESET` when you move the node. The [mesh command reference](docs/mesh-commands.md#distance-calibration) lists the replies.
+
 </details>
 
 ---

@@ -146,6 +146,24 @@ Several nodes measure the signal strength of one target and estimate its positio
 
 Nodes also trade `TRI_CYCLE_START:<ms>:<node,...>` (alias `TCS`) to schedule their reports. The firmware sends it. You do not.
 
+#### Distance calibration
+
+Calibration replaces the RF environment's guess of signal strength at 1 m with a measurement from one node. Place a Wi-Fi access point or BLE device at a measured distance from the node, then send `CALIBRATE` to that node. The node listens to the device for 30 seconds, saves the result to NVS and the SD card, and keeps it after a reboot and when you change the RF environment. Calibrate each node on its own, and reset it when you move the node.
+
+| Command | Alias | What it does | Reply | Example |
+|---|---|---|---|---|
+| `CALIBRATE` | `CAL` | Calibrates this node against a reference device | `CALIBRATE_ACK:STARTED`, `CALIBRATE_ACK:BUSY` while a scan runs, or `CALIBRATE_ACK:INVALID`. When it finishes: `CALIBRATE_DONE:WIFI=<dBm>:BLE=<dBm>` (`NONE` for a radio that heard fewer than 10 readings), `CALIBRATE_DONE:FAILED`, or `CALIBRATE_DONE:STOPPED` after `STOP` | `@AH01 CALIBRATE:AA:BB:CC:DD:EE:FF:5` |
+| `CALIBRATE_RESET` | `CALX` | Clears the calibration. Distances go back to the RF environment values | `CALIBRATE_ACK:RESET` | `@AH01 CALIBRATE_RESET` |
+
+`CALIBRATE` takes `mac:meters`:
+
+| Argument | Meaning | Range |
+|---|---|---|
+| `mac` | MAC address of the reference device | |
+| `meters` | Measured distance from the node to the device | 0.5-100 |
+
+The `<dBm>` values in `CALIBRATE_DONE` are the calibrated signal strength at 1 m for the current RF environment.
+
 ### Erase
 
 A wipe cannot be undone, so the node only wipes when you prove you know its **erase key**. The node makes the key on first start and every flasher shows it; see [Secure data destruction](../README.md#secure-data-destruction). You never send that key over the radio. Instead:
@@ -370,7 +388,7 @@ Rules for `CSI_CFG`:
 - Fields without a keyword are read by position: first the trigger level, then the clear time in milliseconds (500-120000), the number of consecutive hits (1-50, default 3), the channel, and last `1` or `0` for `TELEM`. Use the keyword fields instead.
 - The node refuses the whole command with `CSI_CFG_ACK:INVALID` if any value is out of range.
 - After a reboot the node resets a saved trigger level outside 0.005-0.600 to the built-in level, even though `CSI_CFG` accepts values up to 20.
-- `CSI_STATUS` and `CSI_JSON` print to USB serial and send only the text length over the mesh. The web UI shows the same data at `/csi-results` and `/csi-json`. See the [API reference](api-reference.md).
+- `CSI_STATUS` and `CSI_JSON` print to USB serial and send only the text length over the mesh. The web UI reads the same data from `/csi-json`. See the [API reference](api-reference.md).
 - `CSI_EXCLUDE` takes a MAC address, or `NONE` (or nothing) to clear the exclusion. The exclusion is not saved across a reboot.
 
 While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts, which are listed under [Alerts](#alerts).

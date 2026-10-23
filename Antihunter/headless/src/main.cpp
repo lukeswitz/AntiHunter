@@ -259,6 +259,7 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    calibrationLoad();
     campaignInit();
 
     Serial.println("Waiting for mesh device stability...");
