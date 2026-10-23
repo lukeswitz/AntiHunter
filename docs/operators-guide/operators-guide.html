@@ -553,6 +553,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>RSSI filter</b> (Signal filter), −100 to −10 dBm. The node drops weaker signals. Triangulation still uses every signal. Over mesh, <span class="mono">CONFIG_RSSI</span> accepts −128 to −10.</li>
     <li><b>Wi-Fi channels.</b> A comma list, <span class="mono">1,6,11</span>, or a range, <span class="mono">1..13</span>. The default is 1 to 11.</li>
     <li><b>RF environment</b> (Signal filter). The path-loss model for distance estimates (§9.9).</li>
+    <li><b>Distance calibration.</b> Measures this node's signal strength at 1 m against a device at a known distance, for this node or any mesh node (§9.9).</li>
   </ul>
 
   <h3>8.4 Field controls worth knowing now</h3>
@@ -690,6 +691,9 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">1.0</span>, <span class="mono">1.0</span></td><td>Wi-Fi and BLE distance multipliers, 0.1 to 5.0 (default 1.0). Below 1.0 puts the estimate closer and above 1.0 farther. Use them to correct a known bias.</td></tr>
   </table>
   <p>Send <span class="mono">TRIANGULATE_START</span> to one node. That node coordinates and tells the others. <span class="mono">TRIANGULATE_RESULTS</span> asks it for the result, and <span class="mono">TRIANGULATE_STOP</span> ends the run. Results arrive as <span class="mono">T_D:</span> (one node's data), <span class="mono">T_F:</span> (the final fix with confidence and uncertainty) and <span class="mono">T_C:</span> (complete, with a map link). <span class="mono">TRIANGULATE_RESULTS:NO_DATA</span> means no node has reported yet.</p>
+  <p><b>Calibrate each node</b> for better distances. Place a Wi-Fi access point or BLE device a measured distance from the node, then send the command below to that node, or use System → <b>Settings</b> → <b>Scanning</b> → <b>Distance calibration</b>. The node listens for 30 seconds, replies <span class="mono">CALIBRATE_DONE</span>, and keeps the result after a reboot and an RF environment change. Send <span class="mono">CALIBRATE_RESET</span> when you move the node.</p>
+  <pre>@AH01 CALIBRATE:AA:BB:CC:DD:EE:FF:5
+@AH01 CALIBRATE_RESET</pre>
 
   <h3>9.10 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, Beta and C5 firmware)</span></h3>
 <p>Alerts when someone moves nearby, even through walls. Use it indoors. It detects movement, not someone sitting still. Stable firmware does not include it. Wi-Fi signals bounce around a room and the bounces change when a person moves, so the node listens to nearby routers and phones and alerts when several of their signals change at once.</p>

@@ -127,8 +127,7 @@ The node keeps 8 blocks. Replies: `400` bad input, `404` block not found, `413` 
 |---|---|---|
 | `/results` | GET | Latest scan or triangulation results (text) |
 | `/sniffer-cache` | GET | Devices cached by the running scan (text) |
-| `/csi-results` | GET | (Beta, C5) CSI motion status as text: channel, tracked transmitters, motion events, trigger level, and the score of each transmitter |
-| `/csi-json` | GET | (Beta, C5) The same data as JSON |
+| `/csi-json` | GET | (Beta, C5) CSI motion status as JSON: channel, tracked transmitters, motion events, trigger level, and the score of each transmitter |
 
 ## Fleet
 
@@ -247,6 +246,8 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/handshakes/stats` | GET | JSON: `count`, `krack_events` |
 | `/api/attacker_hunts` | GET | Active attacker location hunts (JSON) |
 | `/api/attacker_hunts/cooldown` | POST | `ms`: time before the same attacker can start another hunt (default 60000) |
+| `/api/attack_response` | GET | JSON: `pending`, the follow-up actions (`attack_resp_mask` bits) waiting to run after a confirmed attack. `0` when none wait |
+| `/api/attack_response/cancel` | POST | Cancels the waiting follow-up actions |
 | `/api/tof` | GET | Time-of-flight peers (JSON) |
 | `/api/tof/ping` | POST | `target`: peer to ping (default `*`, all) |
 | `/api/tsf_skew` | GET | TSF clock-skew state (JSON) |

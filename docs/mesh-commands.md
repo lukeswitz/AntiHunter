@@ -388,7 +388,7 @@ Rules for `CSI_CFG`:
 - Fields without a keyword are read by position: first the trigger level, then the clear time in milliseconds (500-120000), the number of consecutive hits (1-50, default 3), the channel, and last `1` or `0` for `TELEM`. Use the keyword fields instead.
 - The node refuses the whole command with `CSI_CFG_ACK:INVALID` if any value is out of range.
 - After a reboot the node resets a saved trigger level outside 0.005-0.600 to the built-in level, even though `CSI_CFG` accepts values up to 20.
-- `CSI_STATUS` and `CSI_JSON` print to USB serial and send only the text length over the mesh. The web UI shows the same data at `/csi-results` and `/csi-json`. See the [API reference](api-reference.md).
+- `CSI_STATUS` and `CSI_JSON` print to USB serial and send only the text length over the mesh. The web UI reads the same data from `/csi-json`. See the [API reference](api-reference.md).
 - `CSI_EXCLUDE` takes a MAC address, or `NONE` (or nothing) to clear the exclusion. The exclusion is not saved across a reboot.
 
 While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts, which are listed under [Alerts](#alerts).
