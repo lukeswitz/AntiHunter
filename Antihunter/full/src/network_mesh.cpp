@@ -2402,6 +2402,13 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "SELFTEST_HTTP") {
       selftestHttpCheck();
   }
+  else if (command.startsWith("SELFTEST_HTTP:")) {
+      String p = command.substring(14);
+      bool post = p.startsWith("POST ");
+      String r;
+      int c = selftestHttp(post ? "POST" : "GET", post ? p.substring(5) : p, "", r);
+      Serial.printf("[SELFTEST] http %d %s\n", c, r.c_str());
+  }
   else if (command.startsWith("SELFTEST_TX:")) {
       Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true));
   }

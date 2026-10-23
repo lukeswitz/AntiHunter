@@ -92,6 +92,7 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab,
 **Detectors, results, and storage**
 - Detection tab: 16 detector cards (Remote ID spoof, hostile recon, Karma, attacker hunts, handshakes, probe graph, TSF, beacon forgery, PMKID forgery, EAPOL bait, probe flood, assoc sleep, Wi-Fi interference, mesh disruption, mesh link RTT, Pwnagotchi) and the verbose log, quorum, and pending-response controls were missing from the page while their refresh code still ran. They are back.
 - The raw `/detect` page never updated: its script stopped at the first counter. It now refreshes every 3 seconds.
+- `/api/karma/stats` and `/api/handshakes/stats` returned the Karma and handshake lists instead of their counts, because the list routes also answered every path below them. The Karma card's bait state and counts and the handshake KRACK count now show real values.
 - Data tab, Baseline: the view read keys the node does not send and always showed 0 devices and fixed default settings. It now shows the node's device count and baseline settings.
 - Triangulation: a path-loss calibration was overwritten when the next run started, while the node still reported zero calibration error. Headless also calibrated itself from its own estimate after every run. Both are fixed; see Distance calibration under New.
 - `/api/pwnagotchi` returned invalid JSON for a real Pwnagotchi. The beacon text is now escaped there and in the detector tables.
