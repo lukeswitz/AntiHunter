@@ -1857,6 +1857,10 @@ R"HTML(
                 <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Interrupt scheduled scans; the schedule resumes after</span>
               </div>
+              <div class="ar-row">
+                <span class="ar-name">Pending response: <span id="arPending" class="num">--</span></span>
+                <button class="btn alt" onclick="arCancel()">Cancel pending</button>
+              </div>
               <div class="ar-row ar-limits">
                 <span class="ar-name">Auto-capture budget</span>
                 <input type="number" id="arPcapBudget" min="16" max="262144" step="16" value="512" onchange="arSaveLimits()">
@@ -2021,9 +2025,17 @@ R"HTML(
               <div><span class="lbl">Bloom Local:</span><span id="d-bl" class="num">--</span></div>
               <div><span class="lbl">Bloom Neighbor:</span><span id="d-bn" class="num">--</span></div>
               <div><span class="lbl">Quorum Candidates:</span><span id="d-qc" class="num">0</span></div>
+              <div><span class="lbl">Verbose Log:</span><span id="d-verbose" class="num">--</span>
+                <button class="btn alt" onclick="detVerbose(1)" style="margin-left:6px;">On</button>
+                <button class="btn alt" onclick="detVerbose(0)">Off</button></div>
             </div>
             <details style="margin-top:10px;">
               <summary><span>▶</span> Quorum Status</summary>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
+                <input id="q-type-in" type="text" placeholder="type (e.g. PMKID)" maxlength="16" style="width:140px;">
+                <input id="q-n-in" type="number" min="1" max="10" placeholder="nodes" style="width:70px;">
+                <button class="btn" onclick="quorumSet()">Set</button>
+              </div>
               <pre id="d-quorum" class="log-pre">--</pre>
             </details>
             <details style="margin-top:6px;">
@@ -2035,6 +2047,196 @@ R"HTML(
         </div>
 
         <div id="det-grid">
+        <div class="card" data-key="rid" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detRidCard')">
+            <h3><span class="sev high">high</span>Remote ID Spoof Validator</h3>
+            <span class="collapse-icon" id="detRidCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detRidCardBody"><pre id="d-rid" class="log-pre">--</pre></div>
+        </div>
+
+        <div class="card" data-key="recon" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detReconCard')">
+            <h3><span class="sev high">high</span>Hostile Recon Scoring</h3>
+            <span class="collapse-icon" id="detReconCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detReconCardBody">
+            <button class="btn alt" onclick="detectClearRecon()" style="margin-bottom:6px;">Clear</button>
+            <pre id="d-recpre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="karma" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detKarmaCard')">
+            <h3><span class="sev crit">crit</span>KARMA Probe-Bait</h3>
+            <span class="collapse-icon" id="detKarmaCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detKarmaCardBody">
+            <div style="font-size:12px;line-height:1.7;">
+              <span class="lbl">Bait:</span><span id="km-on" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Candidates:</span><span id="km-c" class="num">0</span>
+              <span class="lbl" style="margin-left:10px;">Confirmed:</span><span id="km-x" class="num">0</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
+              <button class="btn" onclick="kmToggle(1)">Bait On</button>
+              <button class="btn alt" onclick="kmToggle(0)">Bait Off</button>
+              <button class="btn alt" onclick="kmClear()">Clear</button>
+            </div>
+            <pre id="km-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="hunts" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detHuntCard')">
+            <h3><span class="sev crit">crit</span>Attacker Reverse-Trilat <span class="num" id="ah-n">0</span></h3>
+            <span class="collapse-icon" id="detHuntCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detHuntCardBody">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+              <input id="ah-cooldown-in" type="number" min="1" max="3600" placeholder="cooldown s" style="width:110px;">
+              <button class="btn" onclick="ahCooldown()">Set Cooldown</button>
+              <button class="btn alt" onclick="ahClear()">Clear</button>
+            </div>
+            <pre id="ah-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="handshake" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detHshkCard')">
+            <h3><span class="sev crit">crit</span>Handshakes + KRACK <span class="num" id="hs-n">0</span></h3>
+            <span class="collapse-icon" id="detHshkCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detHshkCardBody">
+            <button class="btn alt" onclick="hsClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="hs-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="probegraph" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detPgCard')">
+            <h3><span class="sev info">info</span>Probe-Graph (mesh) <span class="num" id="pg-n">0</span></h3>
+            <span class="collapse-icon" id="detPgCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPgCardBody">
+            <button class="btn alt" onclick="pgClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pg-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="tsf" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detTsfCard')">
+            <h3><span class="sev info">info</span>TSF / Evil-Twin <span class="num" id="tsf-n">0</span></h3>
+            <span class="collapse-icon" id="detTsfCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detTsfCardBody">
+            <button class="btn alt" onclick="tsfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="tsf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="bcnforge" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detBcnForgeCard')">
+            <h3><span class="sev high">high</span>Beacon Forgery <span class="num" id="bf-n">0</span></h3>
+            <span class="collapse-icon" id="detBcnForgeCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detBcnForgeCardBody">
+            <button class="btn alt" onclick="bfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="bf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="pmkidforge" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detPmkidForgeCard')">
+            <h3><span class="sev crit">crit</span>PMKID Forgery <span class="num" id="pf-n">0</span></h3>
+            <span class="collapse-icon" id="detPmkidForgeCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPmkidForgeCardBody">
+            <button class="btn alt" onclick="pfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="eapolbait" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detEapolBaitCard')">
+            <h3><span class="sev crit">crit</span>EAPOL Capture-Bait <span class="num" id="eb-n">0</span></h3>
+            <span class="collapse-icon" id="detEapolBaitCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detEapolBaitCardBody">
+            <button class="btn alt" onclick="ebClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="eb-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="probeflood" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detProbeFloodCard')">
+            <h3><span class="sev high">high</span>Probe Flood <span class="num" id="pfl-n">0</span></h3>
+            <span class="collapse-icon" id="detProbeFloodCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detProbeFloodCardBody">
+            <button class="btn alt" onclick="pflClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pfl-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="assocsleep" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detAssocSleepCard')">
+            <h3><span class="sev high">high</span>Assoc-Sleep <span class="num" id="as-n">0</span></h3>
+            <span class="collapse-icon" id="detAssocSleepCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detAssocSleepCardBody">
+            <button class="btn alt" onclick="asClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="as-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="jamming" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detJamCard')">
+            <h3><span class="sev high">high</span>WiFi Interference <span class="num" id="jam-n">0</span></h3>
+            <span class="collapse-icon" id="detJamCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detJamCardBody">
+            <button class="btn alt" onclick="jamClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="jam-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="meshguard" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detMeshGuardCard')">
+            <h3><span class="sev high">high</span>Mesh Disruption <span class="num" id="mgd-n">0</span></h3>
+            <span class="collapse-icon" id="detMeshGuardCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detMeshGuardCardBody">
+            <button class="btn alt" onclick="mgdClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="mgd-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="tof" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detTofCard')">
+            <h3><span class="sev info">info</span>Mesh Link RTT <span class="num" id="tof-n">0</span></h3>
+            <span class="collapse-icon" id="detTofCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detTofCardBody">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+              <input id="tof-target-in" type="text" placeholder="nodeId or *" style="width:140px;">
+              <button class="btn" onclick="tofPing()">Ping</button>
+              <button class="btn alt" onclick="tofClear()">Clear</button>
+            </div>
+            <pre id="tof-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="pwna" data-sev="med">
+          <div class="card-header" onclick="toggleCollapse('detPwnaCard')">
+            <h3><span class="sev med">med</span>Pwnagotchi <span class="num" id="pwna-n">0</span></h3>
+            <span class="collapse-icon" id="detPwnaCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPwnaCardBody">
+            <button class="btn alt" onclick="pwnaClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pwna-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
         <div class="card" data-key="analysis">
           <h3>Sentinel Analysis</h3>
           <div class="data-header">
@@ -7092,6 +7294,7 @@ R"HTML(
         ]);
         if(n>0)detMarkActive('probegraph');
       }
+      async function pgClear(){await fetch('/api/probegraph/clear',{method:'POST'});pgTick();}
       async function hsTick(){
         if(!detTabActive())return;
         const [r,s]=await Promise.all([_jj('/api/handshakes'),_jj('/api/handshakes/stats')]);
@@ -7107,6 +7310,7 @@ R"HTML(
         ]);
         if(s&&s.krack_events>0)detMarkActive('handshake');
       }
+      async function hsClear(){await fetch('/api/handshakes/clear',{method:'POST'});hsTick();}
       async function ahTick(){
         if(!detTabActive())return;
         const h=await _jj('/api/attacker_hunts');
@@ -7120,11 +7324,51 @@ R"HTML(
         ]);
         if(n>0)detMarkActive('hunts');
       }
+      async function ahClear(){await fetch('/api/attacker_hunts/clear',{method:'POST'});ahTick();}
+      async function ahCooldown(){
+        const s=parseInt(document.getElementById('ah-cooldown-in').value,10);
+        if(!(s>=1&&s<=3600))return;
+        const fd=new FormData();fd.append('ms',String(s*1000));
+        await fetch('/api/attacker_hunts/cooldown',{method:'POST',body:fd});ahTick();
+      }
+      async function pwnaTick(){
+        if(!detTabActive())return;
+        const p=await _jj('/api/pwnagotchi');
+        {const _e=document.getElementById('pwna-n');if(_e)_e.textContent=(p||[]).length;}
+        detRenderTable('pwna-pre',p||[],[
+          {key:'bssid',label:'BSSID'},{key:'observations',label:'Seen'},
+          {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},
+          {key:'snippet',label:'Identity'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if((p||[]).length>0)detMarkActive('pwna');
+      }
+      async function pwnaClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwnaTick();}
       async function rtcFromBrowser(){
         const fd=new FormData();fd.append('epoch',String(Math.floor(Date.now()/1000)));
         const r=await fetch('/api/time',{method:'POST',body:fd}).catch(()=>null);
         const m=document.getElementById('rtcSetMsg');
         if(m)m.textContent=r?(r.ok?'RTC set':'Failed: '+await r.text()):'Failed';
+      }
+      async function arTick(){
+        if(!detTabActive())return;
+        const a=await _jj('/api/attack_response');
+        const e=document.getElementById('arPending');
+        if(e&&a)e.textContent=a.pending?'yes':'none';
+      }
+      async function arCancel(){await fetch('/api/attack_response/cancel',{method:'POST'});arTick();}
+      async function verboseTick(){
+        if(!detTabActive())return;
+        const v=await _jj('/api/detect/verbose');
+        const e=document.getElementById('d-verbose');
+        if(e&&v)e.textContent=v.verbose?'ON':'off';
+      }
+      async function detVerbose(on){await fetch('/api/detect/verbose/'+(on?'on':'off'),{method:'POST'});verboseTick();}
+      async function quorumSet(){
+        const t=(document.getElementById('q-type-in').value||'').trim().toUpperCase();
+        const n=parseInt(document.getElementById('q-n-in').value,10);
+        if(!t||t.length>16||!(n>=1&&n<=10))return;
+        const fd=new FormData();fd.append('type',t);fd.append('n',String(n));
+        await fetch('/api/quorum/config',{method:'POST',body:fd});
       }
       async function kmTick(){
         if(!detTabActive())return;
@@ -7139,6 +7383,8 @@ R"HTML(
         ]);
         if(s&&s.confirmed>0)detMarkActive('karma');
       }
+      async function kmToggle(on){const fd=new FormData();fd.append('on',on);await fetch('/api/karma/enable',{method:'POST',body:fd});kmTick();}
+      async function kmClear(){await fetch('/api/karma/clear',{method:'POST'});kmTick();}
       async function tsfTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tsf_skew');
@@ -7149,6 +7395,7 @@ R"HTML(
           {key:'last',label:'Last',get:r=>_ago(r.last)}
         ]);
       }
+      async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
       async function jammingTick(){
         if(!detTabActive())return;
         const a=await _jsonl('/api/jamming.jsonl');
@@ -7182,6 +7429,12 @@ R"HTML(
           {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_ago(r.last)}
         ]);
       }
+      async function tofPing(){
+        const tgt=document.getElementById('tof-target-in').value||'*';
+        const fd=new FormData();fd.append('target',tgt);
+        await fetch('/api/tof/ping',{method:'POST',body:fd});tofTick();
+      }
+      async function tofClear(){await fetch('/api/tof/clear',{method:'POST'});tofTick();}
       const _detLastActivity={};
       let _detSev='all';
       function detApplyFilters(){
@@ -7706,7 +7959,7 @@ R"HTML(
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();pgTick();hsTick();
-        ahTick();kmTick();tsfTick();tofTick();detHealthTick();
+        ahTick();kmTick();tsfTick();tofTick();pwnaTick();verboseTick();arTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();meshCmdTick();
       }
       async function _jsonl(path){

@@ -3029,6 +3029,13 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "cleared");
   });
 
+  server->on("/api/attack_response", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", String("{\"pending\":") + String((unsigned)attack_responsePending()) + "}");
+  });
+  server->on("/api/attack_response/cancel", HTTP_POST, [](AsyncWebServerRequest *r) {
+      attack_responseCancel();
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
   server->on("/api/attacker_hunts/cooldown", HTTP_POST, [](AsyncWebServerRequest *r) {
       uint32_t ms = 60000;
       if (r->hasParam("ms", true)) ms = (uint32_t)r->getParam("ms", true)->value().toInt();
