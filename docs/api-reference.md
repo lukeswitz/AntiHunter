@@ -274,7 +274,7 @@ Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log 
 | Group | Names | Clear (POST `/api/<name>/clear`) |
 |---|---|---|
 | In memory | `pmkid`, `eviltwin`, `ssid_confusion`, `sae_dos`, `owe_abuse`, `fragattack`, `ble_malformed` | `eviltwin` only, and it deletes the SD file `/eviltwin.jsonl`, not the in-memory log |
-| SD card | `jamming`, `meshguard`, `ble_attack`, `probe_flood`, `assoc_sleep`, `pmkid_forge`, `eapol_bait`, `deauth_flood`, `deauth_ap`, `probe_ap` | All except `deauth_ap` and `probe_ap` |
+| SD card | `jamming`, `meshguard`, `probe_flood`, `assoc_sleep`, `pmkid_forge`, `eapol_bait`, `deauth_flood`, `deauth_ap`, `probe_ap` | All except `deauth_ap` and `probe_ap` |
 
 Each incident record has `ts` (uptime in milliseconds), `epoch` (clock seconds, `0` if the clock is not set), `node`, `src` (`local`, or the sending node), `type`, and `raw`.
 
