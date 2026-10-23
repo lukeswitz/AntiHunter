@@ -308,7 +308,7 @@ collect_configuration() {
     fi
 
     cat > /tmp/antihunter_config.json <<EOF
-{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$VIBSCAN_COOLDOWN,"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"$TARGETS","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$AUTO_ERASE_DELAY,"autoEraseCooldown":$AUTO_ERASE_COOLDOWN,"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$DETECTION_WINDOW,"setupDelay":$SETUP_DELAY}
+{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${TARGETS//,/\\n}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
 EOF
 
     echo ""
@@ -718,6 +718,38 @@ try:
   print('[RTC] Time command sent')
 except Exception as e:
   print('[RTC] Failed:', e)
+" 2>/dev/null
+
+echo ""
+echo "Waiting for the node to report its erase key (up to 90 s)..."
+$PYTHON_CMD -c "
+import serial, time, re
+try:
+  ser = serial.Serial('$ESP32_PORT', 115200, timeout=1)
+  start = time.time()
+  found = False
+  while time.time() - start < 90:
+    line = ser.readline().decode('utf-8', errors='ignore').strip()
+    m = re.search(r'\[ERASE\] Erase key: (\S+) \(generated', line)
+    if m:
+      print('')
+      print('===================================================')
+      print('  ERASE KEY:  ' + m.group(1))
+      print('  WRITE THIS DOWN. You need it to wipe this node.')
+      print('  LOST IT? Reflash with erase (-e) for a new key.')
+      print('===================================================')
+      found = True
+      break
+    if '[ERASE] Erase key: set by you' in line:
+      print('[ERASE] The node keeps the erase key you set earlier.')
+      print('[ERASE] Lost it? Run this script again with -e for a new key.')
+      found = True
+      break
+  ser.close()
+  if not found:
+    print('[ERASE] No key line seen. Open a serial monitor at 115200 and reboot the node to see it.')
+except Exception as e:
+  print('[ERASE] Could not read the key:', e)
 " 2>/dev/null
 
 if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
