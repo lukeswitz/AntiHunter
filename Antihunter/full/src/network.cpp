@@ -2100,7 +2100,7 @@ void registerRemainingRoutes() {
         saveConfiguration();
         req->send(200, "text/plain", "Allowlist saved"); });
 
-  server->on("/triangulate/calibrate", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on(AsyncURIMatcher::exact("/triangulate/calibrate"), HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("mac", true) || !req->hasParam("distance", true)) {
           req->send(400, "text/plain", "Missing mac or distance parameter");
           return;
@@ -2700,7 +2700,7 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "cleared");
   });
 
-  server->on("/api/handshakes", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on(AsyncURIMatcher::exact("/api/handshakes"), HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", hshk_getReconJson());
   });
   server->on("/api/handshakes/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
@@ -2742,7 +2742,7 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "cleared");
   });
 
-  server->on("/api/karma", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on(AsyncURIMatcher::exact("/api/karma"), HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", karma_getJson());
   });
   server->on("/api/karma/clear", HTTP_POST, [](AsyncWebServerRequest *r) {

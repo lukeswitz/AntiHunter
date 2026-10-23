@@ -2139,6 +2139,11 @@ void calibrationLoad() {
     s_calWifiRssi = prefsGetFloat("calWifi", NAN);
     s_calBleRssi = prefsGetFloat("calBle", NAN);
     applyCalibration();
+    if (pathLoss.calibrated) {
+        Serial.printf("[CALIB] Loaded calibration: %.1f m, RSSI0 Wi-Fi %s, BLE %s\n", s_calDist,
+                      adaptivePathLoss.wifi_calibrated ? String(pathLoss.rssi0_wifi, 1).c_str() : "none",
+                      adaptivePathLoss.ble_calibrated ? String(pathLoss.rssi0_ble, 1).c_str() : "none");
+    }
 }
 
 String calibrationJson() {
