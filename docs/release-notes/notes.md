@@ -107,6 +107,8 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab,
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit. Labels are now `Nearby-<state>`; before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, and 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, and Nearby-Action.
 - BLE classes: Microsoft beacons carry the MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and the Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - The Data tab search keeps the selected sort column.
+- The Data and Detection tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
+- System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. The "RTC synced from GPS" line was logged as `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.
 - The node keeps settings in two places: its built-in memory and the SD card. If the built-in memory is wiped, the node now rebuilds the detector settings and the start-Sentinel-at-boot flag from the SD card. The erase key and the web password are the exception. They stay in the built-in memory and are never written to the card.
 - A node with no campaign or schedule saved no longer logs an error line at boot.

@@ -754,6 +754,12 @@ static bool schedPathOk(const String &p) {
   return p == "/scan" || p == "/sniffer" || p == "/drone";
 }
 
+static String dataCfgJson() {
+  time_t now = schedNow();
+  return String("{\"campaign\":\"") + campaignName() + "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") +
+         ",\"tz\":\"" + nodeTZAbbrev(now) + "\",\"tzOff\":" + String(nodeTZOffset(now)) + ",\"tzPosix\":\"" + nodeTZPosix() + "\"}";
+}
+
 int fleetSend(String node, String cmd, String &msg) {
   node.trim();
   node.toUpperCase();
@@ -1379,8 +1385,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/data-cfg", HTTP_GET, [](AsyncWebServerRequest *req) {
-    req->send(200, "application/json", String("{\"campaign\":\"") + campaignName() +
-              "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") + "}");
+    req->send(200, "application/json", dataCfgJson());
   });
 
   server->on("/data-cfg", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -1393,8 +1398,7 @@ void registerRemainingRoutes() {
       req->send(400, "text/plain", "Campaign name needs letters, digits, - or _");
       return;
     }
-    req->send(200, "application/json", String("{\"campaign\":\"") + campaignName() +
-              "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") + "}");
+    req->send(200, "application/json", dataCfgJson());
   });
 
   server->on("/api/campaigns.csv", HTTP_GET, [](AsyncWebServerRequest *req) {

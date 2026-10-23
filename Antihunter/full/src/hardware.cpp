@@ -1737,6 +1737,11 @@ void logToSD(const String &data) {
 
     // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
+    if (timestamp.length() == 19 && timestamp[4] == '-') {
+        timestamp += " " + nodeTZAbbrev(nodeLocalToEpoch(timestamp.substring(0, 4).toInt(), timestamp.substring(5, 7).toInt(),
+                                                         timestamp.substring(8, 10).toInt(), timestamp.substring(11, 13).toInt(),
+                                                         timestamp.substring(14, 16).toInt()));
+    }
 
     const char *camp = campaignName();
     String line = "[" + timestamp + "] " + (camp[0] ? String("[C:") + camp + "] " : String()) + data + "\n";
@@ -2232,6 +2237,10 @@ static void applyNodeTZ() {
     }
 }
 
+const char *nodeTZPosix() {
+    return g_localTZKnown ? g_localTZPosix.c_str() : "UTC0";
+}
+
 String nodeTZAbbrev(time_t epoch) {
     applyNodeTZ();
     struct tm t;
@@ -2239,6 +2248,16 @@ String nodeTZAbbrev(time_t epoch) {
     char b[16];
     if (!strftime(b, sizeof(b), "%Z", &t) || !b[0]) return String("UTC");
     return String(b);
+}
+
+long nodeTZOffset(time_t epoch) {
+    applyNodeTZ();
+    struct tm lt, gt;
+    localtime_r(&epoch, &lt);
+    gmtime_r(&epoch, &gt);
+    long days = lt.tm_yday - gt.tm_yday;
+    if (lt.tm_year != gt.tm_year) days = (lt.tm_year > gt.tm_year) ? 1 : -1;
+    return days * 86400L + (lt.tm_hour - gt.tm_hour) * 3600L + (lt.tm_min - gt.tm_min) * 60L;
 }
 
 time_t nodeLocalToEpoch(int year, int month, int day, int hour, int minute) {
@@ -2328,6 +2347,7 @@ void syncRTCFromGPS() {
     DateTime rtcTime = rtc.now();
 
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
+    bool didSync = false;
 
     if (timeDiff > 1 || !rtcSynced) {
         rtc.adjust(gpsTime);
@@ -2339,14 +2359,14 @@ void syncRTCFromGPS() {
                       gpsTime.hour(), gpsTime.minute(), gpsTime.second(),
                       timeDiff);
         
-        String syncMsg = "RTC synced from GPS";
-        logToSD(syncMsg);
-        
+        didSync = true;
+
         String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
         sendToSerial1(meshMsg, false);
     }
-    
+
     xSemaphoreGive(rtcMutex);
+    if (didSync) logToSD("RTC synced from GPS");
 }
 
 void updateRTCTime() {
