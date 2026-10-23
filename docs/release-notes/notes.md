@@ -46,6 +46,12 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab,
 - Data tab: a campaign picker, a From/To date filter for every dataset, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the clock to be set. Without it, only system log lines match a campaign.
 - Campaigns: one Data tab panel starts and stops a campaign on this node and on checked mesh nodes. A REC badge shows in the header. **Export campaign** saves it. Rows in the `.jsonl` files carry `campaign` and filter by it.
 
+**Distance calibration**
+- Full and Headless: `CALIBRATE:<mac>:<meters>` and `CALIBRATE_RESET`, sent to one node. The node listens to a reference device at a measured distance for 30 seconds and calibrates its distance estimates. The result survives a reboot, an RF environment change, and an Erase-device flash (it is saved to the SD card). Full: System tab → **Settings** → **Scanning** → **Distance calibration** calibrates this node or any mesh node. `/api/fleet/send` accepts both commands.
+
+**First-run terms**
+- Full: the web UI shows the terms of use once, until you accept them. Acceptance is saved to the SD card, so a node whose built-in memory is erased does not ask again.
+
 **Detection and capture**
 - The target list accepts hex tracer IDs (`T-00A3`).
 - PCAP files carry the radiotap MCS field for HT frames.
@@ -84,7 +90,10 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab,
 - Mesh-fed Remote ID claim and channel assignment tables are capped.
 
 **Detectors, results, and storage**
-- Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
+- Detection tab: 16 detector cards (Remote ID spoof, hostile recon, Karma, attacker hunts, handshakes, probe graph, TSF, beacon forgery, PMKID forgery, EAPOL bait, probe flood, assoc sleep, Wi-Fi interference, mesh disruption, mesh link RTT, Pwnagotchi) and the verbose log, quorum, and pending-response controls were missing from the page while their refresh code still ran. They are back.
+- The raw `/detect` page never updated: its script stopped at the first counter. It now refreshes every 3 seconds.
+- Data tab, Baseline: the view read keys the node does not send and always showed 0 devices and fixed default settings. It now shows the node's device count and baseline settings.
+- Triangulation: a path-loss calibration was overwritten when the next run started, while the node still reported zero calibration error. Headless also calibrated itself from its own estimate after every run. Both are fixed; see Distance calibration under New.
 - `/api/pwnagotchi` returned invalid JSON for a real Pwnagotchi. The beacon text is now escaped there and in the detector tables.
 - Auto-erase counts vibrations within the detection window and triggers at the configured count.
 - Vibration alerts during the auto-erase setup period had no rate limit. They now follow the same limit as other vibration alerts, one every 3 seconds.
@@ -104,6 +113,8 @@ Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab,
 **Build and release**
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. They loaded `/oui_cat.bin`, which no build or tool produces, into a table that nothing read.
+- Removed the BLE attack detector. No build ever compiled its detection in, and its web card had no counter on the page.
+- Removed HTTP routes that nothing in the web UI or the Command Center calls: `/config`, `/baseline/status`, `/sd-status`, `/drone-results`, `/drone-log`, `/drone/status`, `/deauth-results`, `/randomization-results`, `/randomization/identities`, `/mesh/drain/status`, `/secure/abort` (same as `/erase/cancel`), `/triangulate/start`, `/triangulate/stop`, `/triangulate/status`, `/triangulate/results`, `/triangulate/nodes` (use `/scan`, `/stop`, and `/results`), `/api/sentinel/ble/start`, `/api/deauth_flood/clear`, `/api/deauth_ap.jsonl`, and `/api/probe_ap.jsonl`.
 - Stable and Beta (S3): a boot could reset with `Stack canary watchpoint triggered (ipc1)` while installing the GPIO interrupt service. The IPC task stack is now 2048 bytes (was 1024). The S3 builds compile the Arduino ESP-IDF libraries with this setting.
 - The boot banner and web footer show v1.0.5.
 

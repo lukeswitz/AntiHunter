@@ -806,17 +806,6 @@ static uint8_t triScanChannel() {
 }
 
 
-// Deauth type
-String getDeauthReasonText(uint16_t reasonCode) {
-    switch (reasonCode) {
-        case 1: return "Unspecified reason";
-        case 2: return "Previous authentication no longer valid";
-        case 6: return "Class 2 frame from non-authenticated station";
-        case 7: return "Class 3 frame from non-associated station";
-        default: return "Reason code " + String(reasonCode);
-    }
-}
-
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
     if (!deauthQueue) return;

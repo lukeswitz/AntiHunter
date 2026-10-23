@@ -588,19 +588,6 @@ void startWebServer()
       req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
   });
 
-  server->on("/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
-      String json = "{";
-      json += "\"scanning\":" + String(scanning ? "true" : "false") + ",";
-      {
-          std::lock_guard<std::mutex> lock(baselineMutex);
-          json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-          json += "\"devices\":" + String(baselineDeviceCount);
-      }
-      json += "}";
-
-      req->send(200, "application/json", json);
-  });
-
   server->on("/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = "{";
       {
@@ -714,26 +701,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     }
     r->send(200, "text/plain", gpsInfo); });
 
-  server->on("/sd-status", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-    String status;
-    if (!sdAvailable) {
-        status = "SD card: Not available";
-    } else {
-        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-
-        uint32_t logSize = 0;
-        File logFile = SafeSD::open("/antihunter.log", FILE_READ);
-        if (logFile) {
-            logSize = logFile.size();
-            logFile.close();
-        }
-
-        status = "SD Card: Available\n";
-        status += "Card Size: " + String(cardSize) + " MB\n";
-        status += "Log File Size: " + String(logSize / 1024) + " KB (" + String(logSize) + " bytes)";
-    }
-    r->send(200, "text/plain", status); });
 
   server->on("/mesh-tx/cancel", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!meshTxPending()) {
@@ -802,7 +769,8 @@ int fleetSend(String node, String cmd, String &msg) {
   for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
   if (!nodeOk) { msg = "Bad node ID"; return 400; }
   static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS",
-                                          "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS", "BLE_CLASSIFY:"};
+                                          "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS", "BLE_CLASSIFY:",
+                                          "CALIBRATE:", "CALIBRATE_RESET"};
   bool cmdOk = false;
   for (const char *p : kAllowed) {
     size_t n = strlen(p);
@@ -1204,43 +1172,6 @@ void registerRemainingRoutes() {
     Serial.printf("[AUTOERASE] After save - autoEraseEnabled is: %s\n", autoEraseEnabled ? "TRUE" : "FALSE");
     req->send(200, "text/plain", "Auto-erase config updated"); });
 
-  server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r) {
-      extern RFScanConfig rfConfig;
-      
-      String configJson = "{\n";
-      configJson += "\"nodeId\":\"" + jsonEscape(prefsGetString("nodeId", "")) + "\",\n";
-      configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
-      configJson += "\"channels\":\"" + jsonEscape(rfConfig.wifiChannels) + "\",\n";
-      configJson += "\"targets\":\"" + jsonEscape(prefsGetString("maclist", "")) + "\"\n";
-      configJson += "}";
-      
-      r->send(200, "application/json", configJson);
-  });
-
-  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-          req->send(409, "text/plain", "Radio busy - stop scan before changing config");
-          return;
-      }
-      if (!req->hasParam("channels", true) || !req->hasParam("targets", true)) {
-          req->send(400, "text/plain", "Missing parameters");
-          return;
-      }
-
-      String channelsCSV = req->getParam("channels", true)->value();
-      parseChannelsCSV(channelsCSV);
-      prefs.putString("channels", channelsCSV);
-
-      String targets = req->getParam("targets", true)->value();
-      if (!saveTargetsList(targets)) {
-          req->send(507, "text/plain", "Target list not saved: NVS write failed (limit 4000 bytes)");
-          return;
-      }
-
-      saveConfiguration();
-      req->send(200, "text/plain", "Configuration updated"); });
-
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         // Radio-busy guard: reject if any scan task is already running
@@ -1279,22 +1210,6 @@ void registerRemainingRoutes() {
                   ("Drone detection starting (forever) - " + dModeStr) :
                   ("Drone detection starting for " + String(secs) + "s - " + dModeStr)); });
 
-  server->on("/drone-results", HTTP_GET, [](AsyncWebServerRequest *r)
-             { r->send(200, "text/plain", getDroneDetectionResults()); });
-
-  server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r)
-             { r->send(200, "application/json", getDroneEventLog()); });
-
-  server->on("/drone/status", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        String status = "{";
-        status += "\"enabled\":" + String(droneDetectionEnabled ? "true" : "false") + ",";
-        status += "\"count\":" + String(droneDetectionCount) + ",";
-        size_t uniqueN;
-        { std::lock_guard<std::mutex> lock(detectedDronesMutex); uniqueN = detectedDrones.size(); }
-        status += "\"unique\":" + String(uniqueN);
-        status += "}";
-        r->send(200, "application/json", status); });
 
   server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1501,14 +1416,6 @@ void registerRemainingRoutes() {
       : "Session dedup OFF - every scan re-broadcasts all devices");
   });
 
-  server->on("/mesh/drain/status", HTTP_GET, [](AsyncWebServerRequest *req) {
-    String json = "{\"draining\":" + String(meshTxDraining.load() ? "true" : "false") +
-                  ",\"sent\":" + String(meshDrainSent.load()) +
-                  ",\"total\":" + String(meshDrainTotal.load()) +
-                  ",\"dedupCount\":" + String(meshDedupCount()) + "}";
-    req->send(200, "application/json", json);
-  });
-
   server->on("/api/mesh", HTTP_GET, [](AsyncWebServerRequest *req) {
     req->send(200, "application/json", meshFleetJson());
   });
@@ -1675,16 +1582,6 @@ void registerRemainingRoutes() {
           "INACTIVE";
       req->send(200, "text/plain", status);
   });
-
-  server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-    if (!req->hasParam("confirm", true) || !erasePskUserSet() ||
-        !validateEraseKeyChange(req->getParam("confirm", true)->value())) {
-        req->send(403, "text/plain", "Wrong key, or no key set");
-        return;
-    }
-    cancelTamperErase();
-    req->send(200, "text/plain", "Canceled"); });
 
   // Battery Saver endpoint
   server->on("/battery-saver", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -1991,70 +1888,8 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "Deleted " + String(n) + " capture" + (n == 1 ? "" : "s"));
   });
 
-  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
-      std::lock_guard<std::mutex> lock(deauthLogMutex);
-      String results = "Deauth Attack Detection Results\n\n";
-      results += "Deauth frames: " + String(deauthCount) + "\n";
-      results += "Disassoc frames: " + String(disassocCount) + "\n";
-      results += "Total attacks: " + String(deauthLog.size()) + "\n\n";
-      
-      if (deauthLog.empty()) {
-          results += "No attacks detected.\n";
-      } else {
-          results += "Attack Details:\n";
-          results += "===============\n\n";
-          
-          int show = min((int)deauthLog.size(), 100);
-          for (int i = 0; i < show; i++) {
-              const auto &hit = deauthLog[i];
-              
-              results += String(hit.isDisassoc ? "DISASSOCIATION" : "DEAUTHENTICATION");
-              
-              if (hit.isBroadcast) {
-                  results += " [BROADCAST ATTACK]\n";
-              } else {
-                  results += " [TARGETED]\n";
-              }
-              
-              results += "  From: " + macFmt6(hit.srcMac) + "\n";
-              results += "  To: " + macFmt6(hit.destMac) + "\n";
-              results += "  Network: " + macFmt6(hit.bssid) + "\n";
-              results += "  Signal: " + String(hit.rssi) + " dBm\n";
-              results += "  Channel: " + String(hit.channel) + "\n";
-              results += "  Reason: " + getDeauthReasonText(hit.reasonCode) + "\n";
-              
-              uint32_t age = (millis() - hit.timestamp) / 1000;
-              if (age < 60) {
-                  results += "  Time: " + String(age) + " seconds ago\n";
-              } else {
-                  results += "  Time: " + String(age / 60) + " minutes ago\n";
-              }
-              results += "\n";
-          }
-          
-          if ((int)deauthLog.size() > show) {
-              results += "... (" + String(deauthLog.size() - show) + " more)\n";
-          }
-      }
-      
-      r->send(200, "text/plain", results);
-  });
-
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getSnifferCache()); });
-
-    server->on("/randomization-results", HTTP_GET, [](AsyncWebServerRequest *r) {
-      static String cachedRandResults = "";
-      static uint32_t lastRandCalc = 0;
-
-      // Increased cache to 5 seconds to reduce mutex contention
-      if (millis() - lastRandCalc >= 5000) {
-          cachedRandResults = getRandomizationResults();
-          lastRandCalc = millis();
-      }
-
-      r->send(200, "text/plain", cachedRandResults);
-  });
 
   server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
       if (scanning || workerTaskHandle) {
@@ -2092,62 +1927,6 @@ void registerRemainingRoutes() {
 
       Serial.printf("[RAND] Clear-old removed %u identities\n", (unsigned)removed);
       req->send(200, "text/plain", "Removed " + String(removed) + " old identities");
-  });
-
-  server->on("/randomization/identities", HTTP_GET, [](AsyncWebServerRequest *r) {
-      std::lock_guard<std::mutex> lock(randMutex);
-      
-      String json = "[";
-      bool first = true;
-      
-      for (const auto& entry : deviceIdentities) {
-          if (!first) json += ",";
-          first = false;
-          
-          const DeviceIdentity& track = entry.second;
-          
-          int16_t avgRssi = 0;
-          if (track.signature.rssiHistoryCount > 0) {
-              int32_t sum = 0;
-              for (uint8_t i = 0; i < track.signature.rssiHistoryCount; i++) {
-                  sum += track.signature.rssiHistory[i];
-              }
-              avgRssi = sum / track.signature.rssiHistoryCount;
-          }
-          
-          String deviceType = track.isBLE ? "BLE Device" : "WiFi Device";
-          
-          json += "{";
-          json += "\"identityId\":\"" + String(track.identityId) + "\",";
-          json += "\"sessions\":" + String(track.observedSessions) + ",";
-          json += "\"confidence\":" + String(track.confidence, 2) + ",";
-          json += "\"avgRssi\":" + String(avgRssi) + ",";
-          json += "\"deviceType\":\"" + deviceType + "\",";
-          json += "\"sequenceTracking\":" + String(track.sequenceValid ? "true" : "false") + ",";
-          json += "\"hasFullSig\":" + String(track.signature.hasFullSignature ? "true" : "false") + ",";
-          json += "\"hasMinimalSig\":" + String(track.signature.hasMinimalSignature ? "true" : "false") + ",";
-          json += "\"intervalConsistency\":" + String(track.signature.intervalConsistency, 2) + ",";
-          json += "\"rssiConsistency\":" + String(track.signature.rssiConsistency, 2) + ",";
-          json += "\"observations\":" + String(track.signature.observationCount) + ",";
-          
-          if (track.hasKnownGlobalMac) {
-              json += "\"globalMac\":\"" + macFmt6(track.knownGlobalMac) + "\",";
-          }
-          
-          json += "\"macs\":[";
-          for (size_t i = 0; i < track.macs.size(); i++) {
-              if (i > 0) json += ",";
-              const uint8_t* mac = track.macs[i].bytes.data();
-              char macStr[18];
-              snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-              json += "\"" + String(macStr) + "\"";
-          }
-          json += "]}";
-      }
-      
-      json += "]";
-      r->send(200, "application/json", json);
   });
 
   server->on("/api/identity-map", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -2191,117 +1970,6 @@ void registerRemainingRoutes() {
         saveConfiguration();
         req->send(200, "text/plain", "Allowlist saved"); });
 
-  server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-          req->send(409, "text/plain", "Radio busy - stop the running scan first");
-          return;
-      }
-
-      if (!req->hasParam("mac", true) || !req->hasParam("duration", true)) {
-        req->send(400, "text/plain", "Missing mac or duration parameter");
-        return;
-      }
-
-      String targetMac = req->getParam("mac", true)->value();
-      int duration = req->getParam("duration", true)->value().toInt();
-
-      if (duration < 20) {
-        req->send(400, "text/plain", "Error: Triangulation requires minimum 20 seconds duration");
-        return;
-      }
-
-      uint8_t macBytes[6];
-      if (!parseMac6(targetMac, macBytes)) {
-        req->send(400, "text/plain", "Error: Invalid MAC address format");
-        return;
-      }
-
-      // Set RF environment if specified (0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial)
-      uint8_t rfEnv = RF_ENV_INDOOR;
-      if (req->hasParam("rfEnv", true)) {
-          rfEnv = req->getParam("rfEnv", true)->value().toInt();
-          if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
-      }
-      setRFEnvironment((RFEnvironment)rfEnv);
-
-      distanceTuning.wifi_multiplier = 1.0f;
-      distanceTuning.ble_multiplier = 1.0f;
-      distanceTuning.enabled = false;
-
-      if (req->hasParam("wifiPwr", true)) {
-          float wifiPwr = req->getParam("wifiPwr", true)->value().toFloat();
-          if (wifiPwr >= 0.1f && wifiPwr <= 5.0f) {
-              distanceTuning.wifi_multiplier = wifiPwr;
-              distanceTuning.enabled = true;
-          }
-      }
-
-      if (req->hasParam("blePwr", true)) {
-          float blePwr = req->getParam("blePwr", true)->value().toFloat();
-          if (blePwr >= 0.1f && blePwr <= 5.0f) {
-              distanceTuning.ble_multiplier = blePwr;
-              distanceTuning.enabled = true;
-          }
-      }
-
-      String triErr;
-      if (!startTriangulation(targetMac, duration, &triErr)) {
-          req->send(400, "text/plain", triErr.length() ? triErr : String("Triangulation failed to start"));
-          return;
-      }
-
-      String response = "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv);
-      if (distanceTuning.enabled) {
-          response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 2) + "x, BLE=" + String(distanceTuning.ble_multiplier, 2) + "x";
-      }
-      response += ")";
-      req->send(200, "text/plain", response);
-  });
-
-  server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
-    requestTriangulationStop();
-    req->send(200, "text/plain", "Triangulation stopping");
-  });
-
-  server->on("/triangulate/status", HTTP_GET, [](AsyncWebServerRequest *req) {
-    size_t nodeCount;
-    {
-        std::lock_guard<std::mutex> lock(triangulationMutex);
-        nodeCount = triangulationNodes.size();
-    }
-    String json = "{";
-    json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
-    json += "\"target\":\"" + triangulationTargetStr() + "\",";
-    json += "\"duration\":" + String(triangulationDuration) + ",";
-    json += "\"elapsed\":" + String((millis() - triangulationStart) / 1000) + ",";
-    json += "\"nodes\":" + String(nodeCount);
-    json += "}";
-    req->send(200, "application/json", json);
-  });
-
-  server->on("/triangulate/results", HTTP_GET, [](AsyncWebServerRequest *req) {
-    bool noNodes;
-    {
-        std::lock_guard<std::mutex> lock(triangulationMutex);
-        noNodes = (triangulationNodes.size() == 0);
-    }
-    if (noNodes) {
-      req->send(200, "text/plain", "No triangulation data available");
-      return;
-    }
-
-    static String cachedTriResults = "";
-    static uint32_t lastTriCalc = 0;
-
-    // Recalculate every 1 second for more responsive updates during active triangulation
-    if (millis() - lastTriCalc >= 1000) {
-      cachedTriResults = calculateTriangulation();
-      lastTriCalc = millis();
-    }
-
-    req->send(200, "text/plain", cachedTriResults);
-  });
-
   server->on("/triangulate/calibrate", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("mac", true) || !req->hasParam("distance", true)) {
           req->send(400, "text/plain", "Missing mac or distance parameter");
@@ -2311,61 +1979,23 @@ void registerRemainingRoutes() {
       String targetMac = req->getParam("mac", true)->value();
       float distance = req->getParam("distance", true)->value().toFloat();
 
-      calibratePathLoss(targetMac, distance);
-      req->send(200, "text/plain", "Path loss calibration started for " + targetMac + " at " + String(distance) + "m");
+      String err;
+      if (!calibratePathLoss(targetMac, distance, &err)) {
+          if (err == "BUSY") req->send(409, "text/plain", "Radio busy - stop the running scan first");
+          else if (err == "INVALID") req->send(400, "text/plain", "Need a valid MAC and a distance from 0.5 to 100 m");
+          else req->send(500, "text/plain", "Calibration failed to start");
+          return;
+      }
+      req->send(200, "text/plain", "Calibration started for " + targetMac + " at " + String(distance, 1) + " m");
   });
 
-  server->on("/triangulate/nodes", HTTP_GET, [](AsyncWebServerRequest *req) {
-      // Return triangulation node data as JSON for map display
-      String json = "{";
-      json += "\"target\":\"" + triangulationTargetStr() + "\",";
-      json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
+  server->on("/triangulate/calibrate", HTTP_GET, [](AsyncWebServerRequest *req) {
+      req->send(200, "application/json", calibrationJson());
+  });
 
-      // Add final result if available
-      {
-          std::lock_guard<std::mutex> lock(triangulationMutex);
-          if (apFinalResult.hasResult) {
-              json += "\"finalResult\":{";
-              json += "\"lat\":" + String(apFinalResult.latitude, 6) + ",";
-              json += "\"lon\":" + String(apFinalResult.longitude, 6) + ",";
-              json += "\"confidence\":" + String(apFinalResult.confidence * 100.0, 1) + ",";
-              json += "\"uncertainty\":" + String(apFinalResult.uncertainty, 1) + ",";
-              json += "\"coordinator\":\"" + apFinalResult.coordinatorNodeId + "\"";
-              json += "},";
-          }
-      }
-
-      // Add nodes array
-      std::vector<TriangulationNode> nodesSnapshot;
-      {
-          std::lock_guard<std::mutex> lock(triangulationMutex);
-          nodesSnapshot = triangulationNodes;
-      }
-      json += "\"nodes\":[";
-      for (size_t i = 0; i < nodesSnapshot.size(); i++) {
-          const auto& node = nodesSnapshot[i];
-          json += "{";
-          json += "\"id\":\"" + node.nodeId + "\",";
-          json += "\"hasGPS\":" + String(node.hasGPS ? "true" : "false") + ",";
-          if (node.hasGPS) {
-              json += "\"lat\":" + String(node.lat, 6) + ",";
-              json += "\"lon\":" + String(node.lon, 6) + ",";
-              json += "\"hdop\":" + String(node.hdop, 1) + ",";
-          }
-          json += "\"rssi\":" + String(node.filteredRssi, 1) + ",";
-          json += "\"hits\":" + String(node.hitCount) + ",";
-          json += "\"quality\":" + String(node.signalQuality * 100.0, 1) + ",";
-          json += "\"type\":\"" + String(node.isBLE ? "BLE" : "WiFi") + "\",";
-          json += "\"distance\":" + String(node.distanceEstimate, 1);
-          json += "}";
-          if (i < nodesSnapshot.size() - 1) {
-              json += ",";
-          }
-      }
-      json += "]";
-      json += "}";
-
-      req->send(200, "application/json", json);
+  server->on("/triangulate/calibrate/reset", HTTP_POST, [](AsyncWebServerRequest *req) {
+      calibrationReset();
+      req->send(200, "text/plain", "Calibration cleared");
   });
 
   server->on("/rf-config", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2677,6 +2307,7 @@ void registerRemainingRoutes() {
   });
   server->on("/api/onboarding", HTTP_POST, [](AsyncWebServerRequest *r) {
       prefs.putBool("obDone", true);
+      saveConfiguration();
       r->send(200, "application/json", "{\"accepted\":true}");
   });
 
@@ -2740,17 +2371,6 @@ void registerRemainingRoutes() {
       if (SD.exists("/deauth_flood.jsonl")) r->send(SD, "/deauth_flood.jsonl", "application/x-ndjson");
       else                                  r->send(200, "application/x-ndjson", "");
   });
-  server->on("/api/deauth_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      SafeSD::remove("/deauth_flood.jsonl"); r->send(200, "text/plain", "cleared");
-  });
-  server->on("/api/deauth_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/deauth_ap.jsonl")) r->send(SD, "/deauth_ap.jsonl", "application/x-ndjson");
-      else                               r->send(200, "application/x-ndjson", "");
-  });
-  server->on("/api/probe_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/probe_ap.jsonl")) r->send(SD, "/probe_ap.jsonl", "application/x-ndjson");
-      else                              r->send(200, "application/x-ndjson", "");
-  });
   server->on("/api/apclients.json", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getApClientsJson());
   });
@@ -2809,16 +2429,7 @@ void registerRemainingRoutes() {
           return;
       }
       sentinel_setUserEnabled(true);
-      r->send(200, "text/plain", "started (WiFi-only — BLE separate endpoint)");
-  });
-  server->on("/api/sentinel/ble/start", HTTP_POST, [](AsyncWebServerRequest *r) {
-      if (ESP.getFreeHeap() < 60000) {
-          r->send(409, "text/plain", "insufficient heap for BLE controller init");
-          return;
-      }
-      extern void radioStartBLE();
-      radioStartBLE();
-      r->send(200, "text/plain", "BLE scan started");
+      r->send(200, "text/plain", "started");
   });
   server->on("/api/sentinel/stop", HTTP_POST, [](AsyncWebServerRequest *r) {
       sentinel_setUserEnabled(false);
@@ -3093,8 +2704,8 @@ async function tick(){
   jget('/api/rid_claims'),jget('/api/recon')
  ]);
  const c=t=>t.split('\n').filter(l=>l.trim()).length;
- cnt_pmkid.textContent=c(pm);cnt_et.textContent=c(et);cnt_sc.textContent=c(sc);
- cnt_sae.textContent=c(sa);cnt_owe.textContent=c(ow);cnt_frag.textContent=c(fr);cnt_blem.textContent=c(bm);
+ const cnt=(id,t)=>{document.getElementById('cnt-'+id).textContent=c(t)};
+ cnt('pmkid',pm);cnt('et',et);cnt('sc',sc);cnt('sae',sa);cnt('owe',ow);cnt('frag',fr);cnt('blem',bm);
  stream.textContent=[pm,et,sc,sa,ow,fr,bm].join('---\n').slice(-4000);
  pps.textContent=(p.locked?'YES':'no')+' edge='+p.last_edge;
  bl.textContent=b.local_bits_set+' / '+b.capacity_bits;

@@ -563,24 +563,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div id="ob-scroll" style="flex:1;overflow-y:auto;padding:0 24px 16px;-webkit-overflow-scrolling:touch">
           <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Authorized Use Only</div><div style="font-size:13px;color:#8898b8;line-height:1.5">For use on networks and systems you own or have explicit written permission to assess. Comply with all local privacy, radio, and telecom laws.</div></div>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Authorized, Defensive Use Only</div><div style="font-size:13px;color:#8898b8;line-height:1.5">Use AntiHunter only on networks, devices, and radio spectrum that you own or have explicit written permission to assess. Surveillance, stalking, harassment, and tracking people without their informed consent are prohibited. Detection and triangulation describe an environment you are authorized to assess; they are not for identifying or following people.</div></div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c09040" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">No Warranty</div><div style="font-size:13px;color:#8898b8;line-height:1.5">Provided "AS IS" without warranty of any kind. Detection accuracy is not guaranteed. Do not rely on this for safety-critical decisions.</div></div>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Know the Law Where You Operate</div><div style="font-size:13px;color:#8898b8;line-height:1.5">Radio, interception, wiretap, and computer-misuse laws differ by country and state. Capturing, storing, or decoding radio traffic can be unlawful even when receiving it is not. Confirm each scan mode is lawful where you use it before you turn it on. Receiving drone Remote ID does not authorize you to approach, confront, or interfere with an aircraft or its operator.</div></div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Privacy and Data</div><div style="font-size:13px;color:#8898b8;line-height:1.5">All data is stored locally on your device. You are responsible for securing collected data and complying with data protection laws (e.g., GDPR) in your jurisdiction.</div></div>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Personal Data</div><div style="font-size:13px;color:#8898b8;line-height:1.5">MAC addresses, probe requests, BLE advertisements, and Remote ID broadcasts can be personal data under GDPR, CCPA, and similar laws. Collect only with a lawful basis, keep only what you need, secure it, and delete it on schedule. Data stays on this node and its SD card; the maintainers never receive it.</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c09040" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">No Warranty, Advisory Only</div><div style="font-size:13px;color:#8898b8;line-height:1.5">AntiHunter is provided "AS IS", without warranty of any kind, as set out in sections 15-17 of the GNU AGPL v3.0. Detections are advisory and include false positives and misses. Experimental features, including Sentinel, Triangulation, and MAC randomization correlation, are unvalidated. Do not rely on any result for safety, evidentiary, or investigative decisions.</div></div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Your Responsibility</div><div style="font-size:13px;color:#8898b8;line-height:1.5">By continuing, you accept full responsibility for your actions and agree to indemnify the authors and contributors against any claims arising from your use.</div></div>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Your Responsibility</div><div style="font-size:13px;color:#8898b8;line-height:1.5">You alone are responsible for how you build, deploy, and operate this node and for complying with every law, license, and permit that applies. To the maximum extent permitted by law, the authors, maintainers, and contributors are not liable for any damages from your use, and you agree to indemnify and hold them harmless from claims arising from it. The full terms are in the Legal disclaimer section of the README. If you do not agree, stop and power off the node.</div></div>
           </div>
         </div>
         <div style="padding:12px 24px 28px;flex-shrink:0;text-align:center">
-          <div id="ob-hint" style="font-size:11px;color:#6878a0;margin-bottom:10px;transition:opacity 0.3s">Scroll to review all sections</div>
-          <button id="ob-btn" disabled onclick="obAccept()" style="width:100%;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#6878a0;font-size:15px;font-weight:600;cursor:not-allowed;transition:all 0.5s cubic-bezier(0.4,0,0.2,1)">Continue</button>
+          <div id="ob-hint" style="font-size:11px;color:#6878a0;margin-bottom:10px;transition:opacity 0.3s">Scroll to read all terms</div>
+          <button id="ob-btn" disabled onclick="obAccept()" style="width:100%;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#6878a0;font-size:15px;font-weight:600;cursor:not-allowed;transition:all 0.5s cubic-bezier(0.4,0,0.2,1)">I agree</button>
         </div>
       </div>
     </div>
@@ -603,17 +607,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           bt.disabled=false;bt.classList.add('ready');hn.style.opacity='0';
         }
       }
-//    fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
-//      if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
-//    }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
-//    sc.addEventListener('scroll',chkScroll);
-//    window.obAccept=function(){
-//      if(bt.disabled)return;
-//      fetch('/api/onboarding',{method:'POST'}).then(function(){
-//        ov.style.opacity='0';ov.style.transition='opacity 0.4s';
-//        setTimeout(function(){ov.style.display='none'},400);
-//      });
-//    };
+      fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
+        if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
+      }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
+      sc.addEventListener('scroll',chkScroll);
+      window.obAccept=function(){
+        if(bt.disabled)return;
+        fetch('/api/onboarding',{method:'POST'}).then(function(){
+          ov.style.opacity='0';ov.style.transition='opacity 0.4s';
+          setTimeout(function(){ov.style.display='none'},400);
+        });
+      };
     })();
     </script>
     <div id="toast"></div>
@@ -1135,6 +1139,28 @@ R"HTML(
                   </div>
                 </div>
                 <div class="sfoot"><span class="sfoot-t">RF environment applies as soon as you pick it.</span><button class="btn primary" type="button" onclick="saveRFConfig()">Save</button></div>
+              </div>
+            </div>
+            <div class="set-grp">
+              <h3>Distance calibration</h3>
+              <div class="set-box">
+                <div class="srow">
+                  <div class="srow-l"><label for="calNode">Node</label><p>Calibrate this node, or send the calibration to another node on the mesh. A remote node replies on the mesh when it finishes.</p></div>
+                  <div class="srow-c"><select id="calNode" onfocus="fleetNodeOptions(this, 'This node')"><option value="">This node</option></select></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="calMac">Reference device</label><p>MAC address of a Wi-Fi access point or BLE device placed at a measured distance from the node. The node listens to it for 30 seconds.</p></div>
+                  <div class="srow-c"><input type="text" id="calMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><label for="calDist">Distance</label><p>Measured distance from the node to the device, from 0.5 to 100 m.</p></div>
+                  <div class="srow-c"><input type="number" id="calDist" min="0.5" max="100" step="0.1" placeholder="meters"></div>
+                </div>
+                <div class="srow">
+                  <div class="srow-l"><b>This node</b><p id="calState">Not calibrated. Distances use the RF environment.</p></div>
+                  <div class="srow-c"><button class="btn alt" type="button" onclick="calReset()">Reset</button></div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">Calibration is kept after a reboot and saved to the SD card. Reset it when you move the node.</span><button class="btn primary" type="button" onclick="calStart()">Calibrate</button></div>
               </div>
             </div>
             <div class="set-grp">
@@ -2973,7 +2999,8 @@ R"HTML(
               customDiv.style.display = 'block';
               setRFFieldsEditable(cfg.preset === 3);
             }
-          } catch(e) {}
+          } catch(e) { console.warn('rf-config load', e); }
+          calRefresh();
       }
 
       async function saveRFEnv() {
@@ -2983,6 +3010,49 @@ R"HTML(
           const r = await fetch('/rf-config', { method: 'POST', body: fd });
           toast(r.ok ? 'RF environment saved' : 'Save failed', r.ok ? 'success' : 'error');
         } catch (e) { toast('Save failed: ' + e, 'error'); }
+        calRefresh();
+      }
+
+      async function calRefresh() {
+        const el = document.getElementById('calState');
+        if (!el) return;
+        try {
+          const d = await (await fetch('/triangulate/calibrate')).json();
+          if (d.running) {
+            el.textContent = 'Calibrating now. Keep the reference device in place.';
+            setTimeout(calRefresh, 3000);
+            return;
+          }
+          const v = x => x === null ? 'none' : x + ' dBm';
+          el.textContent = d.distance === null
+            ? 'Not calibrated. Distances use the RF environment.'
+            : 'Calibrated at ' + d.distance + ' m. Signal at 1 m: Wi-Fi ' + v(d.wifiRssi0) + ', BLE ' + v(d.bleRssi0) + '.';
+        } catch (e) { console.warn('calibration status', e); }
+      }
+
+      async function calStart() {
+        const node = document.getElementById('calNode').value;
+        const mac = document.getElementById('calMac').value.trim().toUpperCase();
+        const dist = document.getElementById('calDist').value.trim();
+        try {
+          const r = node
+            ? await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node, cmd: 'CALIBRATE:' + mac + ':' + dist }) })
+            : await fetch('/triangulate/calibrate', { method: 'POST', body: new URLSearchParams({ mac, distance: dist }) });
+          toast(await r.text(), r.ok ? 'success' : 'error');
+        } catch (e) { toast('Calibration failed: ' + e, 'error'); }
+        if (!node) calRefresh();
+      }
+
+      async function calReset() {
+        const node = document.getElementById('calNode').value;
+        if (!confirm('Clear the distance calibration on ' + (node || 'this node') + '?')) return;
+        try {
+          const r = node
+            ? await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node, cmd: 'CALIBRATE_RESET' }) })
+            : await fetch('/triangulate/calibrate/reset', { method: 'POST' });
+          toast(await r.text(), r.ok ? 'success' : 'error');
+        } catch (e) { toast('Reset failed: ' + e, 'error'); }
+        if (!node) calRefresh();
       }
 
       function setRFFieldsEditable(editable) {
@@ -3274,10 +3344,6 @@ R"HTML(
         } catch(e) { toast('Failed to set interval', 'error'); }
       }
 
-      function loadMeshStatus() {
-        updateMeshUI();
-      }
-
       async function saveRFConfig() {
         const preset = parseInt(document.getElementById('rfPreset').value);
         const threshold = parseInt(document.getElementById('globalRssiSlider').value);
@@ -3393,17 +3459,6 @@ R"HTML(
         }
       }
 
-      function toggleCard(cardId) {
-        const card = document.getElementById(cardId);
-        const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
-        if (card.style.display === 'none') {
-          card.style.display = 'block';
-          toggle.style.transform = 'rotate(0deg)';
-        } else {
-          card.style.display = 'none';
-          toggle.style.transform = 'rotate(-90deg)';
-        }
-      }
            
       async function loadBaselineAnomalyConfig() {
         try {
@@ -3571,26 +3626,6 @@ R"HTML(
           updateBaselineStatus();
         }
       }, 2000);
-      
-      async function saveBaselineConfig() {
-        const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
-        const duration = document.getElementById('baselineDuration').value;
-        const ramSize = document.getElementById('baselineRamSize').value;
-        const sdMax = document.getElementById('baselineSdMax').value;
-        
-        try {
-          const response = await fetch('/baseline/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
-          });
-          const data = await response.text();
-          toast('Baseline configuration saved', 'success');
-          await updateBaselineStatus();
-        } catch (error) {
-          toast('Error saving config: ' + error, 'error');
-        }
-      }
       
       async function resetBaseline() {
         if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
@@ -4071,55 +4106,13 @@ R"HTML(
         const target = row.querySelector('.chip[data-value="' + value + '"]');
         if (target) target.classList.add('active');
       }
-      function _applyAePreset(preset, setupMs, delayMs, cooldownMs) {
-        const chips = document.querySelectorAll('#aePresetChips .chip');
-        chips.forEach(c => c.classList.toggle('active', c.dataset.preset === preset));
-        const custom = document.getElementById('aeCustomTiming');
-        const hint = document.getElementById('aePresetHint');
-        if (preset === 'custom') {
-          if (custom) custom.style.display = 'block';
-          if (hint) hint.textContent = 'Pick each timing below';
-          return;
-        }
-        if (custom) custom.style.display = 'none';
-        _setChipVal('setupDelay', String(setupMs));
-        _setChipVal('autoEraseDelay', String(delayMs));
-        _setChipVal('autoEraseCooldown', String(cooldownMs));
-        if (hint) {
-          const fmt = ms => { const s = Math.round(ms/1000); if (s < 60) return s + 's'; const m = Math.round(s/60); return m < 60 ? m + 'm' : Math.round(m/60) + 'h'; };
-          const labels = { paranoid: 'Paranoid', balanced: 'Balanced', relaxed: 'Relaxed' };
-          hint.textContent = labels[preset] + ' — ' + fmt(setupMs) + ' arm / ' + fmt(delayMs) + ' abort / ' + fmt(cooldownMs) + ' cooldown';
-        }
-      }
-      function _matchAePresetFromValues() {
-        const s = _chipVal('setupDelay'), d = _chipVal('autoEraseDelay'), c = _chipVal('autoEraseCooldown');
-        const presets = document.querySelectorAll('#aePresetChips .chip[data-preset]');
-        let matched = 'custom';
-        presets.forEach(p => {
-          if (p.dataset.preset === 'custom') return;
-          if (p.dataset.setup === s && p.dataset.delay === d && p.dataset.cooldown === c) matched = p.dataset.preset;
-        });
-        const p = Array.from(presets).find(x => x.dataset.preset === matched);
-        if (p) _applyAePreset(matched, p.dataset.setup, p.dataset.delay, p.dataset.cooldown);
-        else _applyAePreset('custom');
-      }
       document.addEventListener('click', (e) => {
-        const presetChip = e.target.closest('#aePresetChips .chip[data-preset]');
-        if (presetChip) {
-          const p = presetChip.dataset.preset;
-          if (p === 'custom') _applyAePreset('custom');
-          else _applyAePreset(p, presetChip.dataset.setup, presetChip.dataset.delay, presetChip.dataset.cooldown);
-          return;
-        }
         const chip = e.target.closest('.chip-row .chip');
         if (!chip) return;
         const row = chip.closest('.field-row');
         if (!row) return;
         row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        if (['setupDelay','autoEraseDelay','autoEraseCooldown'].includes(row.dataset.field)) {
-          _matchAePresetFromValues();
-        }
       });
       async function loadVibScanConfig() {
         try {
@@ -4595,21 +4588,6 @@ R"HTML(
         if (topMatch) html += '<div class="res-more" style="border:1px dashed var(--bord);border-radius:8px;padding:12px;">Showing top ' + topMatch[1] + ' of ' + topMatch[2] + ' identities</div>';
         html += liveHtml;
         return html;
-      }
-
-      function toggleTrackCollapse(cardId) {
-        const content = document.getElementById(cardId + 'Content');
-        const icon = document.getElementById(cardId + 'Icon');
-        
-        if (content.style.display === 'none') {
-          content.style.display = 'block';
-          icon.style.transform = 'rotate(0deg)';
-          icon.textContent = '▼';
-        } else {
-          content.style.display = 'none';
-          icon.style.transform = 'rotate(-90deg)';
-          icon.textContent = '▶';
-        }
       }
 
       function parseBaselineResults(text) {
@@ -5316,7 +5294,6 @@ R"HTML(
           if (typeof data.cooldown !== 'undefined') _setChipVal('autoEraseCooldown', data.cooldown);
           if (typeof data.vibrationsRequired !== 'undefined') _setChipVal('vibrationsRequired', data.vibrationsRequired);
           if (typeof data.detectionWindow !== 'undefined') _setChipVal('detectionWindow', data.detectionWindow);
-          _matchAePresetFromValues();
 
           if (!data.enabled) {
             statusText = 'DISABLED - Manual erase only';
@@ -5501,29 +5478,6 @@ R"HTML(
         });
       }
 
-      function formatDiagnostics(text) {
-        if (!text || text.trim() === '') return '<div style="color:var(--mut);padding:20px;text-align:center;">No data</div>';
-        
-        const lines = text.trim().split('\n');
-        let html = '<div class="stat-grid">';
-        
-        lines.forEach(line => {
-          const parts = line.split(':');
-          if (parts.length >= 2) {
-            const label = parts[0].trim();
-            const value = parts.slice(1).join(':').trim();
-            
-            html += '<div class="stat-item">';
-            html += '<div class="stat-label">' + label + '</div>';
-            html += '<div class="stat-value">' + value + '</div>';
-            html += '</div>';
-          }
-        });
-        
-        html += '</div>';
-        return html;
-      }
-
       function formatDiagGrid(text,type){
         if(!text||text.trim()==='')return'<div style="color:var(--mut);text-align:center;padding:20px;">No data</div>';
         let html='<div class="diag-grid">';
@@ -5640,20 +5594,7 @@ R"HTML(
           updateStatusIndicators(diagText);
           updateMeshTxIndicator(diagText);
 
-          // --- Optional fetches: only when needed, skip what baseline already handles ---
-          const droneActive = diagText.includes('Drone Detection: Active');
           const baselineHandling = !!baselineUpdateInterval;
-          const fetchPromises = [];
-          if (droneActive) fetchPromises.push(fetch('/drone/status').catch(() => null));
-          else fetchPromises.push(Promise.resolve(null));
-          const [droneResponse] = await Promise.all(fetchPromises);
-          if (droneResponse) {
-            try {
-              const droneData = await droneResponse.json();
-              document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
-              document.getElementById('droneStatus').classList.add('active');
-            } catch (e) {}
-          }
           if (radioBusyTask === 'baseline' && !baselineHandling) {
             try {
               const bsResp = await fetch('/baseline/stats');
@@ -5789,15 +5730,6 @@ R"HTML(
           const tb=document.getElementById('sentToggleBtn');
           if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
         } catch(e){ console.error('sentinelRefresh', e); }
-      }
-      async function sentinelStart(){
-        const r = await fetch('/api/sentinel/start', {method:'POST'});
-        if (!r.ok) alert('Start failed: ' + await r.text());
-        sentinelRefresh();
-      }
-      async function sentinelStop(){
-        await fetch('/api/sentinel/stop', {method:'POST'});
-        sentinelRefresh();
       }
       setInterval(() => { if (pageActive('detect')) sentinelRefresh(); }, 4000);
       sentinelRefresh();
@@ -6781,7 +6713,7 @@ R"HTML(
         vibrations:{url:'/api/vibrations.jsonl',clear:'/api/vibrations/clear',fmt:'jsonl',
           cols:['Time','Uptime','Lat','Lon'],
           keys:['t','uptime_ms','lat','lon']},
-        baseline:{url:'/baseline/stats',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
+        baseline:{url:'/baseline/config',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
           cols:['Time','Message'],keys:['_time','_msg']},
 )HTML"
@@ -7013,12 +6945,12 @@ R"HTML(
         var area=document.getElementById('dataArea');document.getElementById('dataPager').style.display='none';
         try{var d=JSON.parse(text);
           area.innerHTML='<div class="stat-grid">'
-            +'<div class="stat-item"><div class="stat-label">Devices</div><div class="stat-value">'+(d.deviceCount||d.devices||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">RAM Cache</div><div class="stat-value">'+(d.ramSize||d.ram||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">SD Cache</div><div class="stat-value">'+(d.sdSize||d.sd||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">RSSI Threshold</div><div class="stat-value">'+(d.rssiThreshold||d.rssi||'-70')+' dBm</div></div>'
-            +'<div class="stat-item"><div class="stat-label">Absence</div><div class="stat-value">'+(d.absenceThreshold||d.absence||'120')+'s</div></div>'
-            +'<div class="stat-item"><div class="stat-label">Reappear Window</div><div class="stat-value">'+(d.reappearWindow||d.reappear||'300')+'s</div></div>'
+            +'<div class="stat-item"><div class="stat-label">Devices</div><div class="stat-value">'+(d.deviceCount||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">RAM Cache</div><div class="stat-value">'+(d.ramCacheSize||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">SD Cache</div><div class="stat-value">'+(d.sdMaxDevices||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">RSSI Threshold</div><div class="stat-value">'+d.rssiThreshold+' dBm</div></div>'
+            +'<div class="stat-item"><div class="stat-label">Absence</div><div class="stat-value">'+d.absenceThreshold+'s</div></div>'
+            +'<div class="stat-item"><div class="stat-label">Reappear Window</div><div class="stat-value">'+d.reappearanceWindow+'s</div></div>'
             +'</div><div style="margin-top:16px;"><button class="btn danger" onclick="if(confirm(\'Reset all baseline data?\'))fetch(\'/baseline/reset\',{method:\'POST\'}).then(function(){toast(\'Baseline reset\',\'success\');loadDataSet();})">Reset Baseline</button></div>';
         }catch(e){area.innerHTML='<div class="data-empty">No baseline data available.</div>';}
       }
@@ -7047,10 +6979,6 @@ R"HTML(
 #if AH_SENTINEL
 R"HTML(
       // ===== Detect tab logic =====
-      function _safeParse(s){
-        try{return JSON.parse(s);}
-        catch(e){console.warn('detect: bad json line', e); return null;}
-      }
       async function _jt(u){
         try{const r=await fetch(u);if(!r.ok)return '';return await r.text();}
         catch(e){console.warn('detect: fetch text failed', u, e); return '';}
@@ -7059,7 +6987,6 @@ R"HTML(
         try{const r=await fetch(u);return await r.json();}
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
-      function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
       function _sessBase(path){
         if(!_sessMark||!_sessMark.marked||!_sessMark.logs)return 0;
         return _sessMark.logs[path]||0;
@@ -7186,11 +7113,11 @@ R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,rc,ch,sess]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,df,q,b,p,rid,rc,ch,sess]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
-          _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
+          _jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
           _jj('/api/rid_claims'),_jj('/api/recon'),
           _jj('/api/channel_partition'),_jj('/api/detect/session')
@@ -7217,25 +7144,6 @@ R"HTML(
         detRenderTable('d-recpre',rc||[],[
           {key:'id',label:'TrackId'},{key:'score',label:'Score'},
           {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
-        ]);
-        const evtRows=[];
-        function parseLines(s,kind,sevHint,path){
-          _sessLines(s,path).forEach(l=>{
-            const o=_safeParse(l);
-            if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
-          });
-        }
-        parseLines(pm,'PMKID','crit','/pmkid.jsonl');parseLines(et,'EvilTwin','high','/eviltwin.jsonl');
-        parseLines(sc,'SSIDConf','high','/ssid_confusion.jsonl');
-        parseLines(sa,'SAE','high','/sae_dos.jsonl');parseLines(ow,'OWE','med','/owe_abuse.jsonl');
-        parseLines(fr,'Frag','med','/fragattack.jsonl');
-        parseLines(bm,'BLEMalformed','med','/ble_malformed.jsonl');
-        evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
-        detRenderTable('d-stream',evtRows.slice(0,40),[
-          {key:'kind',label:'Type'},
-          {key:'sev',label:'Sev',get:r=>r.sev.toUpperCase()},
-          {key:'ts',label:'Age',get:r=>_ago(r.ts)},
-          {key:'raw',label:'Detail',get:r=>r.raw}
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
         if(_countSess(pm,'/pmkid.jsonl')>0||_countSess(et,'/eviltwin.jsonl')>0||_countSess(sc,'/ssid_confusion.jsonl')>0||_countSess(sa,'/sae_dos.jsonl')>0)detMarkActive('rid');
@@ -7739,14 +7647,6 @@ R"HTML(
         // Tool-fingerprint detectors (tool/tool byte/behavior matches) split out
         // for clarity. Re-classifying probe_flood + assoc_sleep here.
         const toolKeys=['probe_flood','assoc_sleep'];
-        const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof','karma'];
-        const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
-        const tsfKey='tsf';const bloomKey='bloom_gossip';
-        function rowHtml(k,label){
-          const on=_detCfg[k]===true;
-          return `<div class="det-row"><div class="name">${label}</div>
-            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> enabled</label></div>`;
-        }
         function rowMesh(k,label){
           const on=_detCfg[k]===true;
           return `<div class="det-row"><div class="name">${label}</div>

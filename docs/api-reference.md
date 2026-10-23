@@ -35,8 +35,6 @@ Parameters shared by the start routes:
 | `/` | GET | The web interface |
 | `/diag` | GET | Diagnostics as text. Shows `Stopping: yes` until a stopped scan has exited |
 | `/stop` | GET | Stops every scan and task: aborts Wi-Fi and BLE scans, stops triangulation, cancels the mesh queue, and cancels Sentinel follow-up scans |
-| `/config` | GET | JSON: `nodeId`, `scanMode`, `channels`, `targets`. (C5) Also `bandMode` and `dualBand` |
-| `/config` | POST | Sets `channels` and `targets` (both required). (C5) `bandMode` is optional (`0` 2.4 GHz, `1` 5 GHz, `2` both). `409` while a scan runs, `507` if the target list does not fit (4000 bytes) |
 | `/node-id` | GET | JSON: `nodeId` |
 | `/node-id` | POST | `id`: 2-5 letters or digits, saved in upper case |
 | `/save` | POST | `list`: replaces the target list. `400` if missing, `507` if it does not fit (4000 bytes). The running list stays unchanged on failure |
@@ -45,7 +43,7 @@ Parameters shared by the start routes:
 | `/allowlist-save` | POST | `list`: replaces the allowlist. `409` while a scan runs |
 | `/clear-results` | POST | Clears the results text |
 | `/api/time` | POST | `epoch`: sets the clock, in UTC seconds from 1609459200 to 2147483647 |
-| `/api/onboarding` | GET, POST | JSON: `accepted`, the first-run disclaimer. POST marks it accepted |
+| `/api/onboarding` | GET, POST | JSON: `accepted`, whether the first-run terms were accepted. POST marks them accepted and saves that to NVS and the SD card |
 
 ## Scanning
 
@@ -129,11 +127,6 @@ The node keeps 8 blocks. Replies: `400` bad input, `404` block not found, `413` 
 |---|---|---|
 | `/results` | GET | Latest scan or triangulation results (text) |
 | `/sniffer-cache` | GET | Devices cached by the running scan (text) |
-| `/deauth-results` | GET | Deauth attack summary and the last 100 attacks (text) |
-| `/randomization-results` | GET | Randomization correlation results (text, refreshed every 5 seconds) |
-| `/drone-results` | GET | Drone detection results (text) |
-| `/drone-log` | GET | Drone events (JSON) |
-| `/drone/status` | GET | JSON: `enabled`, `count`, `unique` |
 | `/csi-results` | GET | (Beta, C5) CSI motion status as text: channel, tracked transmitters, motion events, trigger level, and the score of each transmitter |
 | `/csi-json` | GET | (Beta, C5) The same data as JSON |
 
@@ -167,7 +160,6 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/mesh-dedup-ttl` | POST | `ttl`: seconds before a device is reported again, 0-3600. `0` turns deduplication off. Default 300 |
 | `/mesh-dedup-clear` | POST | Empties the deduplication memory |
 | `/mesh-session-dedup` | POST | `on`: `1` sends only devices not yet reported this session, `0` sends all |
-| `/mesh/drain/status` | GET | JSON: `draining`, `sent`, `total`, `dedupCount` |
 | `/vibration` | POST | `enabled=true` or `false`: the movement alert |
 | `/vibration-scan` | GET | JSON: `enabled`, `mode`, `duration`, `cooldown` (seconds), `preempt` |
 | `/vibration-scan` | POST | Saves the movement-scan settings: `enabled`, `mode`, `duration`, `cooldown`, `preempt`. `400` if `mode` is `8` and `duration` is `0` |
@@ -228,7 +220,6 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/sentinel/status` | GET | JSON: `enabled`, `running`, `scanning` |
 | `/api/sentinel/start` | POST | Starts Sentinel on Wi-Fi. `409` while a scan runs |
 | `/api/sentinel/stop` | POST | Stops Sentinel |
-| `/api/sentinel/ble/start` | POST | Starts the BLE scan. `409` below 60000 bytes of free memory |
 | `/api/sentinel/boot` | GET | JSON: `boot` |
 | `/api/sentinel/boot` | POST | `on`: `1` starts Sentinel at power-on. Returns the same JSON as GET |
 | `/api/detect/config` | GET | JSON of every detector switch and threshold |
@@ -274,7 +265,7 @@ Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log 
 | Group | Names | Clear (POST `/api/<name>/clear`) |
 |---|---|---|
 | In memory | `pmkid`, `eviltwin`, `ssid_confusion`, `sae_dos`, `owe_abuse`, `fragattack`, `ble_malformed` | `eviltwin` only, and it deletes the SD file `/eviltwin.jsonl`, not the in-memory log |
-| SD card | `jamming`, `meshguard`, `probe_flood`, `assoc_sleep`, `pmkid_forge`, `eapol_bait`, `deauth_flood`, `deauth_ap`, `probe_ap` | All except `deauth_ap` and `probe_ap` |
+| SD card | `jamming`, `meshguard`, `probe_flood`, `assoc_sleep`, `pmkid_forge`, `eapol_bait`, `deauth_flood` | All except `deauth_flood`. Clear all detector logs with `/api/detect/clear_all` |
 
 Each incident record has `ts` (uptime in milliseconds), `epoch` (clock seconds, `0` if the clock is not set), `node`, `src` (`local`, or the sending node), `type`, and `raw`.
 
@@ -326,7 +317,6 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 
 | Endpoint | Method | What it does |
 |---|---|---|
-| `/baseline/status` | GET | JSON: `scanning`, `established`, `devices` |
 | `/baseline/stats` | GET | JSON: scan progress, device counts, anomalies, elapsed and total time |
 | `/baseline/config` | GET | JSON: the settings below plus `enabled`, `established`, `deviceCount`, `anomalyCount` |
 | `/baseline/config` | POST | Sets any of the settings below and saves them |
@@ -352,15 +342,15 @@ Defaults and effects are in the [README baseline section](../README.md#detection
 
 | Endpoint | Method | What it does |
 |---|---|---|
-| `/triangulate/start` | POST | Starts a run. `mac` and `duration` (seconds, 20 or more) are required. Optional `rfEnv` (0-4, default 2) and `wifiPwr`, `blePwr` (0.1-5.0, default 1.0). `400` with the reason if it cannot start, including a wait after the previous run. `409` while a scan runs |
-| `/triangulate/stop` | POST | Stops the run |
-| `/triangulate/status` | GET | JSON: `active`, `target`, `duration`, `elapsed`, `nodes` |
-| `/triangulate/results` | GET | The estimate as text |
-| `/triangulate/nodes` | GET | JSON for the map: `target`, `active`, `finalResult` (`lat`, `lon`, `confidence` percent, `uncertainty` meters, `coordinator`), and `nodes` (`id`, `hasGPS`, `lat`, `lon`, `hdop`, `rssi`, `hits`, `quality` percent, `type`, `distance` meters) |
-| `/triangulate/calibrate` | POST | `mac` and `distance` (meters): calibrates path loss against a device at a known distance |
+Start triangulation with `/scan` (`triangulate=1` and `targetMac`) and stop it with `/stop`. The estimate appears in `/results`.
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/triangulate/calibrate` | POST | `mac` (a reference device) and `distance` (0.5-100 m): the node listens to that device for 30 seconds and calibrates its distance estimates. `400` bad MAC or distance, `409` while a scan runs |
+| `/triangulate/calibrate` | GET | JSON: `running`, `distance` (meters), `wifiRssi0` and `bleRssi0` (signal at 1 m in dBm, `null` if that radio did not calibrate). `distance` is `null` when not calibrated |
+| `/triangulate/calibrate/reset` | POST | Clears the calibration. Distances go back to the RF environment values |
 | `/randomization/reset` | POST | Resets randomization detection. `409` while a scan runs |
 | `/randomization/clear-old` | POST | `age`: removes identities not seen for this many seconds (default 3600) |
-| `/randomization/identities` | GET | Tracked identities (JSON) |
 | `/api/identity-map` | GET | JSON map from each MAC to its identity ID |
 
 </details>
@@ -379,7 +369,6 @@ The erase key protects the erase routes. The node makes it on first start and sh
 | `/erase/cancel` | POST | `confirm` (own key): cancels a tamper countdown |
 | `/factory-wipe` | POST | `confirm` (own key) and `tier`: `full` (default) wipes settings and SD files, `config` wipes settings only, `data` wipes SD files only. Reboots afterward. `400` bad tier, `409` another wipe runs |
 | `/secure/status` | GET | `INACTIVE` or `TAMPER_ACTIVE:<n>s` |
-| `/secure/abort` | POST | `confirm` (own key): cancels a tamper countdown |
 | `/config/autoerase` | GET | JSON: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`, `inSetupMode`, `setupStartTime`, `currentTime`, `tamperActive`. Times in milliseconds |
 | `/config/autoerase` | POST | Sets auto-erase. All of `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`, and `confirm` (own key) are required, else `400` |
 
@@ -397,7 +386,6 @@ The erase key protects the erase routes. The node makes it on first start and sh
 | Endpoint | Method | What it does |
 |---|---|---|
 | `/gps` | GET | GPS status and position (text) |
-| `/sd-status` | GET | SD card size and log size (text) |
 | `/sd-repair` | GET | JSON: `auto`, `mounted`, `mountFailures`, `pending` |
 | `/sd-repair` | POST | `auto=1` or `0` sets automatic repair of a card that will not mount. `now` queues a remount, which erases the card if it still will not mount |
 

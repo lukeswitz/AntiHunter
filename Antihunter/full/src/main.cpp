@@ -259,6 +259,7 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    calibrationLoad();
     campaignInit();
     memMark("config");
 

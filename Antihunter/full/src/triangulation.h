@@ -184,7 +184,10 @@ void triangulationAbortSetup();
 bool startTriangulation(const String &targetMac, int duration, String *err = nullptr);
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
-void calibratePathLoss(const String &targetMac, float knownDistance);
+bool calibratePathLoss(const String &targetMac, float knownDistance, String *err);
+void calibrationReset();
+void calibrationLoad();
+String calibrationJson();
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 

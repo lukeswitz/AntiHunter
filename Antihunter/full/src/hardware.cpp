@@ -46,6 +46,11 @@ String prefsGetString(const char *key, const String &defaultValue) {
     return prefs.getString(key, defaultValue);
 }
 
+float prefsGetFloat(const char *key, float defaultValue) {
+    if (!prefs.isKey(key)) return defaultValue;
+    return prefs.getFloat(key, defaultValue);
+}
+
 // GPS
 TinyGPSPlus gps;
 HardwareSerial GPS(2);
@@ -591,6 +596,8 @@ static uint32_t configSignature() {
     mix(&vibAutoScanPreempt, 1);
     mixStr(prefsGetString("apPass", AP_PASS));
     { bool sb = prefs.getBool("sentBoot", false); mix(&sb, 1); }
+    { bool ob = prefs.getBool("obDone", false); mix(&ob, 1); }
+    { float c[3] = {prefsGetFloat("calDist", 0.0f), prefsGetFloat("calWifi", NAN), prefsGetFloat("calBle", NAN)}; mix(c, sizeof(c)); }
     mixStr(detect_getConfigJson());
     return h;
 }
@@ -704,6 +711,13 @@ void saveConfiguration() {
     configFile_w.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
     configFile_w.printf(" \"apHidden\":%s,\n", prefs.getBool("apHidden", false) ? "true" : "false");
     configFile_w.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
+    configFile_w.printf(" \"onboardingDone\":%s,\n", prefs.getBool("obDone", false) ? "true" : "false");
+    {
+        float cd = prefsGetFloat("calDist", 0.0f), cw = prefsGetFloat("calWifi", NAN), cb = prefsGetFloat("calBle", NAN);
+        configFile_w.printf(" \"calDist\":%.2f,\n", cd > 0.0f ? cd : 0.0f);
+        if (isnan(cw)) configFile_w.println(" \"calWifiRssi\":null,"); else configFile_w.printf(" \"calWifiRssi\":%.2f,\n", cw);
+        if (isnan(cb)) configFile_w.println(" \"calBleRssi\":null,"); else configFile_w.printf(" \"calBleRssi\":%.2f,\n", cb);
+    }
     configFile_w.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
     configFile_w.println("}");
 
@@ -1027,6 +1041,23 @@ void loadConfiguration() {
     if (doc.containsKey("vibEnabled")) {
         vibrationEnabled = doc["vibEnabled"].as<bool>();
         prefs.putBool("vibEnabled", vibrationEnabled);
+    }
+
+    if (doc.containsKey("onboardingDone") && doc["onboardingDone"].as<bool>()) {
+        prefs.putBool("obDone", true);
+    }
+
+    if (doc.containsKey("calDist")) {
+        float cd = doc["calDist"].as<float>();
+        if (cd >= 0.5f && cd <= 100.0f) {
+            prefs.putFloat("calDist", cd);
+            prefs.putFloat("calWifi", doc["calWifiRssi"].isNull() ? NAN : doc["calWifiRssi"].as<float>());
+            prefs.putFloat("calBle", doc["calBleRssi"].isNull() ? NAN : doc["calBleRssi"].as<float>());
+        } else {
+            prefs.remove("calDist");
+            prefs.remove("calWifi");
+            prefs.remove("calBle");
+        }
     }
 
 #if AH_SENTINEL

@@ -142,6 +142,7 @@ void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
 bool saveTargetsList(const String &txt);
 String prefsGetString(const char *key, const String &defaultValue);
+float prefsGetFloat(const char *key, float defaultValue);
 extern unsigned long lastSaveTime;
 void saveConfiguration();
 void loadConfiguration();

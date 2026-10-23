@@ -108,6 +108,28 @@ DistanceTuning distanceTuning = {
     false
 };
 
+extern std::atomic<bool> scanning;
+extern Preferences prefs;
+static float s_calDist = 0.0f;
+static float s_calWifiRssi = NAN;
+static float s_calBleRssi = NAN;
+
+static void applyCalibration() {
+    adaptivePathLoss.wifi_calibrated = false;
+    adaptivePathLoss.ble_calibrated = false;
+    if (s_calDist > 0.0f && !isnan(s_calWifiRssi)) {
+        pathLoss.rssi0_wifi = s_calWifiRssi + 10.0f * pathLoss.n_wifi * log10f(s_calDist);
+        adaptivePathLoss.rssi0_wifi = pathLoss.rssi0_wifi;
+        adaptivePathLoss.wifi_calibrated = true;
+    }
+    if (s_calDist > 0.0f && !isnan(s_calBleRssi)) {
+        pathLoss.rssi0_ble = s_calBleRssi + 10.0f * pathLoss.n_ble * log10f(s_calDist);
+        adaptivePathLoss.rssi0_ble = pathLoss.rssi0_ble;
+        adaptivePathLoss.ble_calibrated = true;
+    }
+    pathLoss.calibrated = adaptivePathLoss.wifi_calibrated || adaptivePathLoss.ble_calibrated;
+}
+
 void setRFEnvironment(RFEnvironment env) {
     if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
     currentRFEnvironment = env;
@@ -120,6 +142,7 @@ void setRFEnvironment(RFEnvironment env) {
     adaptivePathLoss.n_ble = preset.n_ble;
     adaptivePathLoss.rssi0_wifi = preset.rssi0_wifi;
     adaptivePathLoss.rssi0_ble = preset.rssi0_ble;
+    applyCalibration();
     Serial.printf("[TRIANGULATE] RF environment set to %d (n_wifi=%.1f, n_ble=%.1f)\n",
                   env, preset.n_wifi, preset.n_ble);
 }
@@ -1977,25 +2000,29 @@ int64_t getCorrectedMicroseconds() {
     return unixTimestampMicros;
 }
 
-void calibrationTask(void *parameter) {
-    struct CalibParams {
-        uint8_t macBytes[6];
-        float distance;
-    };
-    
+struct CalibParams {
+    uint8_t macBytes[6];
+    float distance;
+};
+
+static bool calibMeanRssi(const std::vector<int8_t> &samples, float &mean) {
+    if (samples.size() < 10) return false;
+    mean = std::accumulate(samples.begin(), samples.end(), 0.0f) / samples.size();
+    return true;
+}
+
+static void calibrationTask(void *parameter) {
     CalibParams* params = static_cast<CalibParams*>(parameter);
     uint8_t macBytes[6];
     memcpy(macBytes, params->macBytes, 6);
     float knownDistance = params->distance;
     delete params;
-    
-    Serial.printf("[CALIB] Starting calibration task for target at %.1fm\n", knownDistance);
-    Serial.println("[CALIB] Collecting WiFi and BLE samples for 30 seconds...");
-    
+
+    Serial.printf("[CALIB] Collecting Wi-Fi and BLE samples for 30 s, target at %.1f m\n", knownDistance);
+
     std::vector<int8_t> wifiSamples;
     std::vector<int8_t> bleSamples;
-    
-    // Initialize BLE if not already done
+
     if (!pBLEScan) initBLEOnce();
     NimBLEScan* pScan = pBLEScan;
     if (pScan) {
@@ -2003,186 +2030,124 @@ void calibrationTask(void *parameter) {
         pScan->setInterval(100);
         pScan->setWindow(99);
     }
-    
+
     radioStartListScan();
 
+    uint8_t wifiChannel = 0;
     uint32_t startTime = millis();
-    uint32_t lastWiFiScan = 0;
-    uint32_t lastBLEScan = 0;
-    
-    while (millis() - startTime < 30000) {
-        uint32_t elapsed = (millis() - startTime) / 1000;
-        
-        // WiFi scan every 3 seconds to avoid blocking
-        if (millis() - lastWiFiScan >= 3000) {
-            int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
-            for (int i = 0; i < n; i++) {
-                const uint8_t *bssid = WiFi.BSSID(i);
-                if (memcmp(bssid, macBytes, 6) == 0) {
-                    int8_t rssi = WiFi.RSSI(i);
-                    wifiSamples.push_back(rssi);
-                    Serial.printf("[CALIB] [%02ds] WiFi #%d: %d dBm\n", 
-                                 elapsed, wifiSamples.size(), rssi);
-                }
-            }
-            WiFi.scanDelete();
-            lastWiFiScan = millis();
-            vTaskDelay(pdMS_TO_TICKS(100)); // Yield to other tasks
+    while (millis() - startTime < 30000 && !stopRequested.load()) {
+        int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime, wifiChannel);
+        for (int i = 0; i < n; i++) {
+            if (memcmp(WiFi.BSSID(i), macBytes, 6) != 0) continue;
+            wifiSamples.push_back((int8_t)WiFi.RSSI(i));
+            if (wifiChannel == 0) wifiChannel = (uint8_t)WiFi.channel(i);
         }
-        
-        // BLE scan every 3 seconds
-        if (pScan && millis() - lastBLEScan >= 3000) {
+        WiFi.scanDelete();
+
+        if (pScan) {
             pScan->start(1, false);
             NimBLEScanResults results = pScan->getResults();
-            
             for (int i = 0; i < results.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = results.getDevice(i);
-                String deviceMacStr = device->getAddress().toString().c_str();
-                
                 uint8_t deviceMac[6];
-                if (parseMac6(deviceMacStr, deviceMac) && 
-                    memcmp(deviceMac, macBytes, 6) == 0) {
-                    int8_t rssi = device->getRSSI();
-                    if (rssi > -10) continue;
-                    bleSamples.push_back(rssi);
-                    Serial.printf("[CALIB] [%02ds] BLE #%d: %d dBm\n", 
-                                 elapsed, bleSamples.size(), rssi);
-                }
+                if (!parseMac6(String(device->getAddress().toString().c_str()), deviceMac)) continue;
+                if (memcmp(deviceMac, macBytes, 6) != 0) continue;
+                int8_t rssi = device->getRSSI();
+                if (rssi <= -10) bleSamples.push_back(rssi);
             }
-            
             pScan->clearResults();
-            lastBLEScan = millis();
-            vTaskDelay(pdMS_TO_TICKS(100)); // get out of the way of other tasks
         }
-        
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
+
     radioStopListScan();
 
-    Serial.println("\n[CALIB] ========== CALIBRATION RESULTS ==========");
-    
-    // WiFi calibration
-    if (wifiSamples.size() >= 10) {
-        float meanRssi = std::accumulate(wifiSamples.begin(), wifiSamples.end(), 0.0f);
-        meanRssi /= wifiSamples.size();
-        
-        float variance = 0;
-        for (int8_t rssi : wifiSamples) {
-            float diff = rssi - meanRssi;
-            variance += diff * diff;
-        }
-        variance /= wifiSamples.size();
-        float stdDev = sqrt(variance);
-        
-        // WIP formula for path loss
-        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
-        adaptivePathLoss.rssi0_wifi = pathLoss.rssi0_wifi;
-        adaptivePathLoss.n_wifi = pathLoss.n_wifi;
-        adaptivePathLoss.wifi_calibrated = true;
-
-        Serial.println("[CALIB] WiFi Calibration: SUCCESS");
-        Serial.printf("  Distance: %.1f m\n", knownDistance);
-        Serial.printf("  Samples: %d\n", wifiSamples.size());
-        Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
-        Serial.printf("  Std Dev: %.1f dB\n", stdDev);
-        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_wifi);
-        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_wifi);
-    }
-    
-    // BLE calibration
-    if (bleSamples.size() >= 10) {
-        float meanRssi = std::accumulate(bleSamples.begin(), bleSamples.end(), 0.0f);
-        meanRssi /= bleSamples.size();
-        
-        float variance = 0;
-        for (int8_t rssi : bleSamples) {
-            float diff = rssi - meanRssi;
-            variance += diff * diff;
-        }
-        variance /= bleSamples.size();
-        float stdDev = sqrt(variance);
-
-        pathLoss.rssi0_ble = meanRssi + 10.0 * pathLoss.n_ble * log10(knownDistance);
-        adaptivePathLoss.rssi0_ble = pathLoss.rssi0_ble;
-        adaptivePathLoss.n_ble = pathLoss.n_ble;
-        adaptivePathLoss.ble_calibrated = true;
-
-        Serial.println("[CALIB] BLE Calibration: SUCCESS");
-        Serial.printf("  Distance: %.1f m\n", knownDistance);
-        Serial.printf("  Samples: %d\n", bleSamples.size());
-        Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
-        Serial.printf("  Std Dev: %.1f dB\n", stdDev);
-        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_ble);
-        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_ble);
+    String result;
+    if (stopRequested.load()) {
+        result = "STOPPED";
+        Serial.println("[CALIB] Stopped before completion, calibration unchanged");
     } else {
-        Serial.printf("[CALIB] BLE Calibration: FAILED\n");
-        Serial.printf("  Insufficient samples: %d (need ≥10)\n", bleSamples.size());
+        float wifiMean = NAN, bleMean = NAN;
+        bool wifiOk = calibMeanRssi(wifiSamples, wifiMean);
+        bool bleOk = calibMeanRssi(bleSamples, bleMean);
+        Serial.printf("[CALIB] Samples: Wi-Fi %u, BLE %u (need 10)\n",
+                      (unsigned)wifiSamples.size(), (unsigned)bleSamples.size());
+        if (wifiOk || bleOk) {
+            s_calDist = knownDistance;
+            s_calWifiRssi = wifiOk ? wifiMean : NAN;
+            s_calBleRssi = bleOk ? bleMean : NAN;
+            prefs.putFloat("calDist", s_calDist);
+            prefs.putFloat("calWifi", s_calWifiRssi);
+            prefs.putFloat("calBle", s_calBleRssi);
+            applyCalibration();
+            saveConfiguration();
+            result = "WIFI=" + (wifiOk ? String(pathLoss.rssi0_wifi, 1) : String("NONE")) +
+                     ":BLE=" + (bleOk ? String(pathLoss.rssi0_ble, 1) : String("NONE"));
+            Serial.printf("[CALIB] Calibrated: %s (RSSI0 dBm at 1 m)\n", result.c_str());
+        } else {
+            result = "FAILED";
+            Serial.println("[CALIB] Not enough samples, calibration unchanged");
+        }
     }
-    
-    if (wifiSamples.size() >= 10 || bleSamples.size() >= 10) {
-        pathLoss.calibrated = true;
-        Serial.println("\n[CALIB] Status: CALIBRATED");
-    } else {
-        Serial.println("\n[CALIB] Status: FAILED");
-    }
-    
-    Serial.println("[CALIB] ==========================================\n");
-    
-    // Clean up
+    sendToSerial1(getNodeId() + ": CALIBRATE_DONE:" + result, true);
+
+    scanning = false;
     calibrationTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
 
-void calibratePathLoss(const String &targetMac, float knownDistance) {
+bool calibratePathLoss(const String &targetMac, float knownDistance, String *err) {
     uint8_t macBytes[6];
-    if (!parseMac6(targetMac, macBytes)) {
-        Serial.printf("[CALIB] Invalid MAC format: %s\n", targetMac.c_str());
-        return;
+    if (!parseMac6(targetMac, macBytes) || !(knownDistance >= 0.5f && knownDistance <= 100.0f)) {
+        if (err) *err = "INVALID";
+        return false;
     }
-    
-    if (calibrationTaskHandle) {
-        Serial.println("[CALIB] Calibration already in progress");
-        return;
+    if (calibrationTaskHandle || scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load()) {
+        if (err) *err = "BUSY";
+        return false;
     }
-    
-    if (triangulationActive) {
-        Serial.println("[CALIB] ERROR: Cannot calibrate during triangulation");
-        return;
-    }
-    
-    if (workerTaskHandle) {
-        Serial.println("[CALIB] WARNING: Scan task active, may interfere");
-    }
-    
-    // Allocate parameters on heap
-    struct CalibParams {
-        uint8_t macBytes[6];
-        float distance;
-    };
-    
+
     CalibParams* params = new CalibParams();
     memcpy(params->macBytes, macBytes, 6);
     params->distance = knownDistance;
 
-    // Create calibration task on core 1
-    BaseType_t result = ahCreateTask(
-        calibrationTask,
-        "calibrate",
-        8192,
-        static_cast<void*>(params),
-        1,
-        &calibrationTaskHandle,
-        1
-    );
-
-    if (result != pdPASS) {
-        Serial.println("[CALIB] ERROR: Failed to create calibration task");
+    stopRequested = false;
+    scanning = true;
+    if (ahCreateTask(calibrationTask, "calibrate", 8192, static_cast<void*>(params), 1,
+                     &calibrationTaskHandle, 1) != pdPASS) {
+        scanning = false;
         delete params;
-        return;
+        if (err) *err = "FAILED";
+        return false;
     }
+    return true;
+}
 
-    Serial.println("[CALIB] Calibration task started");
+void calibrationReset() {
+    s_calDist = 0.0f;
+    s_calWifiRssi = NAN;
+    s_calBleRssi = NAN;
+    prefs.remove("calDist");
+    prefs.remove("calWifi");
+    prefs.remove("calBle");
+    setRFEnvironment(currentRFEnvironment);
+    saveConfiguration();
+}
+
+void calibrationLoad() {
+    s_calDist = prefsGetFloat("calDist", 0.0f);
+    s_calWifiRssi = prefsGetFloat("calWifi", NAN);
+    s_calBleRssi = prefsGetFloat("calBle", NAN);
+    applyCalibration();
+}
+
+String calibrationJson() {
+    auto num = [](float v) { return isnan(v) ? String("null") : String(v, 1); };
+    bool on = s_calDist > 0.0f;
+    return String("{\"running\":") + (calibrationTaskHandle ? "true" : "false") +
+           ",\"distance\":" + (on ? String(s_calDist, 1) : String("null")) +
+           ",\"wifiRssi0\":" + (on && !isnan(s_calWifiRssi) ? num(pathLoss.rssi0_wifi) : String("null")) +
+           ",\"bleRssi0\":" + (on && !isnan(s_calBleRssi) ? num(pathLoss.rssi0_ble) : String("null")) + "}";
 }
 
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros) {
