@@ -2534,219 +2534,10 @@ static bool validateBleAdvStructure(const uint8_t *p, uint16_t len, const char *
     return true;
 }
 
-// BLE attack-tool fingerprint table — byte matches from tool/tool audit.
-struct BleAttackSig {
-    uint8_t pattern[10];
-    uint8_t patLen;
-    const char *tool;
-    const char *family;
-    uint8_t anyLow2At;
-};
-// Verified 2026-05-22 against REAL source: Bruce src/modules/ble/ble_spam.cpp +
-// apple_spam.cpp (Samsung_Data/Google_Data/data_airpods*) and ESP32Marauder
-// WiFiScan.cpp. Match on the structural invariant only — Bruce/Marauder randomize
-// the model byte + MAC per advert, so any fixed-model byte never matches.
-// CAVEAT: FastPair (FE2C) + Apple proximity also appear on LEGIT nearby devices →
-// these FP on real AirPods/Fast-Pair once per (addr,30s) dedup window. True spam vs
-// legit needs rotating-MAC rate-gating (NOT implemented — flagged).
-static const BleAttackSig BLE_ATTACK_SIGS[] = {
-    // Apple nearby-action (SourApple/AppleJuice legacy) — mfg FF 4C00, continuity type 0x0F len 0x05
-    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC0}, 6, "Apple_NearbyAction_C0", "apple_action"},
-    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC1}, 6, "Apple_NearbyAction_C1", "apple_action"},
-    // Apple proximity-pairing (Bruce apple_spam.cpp:12 AirPods/Beats) — FF 4C00, type 0x07 len 0x19
-    {{0xFF, 0x4C, 0x00, 0x07, 0x19}, 5, "Apple_Proximity", "apple_proximity"},
-    // Apple proximity-pairing (Marauder WiFiScan.cpp:125 Devices variant) — type 0x07 len 0x0F
-    {{0xFF, 0x4C, 0x00, 0x07, 0x0F}, 5, "Apple_Proximity_Dev", "apple_proximity"},
-    // Apple AppleTV/Setup (Bruce apple_spam.cpp:42 + ble_spam.cpp:143 AppleJuice v1) — type 0x04 len 0x04 0x2A
-    {{0xFF, 0x4C, 0x00, 0x04, 0x04, 0x2A}, 6, "Apple_AppleTV_Setup", "apple_action"},
-    // Apple HID Magic-Keyboard spoof (Bruce BLE_Suite.cpp:455 setManufacturerData {4C 00 02 00}) — iBeacon type 0x02 len 0x00 (real iBeacon len is 0x15 → 0x00 is the spoof tell)
-    {{0xFF, 0x4C, 0x00, 0x02, 0x00}, 5, "Apple_HID_Spoof", "apple_hid"},
-    // Samsung — mfg FF 75 00 (Samsung_Data[1..10], model byte randomized so stop at FF)
-    {{0xFF, 0x75, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x01, 0xFF}, 10, "Samsung_Spam", "samsung"},
-    // Microsoft Swift Pair — mfg FF 06 00, CDP beacon 03 00 80
-    {{0xFF, 0x06, 0x00, 0x03, 0x00, 0x80}, 6, "Microsoft_SwiftPair", "swiftpair"},
-    // Flipper Zero — 16-bit service UUID 0x3080 | hw color (flipperzero-firmware serial_profile.c). 0x0FBA is Cosonic, not Flipper.
-    {{0x03, 0x02, 0x80, 0x30}, 4, "Flipper_Zero", "flipper", 3},
-    // Google Fast Pair — service-data AD (0x16) UUID 0xFE2C. Model is android_models[rand()] → UUID only.
-    {{0x16, 0x2C, 0xFE}, 3, "FastPair", "fastpair"},
-};
-static constexpr size_t BLE_ATTACK_SIG_COUNT = sizeof(BLE_ATTACK_SIGS) / sizeof(BLE_ATTACK_SIGS[0]);
-
-struct BleAttackEvent {
-    uint8_t addr[6];
-    int8_t rssi;
-    uint32_t ts;
-    char tool[32];
-    char family[24];
-};
-static PsramVec<BleAttackEvent> g_bleAttackLog;
-static constexpr size_t MAX_BLE_ATTACK_LOG = 100;
-static PsramMap<uint64_t, uint32_t> g_bleAttackSeen;  // suppress duplicate (addr,tool) within 30s
-#ifndef AH_CS_BLE
-#define AH_CS_BLE 0
-#endif
-static std::atomic<bool> g_bleAttackEnabled{false};  // off by default — BLE coexist starves heap on full (AP+webserver); enable explicitly via ble group
-
-static bool bleScanForSig(const uint8_t *payload, uint16_t len, const BleAttackSig &sig) {
-    if (len < sig.patLen) return false;
-    for (uint16_t i = 0; i + sig.patLen <= len; ++i) {
-        uint8_t j = 0;
-        for (; j < sig.patLen; ++j) {
-            uint8_t m = (j + 1 == sig.anyLow2At) ? 0xFC : 0xFF;
-            if ((payload[i + j] & m) != sig.pattern[j]) break;
-        }
-        if (j == sig.patLen) return true;
-    }
-    return false;
-}
-
-static void emitBleAttack(const uint8_t *addr, int8_t rssi, const BleAttackSig &sig) {
-    uint64_t k = packMac(addr);
-    uint32_t now = millis();
-    auto it = g_bleAttackSeen.find(k);
-    if (it != g_bleAttackSeen.end() && (now - it->second) < 30000) return;  // dedup
-    g_bleAttackSeen[k] = now;
-    if (g_bleAttackSeen.size() > 128) {
-        // GC: drop ones older than 60s
-        for (auto i = g_bleAttackSeen.begin(); i != g_bleAttackSeen.end(); ) {
-            if (now - i->second > 60000) i = g_bleAttackSeen.erase(i); else ++i;
-        }
-    }
-    BleAttackEvent ev{};
-    memcpy(ev.addr, addr, 6);
-    ev.rssi = rssi;
-    ev.ts = now;
-    strncpy(ev.tool,   sig.tool,   sizeof(ev.tool)   - 1);
-    strncpy(ev.family, sig.family, sizeof(ev.family) - 1);
-    g_bleAttackLog.push_back(ev);
-    if (g_bleAttackLog.size() > MAX_BLE_ATTACK_LOG) g_bleAttackLog.erase(g_bleAttackLog.begin());
-
-    String a = macStr(addr);
-    String line = String("{\"addr\":\"") + a +
-                  "\",\"tool\":\"" + ev.tool +
-                  "\",\"family\":\"" + ev.family +
-                  "\",\"rssi\":" + String(rssi) +
-                  ",\"ts\":" + String(now) + "}";
-    logEventToSD("/ble_attack.jsonl", line);
-    Serial.printf("[DETECT] BLE_ATTACK tool=%s family=%s addr=%s rssi=%d\n", ev.tool, ev.family, a.c_str(), (int)rssi);
-    ::detect_logIncident(String("BLE_ATTACK:") + ev.tool + ":" + a, nullptr);
-    if (meshEnabled && meshRateGate(String("BLEATK_") + ev.tool + "_" + a, 30000)) {
-        sendToSerial1(getNodeId() + ": BLE_ATTACK:" + ev.tool + ":" + a + ":" + String(rssi), true);
-    }
-    quorum_addReport("BLE_ATTACK", a, getNodeId(), rssi);
-}
-
 void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len, const char *name) {
     (void)name;
     if (!g_detectEnabled.load()) return;
     uint32_t now = millis();
-
-    {
-        static uint32_t s_bleSeen = 0;
-        static uint32_t s_lastDiag = 0;
-        s_bleSeen++;
-        if (g_bleAttackEnabled.load() && (now - s_lastDiag > 2000)) {
-            s_lastDiag = now;
-            char hex[40];
-            int n = (len < 16 ? len : 16), o = 0;
-            for (int i = 0; i < n && o < (int)sizeof(hex) - 3; i++)
-                o += snprintf(hex + o, sizeof(hex) - o, "%02X", payload ? payload[i] : 0);
-            Serial.printf("[BLE_DIAG] seen=%lu rssi=%d len=%u head=%s\n",
-                          (unsigned long)s_bleSeen, (int)rssi, (unsigned)len, hex);
-        }
-    }
-
-    // tool/tool BLE attack-tool fingerprint scan — strong byte matches.
-    if (AH_CS_BLE && g_bleAttackEnabled.load() && payload && len >= 6) {
-        std::lock_guard<std::recursive_mutex> lkA(g_mtx);
-        for (size_t i = 0; i < BLE_ATTACK_SIG_COUNT; ++i) {
-            if (bleScanForSig(payload, len, BLE_ATTACK_SIGS[i])) {
-                emitBleAttack(addr, rssi, BLE_ATTACK_SIGS[i]);
-                break;  // one match per adv frame is enough
-            }
-        }
-
-        // tool Google Fast Pair rate anomaly:
-        // tool rotates through 60+ model IDs. Real Fast Pair beacons repeat one
-        // model ID. Look for service-data IE `16 2C FE <m1> <m2> <m3>` and track
-        // distinct (m1,m2,m3) tuples from same source addr in a 5s window.
-        // >=3 distinct model IDs from one addr → bait.
-        static uint32_t fpWinStart = 0;
-        static PsramSet<uint32_t> fpModels;
-        static uint64_t fpAddr = 0;
-        static bool fpAlerted = false;
-        static const uint8_t FP_HDR[3] = {0x16, 0x2C, 0xFE};
-        for (uint16_t i = 0; i + 5 < len; ++i) {
-            if (memcmp(payload + i, FP_HDR, 3) != 0) continue;
-            uint32_t model = ((uint32_t)payload[i+3] << 16) | ((uint32_t)payload[i+4] << 8) | payload[i+5];
-            uint32_t nowM = millis();
-            uint64_t addrK = packMac(addr);
-            if (fpWinStart == 0 || (nowM - fpWinStart) > 5000 || fpAddr != addrK) {
-                fpWinStart = nowM; fpAddr = addrK; fpModels.clear(); fpAlerted = false;
-            }
-            if (fpModels.size() < 64) fpModels.insert(model);
-            if (!fpAlerted && fpModels.size() >= 3) {
-                fpAlerted = true;
-                String a = macStr(addr);
-                String line = String("{\"addr\":\"") + a +
-                              "\",\"distinct_models\":" + String((unsigned)fpModels.size()) +
-                              ",\"win_ms\":5000,\"rssi\":" + String(rssi) +
-                              ",\"reason\":\"FASTPAIR_ROTATE\"" +
-                              ",\"ts\":" + String(nowM) + "}";
-                logEventToSD("/ble_attack.jsonl", line);
-                if (meshEnabled && meshRateGate("FP_ROTATE_" + a, 30000)) {
-                    sendToSerial1(getNodeId() + ": BLE_ATTACK:FastPair_Rotate:" + a +
-                                  ":models=" + String(fpModels.size()), true);
-                }
-                Serial.printf("[DETECT] BLE_ATTACK tool=FastPair_Rotate addr=%s models=%u\n", a.c_str(), (unsigned)fpModels.size());
-                ::detect_logIncident(String("BLE_ATTACK:FastPair_Rotate:") + a, nullptr);
-                quorum_addReport("BLE_ATTACK", String("FastPair_Rotate"), getNodeId(), rssi);
-            }
-            break;
-        }
-
-        // tool AirPods iOS-spam rate anomaly:
-        // tool/tool cycle ALL Apple proximity-pair types (10+) at 100ms intervals
-        // from rotating MACs. Research: real Apple devices never cycle types — one
-        // device, one type, stable. 3+ distinct types from different MACs in 1s = impossible legit.
-        static uint32_t iosWinStart = 0;
-        static PsramSet<uint8_t>  iosTypes;
-        static PsramSet<uint64_t> iosAddrs;
-        static bool iosAlerted = false;
-        static const uint8_t IOS_HDR[6] = {0xFF, 0x4C, 0x00, 0x07, 0x19, 0x07};
-        for (uint16_t i = 0; i + 6 < len; ++i) {
-            if (memcmp(payload + i, IOS_HDR, 6) != 0) continue;
-            uint8_t typeByte = payload[i + 6];
-            uint32_t nowM = millis();
-            // 1s window — research-cited "impossible legit" interval.
-            if (iosWinStart == 0 || (nowM - iosWinStart) > 1000) {
-                iosWinStart = nowM; iosTypes.clear(); iosAddrs.clear(); iosAlerted = false;
-            }
-            iosTypes.insert(typeByte);
-            if (iosAddrs.size() < 256) iosAddrs.insert(packMac(addr));
-            if (!iosAlerted && iosTypes.size() >= 3 && iosAddrs.size() >= 3) {
-                iosAlerted = true;
-                String a = macStr(addr);
-                String line = String("{\"addr\":\"") + a +
-                              "\",\"distinct_types\":" + String((unsigned)iosTypes.size()) +
-                              ",\"distinct_addrs\":" + String((unsigned)iosAddrs.size()) +
-                              ",\"win_ms\":1000" +
-                              ",\"rssi\":" + String(rssi) +
-                              ",\"reason\":\"IOS_PAIR_SPAM\"" +
-                              ",\"ts\":" + String(nowM) + "}";
-                logEventToSD("/ble_attack.jsonl", line);
-                if (meshEnabled && meshRateGate("IOS_SPAM", 30000)) {
-                    sendToSerial1(getNodeId() + ": BLE_ATTACK:iOS_Pair_Spam:" + a +
-                                  ":types=" + String(iosTypes.size()) +
-                                  ":addrs=" + String(iosAddrs.size()), true);
-                }
-                Serial.printf("[DETECT] BLE_ATTACK tool=iOS_Pair_Spam addr=%s types=%u addrs=%u\n", a.c_str(), (unsigned)iosTypes.size(), (unsigned)iosAddrs.size());
-                ::detect_logIncident(String("BLE_ATTACK:iOS_Pair_Spam:") + a, nullptr);
-                quorum_addReport("BLE_ATTACK", String("iOS_Pair_Spam"), getNodeId(), rssi);
-            }
-            break;
-        }
-    }
 
     // Phase 3.2 BLE ODID Remote ID — Service Data 16-bit UUID 0xFFFA
     // (AD type 0x16, UUID bytes FA FF little-endian). Done here in task
@@ -2970,7 +2761,6 @@ void initializeDetect() {
                     p.putBool("etwOn", true);
                     p.putBool("pflOn", true);
                     p.putBool("aslOn", true);
-                    p.putBool("blatkOn", false);
                     p.putBool("scnOn", true);
                     p.putBool("saeOn", true);
                     p.putBool("oweOn", false);
@@ -3050,7 +2840,6 @@ void initializeDetect() {
             ah_detect::g_meshGuard.store(p.getBool("mGuard", true));
             ah_detect::g_probeFloodEnabled.store(p.getBool("pflOn", true));
             ah_detect::g_assocSleepEnabled.store(p.getBool("aslOn", true));
-            ah_detect::g_bleAttackEnabled.store(p.getBool("blatkOn", false));
             p.end();
         }
     }
@@ -3357,7 +3146,6 @@ void detect_persistTunables() {
     p.putBool("mGuard", ah_detect::g_meshGuard.load());
     p.putBool("pflOn",   ah_detect::g_probeFloodEnabled.load());
     p.putBool("aslOn",   ah_detect::g_assocSleepEnabled.load());
-    p.putBool("blatkOn", ah_detect::g_bleAttackEnabled.load());
     p.putBool("detMig5", true);
     p.putBool("trlMig2", true);
     p.end();
@@ -3949,11 +3737,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String bssid = msg.substring(offs, p1);
         int sec = msg.substring(p1 + 1).toInt();
         quorum_addReport("KARMA", bssid, fromNode, (int8_t)sec);
-    } else if (msg.startsWith("BLE_ATTACK:")) {
-        int last = msg.lastIndexOf(':');
-        String key = (last > 11) ? msg.substring(11, last) : msg.substring(11);
-        int rssi = (last > 0) ? msg.substring(last + 1).toInt() : -60;
-        quorum_addReport("BLE_ATTACK", key, fromNode, (int8_t)rssi);
     } else if (msg.startsWith("IDHASH:")) {
         int p1 = msg.indexOf(':', 7);
         int p2 = msg.indexOf(':', p1 + 1);
@@ -4232,7 +4015,6 @@ String detect_getConfigJson() {
     // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
-    j += _bjson("ble_attack",  g_bleAttackEnabled.load());
     j += _ijson("pmkid_window", g_pmkidWindow.load());
     j += _ijson("pmkid_min_bssids", g_pmkidMinBssids.load());
     j += _ijson("sae_window", g_saeWindow.load());
@@ -4319,7 +4101,6 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "mesh_jam", g_meshJam);
     _setb(b, "probe_flood", g_probeFloodEnabled);
     _setb(b, "assoc_sleep", g_assocSleepEnabled);
-    _setb(b, "ble_attack",  g_bleAttackEnabled);
     _seti(b, "pmkid_window", g_pmkidWindow);
     _setu8(b, "pmkid_min_bssids", g_pmkidMinBssids);
     _seti(b, "sae_window", g_saeWindow);

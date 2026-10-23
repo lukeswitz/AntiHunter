@@ -289,7 +289,7 @@ A `GROUP` name selects these detectors:
 
 | Keys | Value | Sets |
 |---|---|---|
-| `pmkid` `eviltwin` `ssid_confusion` `sae` `owe` `frag` `jam` `mesh_guard` `hshk` `pwna` `tsf` `csa_quiet` `rid_spoof` `karma` `probe_flood` `assoc_sleep` `ble_attack` `ble_malformed` | switch | Turns that detector on or off |
+| `pmkid` `eviltwin` `ssid_confusion` `sae` `owe` `frag` `jam` `mesh_guard` `hshk` `pwna` `tsf` `csa_quiet` `rid_spoof` `karma` `probe_flood` `assoc_sleep` `ble_malformed` | switch | Turns that detector on or off |
 | `mesh_deauth` `mesh_beacon` `mesh_auth` `mesh_assoc_sleep` `mesh_sae` `mesh_eviltwin` `mesh_owe` `mesh_karma` `mesh_pmkid` `mesh_probe_flood` `mesh_hshk` `mesh_frag` `mesh_tsf` `mesh_jam` | switch | Sends that detector's alerts over the mesh |
 | `bloom_gossip` | switch | Shares seen-device fingerprints between nodes |
 | `sentinel_scan` | switch | Same as `SENTINEL_MODE`: `true` is `scan` |

@@ -1882,10 +1882,7 @@ R"HTML(
               <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
               <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
               <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
-              <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>
-              <!-- BLE attack group disabled per user 2026-05-23 (BLE scan path unreliable on this build) -->
-              <!-- <button id="grpchip-ble" class="btn alt" onclick="detGroupToggle('ble')">BLE</button> -->
-            </div>
+              <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>            </div>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
@@ -1974,21 +1971,6 @@ R"HTML(
           </div>
         </div>
 
-        <!-- BLE attack group card disabled per user 2026-05-23 (BLE scan path unreliable on this build)
-        <div class="card" data-key="ble">
-          <div class="card-header" onclick="toggleCollapse('detBleGrpCard')">
-            <h3><span class="sev info">ble</span>BLE</h3>
-            <span class="collapse-icon open" id="detBleGrpCardIcon">&#9654;</span>
-          </div>
-          <div class="card-body" id="detBleGrpCardBody">
-            <div style="display:flex;gap:6px;margin-bottom:8px;">
-              <button class="btn alt" onclick="detGroup('ble',true)">All On</button>
-              <button class="btn alt" onclick="detGroup('ble',false)">All Off</button>
-            </div>
-            <div id="ble-rows"></div>
-          </div>
-        </div>
-        -->
         <div id="ble-rows" style="display:none;"></div>
 
         <div class="card" data-key="meshcfg">
@@ -7099,11 +7081,7 @@ R"HTML(
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','Wi-Fi Interf (L2)','jam']],
-        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]
-        /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
-        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed']]
-        */
-      };
+        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
         let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
@@ -7412,13 +7390,6 @@ R"HTML(
         if(a.length>0)detMarkActive('meshguard');
       }
       async function mgdClear(){await fetch('/api/meshguard/clear',{method:'POST'});meshGuardTick();}
-      async function baTick(){if(!detTabActive())return;
-        const a=await _jsonl('/api/ble_attack.jsonl');
-        document.getElementById('ba-n').textContent=a.length;
-        _renderJsonl('ba-pre',a,['ts','tool','addr','family','rssi','reason']);
-        if(a.length>0)detMarkActive('bleattack');
-      }
-      async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
       async function tofTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tof');
@@ -7542,7 +7513,7 @@ R"HTML(
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
         'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
         'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
-        'bleattack':'blatkOn','blemal':'blemOn',
+        'blemal':'blemOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
         'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
@@ -7736,7 +7707,7 @@ R"HTML(
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['hshk','Handshake Reconstruction'],
         ['tsf','TSF / Evil-Twin'],['jam','Wi-Fi Interference (L2)'],['mesh_guard','Mesh Disruption'],
-        ['ble_malformed','BLE Malformed'],['ble_attack','BLE Attack Tools'],
+        ['ble_malformed','BLE Malformed'],
         ['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],
@@ -7862,7 +7833,7 @@ R"HTML(
         recon:    ['pmkid','probe_flood','hshk'],
         physical: ['frag','tsf','jam'],
         mesh:     ['mesh_guard'],
-        ble:      ['ble_attack','ble_malformed']
+        ble:      ['ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
       const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
@@ -7879,17 +7850,6 @@ R"HTML(
         const members=DET_GROUPS[group]; if(!members) return;
         const patch={}; members.forEach(k=>patch[k]=!!on);
         await detPostCfg(patch); await detLoadCfg();
-        /* BLE attack group scan-trigger disabled per user 2026-05-23 (BLE scan path unreliable on this build)
-        if(group==='ble'){
-          if(on){
-            const fd=new FormData(); fd.append('mode','1'); fd.append('forever','1');
-            const r=await fetch('/scan',{method:'POST',body:fd});
-            toast(r.status===409?'Radio busy — stop current scan first':'BLE scan started');
-          } else {
-            await fetch('/stop'); toast('BLE scan stopped');
-          }
-        }
-        */
       }
       async function detPreset(name){
         let patch={};
@@ -7960,7 +7920,7 @@ R"HTML(
         if(!detTabActive())return;
         detectTick();pgTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();pwnaTick();verboseTick();arTick();detHealthTick();
-        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();meshCmdTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();apClientsTick();meshCmdTick();
       }
       async function _jsonl(path){
         try{const r=await fetch(path);if(!r.ok)return [];const t=await r.text();

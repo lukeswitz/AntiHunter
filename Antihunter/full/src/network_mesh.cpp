@@ -210,7 +210,7 @@ static MeshPriority classifyMeshMessage(const String &msg) {
         msg.indexOf("RTC_SYNC") >= 0 || msg.indexOf("STARTUP") >= 0 || msg.indexOf("Target:") >= 0 ||
         msg.indexOf("EVILTWIN") >= 0 || msg.indexOf("PMKID") >= 0 || msg.indexOf("OWE_ABUSE") >= 0 ||
         msg.indexOf("KRACK") >= 0 || msg.indexOf("PWNAGOTCHI") >= 0 || msg.indexOf("PROBE_FLOOD") >= 0 ||
-        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 ||
+        msg.indexOf("ATTACKER_HUNT") >= 0 ||
         msg.indexOf("IDHASH") >= 0 || msg.indexOf("BLOOM") >= 0 || msg.indexOf("RECON") >= 0 ||
         msg.indexOf("FRAGATTACK") >= 0 || msg.indexOf("SSID_CONFUSION") >= 0 || msg.indexOf("SAE_DOS") >= 0 ||
         msg.indexOf("BLE_MALFORMED") >= 0) {
@@ -2052,12 +2052,7 @@ static const char *groupMembers(const String &name)
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam";
   if (name == "mesh")                        return "mesh_guard";
-#if AH_CS_BLE
-  if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
-#else
   if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard";
-#endif
   return nullptr;
 }
 

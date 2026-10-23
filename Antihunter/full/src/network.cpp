@@ -97,12 +97,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
-#if !AH_CS_BLE
-    if (message.indexOf(": BLE_ATTACK") >= 0) {
-        return false;
-    }
-#endif
-
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -2726,10 +2720,6 @@ void registerRemainingRoutes() {
   });
 
   // === tool / tool tool-fingerprint logs (NEW) ===
-  server->on("/api/ble_attack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/ble_attack.jsonl"))    r->send(SD, "/ble_attack.jsonl",    "application/x-ndjson");
-      else                                   r->send(200, "application/x-ndjson", "");
-  });
   server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
@@ -2763,9 +2753,6 @@ void registerRemainingRoutes() {
   });
   server->on("/api/apclients.json", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getApClientsJson());
-  });
-  server->on("/api/ble_attack/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      SafeSD::remove("/ble_attack.jsonl"); r->send(200, "text/plain", "cleared");
   });
   server->on("/api/probe_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       SafeSD::remove("/probe_flood.jsonl"); r->send(200, "text/plain", "cleared");
