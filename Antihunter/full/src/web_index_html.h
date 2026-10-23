@@ -1638,7 +1638,7 @@ R"HTML(
         </nav>
         <div class="dn-main">
         <div id="dataView" class="dn-main" style="flex:none;">
-        <div><h2 id="dataTitle">All devices</h2><p class="dn-desc" id="dataDesc"></p></div>
+        <div><div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;"><h2 id="dataTitle">All devices</h2><span id="dataTzLbl" style="font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);">Times shown in UTC</span></div><p class="dn-desc" id="dataDesc"></p></div>
         <div id="dataSummary" class="dn-tiles"></div>
         <div class="dn-bar">
           <select id="dataSet" onchange="loadDataSet()" style="display:none;">
@@ -3747,7 +3747,7 @@ R"HTML(
           const response = await fetch('/baseline/mark', { method: 'POST' });
           const msg = await response.text();
           if (response.ok) {
-            const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const t = nodeTime(Math.floor(Date.now() / 1000)).substring(11);
             window._watchSince = t;
             markBaselineUi(true);
             toast('Comparing from ' + t, 'success');
@@ -5749,7 +5749,7 @@ R"HTML(
         return '#9ca3af';
       }
       function _incWhen(e){
-        if(e.epoch&&e.epoch>946684800){const d=new Date(e.epoch*1000);return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+        if(e.epoch&&e.epoch>946684800)return nodeTime(e.epoch).substring(5);
         return fmtIncUptime(e.ts||0)+' up';
       }
       function _incDetail(e){
@@ -6657,7 +6657,7 @@ R"HTML(
       var dataRange=null,dataCampTag='',dataCamps=[];
       function dataEpoch(v){
         if(typeof v==='number') return v>946684800?v:null;
-        if(typeof v==='string'&&/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/.test(v)){var ms=Date.parse(v.slice(0,19).replace(' ','T'));return isNaN(ms)?null:ms/1000;}
+        if(typeof v==='string'&&/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/.test(v)){var e=nodeLocalToEpoch(v.slice(0,19).replace(' ','T'));return isNaN(e)?null:e;}
         return null;
       }
       function dataRowSpan(row){
@@ -6685,7 +6685,7 @@ R"HTML(
           var m=r.mac||r.src;if(m)macs[m]=1;
           var g=dataGroupVal(r);if(g)grp[g]=(grp[g]||0)+1;
         });
-        var fmt=function(e){return new Date(e*1000).toLocaleString();};
+        var fmt=nodeTime;
         var top=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,3).map(function(k){return k+' '+grp[k];}).join(' · ');
         var he=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
         var tile=function(l,v){return '<div class="dn-tile"><small>'+he(l)+'</small><div title="'+he(v)+'">'+he(v)+'</div></div>';};
@@ -6726,12 +6726,32 @@ R"HTML(
         document.getElementById('dataTo').value='';
         onDataRange();
       }
-      function dataLocalInput(e){var d=new Date(e*1000);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,19);}
+      var NODE_TZ_IANA={'HST10':'Pacific/Honolulu','AKST9AKDT,M3.2.0,M11.1.0':'America/Anchorage','MST7':'America/Phoenix','CST6':'America/Regina',
+        'PST8PDT,M3.2.0,M11.1.0':'America/Los_Angeles','MST7MDT,M3.2.0,M11.1.0':'America/Denver','CST6CDT,M3.2.0,M11.1.0':'America/Chicago',
+        'EST5EDT,M3.2.0,M11.1.0':'America/New_York','GMT0BST,M3.5.0/1,M10.5.0':'Europe/London','CET-1CEST,M3.5.0,M10.5.0/3':'Europe/Paris',
+        'EET-2EEST,M3.5.0/3,M10.5.0/4':'Europe/Helsinki'};
+      var nodeTz={abbr:'UTC',off:0,std:'UTC',dst:'',stdOff:0,fmt:null};
+      function nodeTzSet(d){
+        if(!d||typeof d.tzOff!=='number')return;
+        var m=/^([A-Za-z]+)(-?\d+)([A-Za-z]+)?/.exec(d.tzPosix||''),fmt=null,z=NODE_TZ_IANA[d.tzPosix||''];
+        if(z){try{fmt=new Intl.DateTimeFormat('en-US',{timeZone:z,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});}catch(e){console.warn('[TZ]',z,e);}}
+        nodeTz={abbr:d.tz||'UTC',off:d.tzOff,std:m?m[1]:(d.tz||'UTC'),dst:m&&m[3]?m[3]:'',stdOff:m?-parseInt(m[2],10)*3600:d.tzOff,fmt:fmt};
+        var l=document.getElementById('dataTzLbl');if(l)l.textContent='Times shown in '+nodeTz.abbr;
+      }
+      function nodeOff(e){
+        if(!nodeTz.fmt)return nodeTz.off;
+        var p={};nodeTz.fmt.formatToParts(new Date(e*1000)).forEach(function(x){p[x.type]=x.value;});
+        return Date.UTC(+p.year,p.month-1,+p.day,+p.hour,+p.minute,+p.second)/1000-Math.floor(e);
+      }
+      function nodeAbbr(off){return nodeTz.fmt?(off===nodeTz.stdOff||!nodeTz.dst?nodeTz.std:nodeTz.dst):nodeTz.abbr;}
+      function nodeTime(e){var o=nodeOff(e);return new Date((e+o)*1000).toISOString().replace('T',' ').substring(0,19)+' '+nodeAbbr(o);}
+      function nodeLocalToEpoch(s){var u=Date.parse(s+'Z')/1000;return isNaN(u)?NaN:u-nodeOff(u-nodeTz.off);}
+      function dataLocalInput(e){return new Date((e+nodeOff(e))*1000).toISOString().slice(0,19);}
       function onDataRange(){
         var f=document.getElementById('dataFrom').value,t=document.getElementById('dataTo').value;
         document.getElementById('dataCampaign').value='';dataCampTag='';
         document.getElementById('campExport').disabled=true;
-        dataRange=(f||t)?[f?Date.parse(f)/1000:0,t?Date.parse(t)/1000:4102444800]:null;
+        dataRange=(f||t)?[f?nodeLocalToEpoch(f):0,t?nodeLocalToEpoch(t):4102444800]:null;
         loadDataSet();
       }
       function onDataCampaign(){
@@ -6783,6 +6803,7 @@ R"HTML(
       }
       function loadCampaigns(){
         fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){
+          nodeTzSet(d);
           ['bleClassify','bleClassifyScan'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=!!d.bleClassify;});
           document.getElementById('campState').textContent=d.campaign?'Recording: '+d.campaign:'No active campaign';
           campHdrSet(d.campaign);
@@ -6797,7 +6818,7 @@ R"HTML(
           });
           var sel=document.getElementById('dataCampaign'),cur=sel.value;
           sel.innerHTML='<option value="">All time</option>'+dataCamps.map(function(c,i){
-            return '<option value="'+i+'">'+String(c.name).replace(/[&<>"']/g,'')+(c.from?' · '+new Date(c.from*1000).toLocaleDateString():'')+(c.to?'':' (active)')+'</option>';
+            return '<option value="'+i+'">'+String(c.name).replace(/[&<>"']/g,'')+(c.from?' · '+nodeTime(c.from).substring(0,10):'')+(c.to?'':' (active)')+'</option>';
           }).join('');
           sel.value=cur;
         }).catch(function(e){console.error('[DATA] campaigns.csv failed:',e);});
@@ -6899,10 +6920,7 @@ R"HTML(
         const SEVC={crit:'#fb7185',high:'#fb923c',med:'#facc15',info:'#38bdf8'};
         const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
         const fmtWhen=r=>{
-          if(r.epoch&&r.epoch>946684800){
-            const d=new Date(r.epoch*1000);
-            return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-          }
+          if(r.epoch&&r.epoch>946684800)return nodeTime(r.epoch).substring(5);
           const s=Math.floor((r.ts||0)/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
           return (h?h+'h':'')+(m?m+'m':'')+ss+'s up';
         };
@@ -6986,7 +7004,7 @@ R"HTML(
       function fmtCell(val,key){
         if(val===undefined||val===null||val==='') return '-';
         if(key==='t'||key==='timestamp'||key==='first'||key==='last'){
-          if(typeof val==='number'&&val>946684800) return new Date(val*1000).toISOString().replace('T',' ').substring(0,19)+' UTC';
+          if(typeof val==='number'&&val>946684800) return nodeTime(val);
           if(typeof val==='number'&&val>0){var s=val%60,m=Math.floor(val/60)%60,h=Math.floor(val/3600);return (h?h+'h ':'')+(m?m+'m ':'')+s+'s (uptime)';}
           if(typeof val==='number') return '-';
           return String(val);
@@ -7109,7 +7127,7 @@ R"HTML(
       loadDedupTtl();
       loadSdRepair();
       loadCampaigns();
-      setInterval(function(){fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){campHdrSet(d.campaign);}).catch(function(e){console.warn('[CAMP] /data-cfg poll failed:',e);});},10000);
+      setInterval(function(){fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){nodeTzSet(d);campHdrSet(d.campaign);}).catch(function(e){console.warn('[CAMP] /data-cfg poll failed:',e);});},10000);
       updateAutoEraseStatus();
       loadVibScanConfig();
       refreshPskStatus();
@@ -7945,7 +7963,7 @@ R"HTML(
         const el=document.getElementById('meshCmdArea'); if(!el)return;
         if(!a.length){el.innerHTML='<div style="color:var(--mut);font-size:12px;">No commands logged.</div>';return;}
         const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-        const when=r=>{if(r.epoch&&r.epoch>946684800){const d=new Date(r.epoch*1000);return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}return Math.round((r.ts||0)/1000)+'s up';};
+        const when=r=>{if(r.epoch&&r.epoch>946684800)return nodeTime(r.epoch).substring(5);return Math.round((r.ts||0)/1000)+'s up';};
         el.innerHTML='<table class="dt"><thead><tr><th>Time</th><th>Radio</th><th>Command</th></tr></thead><tbody>'
           +a.slice(-100).reverse().map(r=>`<tr><td>${esc(when(r))}</td><td style="color:var(--acc);">${esc(r.src)}</td><td>${esc(r.cmd)}</td></tr>`).join('')
           +'</tbody></table>';
