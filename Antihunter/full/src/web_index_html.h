@@ -1588,10 +1588,60 @@ R"HTML(
       </div>
 
       <div class="page-tab" id="page-data">
-      <div class="card">
-        <h3>Data Explorer</h3>
-        <div class="data-header">
-          <select id="dataSet" onchange="loadDataSet()">
+      <style>
+        .dn-wrap{display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px}
+        .dn-nav{flex:0 1 210px;min-width:190px;display:flex;flex-direction:column;gap:2px}
+        .dn-navh{padding:0 10px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+        .dn-nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--mut);font-size:14px;font-weight:500;text-align:left;cursor:pointer}
+        .dn-nav button:hover{color:var(--txt)}
+        .dn-nav button.active{background:var(--surf2,var(--accbg));color:var(--txt);box-shadow:inset 3px 0 0 var(--acc)}
+        .dn-main{flex:999 1 520px;min-width:0;display:flex;flex-direction:column;gap:16px}
+        .dn-main h2{margin:0 0 6px;font-size:22px;font-weight:600;color:var(--txt)}
+        .dn-desc{margin:0;color:var(--mut)}
+        .dn-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+        .dn-tiles:empty{display:none}
+        .dn-tile{border:1px solid var(--bord);border-radius:8px;background:var(--surf);padding:12px 16px;min-width:0}
+        .dn-tile small{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+        .dn-tile div{margin-top:4px;font:500 18px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .dn-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+        .dn-bar input[type=text]{flex:1 1 220px;min-width:0}
+        .dn-bar select{width:auto}
+        .dn-box{border:1px solid var(--bord);border-radius:8px;background:var(--surf)}
+        .dn-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 24px;padding:14px 20px;border-top:1px solid var(--bord)}
+        .dn-row:first-child{border-top:0}
+        .dn-row b{display:block;font-weight:500;color:var(--txt)}
+        .dn-row p{margin:4px 0 0;font-size:13px;color:var(--mut)}
+        .dn-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid var(--bord);font-size:13px;color:var(--mut)}
+        .dn-main h3{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--txt)}
+        @media (max-width:720px){.dn-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;min-width:0}.dn-navh{display:none}.dn-nav button{width:auto;white-space:nowrap}}
+      </style>
+      <div class="dn-wrap">
+        <nav class="dn-nav" id="dataNav" aria-label="Datasets">
+          <div class="dn-navh">Datasets</div>
+          <button type="button" data-ds="devicedb" onclick="dataPick('devicedb')">All devices</button>
+          <button type="button" data-ds="probedb" onclick="dataPick('probedb')">Probe devices</button>
+          <button type="button" data-ds="probes" onclick="dataPick('probes')">Probe events</button>
+          <button type="button" data-ds="deauth" onclick="dataPick('deauth')">Deauth attacks</button>
+          <button type="button" data-ds="drones" onclick="dataPick('drones')">Drone detections</button>
+          <button type="button" data-ds="vibrations" onclick="dataPick('vibrations')">Vibration events</button>
+          <button type="button" data-ds="baseline" onclick="dataPick('baseline')">Baseline stats</button>
+          <button type="button" data-ds="syslog" onclick="dataPick('syslog')">System log</button>
+)HTML"
+#if AH_SENTINEL
+R"HTML(
+          <button type="button" data-ds="incidents" onclick="dataPick('incidents')">Sentinel incidents</button>
+)HTML"
+#endif
+R"HTML(
+          <div class="dn-navh" style="padding-top:18px;">Collect</div>
+          <button type="button" data-ds="campaigns" onclick="dataPick('campaigns')">Campaigns</button>
+        </nav>
+        <div class="dn-main">
+        <div id="dataView" class="dn-main" style="flex:none;">
+        <div><h2 id="dataTitle">All devices</h2><p class="dn-desc" id="dataDesc"></p></div>
+        <div id="dataSummary" class="dn-tiles"></div>
+        <div class="dn-bar">
+          <select id="dataSet" onchange="loadDataSet()" style="display:none;">
             <option value="devicedb">All Discovered Devices</option>
             <option value="probedb">Probe Devices</option>
             <option value="probes">Probe Events</option>
@@ -1608,34 +1658,43 @@ R"HTML(
 #endif
 R"HTML(
           </select>
-          <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
+          <input type="text" id="dataSearch" placeholder="Filter rows" aria-label="Filter rows" oninput="onDataSearch()">
+          <select id="dataRangeSel" aria-label="Time range" onchange="onDataRangeSel(this.value)"><option value="">All</option><option value="3600">Last hour</option><option value="86400">Last 24 hours</option></select>
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
           <a class="btn alt" id="dataExport" download style="padding:8px 14px;font-size:12px;">Export</a>
-          <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear</button>
+          <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear dataset</button>
           <button class="btn privacy-toggle" type="button" onclick="togglePrivacy()" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;"></button>
         </div>
-        <div class="data-header">
-          <select id="dataCampaign" onchange="onDataCampaign()" title="Limit every dataset to a campaign or time range"><option value="">All time</option></select>
-          <input type="datetime-local" id="dataFrom" step="1" onchange="onDataRange()" title="From">
-          <input type="datetime-local" id="dataTo" step="1" onchange="onDataRange()" title="To">
-          <button class="btn alt" id="campExport" onclick="campExport()" style="padding:8px 14px;font-size:12px;" disabled title="Download every dataset's rows for the selected campaign">Export campaign</button>
-          <input type="text" id="campName" maxlength="23" placeholder="Campaign name">
-          <button class="btn" onclick="fleetCampaign(true)" style="padding:8px 14px;font-size:12px;">Start</button>
-          <button class="btn alt" onclick="fleetCampaign(false)" style="padding:8px 14px;font-size:12px;">Stop</button>
-          <span id="campState" style="font-size:12px;color:var(--mut);align-self:center;"></span>
-          <div id="campNodes" style="display:none;flex-wrap:wrap;gap:10px;font-size:12px;align-items:center;"></div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;" title="Off skips BLE advertisement classification during scans to save CPU and heap. Existing labels stay.">
-            <input type="checkbox" id="bleClassify" onchange="saveBleClassify(this)" style="width:auto;">BLE classifier
-          </label>
+        <div class="dn-box">
+          <div id="dataArea" style="overflow-x:auto;">
+            <div class="data-empty">Select a dataset to view.</div>
+          </div>
+          <div class="data-pager dn-foot" id="dataPager" style="display:none;">
+            <span id="dataPageInfo">--</span>
+            <span style="display:flex;gap:8px;"><button class="btn alt" onclick="dataPagePrev()" id="dataPrevBtn">Previous</button><button class="btn alt" onclick="dataPageNext()" id="dataNextBtn">Next</button></span>
+          </div>
         </div>
-        <div id="dataSummary" style="font-size:12px;color:var(--mut);margin:6px 0;"></div>
-        <div id="dataArea" style="overflow-x:auto;">
-          <div class="data-empty">Select a dataset to view.</div>
         </div>
-        <div class="data-pager" id="dataPager" style="display:none;">
-          <button class="btn alt" onclick="dataPagePrev()" id="dataPrevBtn">Prev</button>
-          <span id="dataPageInfo">--</span>
-          <button class="btn alt" onclick="dataPageNext()" id="dataNextBtn">Next</button>
+        <div id="campView" class="dn-main" style="flex:none;display:none;">
+          <div><h2>Campaigns</h2><p class="dn-desc">A campaign tags everything the chosen nodes log between Start and Stop, so you can export it as one set.</p></div>
+          <section>
+            <h3>New campaign</h3>
+            <div class="dn-box">
+              <div class="dn-row"><b>Name</b><input type="text" id="campName" maxlength="23" placeholder="Campaign name" style="max-width:280px;"></div>
+              <div class="dn-row"><div><b>Nodes</b><p>Check the nodes that record. With no other nodes heard on the mesh, only this node records.</p></div><div id="campNodes" style="display:none;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px;"></div></div>
+              <div class="dn-foot"><span id="campState"></span><span style="display:flex;gap:8px;"><button class="btn alt" onclick="fleetCampaign(false)">Stop campaign</button><button class="btn primary" onclick="fleetCampaign(true)">Start campaign</button></span></div>
+            </div>
+          </section>
+          <section>
+            <h3>Export a campaign</h3>
+            <div class="dn-box">
+              <div class="dn-row"><b>Campaign</b><select id="dataCampaign" onchange="onDataCampaign()" style="max-width:280px;"><option value="">All time</option></select></div>
+              <div class="dn-row"><b>From</b><input type="datetime-local" id="dataFrom" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
+              <div class="dn-row"><b>To</b><input type="datetime-local" id="dataTo" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
+              <div class="dn-foot"><span>The campaign and dates also filter every dataset.</span><button class="btn alt" id="campExport" onclick="campExport()" disabled title="Download every dataset's rows for the selected campaign">Export campaign</button></div>
+            </div>
+          </section>
+        </div>
         </div>
       </div>
       </div>
@@ -1694,30 +1753,46 @@ R"HTML(
           @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
         </style>
 
-        <div style="margin-bottom:12px;padding:14px 16px;background:var(--sent-head-bg);border:1px solid var(--bord);border-radius:10px;">
-          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-            <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;color:var(--txt);">Sentinel</h2>
-            <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
-          </div>
-          <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
-            Passive Wi-Fi monitoring that flags attacker-tool activity.
-          </div>
+        <div class="sn-bar">
+          <div class="sn-state"><span class="sn-dot" id="snDot"></span><div><div class="sn-title">Sentinel: <span id="sentStatus2">--</span></div><div class="sn-sub" id="dos-mode-desc"></div></div></div>
+          <div class="sn-acts"><button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button><button id="sentToggleBtn" class="btn primary" onclick="sentinelToggleHdr()">Start Sentinel</button></div>
         </div>
 
         <div id="det-banner"><div style="font-size:10px;color:#fca5a5;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">ACTIVE ALERTS</div><div id="det-banner-body"></div></div>
 
-        <div id="det-tabs" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--bord);">
-          <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
-          <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
-          <button data-dtab="analysis" class="dtab" onclick="detSetTab('analysis')">Analysis</button>
-          <button class="btn alt privacy-toggle det-priv" type="button" onclick="togglePrivacy()"></button>
-        </div>
+        <div class="sn-wrap">
+        <nav id="det-tabs" class="sn-nav" aria-label="Sentinel sections">
+          <div class="sn-navh">Sentinel</div>
+          <button data-dtab="overview" class="dtab active" onclick="detSetTab('overview')"><span>Overview</span></button>
+          <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')"><span>Detectors</span><span class="sn-badge" id="snBadgeDet"></span></button>
+          <button data-dtab="response" class="dtab" onclick="detSetTab('response')"><span>Attack response</span></button>
+          <button data-dtab="mesh" class="dtab" onclick="detSetTab('mesh')"><span>Mesh &amp; thresholds</span></button>
+          <button data-dtab="activity" class="dtab" onclick="detSetTab('activity')"><span>Activity</span></button>
+          <button data-dtab="incidents" class="dtab" onclick="detSetTab('incidents')"><span>Incidents</span><span class="sn-badge hot" id="snBadgeInc"></span></button>
+        </nav>
+        <div class="sn-main">
         <style>
-          #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
-          #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
-          #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
-          #det-tabs .det-priv{margin-left:auto;align-self:center;margin-bottom:4px;padding:6px 12px;font-size:12px;line-height:1;border-radius:8px;white-space:nowrap;}
-          @media (max-width:600px){#det-tabs button.dtab{padding:8px 9px;font-size:12px;}#det-tabs .det-priv{padding:5px 10px;font-size:11px;}}
+          .sn-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border:1px solid var(--bord);border-radius:8px;background:var(--surf);margin-bottom:14px}
+          .sn-state{display:flex;align-items:center;gap:12px}
+          .sn-dot{width:8px;height:8px;border-radius:50%;background:var(--mut);flex-shrink:0}
+          .sn-title{font-size:15px;font-weight:600;color:var(--txt)}
+          .sn-sub{font-size:13px;color:var(--mut)}
+          .sn-sub:empty{display:none}
+          .sn-acts{display:flex;gap:8px;flex-wrap:wrap}
+          .sn-wrap{display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px}
+          .sn-nav{flex:0 1 210px;min-width:190px;display:flex;flex-direction:column;gap:2px}
+          .sn-navh{padding:0 10px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+          #det-tabs button.dtab{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--mut);font-size:14px;font-weight:500;text-align:left;cursor:pointer}
+          #det-tabs button.dtab:hover{color:var(--txt)}
+          #det-tabs button.dtab.active{background:var(--surf2,var(--accbg));color:var(--txt);box-shadow:inset 3px 0 0 var(--acc)}
+          .sn-badge{font-family:ui-monospace,monospace;font-size:12px;color:var(--mut)}
+          .sn-badge.hot{color:var(--dang)}
+          .sn-main{flex:999 1 520px;min-width:0}
+          .sn-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 24px;padding:10px 0;border-top:1px solid var(--bord)}
+          .sn-row:first-child{border-top:0}
+          .sn-row b{display:block;font-weight:500;color:var(--txt)}
+          .sn-row p{margin:4px 0 0;font-size:13px;color:var(--mut)}
+          @media (max-width:720px){.sn-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;min-width:0}.sn-navh{display:none}#det-tabs button.dtab{width:auto;white-space:nowrap}}
           .dtab-hidden{display:none !important;}
           .det-empty-hidden{display:none !important;}
           .drow-head,.drow{display:grid;grid-template-columns:10px 1fr 48px 52px 44px;gap:12px;align-items:center;}
@@ -1762,9 +1837,24 @@ R"HTML(
           @keyframes dpulse{0%,100%{opacity:1}50%{opacity:.45}}
         </style>
 
-        <div class="card">
+        <div class="card" data-key="listen">
+          <h3>Listening</h3>
+          <div class="sn-row">
+            <div><b>Radio</b><p>Defend this AP stays on the AP's channel and catches attacks on it. Scan all channels hops and covers more, with gaps.</p></div>
+            <div style="display:flex;gap:0;border:1px solid var(--bord);border-radius:6px;overflow:hidden;">
+              <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
+              <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
+            </div>
+          </div>
+          <div class="sn-row">
+            <div><b>Start on boot</b><p>Sentinel starts by itself after a reboot.</p></div>
+            <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
+          </div>
+        </div>
+
+        <div class="card" data-key="overview">
           <div class="card-header" onclick="toggleCollapse('detOverviewCard')">
-            <h3><span class="sev info">overview</span>Detection Overview</h3>
+            <h3>This session</h3>
             <span class="collapse-icon open" id="detOverviewCardIcon">▶</span>
           </div>
           <div class="card-body" id="detOverviewCardBody">
@@ -1803,6 +1893,18 @@ R"HTML(
           </div>
         </div>
 
+        <div class="card" data-key="latest">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <h3 style="margin:0;">Latest incidents</h3>
+            <button class="btn alt" style="padding:6px 12px;font-size:12px;" onclick="detSetTab('incidents')">See all</button>
+          </div>
+          <div class="sa-wrap" style="margin-top:10px;">
+            <table class="sa-tbl"><thead><tr><th style="width:90px;">When</th><th style="width:170px;">Type</th><th>Source</th><th style="width:72px;">Node</th></tr></thead>
+              <tbody id="incLatest"><tr><td colspan="4" style="padding:12px;color:var(--mut);">No incidents</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card" data-key="apclients">
           <div class="card-header" onclick="toggleCollapse('apClientsCard')">
             <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP)</span></h3>
@@ -1826,26 +1928,9 @@ R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="dctl">
-          <div class="card-header" onclick="toggleCollapse('detCtlCard')">
-            <h3><span class="sev info">control</span>Sentinel Control</h3>
-            <span class="collapse-icon open" id="detCtlCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detCtlCardBody">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-              <span style="font-size:12px;">Sentinel:</span>
-              <span id="sentStatus2" style="font-weight:600;color:#888;font-size:13px;">--</span>
-              <button id="sentToggleBtn" class="btn primary" onclick="sentinelToggleHdr()">Start</button>
-              <span style="font-size:11px;color:var(--mut);margin-left:8px;">Radio:</span>
-              <div style="display:flex;gap:0;border:1px solid var(--bord);border-radius:6px;overflow:hidden;">
-                <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
-                <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-              <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
-              <span style="font-size:12px;color:var(--mut);">Start Sentinel on boot (persists across reboot)</span>
-            </div>
+        <div class="card" data-key="response">
+          <h3>Attack response</h3>
+          <div>
             <div class="ar-box">
               <div class="ar-head">On confirmed attack</div>
               <div class="ar-sub">Runs top to bottom, one at a time, as the radio frees up. Needs a source MAC. One run per attacker per cooldown.</div>
@@ -1900,7 +1985,12 @@ R"HTML(
                 <span class="ar-free" id="arSdFree">--</span>
               </div>
             </div>
-            <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="detgroups">
+          <h3>Turn detectors on or off</h3>
+          <div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
             <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Toggle a group:</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
@@ -2022,7 +2112,7 @@ R"HTML(
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-key="meshdef">
           <div class="card-header" onclick="toggleCollapse('detMeshCard')">
             <h3><span class="sev info">mesh</span>Mesh Defense</h3>
             <span class="collapse-icon open" id="detMeshCardIcon">▶</span>
@@ -2314,6 +2404,8 @@ R"HTML(
           </div>
         </div>
         </div><!-- /det-grid -->
+        </div>
+        </div>
       </div>
       <!-- ===== /DETECT TAB ===== -->
 )HTML"
@@ -5703,6 +5795,19 @@ R"HTML(
             privacyApply(body);
             _incLastHtml = html;
           }
+          const latest = document.getElementById('incLatest');
+          if (latest) {
+            const top = arr.slice().reverse().slice(0, 3);
+            latest.innerHTML = top.length === 0
+              ? '<tr><td colspan="4" style="padding:12px;color:var(--mut);">No incidents</td></tr>'
+              : top.map(e => '<tr><td class="sa-when">' + esc(_incWhen(e)) + '</td>'
+                  + '<td style="font-weight:600;color:' + _atkColor(e.type) + ';">' + esc(e.type) + '</td>'
+                  + '<td class="sa-mac">' + esc(e.src) + '</td>'
+                  + '<td><span class="sa-node">' + esc(e.node) + '</span></td></tr>').join('');
+            privacyApply(latest);
+          }
+          const incBadge = document.getElementById('snBadgeInc');
+          if (incBadge) incBadge.textContent = arr.length ? String(arr.length) : '';
         } catch(e){ console.error('loadIncidents', e); }
       }
       function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
@@ -5727,8 +5832,10 @@ R"HTML(
           else if (j.enabled){txt='enabled, task not running';col='#fc6';}
           const el2=document.getElementById('sentStatus2');
           if(el2){el2.textContent=txt;el2.style.color=col;}
+          const dot=document.getElementById('snDot');
+          if(dot)dot.style.background=j.running?'var(--acc)':col;
           const tb=document.getElementById('sentToggleBtn');
-          if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
+          if(tb){tb.textContent=j.enabled?'Stop Sentinel':'Start Sentinel';tb.className=j.enabled?'btn danger':'btn primary';}
         } catch(e){ console.error('sentinelRefresh', e); }
       }
       setInterval(() => { if (pageActive('detect')) sentinelRefresh(); }, 4000);
@@ -6579,9 +6686,45 @@ R"HTML(
           var g=dataGroupVal(r);if(g)grp[g]=(grp[g]||0)+1;
         });
         var fmt=function(e){return new Date(e*1000).toLocaleString();};
-        var top=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,5).map(function(k){return k+' '+grp[k];}).join(' · ');
-        el.textContent=n+' rows'+(dataCursor>0?' loaded':'')+(lo<=hi?' · '+fmt(lo)+' → '+fmt(hi):'')+(Object.keys(macs).length?' · '+Object.keys(macs).length+' unique MACs':'')+(top?' · top: '+top:'');
+        var top=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,3).map(function(k){return k+' '+grp[k];}).join(' · ');
+        var he=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+        var tile=function(l,v){return '<div class="dn-tile"><small>'+he(l)+'</small><div title="'+he(v)+'">'+he(v)+'</div></div>';};
+        el.innerHTML=tile(dataCursor>0?'Rows loaded':'Rows',String(n))
+          +(Object.keys(macs).length?tile('Unique MACs',String(Object.keys(macs).length)):'')
+          +(lo<=hi?tile('First',fmt(lo))+tile('Last',fmt(hi)):'')
+          +(top?tile('Top',top):'');
         privacyApply(el);
+      }
+      var DATA_INFO={
+        devicedb:['All devices','Every Wi-Fi and BLE device this node has logged.'],
+        probedb:['Probe devices','Devices that sent probe requests, with the network names they asked for.'],
+        probes:['Probe events','Each probe request, one row per frame.'],
+        deauth:['Deauth attacks','Deauthentication and disassociation frames this node detected.'],
+        drones:['Drone detections','Remote ID broadcasts from drones.'],
+        vibrations:['Vibration events','Tamper sensor triggers.'],
+        baseline:['Baseline stats','Device count and settings of the current baseline.'],
+        syslog:['System log','Boot, mesh and storage messages from this node.'],
+        incidents:['Sentinel incidents','Incidents from Sentinel. The same list is in Sentinel, Incidents.']
+      };
+      function dataNavSync(id){
+        document.querySelectorAll('#dataNav button[data-ds]').forEach(function(b){b.classList.toggle('active',b.dataset.ds===id);});
+        var camp=id==='campaigns';
+        var dv=document.getElementById('dataView'),cv=document.getElementById('campView');
+        if(dv)dv.style.display=camp?'none':'';
+        if(cv)cv.style.display=camp?'':'none';
+        var info=DATA_INFO[id];
+        if(info){document.getElementById('dataTitle').textContent=info[0];document.getElementById('dataDesc').textContent=info[1];}
+      }
+      function dataPick(id){
+        if(id==='campaigns'){dataNavSync(id);return;}
+        document.getElementById('dataSet').value=id;
+        loadDataSet();
+      }
+      function onDataRangeSel(v){
+        var s=parseInt(v,10);
+        document.getElementById('dataFrom').value=s?dataLocalInput(Math.floor(Date.now()/1000)-s):'';
+        document.getElementById('dataTo').value='';
+        onDataRange();
       }
       function dataLocalInput(e){var d=new Date(e*1000);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,19);}
       function onDataRange(){
@@ -6796,6 +6939,7 @@ R"HTML(
 R"HTML(
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
+        dataNavSync(ds);
         var cfg=DATA_SETS[ds];
         var area=document.getElementById('dataArea');
         area.innerHTML='<div class="data-empty">Loading...</div>';
@@ -6890,7 +7034,7 @@ R"HTML(
         var pager=document.getElementById('dataPager');
         if(dataFiltered.length>DATA_PAGE_SIZE||dataCursor>0){
           pager.style.display='flex';
-          document.getElementById('dataPageInfo').textContent=(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'');
+          document.getElementById('dataPageInfo').textContent='Showing '+(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'')+' rows';
           document.getElementById('dataPrevBtn').disabled=dataPage===0;
           document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length&&!(dataCursor>0);
         } else { pager.style.display='none'; }
@@ -7486,25 +7630,18 @@ R"HTML(
       setInterval(()=>{ if(pageActive('detect')) detRenderBanner(); },5000);
 
       const DETECTOR_TAB_MAP = {
-        'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live','apclients':'live','meshcmd':'live','meshradios':'detectors',
-        'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
-        'physical':'detectors','meshcfg':'detectors','mesh':'detectors',
-        'analysis':'analysis'
+        'listen':'overview','overview':'overview','latest':'overview',
+        'detgroups':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
+        'physical':'detectors','mesh':'detectors',
+        'response':'response',
+        'meshcfg':'mesh','meshdef':'mesh',
+        'apclients':'activity','meshcmd':'activity','meshradios':'activity',
+        'events':'incidents','analysis':'incidents'
       };
+      const DET_SECTIONS=['overview','detectors','response','mesh','activity','incidents'];
 
       function _detCardTab(c){
-        const key=c.dataset.key||'';
-        let cardTab=DETECTOR_TAB_MAP[key];
-        if(!cardTab){
-          const txt=(c.querySelector('h3')?.textContent||'').toLowerCase();
-          if(txt.includes('detector controls')||txt.includes('threshold'))cardTab='config';
-          else if(txt.includes('overview'))cardTab='live';
-          else if(txt.includes('mesh defense'))cardTab='config';
-          else if(c.dataset.sev&&key!=='events')cardTab='details';
-          else cardTab='detectors';
-        }
-        return cardTab;
+        return DETECTOR_TAB_MAP[c.dataset.key||'']||'detectors';
       }
       function detSetTab(tab){
         document.querySelectorAll('#det-tabs button.dtab').forEach(b=>{
@@ -7517,7 +7654,7 @@ R"HTML(
           const allowed=el.dataset.dtabTarget.split(',');
           el.classList.toggle('dtab-hidden', !allowed.includes(tab));
         });
-        if(tab==='analysis'&&typeof loadSentinelAnalysis==='function') setTimeout(loadSentinelAnalysis,40);
+        if(tab==='incidents'&&typeof loadSentinelAnalysis==='function') setTimeout(loadSentinelAnalysis,40);
         if (window.localStorage) {
           try {
             localStorage.setItem('detTab', tab);
@@ -7527,15 +7664,15 @@ R"HTML(
         }
       }
       function detTabRestore(){
-        let saved = 'live';
+        let saved = 'overview';
         if (window.localStorage) {
           try {
-            saved = localStorage.getItem('detTab') || 'live';
+            saved = localStorage.getItem('detTab') || 'overview';
           } catch (storageErr) {
             console.warn('detSetTab: localStorage read failed (private mode?)', storageErr);
           }
         }
-        if (saved !== 'live' && saved !== 'detectors' && saved !== 'analysis') saved = 'live';
+        if (!DET_SECTIONS.includes(saved)) saved = 'overview';
         setTimeout(()=>detSetTab(saved), 50);
       }
       detTabRestore();
@@ -7543,6 +7680,7 @@ R"HTML(
       function detJump(key){
         const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
         if(!card)return;
+        detSetTab(_detCardTab(card));
         const body=card.querySelector('.card-body');
         if(body&&body.classList.contains('collapsed')){
           const id=card.querySelector('.card-header').getAttribute('onclick');
@@ -7773,6 +7911,8 @@ R"HTML(
         _detCfg=await _jj('/api/detect/config');
         detRenderConfig();
         if(typeof renderDos==='function')renderDos();
+        const db=document.getElementById('snBadgeDet');
+        if(db&&_detCfg)db.textContent=DET_ALL_LOCAL.filter(k=>_detCfg[k]===true).length+' / '+DET_ALL_LOCAL.length;
       }
       async function detHealthTick(){
         const tab=document.getElementById('page-detect');
