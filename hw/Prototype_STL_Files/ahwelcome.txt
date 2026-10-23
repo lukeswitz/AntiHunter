@@ -9,8 +9,8 @@
 ==================================================================================
                                  HELLO, OPERATOR
 
-   Thank you for being part of the project. Fully open source: write your own mesh
-   commands, wire in your IDS, make it yours.
+   Thank you for joining the project. AntiHunter is fully open source: write your
+   own mesh commands and connect your own IDS.
 
    OPERATOR'S GUIDE -- unboxing to deployment, every detector, tuning, C2:
    github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
@@ -23,36 +23,41 @@
       LoRa coiled whip or long duck       ->  Heltec / T114
       GPS ceramic patch or active helix   ->  GPS module
 
-   U.FL: parallel to the board, rims aligned, press STRAIGHT DOWN until it clicks.
-   Never at an angle, never forced. SMA: finger tight plus an eighth of a turn.
+   U.FL: hold the connector parallel to the board with the rims aligned, then
+   press STRAIGHT DOWN until it clicks. Never press at an angle or force it.
+   SMA: finger tight plus an eighth of a turn.
 ==================================================================================
                                  [02]  MESH RADIO
 
-   Soldered Core and Assembled ship flashed and serial-configured. Bare PCB and
-   Parts Kit: flash stable Meshtastic at flasher.meshtastic.org, then set
-   SERIAL Enabled, TEXTMSG, 115200, pins 19RX/20TX (V3) or 10RX/9TX (T114).
+   Soldered Core and Assembled radios arrive flashed and serial-configured. On
+   Bare PCB and Parts Kit, flash stable Meshtastic at flasher.meshtastic.org,
+   then set SERIAL Enabled, TEXTMSG, 115200, pins 19RX/20TX (V3) or 10RX/9TX
+   (T114).
 
    On every radio, before you deploy:
-      REGION ships UNSET, it receives but never transmits until you set it
-      PAIRING PIN is the same on every unit, change it
-      CHANNEL is the public default, make your own encrypted one primary
+      REGION arrives UNSET. The radio receives but does not transmit until you
+         set it.
+      PAIRING PIN is the same on every unit. Change it.
+      CHANNEL is the public default. Make your own encrypted channel primary.
 ==================================================================================
                               [03]  FLASH ANTIHUNTER
 
-   The ESP32 ships erased on every tier. You flash it, so you know what is on it.
+   No tier ships with AntiHunter installed. You flash it yourself, so you know
+   what is on it.
    FULL = Wi-Fi AP and web UI, plus mesh.  HEADLESS = serial and mesh, no AP.
 
    WEB FLASHER:  lukeswitz.github.io/AntiHunter
 
-   FIRST BOOT: join the AP "Antihunter" (antihunt3r123), open 192.168.4.1, and
-   change those credentials under System > Settings > Access point first.
-   They are published.
+   FIRST BOOT: join the access point "Antihunter" (password antihunt3r123) and
+   open 192.168.4.1. Before anything else, change both under System > Settings
+   > Access point. Both are published.
 ==================================================================================
                                    !  POWER  !
 
-   Regulated 5V only, from USB or the UPS board. Unregulated input kills parts.
-   One USB cable at a time: the ESP32 and the radio share the power rails.
-   A 2A fast-blow fuse on the battery line is recommended. Not supplied.
+   Use regulated 5V only, from USB or the UPS board. Unregulated input kills
+   parts. Connect one USB cable at a time, because the ESP32 and the radio share
+   power rails. A 2A fast-blow fuse on the battery line is recommended. It is
+   not supplied.
 ==================================================================================
    DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter
    COMMAND CENTER PRO, multi-site with TAK, MQTT and ADSB:

@@ -2,13 +2,13 @@
 > [!NOTE]
 > No affiliate links. These links are for reference only and may change.
 >
-> Product images are sourced from their respective manufacturers or retailers and remain the property of their owners. They are used here solely for part identification — no ownership or endorsement is implied.
+> Product images come from the manufacturers or retailers and remain their owners' property. They identify parts only and imply no ownership or endorsement.
 
 **Link key:** `MFR` manufacturer/OEM · `AMZN` Amazon (US) · `ALI` AliExpress (cheapest, live search) · `ALT` other verified reseller
 
 ## AntiHunter DIGI Node — Bill of Materials
 
-Full parts list for a complete node. Which of these come in a bought tier: [Deployment Steps by Tier](../../README.md#deployment-steps-by-tier).
+This is the full parts list for one node. To see which parts each tier includes, read [Deployment Steps by Tier](../../README.md#deployment-steps-by-tier).
 
 ### Core Electronics
 | Qty | Part |
@@ -116,23 +116,17 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 
 ## Builder Notes — read before ordering
 
-1. **2× 18650 cells are never supplied.** The HW-465A UPS holds two; they do not come with the UPS board or with any tier. Use protected flat-top cells, ~3000 mAh.
-2. **SMA gender chain.** GPS/LoRa/Wi-Fi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread.
-3. **SD card = FAT32.** Built tiers ship with an 8 GB card. 32 GB and larger are not recommended; 64 GB+ ships exFAT and needs reformatting (untested).
-4. **LoRa band must match your region and Heltec board variant** (EU868 / US915 / AS923). Mismatched antenna/board band degrades range.
-5. **Check which way the fan blows.** The sticker side is not always the exhaust side. Feel the airflow before you screw it down. Assembled units ship set to exhaust.
-6. **Fan full time.** Short the two THERMO pins to bypass the KSD9700.
-7. **Power board.** M3 threads straight into the plastic posts. To use inserts instead, melt M2 inserts into those posts and switch to M2 screws.
-8. **Fusing the battery line is optional.** A 2A fast-blow inline fuse between the cells and the UPS board adds protection against a cell fault. Not required and not supplied.
+1. **Buy the 2× 18650 cells yourself.** The HW-465A UPS holds two cells. No tier includes them. Use protected, flat-top cells of about 3000 mAh.
+2. **Match the SMA gender.** The GPS, LoRa and Wi-Fi antennas are SMA male and the modules use U.FL. Buy U.FL→SMA pigtails with an SMA female (jack) bulkhead, or the antennas will not thread on.
+3. **Use a FAT32 SD card.** Use 8 GB. Cards of 32 GB and more are not recommended. Cards of 64 GB and more come formatted exFAT and need reformatting (untested).
+4. **Match the LoRa band to your region and Heltec variant** (EU868, US915 or AS923). A mismatched antenna or board band reduces range.
+5. **Check the airflow direction.** The sticker side is not always the exhaust side. Feel the airflow before you screw the fan down. Assembled units come set to exhaust.
+6. **To run the fan full time,** short the two THERMO pins to bypass the KSD9700.
+7. **Power board.** M3 screws thread straight into the plastic posts. To use inserts instead, melt M2 inserts into the posts and use M2 screws.
+8. **A battery fuse is optional.** A 2A fast-blow inline fuse between the cells and the UPS board protects against a cell fault. It is not required and not supplied.
 
 > [!IMPORTANT]
->  **RTC and SW modules require a minor pin mod** to seat them in the PCB:
+> **The RTC and vibration sensor modules need a small pin change** to seat in the PCB.
 
-- RTC MODULE
-     Usually ships with female headers. Trim and reuse the existing pins,
-     or desolder and swap in male pin headers.
-
-- VIBRATION SENSOR
-     Sourced units have inverted 90° headers. Heat all three joints and
-     bend straight (trim excess), or desolder and replace with standard
-     header pins.
+- **RTC module:** It usually has female headers. Trim and reuse the existing pins, or desolder them and fit male pin headers.
+- **Vibration sensor:** Purchased units have inverted 90° headers. Heat all three joints and bend the pins straight (trim the excess), or desolder them and fit standard header pins.

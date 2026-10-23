@@ -1,292 +1,404 @@
 # API Reference
 
-Full HTTP API for the Full firmware's web server.
-Back to the [README](../README.md).
+[Back](../README.md)
+
+This page lists the HTTP routes of the Full firmware's web server. The Headless firmware has no access point and no web server. Control it with [mesh commands](mesh-commands.md).
+
+> [!IMPORTANT]
+> - Address the node by its own IP (`192.168.4.1` on its access point). A request that uses another host name, comes from another site, or carries a different `Origin` header gets `403`.
+> - Every route needs HTTP Digest login: user `admin`, realm `AntiHunter`, and the web password, or the access point password until you set a web password. A missing login gets `401`. Requests from the node itself (127.0.0.1) skip the login.
+> - You can turn the login off with `/web-auth`, or with `"webAuth":false` in the flasher config. Anyone on the access point can then use the web UI. Neither setting is available over the mesh.
 
 > [!NOTE]
 > Timestamps show local time from the GPS fix, with daylight saving applied. Without a GPS lock they show UTC. Fields named `epoch` are UTC seconds.
 
-> [!IMPORTANT]
-> - Address the node by its own IP (`192.168.4.1` on the AP). Requests from another site or hostname get `403`.
-> - Every route needs HTTP Digest login: user `admin`, realm `AntiHunter`, password = the web password, or the AP password until one is set. No login gets `401`.
-> - Turn the login off with `/web-auth` or `"webAuth":false` in the flasher config. Anyone on the AP can then use the web UI. Neither setting is available over mesh.
+## Conventions
 
-Parameters are form fields. `secs` is seconds, 0-86400; `forever` (any value) runs until `/stop`. `mode` is `0` Wi-Fi, `1` BLE, `2` both. `ch` is a channel list such as `1,6,11` or `1..11`.
+- POST parameters are form fields (`application/x-www-form-urlencoded`). GET parameters go in the query string.
+- Replies are plain text unless the table says JSON.
+- Common status codes: `400` missing or invalid parameter, `403` wrong key or password, `409` the radio is busy or the state does not allow the request, `500` a task failed to start, `507` the setting did not fit in flash storage.
+- Start routes return `409` while a scan runs. Call `/stop` first.
 
-### Core
+Parameters shared by the start routes:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Web interface |
-| `/diag` | GET | System diagnostics |
-| `/stop` | GET | Fast-abort every scan/task: aborts in-flight Wi-Fi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
-| `/config` | GET/POST | System configuration (JSON) |
-| `/clear-results` | POST | Clear all scan results |
+| Parameter | Meaning | Range | Default |
+|---|---|---|---|
+| `secs` | Run time in seconds. `0` runs until stopped | 0-86400 | 60 |
+| `forever` | Any value (even empty) runs until `/stop`. Overrides `secs` | | off |
+| `mode` | Radio: `0` Wi-Fi, `1` BLE, `2` both | 0-2 | per route |
+| `ch` | Wi-Fi channels as a list (`1,6,11`) or range (`1..11`) | 1-14 | 1-11 |
 
-### Scanning
+## Core
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/scan` | POST | Start target scan (`mode`, `secs`, `forever`, `ch`). Add `triangulate` and `targetMac` to triangulate that MAC instead, with optional `rfEnv` (0-4, default 2) and `wifiPwr`/`blePwr` (0.1-5.0). `400` and the reason if triangulation cannot start. `409` if a scan is running |
-| `/sniffer` | POST | Start a scan chosen by `detection`: `device-scan` (default), `deauth`, `baseline`, `randomization-detection`, `probe-scan`, `drone-detection`. Also `secs`, `forever`, `ch`. Radio per scan: `deviceScanMode`, `randomizationMode`, `probeScanMode`, `droneScanMode` (0-2). `captureProbes` adds probes to a device scan, `broadcastAll` sends every probe to the mesh. `409` if a scan is running |
-| `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
-| `/pcap/status` | GET | Capture state (JSON): active, radio, band, channel, frames, bytes, dropped, elapsed, current file, `dualBand`, SD budget/floor/free in MB |
-| `/pcap/list` | GET | Captures in `/pcap` (JSON): name, size, and whether that file is still being written |
-| `/pcap/download` | GET | Streams a capture. `f=<name>` selects one, omit it for the most recent |
-| `/pcap/delete` | POST | Deletes one capture (`f`). Refused while that file is recording |
-| `/pcap/delete-all` | POST | Deletes every capture in `/pcap` |
-| `/pcap/limits` | POST | Limits for captures started by Sentinel: `budgetMB` total size they may use (default 512, min 16), `floorMB` free space to keep on SD (default 256). Saved |
-| `/schedule` | GET | Schedule list (text) |
-| `/schedule` | POST | Add a block (`at` = `YYYY-MM-DDTHH:MM` node local time, `period` = seconds, `0` once or 600-2678400, `path` = `/scan`, `/sniffer` or `/drone`, `body` = that scan's form body), or `del=<block line>` to remove one. Max 8 blocks. `400` bad input, `404` block not found, `413` full |
-| `/mesh-tx/cancel` | POST | Empty the mesh TX queue; the scan keeps running |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/` | GET | The web interface |
+| `/diag` | GET | Diagnostics as text. Shows `Stopping: yes` until a stopped scan has exited |
+| `/stop` | GET | Stops every scan and task: aborts Wi-Fi and BLE scans, stops triangulation, cancels the mesh queue, and cancels Sentinel follow-up scans |
+| `/config` | GET | JSON: `nodeId`, `scanMode`, `channels`, `targets`. (C5) Also `bandMode` and `dualBand` |
+| `/config` | POST | Sets `channels` and `targets` (both required). (C5) `bandMode` is optional (`0` 2.4 GHz, `1` 5 GHz, `2` both). `409` while a scan runs, `507` if the target list does not fit (4000 bytes) |
+| `/node-id` | GET | JSON: `nodeId` |
+| `/node-id` | POST | `id`: 2-5 letters or digits, saved in upper case |
+| `/save` | POST | `list`: replaces the target list. `400` if missing, `507` if it does not fit (4000 bytes). The running list stays unchanged on failure |
+| `/export` | GET | The target list as text |
+| `/allowlist-export` | GET | The allowlist as text |
+| `/allowlist-save` | POST | `list`: replaces the allowlist. `409` while a scan runs |
+| `/clear-results` | POST | Clears the results text |
+| `/api/time` | POST | `epoch`: sets the clock, in UTC seconds from 1609459200 to 2147483647 |
+| `/api/onboarding` | GET, POST | JSON: `accepted`, the first-run disclaimer. POST marks it accepted |
 
-### Results
+## Scanning
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/results` | GET | Latest scan/triangulation results |
-| `/sniffer-cache` | GET | Cached device detections |
-| `/deauth-results` | GET | Deauth attack logs |
-| `/randomization-results` | GET | Randomization correlation results |
-| `/drone-results` | GET | Drone detection results |
-| `/drone-log` | GET | Drone event log (JSON) |
-| `/csi-results` | GET | CSI motion results (text). Beta and C5 |
-| `/csi-json` | GET | CSI motion state (JSON). Beta and C5 |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/scan` | POST | Starts a target scan. Parameters below |
+| `/sniffer` | POST | Starts the scan named by `detection`. Parameters below |
+| `/drone` | POST | Starts drone Remote ID detection: `secs`, `forever`, and `droneScanMode` (`0` Wi-Fi, `1` BLE, other values both; default both) |
+| `/mesh-tx/cancel` | POST | Empties the mesh send queue. The scan keeps running |
 
-### Fleet
+**`/scan`** has the shared parameters (`mode` default `0`). It returns `400` with "No targets" if the target list is empty. To triangulate instead, add `triangulate` (any value) and `targetMac`:
 
-The **Fleet** card on the System tab lists senders heard on the mesh.
+| Parameter | Meaning | Range | Default |
+|---|---|---|---|
+| `targetMac` | The device to locate | | |
+| `rfEnv` | Surroundings: `0` open sky, `1` suburban, `2` indoor, `3` indoor dense, `4` industrial | 0-4 | 2 |
+| `wifiPwr`, `blePwr` | Multipliers for Wi-Fi and BLE distance estimates | 0.1-5.0 | 1.0 |
 
-**Nodes** - ids matching the node-id rule (2-5 chars, `A-Z0-9`), with mode, scan state, hits, uptime, temp
-and GPS from their `STATUS` and heartbeat lines. `type` is `RADAR` on `TYPE:RADAR`, else `DIGI`. Online =
-heard within 2 minutes.
+**`/sniffer`** runs one of these scans. Choose it with `detection`; an unknown value returns `400`. All scans take `secs` and `forever`.
 
-**Other Mesh Radios** - every other sender id, including your own paired radio. Tagged `Control` once an
-`@` line is seen from it, `Unknown` otherwise. Also shown in the Sentinel tab.
+| `detection` | What it does | Extra parameters |
+|---|---|---|
+| `device-scan` (default) | Device discovery | `deviceScanMode` (0-2, default 2). `captureProbes` (any value) also collects probe requests |
+| `deauth` | Deauthentication and disassociation detection | |
+| `baseline` | Baseline anomaly detection. Always uses both radios | |
+| `randomization-detection` | Links devices that change their MAC address | `randomizationMode` (0-2, default 2) |
+| `probe-scan` | Probe request scan | `probeScanMode` (0-2, default 2). `broadcastAll` (any value) sends every probe to the mesh |
+| `drone-detection` | Drone Remote ID detection | `droneScanMode` (`0` Wi-Fi, `1` BLE, other both) |
+| `pcap` | Packet capture to the SD card. Needs `secs` of 1 or more, and an SD card | `pcapRadio` (`0` Wi-Fi, `1` BLE; default 0), `pcapBand` (`0` 2.4 GHz, `1` 5 GHz, `2` both; this hardware always uses 0), `pcapChannels` (channel list), `pcapDwell` (milliseconds per channel, 50-5000, default 250), `pcapMaxFile` (largest file in MB, 8-300), `pcapMgmtOnly` (any value records management frames only) |
 
-Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes** broadcasts `@ALL STATUS`.
+**`/sniffer` with `detection=csi-motion` (Beta, C5)** starts CSI motion detection. It takes `secs` and `forever`, and these fields. A field you leave out keeps its saved value, except `csiRaw`, `csiNoTx`, and `csiRnd`, which turn off when you leave them out. `409` means a scan is running or the node is out of memory.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/mesh` | GET | Fleet roster (JSON: `node`, `peers`, `radios`) |
-| `/api/mesh/ping` | POST | Broadcast `@ALL STATUS` |
-| `/api/mesh/clear` | POST | Clear both rosters |
-| `/api/fleet/send` | POST | Send `@<node> <cmd>` over the mesh (`node` 2-5 `A-Z0-9`, not this node; `cmd` one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `STOP`, `STATUS`, `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`). `400` bad node or command, `409` mesh disabled, `413` too long, `503` mesh busy |
+| Parameter | Meaning | Range | Default |
+|---|---|---|---|
+| `csiChannel` | Wi-Fi channel to watch. `0` lets the node pick | 0-14 | 0 |
+| `csiThreshold` or `csiThr` | Trigger level. A higher number needs a stronger change in the signal | 0.005-20 | Beta 0.140, C5 0.020 |
+| `csiHold` | Time without movement before movement clears. A value from 1 to 120 is seconds. A value from 500 to 120000 is milliseconds | 1-120 s, or 500-120000 ms | 5 s |
+| `csiDwell` | Time the signal must keep changing before the node reports movement, in seconds | 2-60 | 8 |
+| `csiSpots` | Number of transmitters that must show the movement | 1-12 | 2 |
+| `csiConsec` | Consecutive hits one transmitter needs | 1-50 | 3 |
+| `csiMeshGap` | Smallest time in seconds between two `CSI_MOTION` mesh alerts. `0` sends every alert | 0-3600 | 0 |
+| `csiTelem` | Any value prints a score for every packet on USB serial. Once on, it stays on | | off |
+| `csiRaw` | Any value dumps raw channel data on USB serial | | off |
+| `csiNoTx` | Any value makes the node listen only. If you leave it out, the node may transmit probe requests | | off |
+| `csiRnd` | Any value includes devices with randomized MAC addresses | | off |
+| `csiRecal` | Any value clears the saved trigger level first | | |
 
-### Probe Database
+`ch` sets the channel list. With `split` (any value), the list applies to this run only and the earlier list returns afterward. A `device-scan` with no `ch` uses the node's share from `/api/channel_partition`, if it has one.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/probedb` | GET | Probe database (JSON: mac, vendor, name, SSIDs, RSSI, randomization status) |
-| `/api/probedb/clear` | POST | Clear probe database |
-| `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
-| `/api/probes/clear` | POST | Delete the probe log (`/probes.jsonl` and `/probes_old.jsonl`) |
+## Captures
 
-`vendor` is the IEEE OUI-registered organization, resolved from the first 24 bits of the MAC.
-`name` is the device's advertised BLE name. Randomized (locally administered) MACs carry no OUI
-assignment and resolve to no vendor.
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/pcap/status` | GET | JSON: `active`, `dualBand`, `radio`, `band`, `channel`, `frames`, `bytes`, `dropped`, `elapsed`, `file`, `sd`, `budgetMB`, `floorMB`, `maxFileMB`, `freeMB` |
+| `/pcap/list` | GET | JSON array of captures in `/pcap`: `name`, `size`, `active` (still being written) |
+| `/pcap/download` | GET | Streams a capture. `f` is the file name (letters, digits, `_`, `-`, `.`, ending in `.pcap`). Without `f` it sends the most recent. `400` bad name, `404` no file |
+| `/pcap/delete` | POST | `f`: deletes one capture. `409` if it is missing or still recording |
+| `/pcap/delete-all` | POST | Deletes every capture |
+| `/pcap/limits` | POST | `budgetMB`: space for captures that Sentinel starts (16 or more; default 512). `floorMB`: free space to keep on the card (default 256). `maxFileMB`: largest single file (8-300; default 100). Saved |
 
-### Device Database
+## Schedule
 
-Every device seen by a Device Discovery or target scan is merged into `/devicedb.jsonl` on SD and
-survives reboots. Capped at 2000 entries; the least recently seen entry is evicted when full.
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/schedule` | GET | Text. First line: `<local time>\|<time zone>`. Then one line per block: `<next run, local time>\|<epoch>\|<repeat>\|<route>\|<options>`. Optional `now` (UTC epoch seconds) gives the node the time when it has no clock |
+| `/schedule` | POST | Adds a block (parameters below), or removes one with `del` |
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/devicedb` | GET | All discovered devices (JSON: mac, ble, vendor, name, rssi, ch, sessions, seen, first, last, rand) |
-| `/api/devicedb/clear` | POST | Clear device database |
+| Parameter | Meaning | Range |
+|---|---|---|
+| `at` | First run, node local time, `YYYY-MM-DDTHH:MM`. Must be after 2021-01-01 | |
+| `period` | Seconds between runs. `0` runs once | 0, or 600-2678400 |
+| `path` | `/scan`, `/sniffer`, or `/drone` | |
+| `body` | The form fields that route takes, joined with `&`, such as `secs=600&mode=2`. No `\|` | 1024 characters |
+| `del` | The block line from `/schedule`, without its leading local time | |
 
-### Data Explorer
+The node keeps 8 blocks. Replies: `400` bad input, `404` block not found, `413` schedule full.
 
-The **Data** tab in the web UI provides a searchable, sortable view of all SD-logged scan data. Select a dataset from the dropdown, search across any column, click column headers to sort, and page through results.
+## Results
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/deauth.jsonl` | GET | Deauth/disassoc attack log (JSONL) |
-| `/api/deauth/clear` | POST | Clear deauth log (RAM + SD) |
-| `/api/drones.jsonl` | GET | Drone RID detection log (JSONL) |
-| `/api/drones/clear` | POST | Clear drone log (RAM + SD) |
-| `/api/vibrations.jsonl` | GET | Vibration/tamper event log (JSONL) |
-| `/api/vibrations/clear` | POST | Clear vibration log (SD) |
-| `/api/antihunter.log` | GET | System event log (text) |
-| `/api/antihunter.log/clear` | POST | Clear system log |
-| `/api/campaigns.csv` | GET | Campaign start/stop log (CSV) |
-| `/data-cfg` | GET | Active campaign and BLE classifier state (JSON: `campaign`, `bleClassify`) |
-| `/data-cfg` | POST | `bleClassify` (0/1), `stop` ends the campaign, `campaign=<name>` starts one (`400` if the name has characters other than letters, digits, `-`, `_`). Returns the same JSON as GET |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/results` | GET | Latest scan or triangulation results (text) |
+| `/sniffer-cache` | GET | Devices cached by the running scan (text) |
+| `/deauth-results` | GET | Deauth attack summary and the last 100 attacks (text) |
+| `/randomization-results` | GET | Randomization correlation results (text, refreshed every 5 seconds) |
+| `/drone-results` | GET | Drone detection results (text) |
+| `/drone-log` | GET | Drone events (JSON) |
+| `/drone/status` | GET | JSON: `enabled`, `count`, `unique` |
+| `/csi-results` | GET | (Beta, C5) CSI motion status as text: channel, tracked transmitters, motion events, trigger level, and the score of each transmitter |
+| `/csi-json` | GET | (Beta, C5) The same data as JSON |
 
-Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, Sentinel Incidents, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI, except the device database, which is web-build only.
+## Fleet
 
-**Endpoints not listed above.** Each detector keeps its own SD log at `/api/<detector>.jsonl`, and most take a `/api/<detector>/clear` POST. Current detectors: `assoc_sleep`, `ble_attack`, `ble_malformed`, `deauth_ap`, `deauth_flood`, `eapol_bait`, `eviltwin`, `fragattack`, `jamming`, `meshguard`, `owe_abuse`, `pmkid`, `pmkid_forge`, `probe_ap`, `probe_flood`, `sae_dos`, `ssid_confusion`. A few return live JSON instead of a file: `/api/tsf_skew`, `/api/pwnagotchi`, `/api/recon`, `/api/karma`, `/api/handshakes`, `/api/attacker_hunts`. `GET /diag` dumps runtime state.
+The **Fleet** card on the System tab lists the senders the node hears on the mesh.
+
+- **Nodes** have an ID of 2 to 5 letters or digits. Mode, scan state, hits, uptime, temperature, and GPS come from their `STATUS` and heartbeat lines. `type` is the value after `TYPE:` in their message, or `DIGI`. A node is online if heard within 2 minutes.
+- **Other Mesh Radios** are all other senders, including the radio paired with this node. `ctrl` becomes true once the node sees an `@` command line from that sender.
+
+The roster holds 48 entries and drops an entry after 15 minutes of silence. **Ping Nodes** broadcasts `@ALL STATUS`.
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/api/mesh` | GET | JSON: `node`, `peers` (this node first, marked `self`), `radios` |
+| `/api/mesh/ping` | POST | Broadcasts `@ALL STATUS`. `409` if the mesh is off |
+| `/api/mesh/clear` | POST | Clears both rosters |
+| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` must start with one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or equal `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
+
+## Mesh settings
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/mesh` | POST | `enabled=true` or `false`: turns mesh sending on or off. Turning it off empties the queue |
+| `/mesh-test` | GET | Sends a test message to the mesh |
+| `/mesh-interval` | GET | JSON: `interval` |
+| `/mesh-interval` | POST | `interval`: minimum milliseconds between mesh alerts, 1500-30000 |
+| `/mesh-hb` | POST | `enabled=true` or `false`: the status heartbeat |
+| `/mesh-hb-interval` | POST | `interval`: minutes between heartbeats, 1-60 (values outside move to the limit) |
+| `/mesh-dedup-ttl` | GET | JSON: `ttl`, `min`, `max`, `session`, `count` |
+| `/mesh-dedup-ttl` | POST | `ttl`: seconds before a device is reported again, 0-3600. `0` turns deduplication off. Default 300 |
+| `/mesh-dedup-clear` | POST | Empties the deduplication memory |
+| `/mesh-session-dedup` | POST | `on`: `1` sends only devices not yet reported this session, `0` sends all |
+| `/mesh/drain/status` | GET | JSON: `draining`, `sent`, `total`, `dedupCount` |
+| `/vibration` | POST | `enabled=true` or `false`: the movement alert |
+| `/vibration-scan` | GET | JSON: `enabled`, `mode`, `duration`, `cooldown` (seconds), `preempt` |
+| `/vibration-scan` | POST | Saves the movement-scan settings: `enabled`, `mode`, `duration`, `cooldown`, `preempt`. `400` if `mode` is `8` and `duration` is `0` |
+| `/battery-saver` | GET | Query `action`: `start`, `stop`, or `status` (default). `start` also takes `interval`, the minutes between heartbeats. `status` returns JSON: `enabled`, `interval`, `nextHeartbeat` |
+
+Movement-scan fields:
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| `enabled` | `true`, `1`, or `on` turns it on | | |
+| `mode` | Scan to start: `0` none, `1` device discovery, `2` probe, `3` randomization, `4` target, `5` drone, `6` deauth, `7` baseline, `8` packet capture | 0-8 | |
+| `duration` | Seconds. `0` runs until stopped, except mode `8` | 0-65535 | |
+| `cooldown` | Seconds before the next movement can start a scan | 5-86400 | |
+| `preempt` | `true`, `1`, or `on` stops a running scheduled scan to make room | | |
+
+## Data and logs
+
+The **Data** tab shows these logs in a searchable, sortable table. Its datasets are All Discovered Devices, Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, Sentinel Incidents, and System Log. Headless writes the same logs to its SD card but has no web server.
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/api/deauth.jsonl` | GET | Deauth log (JSONL). `404` if none |
+| `/api/deauth/clear` | POST | Clears the deauth log in memory and on the SD card |
+| `/api/drones.jsonl` | GET | Drone log (JSONL). `404` if none |
+| `/api/drones/clear` | POST | Clears the drone log and the detected-drone list |
+| `/api/vibrations.jsonl` | GET | Movement and tamper events (JSONL). `404` if none |
+| `/api/vibrations/clear` | POST | Clears that log |
+| `/api/antihunter.log` | GET | System log (text). `404` if none |
+| `/api/antihunter.log/clear` | POST | Clears the system log |
+| `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
+| `/data-cfg` | GET | JSON: `campaign`, `bleClassify` |
+| `/data-cfg` | POST | `bleClassify` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
+| `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
+| `/api/probedb/clear` | POST | Clears the probe database |
+| `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
+| `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
+| `/api/devicedb` | GET | Device database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
+| `/api/devicedb/clear` | POST | Clears the device database |
+
+These six logs take query parameters to read the end of a large file: `/api/deauth.jsonl`, `/api/drones.jsonl`, `/api/vibrations.jsonl`, `/api/antihunter.log`, `/api/campaigns.csv`, and `/api/incidents.jsonl`.
+
+| Parameter | Meaning | Range |
+|---|---|---|
+| `bytes` | Return only the last `bytes` of the file, starting at a whole line | 1024-65536 |
+| `before` | With `bytes`: end the chunk at this byte offset, to page backward | |
+
+The reply headers `X-Start` (offset of the first byte returned) and `X-Size` (file size) tell you where you are.
+
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database lives in `/devicedb.jsonl` on the SD card, survives reboots, and holds 2000 entries; the least recently seen entry goes when it is full.
 
 <details>
-<summary>Configuration Endpoints</summary>
+<summary>Sentinel and detector endpoints</summary>
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/node-id` | GET/POST | Get/set node ID (2-5 alphanumeric, A-Z 0-9) |
-| `/mesh-interval` | GET/POST | Get/set mesh send interval (1500-30000ms) |
-| `/save` | POST | Save target list (`list`). `507` if NVS rejects it (limit 4000 bytes); the running list is left unchanged |
-| `/export` | GET | Export target MAC list |
-| `/allowlist-export` | GET | Export allowlist |
-| `/allowlist-save` | POST | Save allowlist |
-| `/api/time` | POST | Set RTC time from Unix timestamp |
-| `/mesh-dedup-ttl` | GET | Mesh dedup state (JSON) |
-| `/mesh-dedup-ttl` | POST | Set dedup TTL (`ttl` 0-3600 seconds, `0` disables dedup) |
-| `/mesh-dedup-clear` | POST | Clear the dedup cache |
-| `/mesh-session-dedup` | POST | Session dedup (`on` 0/1) |
-| `/mesh/drain/status` | GET | Mesh TX drain progress (JSON) |
-| `/vibration-scan` | GET | Vibration auto-scan config (JSON: `enabled`, `mode`, `duration`, `cooldown` seconds, `preempt`) |
-| `/vibration-scan` | POST | Set `enabled`, `mode` (0-8), `duration` (0-65535 s), `cooldown` (5-86400 s), `preempt`; saved. `400` for mode `8` (pcap) with duration `0` |
-| `/api/onboarding` | GET/POST | First-run disclaimer state (JSON: `accepted`). POST marks it accepted |
+The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is the default.
 
-</details>
-
-<details>
-<summary>Sentinel / Detection Endpoints</summary>
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/detect/config` | GET | Current detector config (JSON: every detector enable, mesh-broadcast flag, threshold) |
-| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` - same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
-| `/api/detect/health` | GET | Detector runtime health (heap, queue depth, drops, per-detector counts) |
-| `/api/sentinel/status` | GET | Sentinel running state |
-| `/api/sentinel/start` / `/api/sentinel/stop` | POST | Start/stop the Sentinel engine |
-| `/api/incidents.json` | GET | Recent incident ring (JSON) |
-| `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
-| `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
-| `/api/mesh_cmd.jsonl` | GET | Mesh command provenance audit from SD (JSONL: `ts`, `epoch`, `src` radio id, `cmd`) |
-| `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
-| `/api/apclients.json` | GET | Stations associated to this node's AP |
-| `/api/incidents/clear` | POST | Clear all incidents |
-| `/api/pmkid.jsonl` `/api/eviltwin.jsonl` `/api/ssid_confusion.jsonl` `/api/sae_dos.jsonl` `/api/owe_abuse.jsonl` `/api/fragattack.jsonl` `/api/ble_malformed.jsonl` | GET | Recent events from that detector's RAM log (JSONL) |
-| `/api/jamming.jsonl` `/api/meshguard.jsonl` `/api/ble_attack.jsonl` `/api/probe_flood.jsonl` `/api/assoc_sleep.jsonl` `/api/pmkid_forge.jsonl` `/api/eapol_bait.jsonl` `/api/deauth_flood.jsonl` `/api/deauth_ap.jsonl` `/api/probe_ap.jsonl` | GET | That detector's log from SD (JSONL); empty when the file does not exist |
-| `/api/jamming/clear` `/api/meshguard/clear` `/api/ble_attack/clear` `/api/probe_flood/clear` `/api/assoc_sleep/clear` `/api/pmkid_forge/clear` `/api/eapol_bait/clear` `/api/deauth_flood/clear` `/api/eviltwin/clear` | POST | Delete that detector's SD log (`/eviltwin/clear` removes `/eviltwin.jsonl` on SD; `/api/eviltwin.jsonl` reads the RAM log) |
-| `/api/sentinel/ble/start` | POST | Start the BLE scan; `409` below 60000 bytes free heap |
-| `/api/sentinel/boot` | GET | Boot auto-start setting (JSON: `boot`) |
-| `/api/sentinel/boot` | POST | Set boot auto-start (`on` 0/1). Returns the same JSON as GET |
-| `/api/detect/session` | GET | Detector session counters (JSON) |
-| `/api/detect/clear_session` | POST | Start a new session; returns the session JSON |
-| `/api/detect/clear_all` | POST | Clear detector state and logs |
-| `/api/detect/verbose` | GET | Verbose state and mesh peer count (JSON: `verbose`, `mesh_peers`) |
-| `/api/detect/verbose/on` / `/api/detect/verbose/off` | POST | Turn verbose detector logging on/off |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/api/sentinel/status` | GET | JSON: `enabled`, `running`, `scanning` |
+| `/api/sentinel/start` | POST | Starts Sentinel on Wi-Fi. `409` while a scan runs |
+| `/api/sentinel/stop` | POST | Stops Sentinel |
+| `/api/sentinel/ble/start` | POST | Starts the BLE scan. `409` below 60000 bytes of free memory |
+| `/api/sentinel/boot` | GET | JSON: `boot` |
+| `/api/sentinel/boot` | POST | `on`: `1` starts Sentinel at power-on. Returns the same JSON as GET |
+| `/api/detect/config` | GET | JSON of every detector switch and threshold |
+| `/api/detect/config` | POST | JSON body of up to 8192 bytes with the same keys. Always replies `{"ok":true}`. The [`DETECT_CFG` table](mesh-commands.md#sentinel) lists the keys, units, and defaults. The flasher sends them under `detectors` |
+| `/api/detect/health` | GET | JSON: memory, queue depth, drops, per-detector counts |
+| `/api/detect/session` | GET | Detector counters for this session (JSON) |
+| `/api/detect/clear_session` | POST | Starts a new session and returns its JSON |
+| `/api/detect/clear_all` | POST | Clears detector state and logs |
+| `/api/detect/verbose` | GET | JSON: `verbose`, `mesh_peers` |
+| `/api/detect/verbose/on`, `/api/detect/verbose/off` | POST | Turns verbose detector logging on or off |
+| `/api/incidents.json` | GET | Recent incidents (JSON). `limit`: 1-200, default 200 |
+| `/api/incidents.jsonl` | GET | Full incident log from the SD card |
+| `/api/incidents`, `/api/incidents/clear` | DELETE, POST | Clears all incidents in memory and on the SD card |
+| `/api/mesh_cmd.jsonl` | GET | Which radio sent each mesh command (JSONL: `ts`, `epoch`, `src`, `cmd`) |
+| `/api/mesh_cmd` | DELETE | Clears that log |
+| `/api/apclients.json` | GET | Stations connected to this node's access point |
 | `/api/quorum` | GET | Quorum status (JSON) |
-| `/api/quorum/config` | POST | Peers required for an alert type (`type`, `n` > 0); `400` if either is missing |
-| `/api/bloom` | GET | Bloom filter stats (JSON) |
-| `/api/rid_claims` | GET | Remote ID claims (JSON) |
+| `/api/quorum/config` | POST | `type` and `n` (above 0): peers that must agree before an alert type is raised. `400` if either is missing |
+| `/api/bloom` | GET | Bloom filter statistics (JSON) |
+| `/api/rid_claims` | GET | Drone Remote ID claims (JSON) |
 | `/api/channel_partition` | GET | Channel assignment (JSON) |
-| `/api/channel_partition` | POST | Split channels 1-14 across this node and the peers it has heard, send each peer its share (`CHAN_ASSIGN`), and return the assignment. A Device Scan started with no channel list then sweeps this node's share |
-| `/api/pps` | GET | GPS PPS state (JSON: `locked`, `last_edge`, `disciplined_us`) |
-| `/api/recon/clear` | POST | Clear BLE recon state |
-| `/api/probegraph` | GET | Probe graph (JSON) |
-| `/api/probegraph/clear` | POST | Clear the probe graph |
-| `/api/handshakes/clear` | POST | Clear captured handshakes |
-| `/api/handshakes/stats` | GET | Handshake counts (JSON: `count`, `krack_events`) |
-| `/api/attacker_hunts/clear` | POST | Clear active attacker hunts |
-| `/api/attacker_hunts/cooldown` | POST | Milliseconds before the same attacker can start another hunt (`ms`, default 60000) |
+| `/api/channel_partition` | POST | Splits channels 1-14 among this node and the peers it has heard, sends each peer its share, and returns the assignment |
+| `/api/pps` | GET | GPS pulse-per-second state (JSON): `locked`, `last_edge`, `disciplined_us` |
+| `/api/handshakes` | GET | Captured handshakes (JSON) |
+| `/api/handshakes/stats` | GET | JSON: `count`, `krack_events` |
+| `/api/attacker_hunts` | GET | Active attacker location hunts (JSON) |
+| `/api/attacker_hunts/cooldown` | POST | `ms`: time before the same attacker can start another hunt (default 60000) |
 | `/api/tof` | GET | Time-of-flight peers (JSON) |
-| `/api/tof/clear` | POST | Clear time-of-flight peers |
-| `/api/tof/ping` | POST | Time-of-flight ping (`target`, default `*`) |
-| `/api/tsf_skew/clear` | POST | Clear TSF skew state |
-| `/api/karma/clear` | POST | Clear Karma state |
-| `/api/karma/enable` | POST | Karma detector on/off (`on` 0/1). Returns JSON `enabled` |
-| `/api/karma/stats` | GET | Karma counts (JSON: `enabled`, `candidates`, `confirmed`) |
-| `/api/pwnagotchi/clear` | POST | Clear Pwnagotchi sightings |
-| `/detect` | GET | Detector dashboard page (HTML) |
+| `/api/tof/ping` | POST | `target`: peer to ping (default `*`, all) |
+| `/api/tsf_skew` | GET | TSF clock-skew state (JSON) |
+| `/api/karma` | GET | Karma state (JSON) |
+| `/api/karma/enable` | POST | `on`: `0` or `1` (default `1`). Returns JSON `enabled` |
+| `/api/karma/stats` | GET | JSON: `enabled`, `candidates`, `confirmed` |
+| `/api/pwnagotchi` | GET | Pwnagotchi sightings (JSON) |
+| `/api/recon` | GET | BLE recon state (JSON) |
+| `/api/probegraph` | GET | Probe graph (JSON) |
+| `/detect` | GET | Detector dashboard (HTML) |
 
-Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds - `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
+Each of these clears its own state with a POST to `<route>/clear`: `/api/handshakes`, `/api/attacker_hunts`, `/api/tof`, `/api/tsf_skew`, `/api/karma`, `/api/pwnagotchi`, `/api/recon`, `/api/probegraph`.
 
-Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` - auto-starts the Sentinel at power-on when true.
+Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log in memory, and the second reads the SD card (an empty reply if the file does not exist).
 
-</details>
+| Group | Names | Clear (POST `/api/<name>/clear`) |
+|---|---|---|
+| In memory | `pmkid`, `eviltwin`, `ssid_confusion`, `sae_dos`, `owe_abuse`, `fragattack`, `ble_malformed` | `eviltwin` only, and it deletes the SD file `/eviltwin.jsonl`, not the in-memory log |
+| SD card | `jamming`, `meshguard`, `ble_attack`, `probe_flood`, `assoc_sleep`, `pmkid_forge`, `eapol_bait`, `deauth_flood`, `deauth_ap`, `probe_ap` | All except `deauth_ap` and `probe_ap` |
 
-<details>
-<summary>RF Configuration Endpoints</summary>
-
-| Endpoint | Method | Parameters | Description |
-|----------|--------|------------|-------------|
-| `/rf-config` | GET | - | RF config (JSON) |
-| `/rf-config` | POST | `preset` (0-2) | Apply preset: 0=Relaxed, 1=Balanced, 2=Aggressive |
-| `/rf-config` | POST | `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | Full custom config |
-| `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
-| `/rf-config` | POST | `bandMode` (0-2) | **C5 only.** Band: 0=2.4GHz, 1=5GHz, 2=both. Also returned by GET, and accepted on `/config` GET/POST and in the serial `CONFIG:` JSON |
-| `/wifi-config` | GET | - | Wi-Fi AP settings (JSON: `ssid`, `auth`, `hidden`, `webPassSet`, `webAuth`; passwords are not returned) |
-| `/web-pass` | POST | `pass` (8-63, no `:`), `current` | Set the web login password. `current` is the web password, or the AP password until one is set. `400` invalid, `403` wrong current password; 5 wrong tries lock `/web-pass` and `/web-auth` for 10 min |
-| `/web-auth` | POST | `enabled` (0/1), `current` | Turn the web login off (`0`) or on (`1`); stored in NVS, not in the SD config. `400` missing parameter, `403` wrong current password |
-| `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63, or empty to keep the current one), `auth` (0=WPA2/WPA3, 1=WPA2), `hidden` (0/1) | Update AP credentials and mode (triggers reboot). `hidden=1` hides the network name. Clients then enter it by hand and send it in their probe requests |
+Each incident record has `ts` (uptime in milliseconds), `epoch` (clock seconds, `0` if the clock is not set), `node`, `src` (`local`, or the sending node), `type`, and `raw`.
 
 </details>
 
 <details>
-<summary>Baseline Endpoints</summary>
+<summary>RF and Wi-Fi settings</summary>
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/baseline/status` | GET | Baseline scan status (JSON) |
-| `/baseline/stats` | GET | Baseline statistics (JSON) |
-| `/baseline/config` | GET/POST | Baseline config: `rssiThreshold` (dBm), `baselineDuration` (learning seconds), `ramCacheSize` and `sdMaxDevices` (devices), `absenceThreshold` and `reappearanceWindow` (seconds), `rssiChangeDelta` (dB). Meanings and defaults: [README baseline settings](../README.md#detection-baseline-anomaly) |
-| `/baseline/reset` | POST | Reset baseline |
-| `/baseline/mark` | POST | Compare from now: splits the running baseline scan into before and after this moment; 409 if no baseline is running |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/rf-config` | GET | JSON: `preset`, `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold`, `rfEnv`. (C5) Also `bandMode` and `dualBand` |
+| `/rf-config` | POST | Sets one of the groups below. `409` while a scan runs, `400` if nothing matched. Returns the new settings as JSON |
+| `/wifi-config` | GET | JSON: `ssid`, `auth`, `hidden`, `webPassSet`, `webAuth`. Passwords are never returned |
+| `/wifi-config` | POST | Sets the access point (parameters below). The node always restarts 3 seconds later |
+| `/web-pass` | POST | `pass` (8-63 characters, no `:`) and `current`. `current` is the web password, or the access point password until a web password exists. `400` invalid, `403` wrong `current`. 5 wrong tries lock `/web-pass` and `/web-auth` for 10 minutes |
+| `/web-auth` | POST | `enabled` (`1` login required, `0` login off) and `current`. Stored in flash, not in the SD config. `400` missing, `403` wrong `current` |
+
+**`/rf-config` POST** takes one group of fields:
+
+| Fields | Meaning |
+|---|---|
+| `bandMode` | (C5) Wi-Fi band for scans: `0` 2.4 GHz, `1` 5 GHz, `2` both. Values above 2 become 2. Saved. `dualBand` in the GET reply is `true` on boards that have both bands. Other boards store `0` |
+| `rfEnv` | Default triangulation surroundings, 0-4 |
+| `preset` | `0` Relaxed, `1` Balanced, `2` Aggressive. Also resets channels to 1-11. Add `globalRssiThreshold` to override the preset's threshold |
+| `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | A custom setup. `wifiChannelTime` selects this group. Omitted fields keep their value |
+| `globalRssiThreshold` alone | Only the signal floor, -100 to -10 dBm |
+
+| Preset | Channel dwell | Wi-Fi scan every | BLE scan every | BLE scan lasts | Signal floor |
+|---|---|---|---|---|---|
+| `0` Relaxed | 300 ms | 5000 ms | 6000 ms | 3000 ms | -80 dBm |
+| `1` Balanced (default) | 160 ms | 3000 ms | 4000 ms | 2000 ms | -95 dBm |
+| `2` Aggressive | 110 ms | 1500 ms | 2000 ms | 1000 ms | -100 dBm |
+
+A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bleScanInterval` to 1000-10000 ms, `bleScanDuration` to 1000-5000 ms, and `globalRssiThreshold` to -128 to -10 dBm.
+
+**`/wifi-config` POST** parameters:
+
+| Parameter | Meaning | Range |
+|---|---|---|
+| `ssid` | Network name. Required | 1-32 characters |
+| `pass` | Access point password. Empty keeps the current one | 8-63 characters |
+| `auth` | `0` WPA2 and WPA3, `1` WPA2 only | 0-1 |
+| `hidden` | `1` hides the network name. Clients must type the name and send it in probe requests | 0-1 |
 
 </details>
 
 <details>
-<summary>Triangulation Endpoints</summary>
+<summary>Baseline</summary>
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/triangulate/start` | POST | Start (`mac`, `duration` seconds, `rfEnv` 0 Open Sky to 4 Industrial, optional `wifiPwr`/`blePwr` 0.1-5.0); `400` + reason if it cannot start |
-| `/triangulate/stop` | POST | Stop triangulation |
-| `/triangulate/status` | GET | Status (JSON) |
-| `/triangulate/results` | GET | Results |
-| `/triangulate/nodes` | GET | Connected triangulation nodes |
-| `/triangulate/calibrate` | POST | Calibrate path loss against a device at a known distance (`mac`, `distance` in meters) |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/baseline/status` | GET | JSON: `scanning`, `established`, `devices` |
+| `/baseline/stats` | GET | JSON: scan progress, device counts, anomalies, elapsed and total time |
+| `/baseline/config` | GET | JSON: the settings below plus `enabled`, `established`, `deviceCount`, `anomalyCount` |
+| `/baseline/config` | POST | Sets any of the settings below and saves them |
+| `/baseline/reset` | POST | Resets the baseline |
+| `/baseline/mark` | POST | Marks this moment in the running baseline. Changes are reported from here on. `409` if no baseline runs |
+
+| Setting | Meaning | Unit |
+|---|---|---|
+| `rssiThreshold` | Weakest signal the baseline counts | dBm |
+| `baselineDuration` | Length of the learning phase (0-86400; default 300) | seconds |
+| `ramCacheSize` | Devices kept in memory | devices |
+| `sdMaxDevices` | Devices kept on the SD card | devices |
+| `absenceThreshold` | Time without a signal before a device counts as gone | seconds |
+| `reappearanceWindow` | A device returning within this time raises a return alert | seconds |
+| `rssiChangeDelta` | Signal change that raises a change alert | dB |
+
+Defaults and effects are in the [README baseline section](../README.md#detection-baseline-anomaly).
 
 </details>
 
 <details>
-<summary>Randomization, Security, and Hardware Endpoints</summary>
+<summary>Triangulation and randomization</summary>
 
-**Randomization:**
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/randomization/reset` | POST | Reset randomization detection |
-| `/randomization/clear-old` | POST | Clear identities not seen for `age` seconds (default 3600) |
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/triangulate/start` | POST | Starts a run. `mac` and `duration` (seconds, 20 or more) are required. Optional `rfEnv` (0-4, default 2) and `wifiPwr`, `blePwr` (0.1-5.0, default 1.0). `400` with the reason if it cannot start, including a wait after the previous run. `409` while a scan runs |
+| `/triangulate/stop` | POST | Stops the run |
+| `/triangulate/status` | GET | JSON: `active`, `target`, `duration`, `elapsed`, `nodes` |
+| `/triangulate/results` | GET | The estimate as text |
+| `/triangulate/nodes` | GET | JSON for the map: `target`, `active`, `finalResult` (`lat`, `lon`, `confidence` percent, `uncertainty` meters, `coordinator`), and `nodes` (`id`, `hasGPS`, `lat`, `lon`, `hdop`, `rssi`, `hits`, `quality` percent, `type`, `distance` meters) |
+| `/triangulate/calibrate` | POST | `mac` and `distance` (meters): calibrates path loss against a device at a known distance |
+| `/randomization/reset` | POST | Resets randomization detection. `409` while a scan runs |
+| `/randomization/clear-old` | POST | `age`: removes identities not seen for this many seconds (default 3600) |
 | `/randomization/identities` | GET | Tracked identities (JSON) |
-| `/api/identity-map` | GET | Tracked MACs mapped to identity IDs (JSON) |
-
-**Security:**
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/erase/status` | GET | Erasure status |
-| `/erase/request` | POST | Request secure erase (`confirm`=erase key, optional `reason`) |
-| `/erase/cancel` | POST | Cancel erase sequence |
-| `/erase/psk-status` | GET | Erase key state (JSON: `pskSet`, `custom`, `apDefault`) |
-| `/erase/psk` | POST | Change the erase key (`confirm` = current key, `key` = new key, 8-64 chars, no `:`). `403` wrong key, `400` invalid key |
-| `/factory-wipe` | POST | Reset and reboot (`confirm` = erase key, `tier` = `full` (default), `config` or `data`). `400` bad tier, `403` wrong key, `409` erase already running |
-| `/secure/status` | GET | Tamper detection status |
-| `/secure/abort` | POST | Abort tamper sequence |
-| `/config/autoerase` | GET/POST | Auto-erase config |
-| `/battery-saver` | GET | Battery saver (`action` = `start`, `stop` or `status`, default `status`; `interval` = heartbeat minutes, default 5) |
-
-The erase key in `confirm` on `/erase/request`, `/erase/cancel`, `/erase/psk`, `/factory-wipe`, `/secure/abort` and `/config/autoerase` POST is compared in constant time and shares the mesh erase lockout: 5 wrong keys lock all erase commands for 10 min.
-
-**Hardware:**
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/gps` | GET | GPS status and location |
-| `/sd-status` | GET | SD card status |
-| `/sd-repair` | GET | SD repair state (JSON: `auto`, `mounted`, `mountFailures`, `pending`) |
-| `/sd-repair` | POST | `auto` (1/0) sets auto-repair; `now` queues a remount that erases the card only if it won't mount |
-| `/drone/status` | GET | Drone detection status (JSON) |
-| `/mesh` | POST | Enable/disable mesh (`enabled=true\|false`) |
-| `/mesh-test` | GET | Test mesh connectivity |
-| `/mesh-hb` | POST | Enable/disable heartbeat (`enabled=true\|false`) |
-| `/mesh-hb-interval` | POST | Set heartbeat interval (`interval=1-60` minutes) |
-| `/vibration` | POST | Vibration mesh alerts on/off (`enabled=true\|false`) |
+| `/api/identity-map` | GET | JSON map from each MAC to its identity ID |
 
 </details>
 
----
+<details>
+<summary>Erase, tamper, and hardware</summary>
+
+The erase key protects the erase routes. The node makes it on first start and shows it at flash time. Pass it as `confirm`, in plain text. The node compares it in constant time. 5 wrong keys, here or over mesh, lock every erase command for 10 minutes.
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/erase/psk-status` | GET | JSON: `pskSet` (a key exists), `custom` (you changed it), `generated` (still the key the node made). While `generated` is true, `key` holds that key |
+| `/erase/psk` | POST | Changes the key. `confirm` (current key), `key` (new key, 8-64 characters, no `:`). `403` wrong `confirm`, `400` missing or invalid `key` |
+| `/erase/status` | GET | `INACTIVE`, `ACTIVE - Tamper erase countdown: <n> seconds remaining`, the status of a running erase, or `COMPLETED` |
+| `/erase/request` | POST | Wipes settings and SD files (own key). `confirm`, optional `reason`. `400` no `confirm`, `403` wrong, `409` another wipe runs |
+| `/erase/cancel` | POST | `confirm` (own key): cancels a tamper countdown |
+| `/factory-wipe` | POST | `confirm` (own key) and `tier`: `full` (default) wipes settings and SD files, `config` wipes settings only, `data` wipes SD files only. Reboots afterward. `400` bad tier, `409` another wipe runs |
+| `/secure/status` | GET | `INACTIVE` or `TAMPER_ACTIVE:<n>s` |
+| `/secure/abort` | POST | `confirm` (own key): cancels a tamper countdown |
+| `/config/autoerase` | GET | JSON: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`, `inSetupMode`, `setupStartTime`, `currentTime`, `tamperActive`. Times in milliseconds |
+| `/config/autoerase` | POST | Sets auto-erase. All of `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`, and `confirm` (own key) are required, else `400` |
+
+`/config/autoerase` POST fields. Values outside the range move to the nearest limit. The mesh command `AUTOERASE_ENABLE` uses seconds and narrower ranges.
+
+| Field | Meaning | Unit | Range |
+|---|---|---|---|
+| `enabled` | `true`, `1`, or `on` turns it on | | |
+| `setupDelay` | Time before auto-erase arms | ms | 30000-600000 |
+| `delay` | Time from tamper alert to wipe | ms | 10000-300000 |
+| `vibrationsRequired` | Vibrations that start the countdown | count | 2-10 |
+| `detectionWindow` | Time in which those vibrations must happen | ms | 5000-120000 |
+| `cooldown` | Time before another tamper can start a countdown | ms | 60000-3600000 |
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/gps` | GET | GPS status and position (text) |
+| `/sd-status` | GET | SD card size and log size (text) |
+| `/sd-repair` | GET | JSON: `auto`, `mounted`, `mountFailures`, `pending` |
+| `/sd-repair` | POST | `auto=1` or `0` sets automatic repair of a card that will not mount. `now` queues a remount, which erases the card if it still will not mount |
+
+</details>

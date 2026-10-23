@@ -1,6 +1,6 @@
 # AntiHunter v1.0.5
 
-User-set erase key, Sentinel in Stable, headless scheduler and baseline watch, Sentinel detector cards and mesh commands back, results UI rework, fixes.
+Erase key shown at flash, Sentinel in Stable, scan scheduler and baseline watch in Headless, a reworked Settings area and results page, and fixes.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -8,93 +8,114 @@ User-set erase key, Sentinel in Stable, headless scheduler and baseline watch, S
 | Beta | v1.0.5-beta1 | ESP32-S3 | v1.0.4-beta1 (2026-10-04) |
 | Experimental | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
 
-Stable now builds with Sentinel (`AH_SENTINEL=1`): the Sentinel tab, Always-On, detector cards, incidents and the Sentinel mesh commands. Sentinel stays off until started.
+Stable now builds with Sentinel (`AH_SENTINEL=1`). It includes the Sentinel tab, Always-On, detector cards, incidents, and the Sentinel mesh commands. Sentinel stays off until you start it.
 
 ## Erase key (all channels; read before upgrading)
 
-- A wipe needs an erase key you set: web UI, flasher `CONFIG` `erasePSK`, or `CONFIG_ERASE_PSK:<new>:<current>`. Until then erase commands reply `ERASE_ACK:SET_KEY_FIRST`.
-- Full: the AP password serves as `<current>` for setting the key, once the AP password is no longer the default. Headless: no key until set in the flasher.
-- Over mesh, `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE` and `FACTORY_RESET` take a one-time answer to an `ERASE_REQUEST` token (the first 8 hex characters of HMAC-SHA256 of the token keyed with the erase key), not the key. A captured command can't be replayed. `CONFIG_ERASE_PSK` takes the current key. The web UI takes the key.
-- One `ERASE_REQUEST` per 20 s; each token takes one attempt and expires after 300 s. 5 wrong keys or answers lock erase commands for 10 min, on the web and over mesh.
-- Keys are 8-64 characters, no `:`. Boot no longer prints the key. A flasher-set key goes to NVS only and is stripped from the SD config. Keys and answers show as `***` in serial logs and `/mesh_cmd.jsonl`.
+- **The node makes an erase key on first start** and every flash method shows it: Web Flasher step 2 (**Show my erase key**), `flashAntihunter.sh`, and `pio run -t upload`. The node also prints it in a banner at each boot until you change it. Full shows it in **Danger zone**. Write it down.
+- **A normal reflash keeps the key.** A key you set yourself is kept and not shown. A key set on an earlier version is kept.
+- **Lost key:** reflash with **Erase device** checked. The node makes and shows a new key. Settings come back from the SD card; the AP password and web password go back to their defaults.
+- **Change the key** with the current key: in the web UI, or with `CONFIG_ERASE_PSK:<new>:<current>`. A key you set is 8 to 64 characters with no `:`.
+- The AP password no longer works as the erase key.
+- **Erase Answer** on the web flasher page turns a token and your key into the answer in your browser, without `openssl`.
+- **Erase over mesh.** `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `FACTORY_RESET` take an answer, not the key. Send `ERASE_REQUEST`, and the node replies with a token. Answer with the first 8 hex characters of the HMAC-SHA256 of that token, keyed with the erase key. A captured command cannot be replayed. `CONFIG_ERASE_PSK` takes the current key, and so does the web UI.
+- **Limits.** A node answers one `ERASE_REQUEST` per 20 seconds. Each token allows one attempt and expires after 300 seconds. Five wrong keys or answers lock erase commands for 10 minutes, on the web and over mesh.
+- **Storage.** The key lives in the node's built-in memory only, never in the SD config. Serial logs and `/mesh_cmd.jsonl` show keys and answers as `***`.
 
 ## New
 
-- Headless: `SCHED_ADD`, `SCHED_LIST`, `SCHED_DEL` scan scheduler and `BASELINE_WATCH`, same as Full.
-- Mesh, Full and headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` limits captures started by Sentinel: total size they may use (default 512 MB) and free space to keep on SD (default 256 MB).
-- Mesh, Full and headless: `DETECT_COUNTS` replies with Sentinel tracker counts (Karma candidates and confirmed, Pwnagotchi, handshakes, hunts, mesh peers).
-- Detection tab: Clear Session (zeroes the shown counts, keeps logs); Privacy button; Clear All Events for the mesh command log; Pwnagotchi card; Karma bait on/off; hunt cooldown; link to the raw `/detect` logs.
-- System tab: set the RTC from the browser's clock.
-- System tab: the settings cards are replaced by one **Settings** area. A menu on the left (a row of tabs on a phone) picks the section: Scanning, Node & mesh, Access point, Sensors & power, Storage, Appearance, Danger zone. Each row has its name and a one-line explanation on the left and the control on the right. Switches apply at once; the Node & mesh number fields save when you leave them.
-- Theme: Paper dark is the new default. Blue dark and Light stay available under Settings → Appearance; the header button switches between Light and the chosen dark theme. In Paper dark, the Default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners; a chosen accent scheme still overrides them.
-- Scan tab: the split device scan moved here from the Fleet card, as **Split across nodes** under Schedule when Device Discovery is selected.
-- Baseline: the button is now **Compare from now** and appears only once the baseline is built and the node is monitoring.
-- Results: WiFi rows show the advertised auth; target hits are marked by the firmware and listed first; one sorter for all result lists, and the sort menu lists only options that apply; collapsed sections stay closed.
-- Target card: Targets and Allow list above the scan options; trend badges Steady and Measuring; Movement toggle in the Forever/Triangulate row.
-- Results toolbar is a full-width bar with a mobile grid layout.
-- Watchlist accepts hex tracer IDs (`T-00A3`).
+**Headless and mesh**
+- Headless gains the `SCHED_ADD`, `SCHED_LIST`, and `SCHED_DEL` scheduler and `BASELINE_WATCH`, matching Full.
+- Full and Headless: `PCAP_AUTO[:<budgetMB>,<floorMB>]` limits captures that Sentinel starts. `budgetMB` is the total size they may use (default 512 MB). `floorMB` is the free SD space to keep (default 256 MB).
+- Full and Headless: `DETECT_COUNTS` replies with the Sentinel tracker counts: Karma candidates and confirmed, Pwnagotchi, handshakes, hunts, and mesh peers.
+- Full and Headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot. Mesh `STATUS` adds `Camp:<name>`.
+- `BLE_CLASSIFY:0|1` turns the BLE classifier off or on. Off skips advertisement parsing during scans. It is on by default, and the setting persists. The Scan tab **Classify BLE devices** switch and the Data tab checkbox do the same. On Headless, list and device scan results carry `C=<class>`.
+- `/api/fleet/send` accepts the campaign commands and `BLE_CLASSIFY:`.
+- `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for Headless nodes.
+
+**Web UI**
+- System tab: one **Settings** area replaces the settings cards. A menu on the left (tabs on a phone) selects the section: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.
+- System tab: **Set RTC from this browser's clock** sets the node's clock.
+- Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System tab → **Settings** → **Access point** → **Web login**, or with `webPass` in the flasher config. Turn the login off in the same place, or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. Neither can be changed over mesh. Scheduled scans are not affected.
+- Theme: Paper dark is the new default. Blue dark and Light remain under **Settings** → **Appearance**. In Paper dark, the default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners. A chosen accent scheme overrides them.
+- Detection tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a Pwnagotchi card, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
+- Scan tab: the split device scan moved here from the Fleet card. It is **Split across nodes** under Schedule when Device Discovery is selected.
+- Scan tab, Target card: Targets and Allow list sit above the scan options. Trend badges read Steady and Measuring. A Movement toggle sits in the Forever/Triangulate row.
+- Baseline: the button is now **Compare from now**. It appears only after the baseline is built and the node is monitoring.
+- Results: Wi-Fi rows show the advertised auth. The firmware marks target hits and lists them first. One sorter serves all result lists and offers only the options that apply. Collapsed sections stay closed. The toolbar is a full-width bar.
+- Data tab: a campaign picker, a From/To date filter for every dataset, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the clock to be set. Without it, only system log lines match a campaign.
+- Campaigns: one Data tab panel starts and stops a campaign on this node and on checked mesh nodes. A REC badge shows in the header. **Export campaign** saves it. Rows in the `.jsonl` files carry `campaign` and filter by it.
+
+**Detection and capture**
+- The target list accepts hex tracer IDs (`T-00A3`).
 - PCAP files carry the radiotap MCS field for HT frames.
-- Campaigns, Full and headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot.
-- Data tab: campaign picker, From/To date filter for every dataset, Start/Stop campaign, and a summary row (rows, time span, unique MACs, top 5 values). Date filtering needs the RTC; without it only system log lines match a campaign.
-- BLE classifier on/off: Scan tab **Classify BLE devices** switch, Data tab checkbox, or mesh `BLE_CLASSIFY:0|1`. Off skips advertisement parsing during scans. On by default; the setting persists.
-- BLE classifier, headless: list and device scan results carry `C=<class>`; mesh `BLE_CLASSIFY:0|1`.
-- BLE classifier reads every manufacturer, service-data and service-UUID block in an advertisement plus scan response, not only the first.
-- Campaign UX: one Data tab panel starts/stops on this node and checked mesh nodes; header REC badge; Export campaign; jsonl rows carry `campaign` and filter by it; mesh `STATUS` adds `Camp:<name>`.
-- `/api/fleet/send` accepts `CAMPAIGN_START:`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, `BLE_CLASSIFY:`.
-- `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for headless nodes.
-- Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System → RF Settings → Wi-Fi Access Point or with `webPass` in the flasher config. Turn the login off there or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. Neither setting can be changed over mesh. Scheduled scans are not affected.
+- The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 
 ## Fixed
 
-- Full and headless set random Wi-Fi STA, SoftAP and BLE addresses at every boot, before the radios start. Before, active Wi-Fi scans and BLE scans sent the factory MACs.
-- Karma bait probes use a new random source MAC, sequence number and SSID for each probe. Before, every bait probe came from the same fixed source MAC and its SSID contained the node ID.
-- STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 min later.
-- Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
-- `/api/pwnagotchi` returned invalid JSON for a real pwnagotchi; the beacon text is now escaped there and in detector tables.
-- Battery saver now lowers the CPU clock to 80 MHz (restores 240 MHz on exit). Before, the clock never changed.
-- `CONFIG_TARGETS` over mesh splits on `|`; mesh text has no newlines.
-- Auto-erase counts vibrations within the detection window and triggers at the configured count.
-- Targets list saves on blur; the block list saves in privacy mode.
-- Privacy mode redacts device-scan names and full MACs in the Data tab.
-- List scan lines carry a range estimate and always highlight hits; target tokens accept any MAC separator.
-- Class table counts device rows only.
-- BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit; labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, Nearby-Action.
-- BLE classes: Microsoft beacons are labeled by MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
-- Data tab search keeps the selected sort column.
-- Split scan, Schedule **Run on** and the campaign node list showed this node twice, as "This node" and by its node ID.
-- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip` (Stable page 451,990 B to 101,321 B). The full image is 307,096 B smaller.
-- Removed `POST /api/oui/reload` and the LittleFS library. It loaded `/oui_cat.bin`, which no build or tool produces, into a table nothing read.
-- Web: no CORS headers; requests are refused (`403`) when `Host` is not the node's IP, `Sec-Fetch-Site` is cross-site, or `Origin` doesn't match. Another site's page can't read from the node or send it commands, and DNS rebinding is blocked.
-- Web: `GET /wifi-config` no longer returns the AP password; leaving the password field empty keeps the current one. The AP password is no longer written to the SD config.
-- Web erase endpoints compare the key in constant time and share the 5-failure lockout.
+**Privacy and network**
+- Full and Headless set random Wi-Fi STA, SoftAP, and BLE addresses at every boot, before the radios start. Before, active Wi-Fi scans and BLE scans sent the factory MACs.
+- Karma bait probes use a new random source MAC, sequence number, and SSID for each probe. Before, every bait probe came from one fixed source MAC and its SSID contained the node ID.
+- The web UI sends no CORS headers. It refuses requests (`403`) when `Host` is not the node's IP, `Sec-Fetch-Site` is cross-site, or `Origin` does not match. Another site's page cannot read from the node or send it commands, and DNS rebinding is blocked.
+- `GET /wifi-config` no longer returns the AP password. Leaving the password field empty keeps the current one. The AP password is no longer written to the SD config.
+- Web erase endpoints compare the key in constant time and share the five-failure lockout.
 - Over-the-air SSIDs and Remote ID values with control characters can no longer split a mesh line into a second command.
-- OTA SSIDs are JSON-escaped in every detector log.
-- A channel range such as `1..2147483647` (mesh or web) hung the node; ranges are clamped to 1-255.
-- USB serial input is read by one task only. Before, a list scan read it too and could corrupt memory.
-- Commands from USB, mesh and the scheduler run one at a time.
-- Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe, and replies `ERASE_ACK:COMPLETE` or `FAILED` when done, `BUSY` if a wipe is running.
-- `VIBSCAN_SET` mode 8 (pcap) with duration 0 never captured; it is now refused.
-- Headless `VIBSCAN_SET` reads the interrupt field, and an interrupted scheduled scan resumes.
-- Saving a target list larger than NVS holds reports an error (`507`, `CONFIG_ACK:TARGETS:FAILED`) instead of success.
-- Mesh-fed Remote ID claim and channel assignment tables are capped.
-- A Device Scan started with no channel list sweeps this node's share from Reassign / `CHAN_ASSIGN`. Before, the assignment had no effect.
-- Boot banner and web footer show v1.0.5.
-- `TRIANGULATE_STOP` sent while the initiator waits for node ACKs cancels the run and stops the child nodes. Before, the node acknowledged the stop, then sent the cycle start and scanned for the full duration, and a new `TRIANGULATE_START` was refused until it finished.
-- Stable and Beta (S3): a boot could reset with `Stack canary watchpoint triggered (ipc1)` while installing the GPIO interrupt service. The IPC task stack is 2048 bytes (was 1024); the S3 builds compile the Arduino ESP-IDF libraries with this setting.
-- Stable: the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, `CIR` are removed. They map to CSI commands, which only Beta and Experimental have.
-- Commands run only on `@<NODE>` or `@ALL` lines. Before, an unaddressed line (`STATUS` on USB serial, or any Meshtastic text from a non-node sender) ran as a command.
-- Command names must match exactly or be followed by `:`. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, `BATTERY_SAVER_START` ran on any line starting with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
-- `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START` and `PROBE_START` reply `<name>_ACK:INVALID` when the radio mode is out of range or a field is missing. Before, the node sent no reply and the command looked lost.
-- `CAMPAIGN_START` with characters outside `A-Z a-z 0-9 - _` replies `CAMPAIGN_ACK:INVALID`. Before, it silently dropped the bad characters and started a campaign under the stripped name.
+- Over-the-air SSIDs are JSON-escaped in every detector log.
+
+**Mesh commands**
+- A command runs only on a line addressed `@<NODE>` or `@ALL`. Before, an unaddressed line (`STATUS` on USB serial, or any Meshtastic text from a non-node sender) ran as a command.
+- A command name must match exactly or be followed by `:`. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `BATTERY_SAVER_START` ran on any line that started with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
+- `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START`, and `PROBE_START` reply `<name>_ACK:INVALID` when the radio value is out of range or a field is missing. Before, the node sent no reply and the command looked lost.
+- `CAMPAIGN_START` replies `CAMPAIGN_ACK:INVALID` when the name has characters outside `A-Z a-z 0-9 - _`. Before, it dropped the bad characters and started a campaign under the shortened name.
+- `CONFIG_TARGETS` over mesh splits entries on `|`, because mesh text has no newlines.
+- Stable no longer has the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, and `CIR`. They map to CSI commands, which only Beta and Experimental have.
+- `DETECT_CFG_GET` no longer lists `mesh_guard` twice. `CONFIG_NODEID` no longer prints debug lines.
+- Commands from USB, mesh, and the scheduler run one at a time.
+- USB serial input is read by one task only. Before, a list scan also read it and could corrupt memory.
 - Headless replies `<name>_ACK:FAILED` and stops when a scan task cannot be created. Before, it reported `STARTED` while nothing ran.
 - Headless `SUMMARY` reports `Dev:<count>` from the device database, matching Full.
+- Headless `VIBSCAN_SET` reads the interrupt field, and an interrupted scheduled scan resumes.
+- `VIBSCAN_SET` mode 8 (pcap) with a duration of 0 never captured. The node now refuses it.
+- STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 minutes later.
+- `TRIANGULATE_STOP` sent while the initiator waits for node ACKs cancels the run and stops the child nodes. Before, the node acknowledged the stop, then sent the cycle start and scanned for the full duration, and a new `TRIANGULATE_START` was refused until it finished.
+- Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe. It replies `ERASE_ACK:COMPLETE` or `FAILED` when done, and `BUSY` if a wipe is running.
+- A channel range such as `1..2147483647` (mesh or web) hung the node. Ranges are now limited to 1-255.
+- A Device Scan started with no channel list sweeps this node's share from Reassign or `CHAN_ASSIGN`. Before, the assignment had no effect.
+- Mesh-fed Remote ID claim and channel assignment tables are capped.
+
+**Detectors, results, and storage**
+- Detection tab: 14 detector cards (RID, recon, Karma, hunts, handshake, probe graph, TSF, beacon forge, PMKID forge, EAPOL bait, probe flood, assoc sleep, jamming, mesh guard, TOF) were missing from the page while their refresh code still ran.
+- `/api/pwnagotchi` returned invalid JSON for a real Pwnagotchi. The beacon text is now escaped there and in the detector tables.
+- Auto-erase counts vibrations within the detection window and triggers at the configured count.
+- Vibration alerts during the auto-erase setup period had no rate limit. They now follow the same limit as other vibration alerts, one every 3 seconds.
+- Battery saver now lowers the CPU clock to 80 MHz and restores 240 MHz on exit. Before, the clock never changed.
+- Saving a target list larger than the built-in memory holds reports an error (`507`, `CONFIG_ACK:TARGETS:FAILED`). Before, it reported success.
+- The target list saves when you leave the field. The block list saves in privacy mode.
+- Privacy mode redacts device-scan names and full MACs in the Data tab.
+- List scan lines carry a range estimate and always highlight hits. Target tokens accept any MAC separator.
+- The class table counts device rows only.
+- BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit. Labels are now `Nearby-<state>`; before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, and 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, and Nearby-Action.
+- BLE classes: Microsoft beacons carry the MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and the Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
+- The Data tab search keeps the selected sort column.
+- Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.
+- The node keeps settings in two places: its built-in memory and the SD card. If the built-in memory is wiped, the node now rebuilds the detector settings and the start-Sentinel-at-boot flag from the SD card. The erase key and the web password are the exception. They stay in the built-in memory and are never written to the card.
 - A node with no campaign or schedule saved no longer logs an error line at boot.
-- `DETECT_CFG_GET` no longer lists `mesh_guard` twice; `CONFIG_NODEID` no longer prints debug lines.
-- The node stores its settings in two places: its own built-in memory and the SD card. If the built-in memory is wiped, the node now rebuilds the detector settings and the start-Sentinel-at-boot flag from the SD card. The erase key and the web password are the exception: they live only in the built-in memory and are never written to the card.
+
+**Build and release**
+- Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
+- Removed `POST /api/oui/reload` and the LittleFS library. They loaded `/oui_cat.bin`, which no build or tool produces, into a table that nothing read.
+- Stable and Beta (S3): a boot could reset with `Stack canary watchpoint triggered (ipc1)` while installing the GPIO interrupt service. The IPC task stack is now 2048 bytes (was 1024). The S3 builds compile the Arduino ESP-IDF libraries with this setting.
+- The boot banner and web footer show v1.0.5.
+
+**Flashers**
+- The web flasher and `flashAntihunter.sh` took erase delay, erase cooldown, detection window, setup delay, and vibration scan cooldown in seconds but sent them as milliseconds. A node set up with either tool got timings 1000 times too short, so auto-erase could arm and wipe within a second of a trigger. Both now convert seconds to milliseconds. `flashAntihunter.sh -c` sent these values even with auto-erase off. If you used either tool's settings, flash again with them, or set the values under System → Settings → **Danger zone**.
+- The web flasher's four scan timing fields never applied, because the flasher had no Custom preset. **RF Preset** now has **Custom**, which uses them.
+- A comma-separated target list from either flasher became one invalid entry. The flashers now send one entry per line.
+- The web flasher sends Sentinel settings on the Stable channel too.
 
 ## Firmware size
 
-App image size against the v1.0.4 release bins. Full builds shrink because the web page is stored gzip-compressed; headless builds grew from features added since v1.0.4.
+App image size compared with the v1.0.4 release bins. Full builds shrink because the web page is stored gzip-compressed. Headless builds grew because of features added since v1.0.4.
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
@@ -109,11 +130,9 @@ C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 
 ## Upgrade
 
-Settings and SD card files survive a flash. Erase commands stay refused until you set an erase key (see above).
+A flash keeps settings, the erase key, and SD card files unless you check **Erase device** in the web flasher. After flashing, use **Show my erase key** (step 2) and write the key down.
 
-All three builds attach to the one v1.0.5 release.
-Per channel: `antihunter-<full|headless>-<version>.bin`; C5 uses `.factory.bin`.
-Also `bootloader`, `partitions` and `SHA256SUMS` per version. Check a download with `shasum -a 256`.
+All three builds attach to the one v1.0.5 release as `antihunter-<full|headless>-<version>.bin` (C5 uses `.factory.bin`), with `bootloader`, `partitions`, and `SHA256SUMS` per version. Check a download with `shasum -a 256`.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
@@ -123,10 +142,9 @@ Also `bootloader`, `partitions` and `SHA256SUMS` per version. Check a download w
 | PlatformIO full | `AntiHunter-full` | `AntiHunter-full` | `AntiHunter-c5-full` |
 | PlatformIO mesh-only | `AntiHunter-headless` | `AntiHunter-headless` | `AntiHunter-c5-headless` |
 
-**Web flasher**: [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge.
-Pick the channel, then Full or Headless.
+**Web flasher.** Open [lukeswitz.github.io/AntiHunter](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge. Pick the channel, then Full or Headless.
 
-**Flasher script** (Python 3, esptool, pyserial), same on every branch:
+**Flasher script** (needs Python 3, esptool, and pyserial). It is the same on every branch. `-c` sets device settings and `-l` lists firmware.
 
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
@@ -134,9 +152,7 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-`-c` sets device settings; `-l` lists firmware.
-
-**PlatformIO**: `-t upload` keeps settings and the SD card.
+**PlatformIO.** `-t upload` keeps settings and the SD card.
 
 Stable:
 

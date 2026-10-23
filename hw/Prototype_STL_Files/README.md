@@ -1,6 +1,6 @@
 # Enclosure Prototypes
 
-3D-printable enclosures for AntiHunter nodes. Parts list: [BOM-Links.md](BOM-Links.md). Assembly: [Antihunter-DIGINODE-AssemblyManual.pdf](Antihunter-DIGINODE-AssemblyManual.pdf).
+This folder holds 3D-printable enclosures for AntiHunter nodes. The parts list is [BOM-Links.md](BOM-Links.md) and the build steps are in the [assembly manual](Antihunter-DIGINODE-AssemblyManual.pdf).
 
 | Enclosure | Folder | Power | Credit |
 |---|---|---|---|
@@ -9,18 +9,18 @@
 
 ## AH Case v2
 
-Field deployment case with external GPS.
+A field case with an external GPS antenna.
 
 <img width="45%" alt="Enclosure top" src="../../docs/img/hw-enclosure-top.jpg"/> <img width="45%" alt="Enclosure side" src="../../docs/img/hw-enclosure-side.jpg"/>
 
 ### Features
 
-- Holds a UPS board, with fast-charge or side-charge battery housing
-- Runs without the rear power housing for a compact dev build
-- TPU seals for the housing, GPS antenna, USB-C port and GPS SMA
-- Front cover with open or hidden fan
-- Base takes 1/4"-20 UNC heat-set inserts
-- Assembly uses M3 heat-set inserts and 2x 15 mm standoffs
+- Holds a UPS board, with a fast-charge or side-charge battery housing.
+- Runs without the rear power housing as a compact dev build.
+- TPU seals cover the housing, GPS antenna, USB-C port and GPS SMA connector.
+- The front cover comes with an open or a hidden fan.
+- The base takes 1/4"-20 UNC heat-set inserts.
+- Assembly uses M3 heat-set inserts and two 15 mm standoffs.
 
 ### Files
 
@@ -49,14 +49,14 @@ Field deployment case with external GPS.
 
 ## Puck Case
 
-Slim case with a snap-fit, vented lid.
+A slim case with a snap-fit, vented lid.
 
 <img width="25%" alt="Build front" src="../../docs/img/hw-build-front.jpg"/> <img width="40%" alt="Build side" src="../../docs/img/hw-build-side.jpg"/>
 
-- USB-C port access
-- SMA bulkheads recessed in the lid
-- Base takes 1/4"-20 UNC heat-set inserts
-- Files: `puck_body.stl`, `puck_top.stl`, `puck_bottom.stl`
+- The case has an opening for the USB-C port.
+- The SMA bulkheads sit recessed in the lid.
+- The base takes 1/4"-20 UNC heat-set inserts.
+- Files: `puck_body.stl`, `puck_top.stl`, `puck_bottom.stl`.
 
 ## Disclaimer
 
