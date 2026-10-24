@@ -1563,7 +1563,7 @@ R"HTML(
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-            Removes: devicedb, probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
+            Removes: device and probe lists, probe, deauth, drone and vibration logs, baseline, system log, Sentinel incidents and state, randomized-MAC identities.<br>
 )HTML"
 #else
 R"HTML(
@@ -5482,16 +5482,16 @@ R"HTML(
       setInterval(() => { if (pageActive('system')) pollSecureState(); }, 5000);
 
       const _factoryResetTiers = {
-        full: {btn: 'WIPE EVERYTHING', hint: 'Erases all SD data and all settings. The node reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
-        config: {btn: 'RESET CONFIG', hint: 'Resets all settings, including the erase key. Keeps captured data. The node reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
+        full: {btn: 'WIPE EVERYTHING', hint: 'Erases all SD data and all settings. The node reboots.', warn: 'Erase all SD data and all settings? The node reboots. This cannot be undone.'},
+        config: {btn: 'RESET CONFIG', hint: 'Resets all settings, including the erase key. Keeps captured data. The node reboots.', warn: 'Reset all settings? Captured data is kept. The node reboots.'},
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
 )HTML"
 #else
 R"HTML(
-        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (devicedb, probedb, probes, deauth, drones, baseline, logs). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
 )HTML"
 #endif
 R"HTML(
