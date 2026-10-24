@@ -1602,7 +1602,11 @@ R"HTML(
         .dn-tiles:empty{display:none}
         .dn-tile{border:1px solid var(--bord);border-radius:8px;background:var(--surf);padding:12px 16px;min-width:0}
         .dn-tile small{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
-        .dn-tile div{margin-top:4px;font:500 18px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .dn-tile div{margin-top:4px;font:500 18px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);overflow-wrap:break-word}
+        .dn-tile.sm div,.dn-tile.wide div{font-size:14px;line-height:1.5}
+        .dn-tile.wide{grid-column:span 2}
+        .dn-tile.wide b{font-weight:600;color:var(--mut)}
+        @media (max-width:360px){.dn-tile.wide{grid-column:auto}}
         .dn-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
         .dn-bar input[type=text]{flex:1 1 220px;min-width:0}
         .dn-bar select{width:auto}
@@ -6686,13 +6690,15 @@ R"HTML(
           var g=dataGroupVal(r);if(g)grp[g]=(grp[g]||0)+1;
         });
         var fmt=nodeTime;
-        var top=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,3).map(function(k){return k+' '+grp[k];}).join(' · ');
+        var topK=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,3);
+        var top=topK.map(function(k){return k+' '+grp[k];}).join(' · ');
         var he=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
-        var tile=function(l,v){return '<div class="dn-tile"><small>'+he(l)+'</small><div title="'+he(v)+'">'+he(v)+'</div></div>';};
+        var tile=function(l,v,c,h){return '<div class="dn-tile'+(c?' '+c:'')+'"><small>'+he(l)+'</small><div title="'+he(v)+'">'+(h||he(v))+'</div></div>';};
+        var topHtml=topK.map(function(k){return he(k)+' <b>'+grp[k]+'</b>';}).join('<br>');
         el.innerHTML=tile(dataCursor>0?'Rows loaded':'Rows',String(n))
           +(Object.keys(macs).length?tile('Unique MACs',String(Object.keys(macs).length)):'')
-          +(lo<=hi?tile('First',fmt(lo))+tile('Last',fmt(hi)):'')
-          +(top?tile('Top',top):'');
+          +(lo<=hi?tile('First',fmt(lo),'sm')+tile('Last',fmt(hi),'sm'):'')
+          +(top?tile('Top',top,'wide',topHtml):'');
         privacyApply(el);
       }
       var DATA_INFO={
