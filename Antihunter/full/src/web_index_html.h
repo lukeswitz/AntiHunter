@@ -623,7 +623,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <div id="toast"></div>
     <div class="header">
       <div class="header-bar">
-        <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm"><b>Anti</b>Hunter</span></h1>
+        <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm">Anti<b>Hunter</b></span></h1>
         <div class="statx-ticker"><div class="statx-track" id="statxTrack">
             <div class="status-item idle" id="scanStatus">Idle</div>
               <div class="status-item" id="gpsStatus">GPS</div>
@@ -1840,7 +1840,7 @@ R"HTML(
         <div class="card" data-key="listen">
           <h3>Listening</h3>
           <div class="sn-row">
-            <div><b>Radio</b><p>Defend this AP stays on the AP's channel and catches attacks on it. Scan all channels hops and covers more, with gaps.</p></div>
+            <div><b>Radio</b><p>Defend this AP keeps the radio on the channel of this node's Wi-Fi access point. Scan all channels moves through the Wi-Fi channels list and covers more channels, but misses traffic on each channel while it listens to the others. Sentinel always starts in Defend this AP after a reboot.</p></div>
             <div style="display:flex;gap:0;border:1px solid var(--bord);border-radius:6px;overflow:hidden;">
               <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
               <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
@@ -1870,7 +1870,7 @@ R"HTML(
               <div class="stat" data-cfg="attacker_trilat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
               <div class="stat" data-cfg="hshk"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
               <div class="stat" data-cfg="karma"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
-              <div class="stat" data-cfg="always" title="mdk4 auth-DoS: open-system Auth flood from many spoofed MACs"><div class="stat-label">Auth-DoS</div><div class="stat-value" id="d-authflood">0</div></div>
+              <div class="stat" data-cfg="always" title="A flood of open-system authentication requests from many spoofed MACs, as sent by the mdk4 tool"><div class="stat-label">Auth-DoS</div><div class="stat-value" id="d-authflood">0</div></div>
               <div class="stat" data-cfg="eviltwin"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
               <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Assoc Sleep</div><div class="stat-value" id="d-asl">0</div></div>
               <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
@@ -1888,7 +1888,7 @@ R"HTML(
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
               <button class="btn" onclick="detectClearSession()">Clear Session</button>
-              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every in-memory detection and deletes the saved detection logs on SD. Clear Session zeroes the counts shown here without deleting anything.</span>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every detection in memory and deletes the detection logs saved on the SD card. Clear Session resets the counts on this page and deletes nothing.</span>
             </div>
           </div>
         </div>
@@ -1907,7 +1907,7 @@ R"HTML(
 
         <div class="card" data-key="apclients">
           <div class="card-header" onclick="toggleCollapse('apClientsCard')">
-            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP)</span></h3>
+            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(devices connected to this node's Wi-Fi)</span></h3>
             <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
           </div>
           <div class="card-body" id="apClientsCardBody">
@@ -1933,7 +1933,7 @@ R"HTML(
           <div>
             <div class="ar-box">
               <div class="ar-head">On confirmed attack</div>
-              <div class="ar-sub">Runs top to bottom, one at a time, as the radio frees up. Needs a source MAC. One run per attacker per cooldown.</div>
+              <div class="ar-sub">Runs when a detector reports an attack with a source MAC. The responses you turn on run in the order listed, one at a time, when the radio is free. Each attacker triggers them at most once per Hunt Cooldown. A response still waiting after 15 minutes is dropped.</div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Triangulate attacker</span>
@@ -1966,7 +1966,7 @@ R"HTML(
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
-                <span class="ar-name">Interrupt scheduled scans; the schedule resumes after</span>
+                <span class="ar-name">Interrupt a running scheduled scan. It resumes afterward with the time it had left.</span>
               </div>
               <div class="ar-row">
                 <span class="ar-name">Pending response: <span id="arPending" class="num">--</span></span>
@@ -1992,7 +1992,7 @@ R"HTML(
           <h3>Turn detectors on or off</h3>
           <div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
-            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Toggle a group:</p>
+            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Turn a whole group on or off:</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
               <button id="grpchip-dos" class="btn alt" onclick="detGroupToggle('dos')">DoS</button>
               <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
@@ -2009,7 +2009,7 @@ R"HTML(
 
         <div class="card" data-key="meshradios">
           <div class="card-header" onclick="toggleCollapse('meshRadiosCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios <span style="font-size:11px;color:var(--mut);">(senders on this channel that are not AntiHunter nodes)</span></h3>
+            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios <span style="font-size:11px;color:var(--mut);">(radios on this channel that are not AntiHunter nodes)</span></h3>
             <span class="collapse-icon open" id="meshRadiosCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshRadiosCardBody">
@@ -2020,7 +2020,7 @@ R"HTML(
               <button class="btn alt" onclick="fleetClear()" style="padding:6px 12px;font-size:12px;">Clear Roster</button>
             </div>
             <div id="detRadios" class="res-list"></div>
-            <div style="font-size:11px;color:var(--mut);margin-top:8px;">Serial-attached radio carries text only — no LoRa RSSI, SNR or hop count is available to the node.</div>
+            <div style="font-size:11px;color:var(--mut);margin-top:8px;">The node's Meshtastic radio passes it message text only. Signal strength, signal-to-noise ratio and hop count are not available.</div>
           </div>
         </div>
 
@@ -2095,13 +2095,13 @@ R"HTML(
             <span class="collapse-icon" id="detConfigCardIcon">▶</span>
           </div>
           <div class="card-body" id="detConfigCardBody">
-            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Detector on/off lives in the group cards (Detectors tab). Here: mesh broadcast + thresholds.</p>
+            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Turn detectors on or off on the Detectors tab. This card sets which detections the node sends over mesh, and the detection thresholds.</p>
             <div class="det-quick" style="margin-bottom:6px;">
               <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
               <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
             </div>
             <details open>
-              <summary><span>▶</span> Mesh Broadcast (forward detections to peers)</summary>
+              <summary><span>▶</span> Mesh Broadcast (send detections over mesh)</summary>
               <div id="cfg-mesh"></div>
             </details>
             <details>
@@ -2344,7 +2344,7 @@ R"HTML(
             <a class="btn alt" href="/api/incidents.jsonl" download style="padding:8px 14px;font-size:12px;">Export</a>
             <button class="btn danger" onclick="clearSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Clear</button>
           </div>
-          <div id="saArea" style="overflow-x:auto;"><div class="data-empty">Open to load sentinel incidents.</div></div>
+          <div id="saArea" style="overflow-x:auto;"><div class="data-empty">Open to load Sentinel incidents.</div></div>
         </div>
 
         <div class="card" data-key="events" data-sev="high">
@@ -7199,8 +7199,8 @@ R"HTML(
               t=document.getElementById('dos-mode-desc');
         if(d)d.className=scan?'btn alt':'btn primary';
         if(s)s.className=scan?'btn primary':'btn alt';
-        if(t)t.textContent=scan?'Hopping all channels — sees attacks on set Wi-Fi channels (AP clients may drop).'
-                               :'Locked to this AP’s channel — catches attacks against us. (Stable)';
+        if(t)t.textContent=scan?'Scanning every channel in the Wi-Fi channels list. Devices connected to this node\'s Wi-Fi can disconnect.'
+                               :'Watching the channel of this node\'s Wi-Fi access point.';
       }
       async function detScanMode(scan){
         _dosSyncMode(scan);
