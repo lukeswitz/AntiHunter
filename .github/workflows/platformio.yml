@@ -42,7 +42,7 @@ jobs:
         python-version: '3.11'
     
     - name: Install PlatformIO
-      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.2.0.zip"
     
     - name: Build ${{ matrix.environment }}
       run: pio run -e ${{ matrix.environment }}

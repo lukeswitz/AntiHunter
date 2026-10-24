@@ -125,6 +125,7 @@ This applies to all three channels.
 - Stable and Beta (S3): a boot could reset with `Stack canary watchpoint triggered (ipc1)` while installing the GPIO interrupt service. The IPC task stack is now 2048 bytes (was 1024). The S3 builds compile the Arduino ESP-IDF libraries with this setting.
 - The boot banner and web footer show v1.0.5.
 - The Experimental (C5) boot banner reads `v1.0.5-c5exp1`.
+- Experimental (C5): builds on Arduino core 3.3.12 (ESP-IDF 5.5.5) and NimBLE-Arduino 2.5.1. With core 3.3.8, the C5 BLE controller wrote 4 bytes past the end of a heap block during BLE init (arduino-esp32 issue #12821). Building it needs PlatformIO Core 6.2.0 or later.
 
 **Flashers**
 - The web flasher and `flashAntihunter.sh` took erase delay, erase cooldown, detection window, setup delay, and vibration scan cooldown in seconds but sent them as milliseconds. A node set up with either tool got timings 1000 times too short, so auto-erase could arm and wipe within a second of a trigger. Both now convert seconds to milliseconds. `flashAntihunter.sh -c` sent these values even with auto-erase off. If you used either tool's settings, flash again with them, or set the values under System → Settings → **Danger zone**.
@@ -141,10 +142,10 @@ App image size compared with the v1.0.4 release bins. Full builds shrink because
 |---|---|---|---|---|
 | Stable full | 2,601,872 B | 2,386,592 B | -215,280 B | 77.8% -> 71.4% |
 | Beta full | 2,787,152 B | 2,444,224 B | -342,928 B | 83.4% -> 73.1% |
-| C5 full | 3,141,952 B | 2,789,392 B | -352,560 B | 74.9% -> 66.5% |
+| C5 full | 3,141,952 B | 2,805,200 B | -336,752 B | 74.9% -> 66.9% |
 | Stable headless | 1,897,584 B | 1,956,800 B | +59,216 B | 56.8% -> 58.5% |
 | Beta headless | 1,966,272 B | 2,011,424 B | +45,152 B | 58.8% -> 60.2% |
-| C5 headless | 2,321,776 B | 2,366,048 B | +44,272 B | 55.4% -> 56.4% |
+| C5 headless | 2,321,776 B | 2,408,144 B | +86,368 B | 55.4% -> 57.4% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 

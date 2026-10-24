@@ -96,7 +96,7 @@ jobs:
 
     - name: Install PlatformIO
       # pyserial: the C5 envs load set_rtc_time.py, which imports serial at module scope
-      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip" pyserial
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.2.0.zip" pyserial
 
     - name: Build AntiHunter C5 full and headless
       if: steps.plan.outputs.c5_version != ''

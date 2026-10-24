@@ -645,7 +645,7 @@ The script asks you to pick Stable, Beta, or Experimental, and then a firmware.
 
 ### Build from source
 
-You need PlatformIO, Git, and a USB cable.
+You need PlatformIO Core 6.2.0 or later, Git, and a USB cable.
 
 ```bash
 git clone https://github.com/lukeswitz/AntiHunter.git
