@@ -35,7 +35,7 @@
 
 ## What is AntiHunter?
 
-AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and Wi-Fi attacks. Everything it finds is saved to the SD card.
+AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and Wi-Fi attacks. It saves everything it finds to the SD card.
 
 You control a node from its web UI (Full build), or by sending text commands over LoRa from any Meshtastic radio on your channel (Full and Headless). A node needs no internet and runs on battery. Several nodes can estimate where a device is, and the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) shows a fleet on one map.
 
@@ -153,10 +153,10 @@ Keep a watchlist of MAC addresses, vendor prefixes, and SSIDs. The node alerts i
 
 **Over mesh:**
 - `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|T-00A3|MyNetwork` replaces the watchlist. Separate entries with `|`. An entry is a full MAC, a vendor prefix (first three bytes), a tracer ID (`T-xxxx`), or a network name.
-- `@ALL SCAN_START:2:300:1..11` scans Wi-Fi and BLE (`2`) for 300 seconds on channels 1 to 11. The channel value is required. Put `FOREVER` in its place to run on channels 1 to 11 until `STOP`.
+- `@ALL SCAN_START:2:300:1..11` scans Wi-Fi and BLE (`2`) for 300 seconds on channels 1 to 11. You must include the channel value. Put `FOREVER` in its place to run on channels 1 to 11 until `STOP`.
 
-- Devices on the [allowlist](#field-controls) are ignored.
-- Each hit is logged to SD with radio, MAC, signal, channel, name, and GPS.
+- The scan skips devices on the [allowlist](#field-controls).
+- The node logs each hit to SD with radio, MAC, signal, channel, name, and GPS.
 - Each target sends at most one mesh alert per 30 s, unless its signal changes by 5 dB or the node moves.
 
 ---
@@ -189,8 +189,8 @@ Wi-Fi devices send probe requests that name the networks they want to join. This
 **Over mesh:** `@ALL PROBE_START:2:300:+ALL` listens on Wi-Fi and BLE (`2`) for 300 seconds. `+ALL` is optional. With it, the node sends every probe request it hears to the mesh. Without it, the node sends only probes from watchlist devices. `@ALL PROBE_STOP` stops the scan.
 
 - The node keeps every probe on the node either way.
-- A name that never gets a probe response is marked with a `~` prefix.
-- Vendor names come from a built-in table of 607 IEEE-registered vendors. Randomized MACs are flagged.
+- A `~` prefix marks a name that never got a probe response.
+- Vendor names come from a built-in table of 607 IEEE-registered vendors. The list flags randomized MACs.
 
 ---
 
@@ -210,7 +210,7 @@ It tracks up to 256 devices and drops the one unseen for longest.
 
 ### Recon: Drone Remote ID
 
-Detects drones broadcasting Remote ID (FAA, EASA, and the French format) and reports drone ID, operator location, and flight data to the mesh and to `/drones.jsonl` on SD.
+Detects drones broadcasting Remote ID in the FAA, EASA, and French formats, and reports drone ID, operator location, and flight data to the mesh and to `/drones.jsonl` on SD.
 
 <p align="center">
   <img width="880" alt="Drone RID Detection" src="docs/img/drone-rid.jpg" />
@@ -218,7 +218,7 @@ Detects drones broadcasting Remote ID (FAA, EASA, and the French format) and rep
 
 **Start:** Scan tab → Drone RID Detection → **Start Scan**. Over mesh, `@ALL DRONE_START:300` watches for 300 seconds. It takes no radio value because it always listens on both.
 
-- Wi-Fi Remote ID is read on channel 6. BLE reads Bluetooth 4 broadcasts, not Bluetooth 5 long range.
+- The node reads Wi-Fi Remote ID on channel 6. BLE reads Bluetooth 4 broadcasts, not Bluetooth 5 long range.
 
 ---
 
@@ -279,7 +279,7 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
   <img width="880" alt="Sentinel" src="docs/img/sentinel.jpg" />
 </p>
 
-**Start:** Sentinel tab → **Start**.
+**Start:** Sentinel tab → **Start Sentinel**.
 
 **Over mesh:**
 
@@ -290,7 +290,7 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
 | `@ALL SENTINEL_MODE:scan` | Hops across channels. `defend` stays on the node's own access point channel. Headless has no access point, so use `scan` |
 | `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, or `all` |
 
-- After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **On confirmed attack**.
+- After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **Attack response** → **On confirmed attack**.
 - Karma bait is the only detector that transmits: one probe request every 8 s while on. It is off by default.
 - Detections go to serial, SD, and `/incidents.jsonl`, and to the mesh if that detector's broadcast is on.
 
@@ -302,11 +302,11 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
 | **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS |
 | **Rogue AP** | Evil twin, OWE abuse, Karma / MANA |
 | **Recon** | PMKID harvest, probe flood, forced handshake |
-| **Physical** | FragAttacks, TSF / multi-channel twin, Wi-Fi interference |
+| **Physical** | FragAttacks, two-channel twin, Wi-Fi interference |
 | **Mesh disruption** | Self-spoof, channel flood, command audit |
 
-- **Confirmed on hardware:** deauth (flood, forge, AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil twin, probe flood, forced handshake.
-- **Experimental:** OWE abuse, PMKID harvest, FragAttacks, TSF twin, Wi-Fi interference, mesh disruption.
+- **Confirmed on hardware:** deauth flood, deauth forge, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil twin, probe flood, forced handshake.
+- **Experimental:** OWE abuse, PMKID harvest, FragAttacks, two-channel twin, Wi-Fi interference, mesh disruption.
 - **Tested against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, and common ESP32 attack firmware.
 - Detectors that check crypto and beacons skip phone hotspots. Flood detectors do not.
 
@@ -360,10 +360,10 @@ Records traffic to SD as a pcap file that Wireshark opens.
 
 - Wi-Fi frames carry channel and signal strength. BLE captures have no channel.
 - The Scan tab lists captures to download or delete.
-- Captures started by Sentinel are pruned to stay under a size budget. Manual captures are never pruned.
+- The node deletes old Sentinel captures to stay under a size budget. It never deletes captures you start.
 
 > [!WARNING]
-> Stop a capture before cutting power, or the file may be truncated.
+> Stop a capture before cutting power, or you may lose the end of the file.
 
 ---
 
@@ -379,7 +379,7 @@ Several nodes listen for the same device and record its signal strength and thei
 | `60` | How long to listen, in seconds |
 | `2` | Optional. The environment from the table below. Default `2`, Indoor |
 
-Get the result with `@AH01 TRIANGULATE_RESULTS`, and stop early with `@ALL TRIANGULATE_STOP`. The result has coordinates, confidence, estimated error in meters, and a Google Maps link. Readings of −95 dBm or weaker are ignored.
+Get the result with `@AH01 TRIANGULATE_RESULTS`, and stop early with `@ALL TRIANGULATE_STOP`. The result has coordinates, confidence, estimated error in meters, and a Google Maps link. It ignores readings of −95 dBm or weaker.
 
 <details>
 <summary>RF environment calibration</summary>
@@ -481,7 +481,7 @@ The **System** tab shows diagnostics, the **Fleet** card, and **Settings**. Pick
 | `300` | Optional. Seconds before the sensor can trigger again, 5 to 86400 |
 | (fifth value) | Optional. `1` lets it interrupt a running scheduled scan, which resumes after. Default `0` |
 
-**Scheduled scans over mesh:** `@AH01 SCHED_ADD:2026-10-07T21:00|86400|/scan|mode=2&secs=600` runs a 10-minute Wi-Fi and BLE target scan every day at 21:00. The four values are separated by `|`:
+**Scheduled scans over mesh:** `@AH01 SCHED_ADD:2026-10-07T21:00|86400|/scan|mode=2&secs=600` runs a 10-minute Wi-Fi and BLE target scan every day at 21:00. A `|` separates the four values:
 
 | Value | Meaning |
 |------|-------|
@@ -490,11 +490,11 @@ The **System** tab shows diagnostics, the **Fleet** card, and **Settings**. Pick
 | `/scan` | The scan: `/scan` target scan, `/sniffer` device discovery, `/drone` drone detection |
 | `mode=2&secs=600` | `secs` is the run length. `mode` (`0` Wi-Fi, `1` BLE, `2` both) applies to `/scan` |
 
-`@AH01 SCHED_LIST` lists the entries on serial, and `@AH01 SCHED_DEL:1` deletes entry 1. Headless runs scheduled scans once its clock is set, from GPS or `SETTIME:<unix seconds>` on USB serial.
+`@AH01 SCHED_LIST` lists the entries on serial, and `@AH01 SCHED_DEL:1` deletes entry 1. Headless runs scheduled scans once it has the time, from GPS or from `SETTIME:<unix seconds>` on USB serial.
 
 ### Secure data destruction
 
-The node can erase its settings and SD files on command, or when it is moved with auto-erase on. It needs an SD card. A wipe can't be undone.
+The node can erase its settings and SD files on command, or when someone moves it while auto-erase is on. It needs an SD card. A wipe can't be undone.
 
 **Erase key.** Every wipe needs it. The node makes one on first start, and every way of flashing shows it: Web Flasher step 2, the flash script, and `pio run -t upload`. **Write it down.**
 
@@ -560,7 +560,7 @@ Nodes between you and a distant node relay your messages, [3 hops by default and
 
 ### Cross-scan dedup
 
-To save airtime, the node does not resend a device it sent over the mesh within the last 5 minutes. Change the time with `@ALL CONFIG_DEDUP_TTL:<seconds>` (0 turns it off, 3600 at most), or under System → Settings → **Node & mesh** → **Repeat filter**. Dedup applies only to device lists. Alerts are always sent.
+To save airtime, the node does not resend a device it sent over the mesh within the last 5 minutes. Change the time, from 0 to 3600 seconds, with `@ALL CONFIG_DEDUP_TTL:<seconds>` or under System → Settings → **Node & mesh** → **Repeat filter**. `0` turns the filter off. The filter applies only to device lists. Alerts are always sent.
 
 ---
 
@@ -641,7 +641,7 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh        # -e erases first, -c sets device parameters, -l lists firmware
 ```
 
-The script asks for a release channel (Stable, Beta, or Experimental) and a firmware.
+The script asks you to pick Stable, Beta, or Experimental, and then a firmware.
 
 ### Build from source
 
