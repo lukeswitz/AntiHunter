@@ -8,7 +8,7 @@ Open issues with the [templates](https://github.com/lukeswitz/AntiHunter/issues/
 
 - PlatformIO IDE or PlatformIO Core. It installs the ESP32 toolchain on the first build.
 - Supported [hardware](README.md#hardware).
-- cppcheck 2.20 for `make lint`. This is the version CI uses. CI builds it from source; see `.github/workflows/lint.yml`.
+- cppcheck 2.20 for `make lint`. This is the version CI uses. CI builds it from source. See `.github/workflows/lint.yml`.
 
 ### Building from Source
 
