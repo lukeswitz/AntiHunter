@@ -1865,8 +1865,8 @@ R"HTML(
             <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(96px,12vw,128px),1fr));gap:8px;margin-bottom:10px;">
               <div class="stat" data-cfg="always"><div class="stat-label">Deauth Flood</div><div class="stat-value" id="d-dauth">0</div></div>
               <div class="stat" data-cfg="pmkid"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
-              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
-              <div class="stat" data-cfg="ssid_confusion"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
+              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil Twin</div><div class="stat-value" id="d-et">0</div></div>
+              <div class="stat" data-cfg="ssid_confusion"><div class="stat-label">SSID Confusion</div><div class="stat-value" id="d-sc">0</div></div>
               <div class="stat" data-cfg="sae"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
               <div class="stat" data-cfg="owe"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
               <div class="stat" data-cfg="frag"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
@@ -1876,10 +1876,10 @@ R"HTML(
               <div class="stat" data-cfg="karma"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
               <div class="stat" data-cfg="always" title="A flood of open-system authentication requests from many spoofed MACs, as sent by the mdk4 tool"><div class="stat-label">Auth-DoS</div><div class="stat-value" id="d-authflood">0</div></div>
               <div class="stat" data-cfg="eviltwin"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
-              <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Assoc Sleep</div><div class="stat-value" id="d-asl">0</div></div>
+              <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Association Sleep</div><div class="stat-value" id="d-asl">0</div></div>
               <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
-              <div class="stat" data-cfg="tsf"><div class="stat-label">TSF / Twin</div><div class="stat-value" id="d-tsf">0</div></div>
-              <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Jam</div><div class="stat-value" id="d-jam">0</div></div>
+              <div class="stat" data-cfg="tsf"><div class="stat-label">Two-Channel Twin</div><div class="stat-value" id="d-tsf">0</div></div>
+              <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Interference</div><div class="stat-value" id="d-jam">0</div></div>
               <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Guard</div><div class="stat-value" id="d-mgd">0</div></div>
               <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
               <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
@@ -2227,7 +2227,7 @@ R"HTML(
 
         <div class="card" data-key="tsf" data-sev="info">
           <div class="card-header" onclick="toggleCollapse('detTsfCard')">
-            <h3><span class="sev info">info</span>TSF / Evil-Twin <span class="num" id="tsf-n">0</span></h3>
+            <h3><span class="sev info">info</span>Two-Channel Twin <span class="num" id="tsf-n">0</span></h3>
             <span class="collapse-icon" id="detTsfCardIcon">▶</span>
           </div>
           <div class="card-body collapsed" id="detTsfCardBody">
@@ -3724,7 +3724,7 @@ R"HTML(
       }, 2000);
       
       async function resetBaseline() {
-        if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
+        if (!confirm('Reset the baseline? Its collected data is cleared.')) return;
         try {
           const response = await fetch('/baseline/reset', { method: 'POST' });
           const data = await response.text();
@@ -5553,7 +5553,7 @@ R"HTML(
           toast('Enter erase PSK', 'error');
           return;
         }
-        if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+        if (!window.confirm('Last check: erase all data permanently?')) {
           return;
         }
         toast('Initiating secure erase operation...', 'warning');
@@ -5816,7 +5816,7 @@ R"HTML(
       }
       function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
       async function clearIncidents(){
-        if (!confirm('Clear all incidents (RAM ring + SD file)?')) return;
+        if (!confirm('Clear all incidents from memory and SD?')) return;
         await fetch('/api/incidents', {method:'DELETE'});
         loadIncidents();
       }
@@ -5900,7 +5900,7 @@ R"HTML(
         input.value = value;
         
         if (value === '') {
-            toast('Node ID required: 2-5 alphanumeric characters (examples: AB, A1C, XYZ99)', 'error');
+            toast('Node ID: 2 to 5 letters or digits.', 'error');
             return;
         }
         
@@ -5915,7 +5915,7 @@ R"HTML(
         }
         
         if (!/^[A-Z0-9]+$/.test(value)) {
-            toast('Only alphanumeric characters (A-Z, 0-9) allowed', 'error');
+            toast('Use letters and digits only.', 'error');
             return;
         }
         
@@ -6007,7 +6007,7 @@ R"HTML(
             }
             fd.set('targetMac', tgt);
           } else if (!(document.getElementById('list')?.value || '').trim()) {
-            toast('No targets - add MACs or OUIs to the target list first', 'error');
+            toast('No targets. Add MACs or OUIs to the target list.', 'error');
             document.getElementById('list')?.focus();
             return;
           }
@@ -6528,7 +6528,7 @@ R"HTML(
           if (fd.get('triangulate') === '1') {
             const tgt = String(fd.get('targetMac') || '').trim() || firstTriangulatableTarget();
             if (!isTriangulateTarget(tgt)) {
-              toast('Triangulate is on: enter a target MAC, or add a full MAC to the Target List', 'error');
+              toast('Triangulate is on. Enter a target MAC or add one to the target list.', 'error');
               return;
             }
             fd.set('targetMac', tgt);
@@ -6589,7 +6589,7 @@ R"HTML(
       document.getElementById('detectionMode')?.addEventListener('change', updateModeStatus);
 
       function showAutoEraseHelp() {
-        toast('Auto-Erase: 1) Setup period prevents wipe during install 2) Vibration triggers countdown 3) You can cancel 4) Cooldown prevents false triggers', 'info');
+        toast('Auto-erase on. Tampering starts a countdown you can cancel.', 'info');
       }
 
       // Battery Saver Functions
@@ -6634,7 +6634,7 @@ R"HTML(
       }
 
       function showBatterySaverHelp() {
-        toast('Battery Saver: Disables Wi-Fi/BLE scanning, reduces CPU to 80MHz, sends periodic heartbeats. Mesh UART stays active to receive commands like BATTERY_SAVER_STOP.', 'info');
+        toast('Battery saver on. Scanning stops. Mesh commands still work.', 'info');
       }
 
       // ---- Data Tab ----
@@ -6710,7 +6710,7 @@ R"HTML(
         vibrations:['Vibration events','Tamper sensor triggers.'],
         baseline:['Baseline stats','Device count and settings of the current baseline.'],
         syslog:['System log','Boot, mesh and storage messages from this node.'],
-        incidents:['Sentinel incidents','Incidents from Sentinel. The same list is in Sentinel, Incidents.']
+        incidents:['Sentinel incidents','Incidents logged by Sentinel.']
       };
       function dataNavSync(id){
         document.querySelectorAll('#dataNav button[data-ds]').forEach(function(b){b.classList.toggle('active',b.dataset.ds===id);});
@@ -6902,7 +6902,7 @@ R"HTML(
       let _saData=null;
       function refreshSentinelAnalysis(){ _saData=null; loadSentinelAnalysis(); }
       async function clearSentinelAnalysis(){
-        if(!confirm('Clear all sentinel incidents (RAM + SD)?'))return;
+        if(!confirm('Clear all Sentinel incidents from memory and SD?'))return;
         await fetch('/api/incidents',{method:'DELETE'}); _saData=null; loadSentinelAnalysis();
       }
       async function loadSentinelAnalysis(){
@@ -7169,13 +7169,13 @@ R"HTML(
       const GROUPS={
         dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
           ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
-          ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
-          ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]],
+          ['ASSOC_SLEEP','Association Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
+          ['DEAUTH_AP_TARGETED','Targeted AP Deauth',null]],
         rogue:[['EVILTWIN','Evil Twin','eviltwin'],['OWE_ABUSE','OWE Abuse','owe'],
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
-          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
-        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','Wi-Fi Interf (L2)','jam']],
+          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake / KRACK','hshk']],
+        physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAM','Wi-Fi Interference','jam']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
@@ -7318,7 +7318,7 @@ R"HTML(
         renderDos();
       }
       async function detectClearAll(){
-        if(!confirm('Erase ALL Sentinel state?\n\nThis clears every detection held in memory (all detector windows, hunts, trackers, baselines) AND deletes the saved detection logs on SD, including incidents.jsonl.\n\nThis cannot be undone.'))return;
+        if(!confirm('Erase all Sentinel state?\n\nClears every detection in memory and deletes the detection logs on SD, including incidents.\n\nThis cannot be undone.'))return;
         const r=await fetch('/api/detect/clear_all',{method:'POST'});
         toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
         _sessMark=null;
@@ -7773,24 +7773,24 @@ R"HTML(
         return Math.floor(s/3600)+'h';
       }
       const DET_FEATURES_LOCAL=[
-        ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
+        ['pmkid','PMKID Harvest'],['eviltwin','Evil Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
-        ['hshk','Handshake Reconstruction'],
-        ['tsf','TSF / Evil-Twin'],['jam','Wi-Fi Interference (L2)'],['mesh_guard','Mesh Disruption'],
-        ['ble_malformed','BLE Malformed'],
-        ['rid_spoof','RID Spoof Validator'],
-        ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
-        ['karma','KARMA Bait'],
-        ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep']
+        ['hshk','Handshake / KRACK'],
+        ['tsf','Two-Channel Twin'],['jam','Wi-Fi Interference'],['mesh_guard','Mesh Disruption'],
+        ['ble_malformed','Malformed BLE'],
+        ['rid_spoof','Remote ID Spoofing'],
+        ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Triangulation'],
+        ['karma','Karma'],
+        ['probe_flood','Probe Flood'],['assoc_sleep','Association Sleep']
       ];
       const DET_FEATURES_MESH=[
         ['mesh_deauth','Deauth'],['mesh_beacon','Beacon Flood'],
-        ['mesh_auth','Auth Flood'],['mesh_assoc_sleep','Assoc Sleep'],
-        ['mesh_sae','SAE DoS'],['mesh_eviltwin','Evil-Twin'],
+        ['mesh_auth','Auth Flood'],['mesh_assoc_sleep','Association Sleep'],
+        ['mesh_sae','SAE DoS'],['mesh_eviltwin','Evil Twin'],
         ['mesh_owe','OWE Abuse'],['mesh_karma','Karma'],
-        ['mesh_pmkid','PMKID'],['mesh_probe_flood','Probe Flood'],
-        ['mesh_hshk','Handshake/KRACK'],['mesh_frag','FragAttacks'],
-        ['mesh_tsf','TSF Twin'],['mesh_jam','Wi-Fi Jamming'],
+        ['mesh_pmkid','PMKID Harvest'],['mesh_probe_flood','Probe Flood'],
+        ['mesh_hshk','Handshake / KRACK'],['mesh_frag','FragAttacks'],
+        ['mesh_tsf','Two-Channel Twin'],['mesh_jam','Wi-Fi Interference'],
         ['mesh_guard','Mesh Disruption']
       ];
       const DET_THRESHOLDS=[
@@ -7798,9 +7798,9 @@ R"HTML(
         ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
         ['sae_window','SAE Window (ms)',1000,60000],
         ['sae_unmatched_thresh','SAE Unmatched',3,50],
-        ['probe_single_thresh','Probe Flood: 1-MAC probes /5s',10,500],
-        ['probe_rand_total','Probe Flood: randomized total /5s',10,1000],
-        ['probe_rand_distinct','Probe Flood: randomized distinct MACs /5s',5,500],
+        ['probe_single_thresh','Probe Flood: probes from one MAC per 5 s',10,500],
+        ['probe_rand_total','Probe Flood: randomized probes per 5 s',10,1000],
+        ['probe_rand_distinct','Probe Flood: randomized MACs per 5 s',5,500],
         ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
       ];
       let _detCfg=null;
