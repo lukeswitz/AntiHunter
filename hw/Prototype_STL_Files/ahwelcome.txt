@@ -50,13 +50,13 @@
 
    FIRST BOOT: join the access point "Antihunter" (password antihunt3r123) and
    open 192.168.4.1. Before anything else, change both under System > Settings
-   > Access point. Both are published.
+   > Access point. The defaults are public.
 ==================================================================================
                                    !  POWER  !
 
    Use regulated 5V only, from USB or the UPS board. Unregulated input kills
    parts. Connect one USB cable at a time, because the ESP32 and the radio share
-   power rails. A 2A fast-blow fuse on the battery line is recommended. It is
+   power rails. We recommend a 2A fast-blow fuse on the battery line. It is
    not supplied.
 ==================================================================================
    DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter

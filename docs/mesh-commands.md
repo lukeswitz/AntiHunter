@@ -12,9 +12,9 @@ Send a text message that starts with the target: `@AH01 STATUS` for one node, `@
 - Each command also has a short alias: `@AH01 TS:...` is `@AH01 TRIANGULATE_START:...`.
 - Type argument keywords such as `FOREVER`, `CH`, and `+PROBE` in uppercase.
 - A whole line can be at most 230 characters.
-- A line without `@<NODE>` or `@ALL` at the start is ignored. A misspelled command is ignored with no reply.
+- The node ignores any line that does not start with `@<NODE>` or `@ALL`. It also ignores a misspelled command and sends no reply.
 - Every node that receives the command answers with `<NODE>: <reply>`. This page shows only the reply text.
-- Only one scan runs at a time. A start command replies `BUSY` while another scan runs; send `STOP` first.
+- Only one scan runs at a time. A start command replies `BUSY` while another scan runs. Send `STOP` first.
 - The same line typed on the node's USB serial port runs the same way.
 
 Arguments used by many commands:
@@ -148,7 +148,7 @@ Nodes also trade `TRI_CYCLE_START:<ms>:<node,...>` (alias `TCS`) to schedule the
 
 #### Distance calibration
 
-Calibration replaces the RF environment's guess of signal strength at 1 m with a measurement from one node. Place a Wi-Fi access point or BLE device at a measured distance from the node, then send `CALIBRATE` to that node. The node listens to the device for 30 seconds, saves the result to NVS and the SD card, and keeps it after a reboot and when you change the RF environment. Calibrate each node on its own, and reset it when you move the node.
+Calibration replaces the RF environment's guess of signal strength at 1 m with a measurement from one node. Place a Wi-Fi access point or BLE device at a measured distance from the node, then send `CALIBRATE` to that node. The node listens to the device for 30 seconds. It saves the result to its built-in memory and the SD card, and keeps it after a reboot and when you change the RF environment. Calibrate each node on its own, and reset it when you move the node.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -166,7 +166,7 @@ The `<dBm>` values in `CALIBRATE_DONE` are the calibrated signal strength at 1 m
 
 ### Erase
 
-A wipe cannot be undone, so the node only wipes when you prove you know its **erase key**. The node makes the key on first start and every flasher shows it; see [Secure data destruction](../README.md#secure-data-destruction). You never send that key over the radio. Instead:
+A wipe cannot be undone, so the node only wipes when you prove you know its **erase key**. The node makes the key on first start, and every flasher shows it. See [Secure data destruction](../README.md#secure-data-destruction). You never send that key over the radio. Instead:
 
 - The node gives you a **token**, a one-time random challenge, good for 5 minutes.
 - You turn the token and your key into a short **answer** code.
@@ -220,7 +220,7 @@ When a tamper starts the countdown, the node sends `TAMPER_DETECTED: Auto-erase 
 
 **Problems**
 
-- `ERASE_ACK:SET_KEY_FIRST` or `FACTORY_RESET_ACK:DENIED_NO_PSK`: the node has no key. Restart it; it makes one at boot and prints it on USB serial.
+- `ERASE_ACK:SET_KEY_FIRST` or `FACTORY_RESET_ACK:DENIED_NO_PSK`: the node has no key. Restart it. It makes one at boot and prints it on USB serial.
 - Lost the key: reflash with **Erase device** checked. The node makes and shows a new key.
 - `ERASE_TOKEN:RATE_LIMITED`: wait 20 seconds and ask again.
 - `DENIED`: the answer is wrong, the token is older than 300 seconds, already used, or replaced by a newer one. Request a new token.
@@ -299,17 +299,17 @@ A `GROUP` name selects these detectors:
 | `dos` | Evil twin, SAE flood, association sleep |
 | `rogue` (or `rogue_ap`) | Evil twin, OWE downgrade, Karma bait |
 | `recon` | PMKID harvest, probe flood, forced handshake |
-| `physical` (or `phys`) | FragAttacks, TSF clock skew and multi-channel twin, Wi-Fi jamming |
+| `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference |
 | `mesh` | Mesh disruption |
 | `all` | All of the above |
 
-`DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and unknown keys are ignored. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0, and `0` is ignored.
+`DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`.
 
 | Keys | Value | Sets |
 |---|---|---|
 | `pmkid` `eviltwin` `ssid_confusion` `sae` `owe` `frag` `jam` `mesh_guard` `hshk` `pwna` `tsf` `csa_quiet` `rid_spoof` `karma` `probe_flood` `assoc_sleep` `ble_malformed` | switch | Turns that detector on or off |
 | `mesh_deauth` `mesh_beacon` `mesh_auth` `mesh_assoc_sleep` `mesh_sae` `mesh_eviltwin` `mesh_owe` `mesh_karma` `mesh_pmkid` `mesh_probe_flood` `mesh_hshk` `mesh_frag` `mesh_tsf` `mesh_jam` | switch | Sends that detector's alerts over the mesh |
-| `bloom_gossip` | switch | Shares seen-device fingerprints between nodes |
+| `bloom_gossip` | switch | Sends this node's baseline fingerprints over the mesh every 5 minutes. Received fingerprints only show as a count on `/api/bloom`. No detector uses them |
 | `sentinel_scan` | switch | Same as `SENTINEL_MODE`: `true` is `scan` |
 | `attacker_trilat` | switch | Same as `ATTACKER_TRILAT` |
 
@@ -385,13 +385,13 @@ With `SPOTS=1`, the node still needs two moving devices, unless one device's sco
 
 Rules for `CSI_CFG`:
 
-- Fields without a keyword are read by position: first the trigger level, then the clear time in milliseconds (500-120000), the number of consecutive hits (1-50, default 3), the channel, and last `1` or `0` for `TELEM`. Use the keyword fields instead.
+- The node reads fields without a keyword by position: first the trigger level, then the clear time in milliseconds (500-120000), the number of consecutive hits (1-50, default 3), the channel, and last `1` or `0` for `TELEM`. Use the keyword fields instead.
 - The node refuses the whole command with `CSI_CFG_ACK:INVALID` if any value is out of range.
 - After a reboot the node resets a saved trigger level outside 0.005-0.600 to the built-in level, even though `CSI_CFG` accepts values up to 20.
 - `CSI_STATUS` and `CSI_JSON` print to USB serial and send only the text length over the mesh. The web UI reads the same data from `/csi-json`. See the [API reference](api-reference.md).
 - `CSI_EXCLUDE` takes a MAC address, or `NONE` (or nothing) to clear the exclusion. The exclusion is not saved across a reboot.
 
-While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts, which are listed under [Alerts](#alerts).
+While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Alerts](#alerts) lists both.
 
 ### Branch-only
 

@@ -23,7 +23,7 @@ Measured on channel 6 in the same room, over the same 15 s intervals, with no So
 | S3 | 5983-7279 | 1129 | 3-12 |
 | C5 | 5983 | 3020 | 194-666 |
 
-The S3 hears more DSSS, so both radios get the same air. These causes were ruled out by measurement:
+The S3 hears more DSSS, so both radios get the same air. Measurements ruled out these causes:
 
 - Receiver sensitivity (the gap is widest on the strongest frames).
 - STA and AP bandwidth.
@@ -33,7 +33,7 @@ The S3 hears more DSSS, so both radios get the same air. These causes were ruled
 
 The result matches [esp-idf#736](https://github.com/espressif/esp-idf/issues/736), which was closed on the grounds that no 11n traffic was in the air. Here a C5 12 cm away decoded hundreds of HT frames per 15 s.
 
-The gap depends on the channel. On channel 1 the same S3 decoded 10120 HT frames, 15.7% of its OFDM, against the C5's 33.6% on channel 6. Why channel 6 starved the S3 is unexplained. Let the channel survey pick the channel.
+The gap depends on the channel. On channel 1 the same S3 decoded 10120 HT frames, 15.7% of its OFDM, against the C5's 33.6% on channel 6. We have no explanation for why channel 6 starved the S3. Let the channel survey pick the channel.
 
 ## CSI field reference
 
@@ -42,7 +42,7 @@ The decoder relies on documented properties of the C5 CSI path. Source: [ESP-IDF
 - "Each item is stored as two bytes: imaginary part followed by real part." For that layout, `csiAmplitudesLen` reads `buf[k*2]` as imaginary and `buf[k*2+1]` as real. The measured C5 L-LTF payload does not match it and takes the 12-bit path (see esp-idf#18982 above).
 - "If `first_word_invalid` of `wifi_csi_info_t` is true, it means that the first four bytes of CSI data is invalid due to a hardware limitation in ESP32-C5." When the flag is set, the decoder skips the first four bytes. That is one 4-byte subcarrier on the 106-byte L-LTF path and two 2-byte subcarriers otherwise.
 - "If `rx_channel_estimate_info_vld` of `rx_ctrl` field is 1, indicates that the CSI data is valid; otherwise, the CSI data is invalid." The status line counts valid and invalid packets as `ce=<valid>/<invalid>`. The `csiRequireCeVld` setting drops packets whose flag is 0.
-- `val_scale_cfg` (`esp_wifi_he_types.h:61`, "value 0-8") is set to 0. This is open. The C5 reads far quieter than the S3 on the same channel and trigger: over 30 minutes, 1.6% of samples crossed the line against 21.7%. The field has no documented meaning and is untested.
+- The firmware sets `val_scale_cfg` to 0. `esp_wifi_he_types.h:61` documents it only as "value 0-8". This is open. The C5 reads far quieter than the S3 on the same channel and trigger: over 30 minutes, 1.6% of samples crossed the line against 21.7%. The field has no documented meaning, and this firmware has not tried other values.
 - `lltf_bit_mode` (`esp_wifi_he_types.h:63`, "0 : 12-bit, 1 : 8-bit, default : 12-bit"): `csiArmCsi` sets 0. The 106-byte L-LTF payload is 12-bit words in 2-byte containers, and `csiAmplitudesLen` decodes it with `csiWord12` (26 subcarriers). Other buffer lengths use the int8-pair path.
 
 `CSIR` raw dump lines end with `,L<len>,F<0|1>`: the packet's `ev.len` and `first_word_invalid`. Without them you cannot decode a capture correctly, because the dump writes every packet as a fixed 114-byte buffer while only `len` bytes are valid.

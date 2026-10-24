@@ -1880,7 +1880,7 @@ R"HTML(
               <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
               <div class="stat" data-cfg="tsf"><div class="stat-label">Two-Channel Twin</div><div class="stat-value" id="d-tsf">0</div></div>
               <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Interference</div><div class="stat-value" id="d-jam">0</div></div>
-              <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Guard</div><div class="stat-value" id="d-mgd">0</div></div>
+              <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Disruption</div><div class="stat-value" id="d-mgd">0</div></div>
               <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
               <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
             </div>
@@ -1970,7 +1970,7 @@ R"HTML(
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
-                <span class="ar-name">Pause scheduled scans. They resume after.</span>
+                <span class="ar-name">Interrupt scheduled scans</span>
               </div>
               <div class="ar-row">
                 <span class="ar-name">Pending response: <span id="arPending" class="num">--</span></span>

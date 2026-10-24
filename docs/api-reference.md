@@ -43,7 +43,7 @@ Parameters shared by the start routes:
 | `/allowlist-save` | POST | `list`: replaces the allowlist. `409` while a scan runs |
 | `/clear-results` | POST | Clears the results text |
 | `/api/time` | POST | `epoch`: sets the clock, in UTC seconds from 1609459200 to 2147483647 |
-| `/api/onboarding` | GET, POST | JSON: `accepted`, whether the first-run terms were accepted. POST marks them accepted and saves that to NVS and the SD card |
+| `/api/onboarding` | GET, POST | JSON: `accepted`, whether the first-run terms were accepted. POST marks them accepted and saves that to the node's built-in memory and the SD card |
 
 ## Scanning
 
@@ -62,7 +62,7 @@ Parameters shared by the start routes:
 | `rfEnv` | Surroundings: `0` open sky, `1` suburban, `2` indoor, `3` indoor dense, `4` industrial | 0-4 | 2 |
 | `wifiPwr`, `blePwr` | Multipliers for Wi-Fi and BLE distance estimates | 0.1-5.0 | 1.0 |
 
-**`/sniffer`** runs one of these scans. Choose it with `detection`; an unknown value returns `400`. All scans take `secs` and `forever`.
+**`/sniffer`** runs one of these scans. Choose it with `detection`. An unknown value returns `400`. All scans take `secs` and `forever`.
 
 | `detection` | What it does | Extra parameters |
 |---|---|---|
@@ -205,9 +205,9 @@ These six logs take query parameters to read the end of a large file: `/api/deau
 | `bytes` | Return only the last `bytes` of the file, starting at a whole line | 1024-65536 |
 | `before` | With `bytes`: end the chunk at this byte offset, to page backward | |
 
-The reply headers `X-Start` (offset of the first byte returned) and `X-Size` (file size) tell you where you are.
+The reply header `X-Start` gives the offset of the first byte returned, and `X-Size` gives the file size.
 
-`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database lives in `/devicedb.jsonl` on the SD card, survives reboots, and holds 2000 entries; the least recently seen entry goes when it is full.
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The node keeps the device database in `/devicedb.jsonl` on the SD card, and it survives reboots. It holds 2000 entries. When it is full, the node drops the device it saw longest ago.
 
 <details>
 <summary>Sentinel and detector endpoints</summary>
@@ -237,7 +237,7 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/apclients.json` | GET | Stations connected to this node's access point |
 | `/api/quorum` | GET | Quorum status (JSON) |
 | `/api/quorum/config` | POST | `type` and `n` (above 0): peers that must agree before an alert type is raised. `400` if either is missing |
-| `/api/bloom` | GET | Bloom filter statistics (JSON) |
+| `/api/bloom` | GET | Baseline-sharing counts. JSON: `local_bits_set`, `neighbor_bits_set`, `capacity_bits` |
 | `/api/rid_claims` | GET | Drone Remote ID claims (JSON) |
 | `/api/channel_partition` | GET | Channel assignment (JSON) |
 | `/api/channel_partition` | POST | Splits channels 1-14 among this node and the peers it has heard, sends each peer its share, and returns the assignment |
@@ -250,7 +250,7 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/attack_response/cancel` | POST | Cancels the waiting follow-up actions |
 | `/api/tof` | GET | Time-of-flight peers (JSON) |
 | `/api/tof/ping` | POST | `target`: peer to ping (default `*`, all) |
-| `/api/tsf_skew` | GET | TSF clock-skew state (JSON) |
+| `/api/tsf_skew` | GET | Two-channel twin state. JSON array, one entry per access point: `bssid`, `ssid`, `chan_a`, `chan_b`, `chan_a_ms`, `chan_b_ms`, `last` |
 | `/api/karma` | GET | Karma state (JSON) |
 | `/api/karma/enable` | POST | `on`: `0` or `1` (default `1`). Returns JSON `enabled` |
 | `/api/karma/stats` | GET | JSON: `enabled`, `candidates`, `confirmed` |
@@ -261,7 +261,7 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 
 Each of these clears its own state with a POST to `<route>/clear`: `/api/handshakes`, `/api/attacker_hunts`, `/api/tof`, `/api/tsf_skew`, `/api/karma`, `/api/pwnagotchi`, `/api/recon`, `/api/probegraph`.
 
-Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log in memory, and the second reads the SD card (an empty reply if the file does not exist).
+Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log in memory, and the second reads the SD card. A missing file gives an empty reply.
 
 | Group | Names | Clear (POST `/api/<name>/clear`) |
 |---|---|---|

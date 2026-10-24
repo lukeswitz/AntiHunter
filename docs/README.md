@@ -52,7 +52,7 @@ The PlatformIO environments are under [Build from source](../README.md#build-fro
 
 ### Several nodes
 
-Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](../README.md#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view; install steps are in [Operator's Guide §12](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12).
+Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](../README.md#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view. Its install steps are in [Operator's Guide §12](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12).
 
 ---
 

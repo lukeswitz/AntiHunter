@@ -943,9 +943,9 @@ chmod +x flashAntihunter.sh
       await port.setSignals({ dataTerminalReady: false, requestToSend: false });
     }
 
-    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Assoc Sleep'],['frag','FragAttacks'],['tsf','TSF / Evil-Twin'],['jam','Wi-Fi Jamming'],['mesh_guard','Mesh Guard']];
-    const SENT_MESH=[['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil Twin'],['mesh_sae','SAE'],['mesh_frag','Frag'],['mesh_hshk','Handshake'],['mesh_krack','KRACK'],['mesh_karma','Karma'],['mesh_recon','Recon']];
-    const SENT_THRESH=[['pmkid_window','PMKID Window (ms)'],['pmkid_min_bssids','PMKID Min BSSIDs'],['sae_window','SAE Window (ms)'],['sae_unmatched_thresh','SAE Unmatched'],['frag_reuse_thresh','Frag PN Reuse'],['probe_single_thresh','Probe Single-MAC'],['probe_rand_total','Probe Rand Total'],['probe_rand_distinct','Probe Rand Distinct']];
+    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Association Sleep'],['frag','FragAttacks'],['tsf','Two-Channel Twin'],['jam','Wi-Fi Interference'],['mesh_guard','Mesh Disruption']];
+    const SENT_MESH=[['mesh_pmkid','PMKID Harvest'],['mesh_eviltwin','Evil Twin'],['mesh_sae','SAE DoS'],['mesh_frag','FragAttacks'],['mesh_hshk','Handshake / KRACK'],['mesh_karma','Karma']];
+    const SENT_THRESH=[['pmkid_window','PMKID Window (ms)'],['pmkid_min_bssids','PMKID Min BSSIDs'],['sae_window','SAE Window (ms)'],['sae_unmatched_thresh','SAE Unmatched'],['probe_single_thresh','Probe Flood: probes from one MAC per 5 s'],['probe_rand_total','Probe Flood: randomized probes per 5 s'],['probe_rand_distinct','Probe Flood: randomized MACs per 5 s']];
     function renderSentinelCfg(){
       const tri=id=>`<select id="${id}"><option value="">Default</option><option value="1">On</option><option value="0">Off</option></select>`;
       const en=document.getElementById('cfgDetEnables'); if(en)en.innerHTML=SENT_ENABLES.map(([k,l])=>`<div><label>${l}</label>${tri('den_'+k)}</div>`).join('');
