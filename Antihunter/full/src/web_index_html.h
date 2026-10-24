@@ -1118,16 +1118,16 @@ R"HTML(
         <div class="set-main">
 
           <section class="set-sec on" id="setScan">
-            <header><h2>Scanning</h2><p>How the radio listens. These settings apply to every scan on this node.</p></header>
+            <header><h2>Scanning</h2><p>Applies to every scan.</p></header>
             <div class="set-grp">
               <h3>Signal filter</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="globalRssiSlider">RSSI filter</label><p>Signals weaker than this are dropped. Triangulation still uses every signal.</p></div>
+                  <div class="srow-l"><label for="globalRssiSlider">RSSI filter</label><p>Drops weaker signals. Triangulation uses all.</p></div>
                   <div class="srow-c"><input type="range" id="globalRssiSlider" min="-100" max="-10" value="-95" oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'"><span id="globalRssiValue" class="srow-v">-95 dBm</span></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="rfEnv">RF environment</label><p>Path-loss model for distance estimates and triangulation. Pick the one whose distances match the site.</p></div>
+                  <div class="srow-l"><label for="rfEnv">RF environment</label><p>How signal strength maps to distance.</p></div>
                   <div class="srow-c">
                     <select id="rfEnv" onchange="saveRFEnv()">
                       <option value="0">Open sky, clear line of sight</option>
@@ -1145,19 +1145,19 @@ R"HTML(
               <h3>Distance calibration</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="calNode">Node</label><p>Calibrate this node, or send the calibration to another node on the mesh. A remote node replies on the mesh when it finishes.</p></div>
+                  <div class="srow-l"><label for="calNode">Node</label><p>This node or a mesh node. Remote nodes reply when done.</p></div>
                   <div class="srow-c"><select id="calNode" onfocus="fleetNodeOptions(this, 'This node')"><option value="">This node</option></select></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="calMac">Reference device</label><p>MAC address of a Wi-Fi access point or BLE device placed at a measured distance from the node. The node listens to it for 30 seconds.</p></div>
+                  <div class="srow-l"><label for="calMac">Reference device</label><p>MAC of a device at a known distance. Listens for 30 s.</p></div>
                   <div class="srow-c"><input type="text" id="calMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17" autocomplete="off"></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="calDist">Distance</label><p>Measured distance from the node to the device, from 0.5 to 100 m.</p></div>
+                  <div class="srow-l"><label for="calDist">Distance</label><p>0.5 to 100 m.</p></div>
                   <div class="srow-c"><input type="number" id="calDist" min="0.5" max="100" step="0.1" placeholder="meters"></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><b>This node</b><p id="calState">Not calibrated. Distances use the RF environment.</p></div>
+                  <div class="srow-l"><b>This node</b><p id="calState">Not calibrated. Uses the RF environment setting.</p></div>
                   <div class="srow-c"><button class="btn alt" type="button" onclick="calReset()">Reset</button></div>
                 </div>
                 <div class="sfoot"><span class="sfoot-t">Calibration is kept after a reboot and saved to the SD card. Reset it when you move the node.</span><button class="btn primary" type="button" onclick="calStart()">Calibrate</button></div>
@@ -1167,7 +1167,7 @@ R"HTML(
               <h3>Scan timing</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="rfPreset">Profile</label><p>Relaxed, Balanced and Aggressive set the timings below. Choose Custom to edit them.</p></div>
+                  <div class="srow-l"><label for="rfPreset">Profile</label><p>Presets set the timings below. Custom edits them.</p></div>
                   <div class="srow-c">
                     <select id="rfPreset" onchange="updateRFPresetUI()">
                       <option value="0">Relaxed</option>
@@ -1179,23 +1179,23 @@ R"HTML(
                 </div>
                 <div id="customRFSettings" style="display:block;">
                   <div class="srow">
-                    <div class="srow-l"><label for="wifiChannelTime">Wi-Fi channel time</label><p>How long the radio stays on each Wi-Fi channel. 110 to 300 ms.</p></div>
+                    <div class="srow-l"><label for="wifiChannelTime">Wi-Fi channel time</label><p>Time on each channel. 110 to 300 ms.</p></div>
                     <div class="srow-c"><input type="number" id="wifiChannelTime" class="num" min="110" max="300" value="160"><span class="srow-u">ms</span></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="wifiScanInterval">Wi-Fi scan interval</label><p>Time between Wi-Fi scan passes. 1000 to 10000 ms.</p></div>
+                    <div class="srow-l"><label for="wifiScanInterval">Wi-Fi scan interval</label><p>1000 to 10000 ms.</p></div>
                     <div class="srow-c"><input type="number" id="wifiScanInterval" class="num" min="1000" max="10000" value="3000"><span class="srow-u">ms</span></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="bleScanDuration">BLE scan duration</label><p>How long each BLE scan listens. Wi-Fi capture pauses for that time. 1000 to 5000 ms.</p></div>
+                    <div class="srow-l"><label for="bleScanDuration">BLE scan duration</label><p>Pauses Wi-Fi capture. 1000 to 5000 ms.</p></div>
                     <div class="srow-c"><input type="number" id="bleScanDuration" class="num" min="1000" max="5000" value="2000"><span class="srow-u">ms</span></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="bleScanInterval">BLE scan interval</label><p>Time between BLE scans. 1000 to 10000 ms.</p></div>
+                    <div class="srow-l"><label for="bleScanInterval">BLE scan interval</label><p>1000 to 10000 ms.</p></div>
                     <div class="srow-c"><input type="number" id="bleScanInterval" class="num" min="1000" max="10000" value="4000"><span class="srow-u">ms</span></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="wifiChannels">Wi-Fi channels</label><p>Channels to scan, as a list or a range: 1,6,11 or 1..13.</p></div>
+                    <div class="srow-l"><label for="wifiChannels">Wi-Fi channels</label><p>List or range: 1,6,11 or 1..13.</p></div>
                     <div class="srow-c"><input type="text" id="wifiChannels" placeholder="1..11" value="1..11"></div>
                   </div>
                 </div>
@@ -1205,12 +1205,12 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setMesh">
-            <header><h2>Node &amp; mesh</h2><p>How this node names itself and what it sends over the mesh radio.</p></header>
+            <header><h2>Node &amp; mesh</h2><p>Node name and mesh messages.</p></header>
             <div class="set-grp">
               <h3>Identity</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="nodeId">Node ID</label><p>2 to 5 letters or digits. Mesh commands address the node by this ID.</p></div>
+                  <div class="srow-l"><label for="nodeId">Node ID</label><p>2 to 5 letters or digits. Mesh commands use it.</p></div>
                   <form id="nodeForm" class="srow-c" method="POST" action="/node-id" novalidate>
                     <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="flex:1;text-transform:uppercase;">
                     <button class="btn alt" type="submit">Update</button>
@@ -1222,24 +1222,24 @@ R"HTML(
               <h3>Mesh radio</h3>
               <div class="set-box">
                 <div class="srow tog">
-                  <div class="srow-l"><label for="meshToggle">Mesh</label><p>Send and receive over the attached mesh radio. Off hides the settings below.</p></div>
+                  <div class="srow-l"><label for="meshToggle">Mesh</label><p>Uses the attached mesh radio.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="meshToggle" onchange="toggleMesh()"><span class="dsw-s"></span></label></div>
                 </div>
                 <div id="meshControls" style="display:none;">
                   <div class="srow">
-                    <div class="srow-l"><label for="hbEnabledCb">Status heartbeat</label><p>Send a status message on a timer. 1 to 60 minutes.</p></div>
+                    <div class="srow-l"><label for="hbEnabledCb">Status heartbeat</label><p>1 to 60 minutes.</p></div>
                     <div class="srow-c"><input type="number" id="hbIntervalInput" class="num" min="1" max="60" step="1" value="10" aria-label="Heartbeat interval in minutes" onchange="saveHbInterval()"><span class="srow-u">min</span><label class="dsw"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()"><span class="dsw-s"></span></label></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="meshInterval">Alert send interval</label><p>Minimum gap between alert messages. Device lists and command replies are paced separately. 1500 to 30000 ms.</p></div>
+                    <div class="srow-l"><label for="meshInterval">Alert send interval</label><p>Minimum gap between alerts. 1500 to 30000 ms.</p></div>
                     <div class="srow-c"><input type="number" id="meshInterval" class="num" min="1500" max="30000" step="100" value="3000" onchange="saveMeshInterval()"><span class="srow-u">ms</span></div>
                   </div>
                   <div class="srow">
-                    <div class="srow-l"><label for="meshDedupTtl">Repeat filter</label><p>Skip re-sending the same MAC within this many seconds. 0 sends every device on every scan.</p></div>
+                    <div class="srow-l"><label for="meshDedupTtl">Repeat filter</label><p>Seconds before resending a MAC. 0 sends all.</p></div>
                     <div class="srow-c"><input type="number" id="meshDedupTtl" class="num" min="0" max="3600" step="30" value="300" onchange="saveDedupTtl()"><span class="srow-u">s</span></div>
                   </div>
                   <div class="srow tog">
-                    <div class="srow-l"><label for="meshSessionDedup">Send only new devices</label><p>Later scans send only devices not already sent this session, until you clear the cache. Off: every scan re-sends every device it sees.</p></div>
+                    <div class="srow-l"><label for="meshSessionDedup">Send only new devices</label><p>Sends each device once per session. Clear the cache to resend.</p></div>
                     <div class="srow-c"><label class="dsw"><input type="checkbox" id="meshSessionDedup" onchange="saveSessionDedup()"><span class="dsw-s"></span></label></div>
                   </div>
                   <div class="srow">
@@ -1253,7 +1253,7 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setAp">
-            <header><h2>Access point</h2><p>The Wi-Fi network this node broadcasts for the web UI, and who may log in.</p></header>
+            <header><h2>Access point</h2><p>This node's Wi-Fi and web login.</p></header>
             <div class="set-grp">
               <h3>Wi-Fi network</h3>
               <div class="set-box">
@@ -1262,7 +1262,7 @@ R"HTML(
                   <div class="srow-c"><input type="text" id="apSsid" maxlength="32" placeholder="Antihunter"></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="apPass">Password</label><p>Leave blank to keep the current one. 8 to 63 characters.</p></div>
+                  <div class="srow-l"><label for="apPass">Password</label><p>Blank keeps it. 8 to 63 characters.</p></div>
                   <div class="srow-c"><input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Unchanged"></div>
                 </div>
                 <div class="srow">
@@ -1275,7 +1275,7 @@ R"HTML(
                   </div>
                 </div>
                 <div class="srow tog">
-                  <div class="srow-l"><label for="apHidden">Hidden network</label><p>Stops broadcasting the network name. Clients must type it, and probe for it by name.</p></div>
+                  <div class="srow-l"><label for="apHidden">Hidden network</label><p>Hides the network name. Clients must type it.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="apHidden" value="1"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="sfoot"><span class="sfoot-t">The hidden setting saves with the button.</span><button class="btn primary" type="button" onclick="saveWiFiConfig()">Save Wi-Fi settings</button></div>
@@ -1285,11 +1285,11 @@ R"HTML(
               <h3>Web login</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="webPassCur">Current web password</label><p>Needed for any change in this group. Until you set a web password, it is the Wi-Fi password.</p></div>
+                  <div class="srow-l"><label for="webPassCur">Current web password</label><p>Required to save. Until set, it is the Wi-Fi password.</p></div>
                   <div class="srow-c"><input type="password" id="webPassCur" maxlength="63"></div>
                 </div>
                 <div class="srow tog">
-                  <div class="srow-l"><label for="webAuth">Require login</label><p>User name admin. Off: anyone on this Wi-Fi can use the web UI.</p></div>
+                  <div class="srow-l"><label for="webAuth">Require login</label><p>User name admin. When off, anyone on this Wi-Fi gets in.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow">
@@ -1302,16 +1302,16 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setSensors">
-            <header><h2>Sensors &amp; power</h2><p>What the node does when it is moved, and how it saves power.</p></header>
+            <header><h2>Sensors &amp; power</h2><p>Motion response and power saving.</p></header>
             <div class="set-grp">
               <h3>Vibration sensor</h3>
               <div class="set-box">
                 <div class="srow tog">
-                  <div class="srow-l"><label for="vibToggle">Mesh alert</label><p>Broadcast an alert on the mesh when the sensor fires. Applies at once.</p></div>
+                  <div class="srow-l"><label for="vibToggle">Mesh alert</label><p>Alerts the mesh on vibration. Applies at once.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibToggle" onchange="toggleVibration()"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow tog">
-                  <div class="srow-l"><label for="vibScanEn">Scan on vibration</label><p>Start a scan when the sensor fires.</p></div>
+                  <div class="srow-l"><label for="vibScanEn">Scan on vibration</label><p>Runs the scan below.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow">
@@ -1335,11 +1335,11 @@ R"HTML(
                   <div class="srow-c"><input type="number" id="vibScanDur" class="num" min="0" max="65535" value="60"><span class="srow-u">s</span></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="vibScanCd">Cooldown</label><p>Minimum time before the sensor can start another scan. 5 to 86400 s.</p></div>
+                  <div class="srow-l"><label for="vibScanCd">Cooldown</label><p>Gap between scans. 5 to 86400 s.</p></div>
                   <div class="srow-c"><input type="number" id="vibScanCd" class="num" min="5" max="86400" value="60"><span class="srow-u">s</span></div>
                 </div>
                 <div class="srow tog">
-                  <div class="srow-l"><label for="vibScanPre">Interrupt scheduled scans</label><p>Stop a running scheduled scan to run this one. The schedule resumes after.</p></div>
+                  <div class="srow-l"><label for="vibScanPre">Interrupt scheduled scans</label><p>Pauses a scheduled scan. It resumes after.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="sfoot"><span class="sfoot-t">Skipped if a scan is already running or during battery saver, unless the running scan is scheduled and Interrupt is on.</span><button class="btn primary" type="button" onclick="saveVibScanConfig()">Save</button></div>
@@ -1349,11 +1349,11 @@ R"HTML(
               <h3>Battery saver<span class="help-q" onclick="showBatterySaverHelp()" title="Click for help">?</span></h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><b>Status</b><p>Stops Wi-Fi and BLE scanning, lowers the CPU clock and sends only heartbeats. The access point, web UI and mesh stay on.</p></div>
+                  <div class="srow-l"><b>Status</b><p>Stops scanning and sends only heartbeats. Web UI and mesh stay on.</p></div>
                   <div class="srow-c"><span id="batterySaverStatus" class="set-pill srow-v">INACTIVE</span></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="batterySaverInterval">Heartbeat interval</label><p>How often to send a status heartbeat while saving power.</p></div>
+                  <div class="srow-l"><label for="batterySaverInterval">Heartbeat interval</label><p>While battery saver is on.</p></div>
                   <div class="srow-c">
                     <select id="batterySaverInterval">
                       <option value="1">1 minute</option>
@@ -1371,7 +1371,7 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setStorage">
-            <header><h2>Storage</h2><p>The SD card that holds logs, captures and the device database.</p></header>
+            <header><h2>Storage</h2><p>Logs, captures and the device database.</p></header>
             <div class="set-grp">
               <h3>SD card</h3>
               <div class="set-box">
@@ -1380,11 +1380,11 @@ R"HTML(
                   <div class="srow-c"><span id="sdRepairState" class="srow-v"></span></div>
                 </div>
                 <div class="srow tog">
-                  <div class="srow-l"><label for="sdAutoRepair">Rebuild an unmountable card</label><p>If the card will not mount at boot or after a fault, the node rebuilds the filesystem. Rebuilding erases the card. Off by default.</p></div>
+                  <div class="srow-l"><label for="sdAutoRepair">Rebuild an unmountable card</label><p>Reformats a card that won't mount. Erases it.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="sdAutoRepair" onchange="saveSdAutoRepair()"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><b>Repair now</b><p>Remount the card now. It is erased only if every mount attempt fails.</p></div>
+                  <div class="srow-l"><b>Repair now</b><p>Remounts now. Erases only if every mount fails.</p></div>
                   <div class="srow-c"><button class="btn alt" type="button" onclick="sdRepairNow()">Repair now</button></div>
                 </div>
               </div>
@@ -1392,12 +1392,12 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setLook">
-            <header><h2>Appearance</h2><p>Saved in this browser only. Another browser or another node keeps its own choice.</p></header>
+            <header><h2>Appearance</h2><p>Saved in this browser only.</p></header>
             <div class="set-grp">
               <h3>Theme</h3>
               <div class="set-box">
                 <div class="srow">
-                  <div class="srow-l"><label for="themeSel">Theme</label><p>The sun and moon button in the header switches between light and the dark theme picked here.</p></div>
+                  <div class="srow-l"><label for="themeSel">Theme</label><p>Dark theme for the header toggle.</p></div>
                   <div class="srow-c">
                     <select id="themeSel" onchange="ahSetTheme(this.value)">
                       <option value="paper">Paper dark (default)</option>
@@ -1445,7 +1445,7 @@ R"HTML(
           </section>
 
           <section class="set-sec" id="setDanger">
-            <header><h2 class="dz">Danger zone</h2><p>Everything here erases data. There is no recovery.</p></header>
+            <header><h2 class="dz">Danger zone</h2><p>Erases data. No recovery.</p></header>
             <div class="set-grp">
               <h3>Erase key and wipe</h3>
               <div class="set-box dz">
@@ -1454,7 +1454,7 @@ R"HTML(
                   <div class="srow-c"><span class="psk-badge unset" id="erasePskBadge">CHECKING...</span><span class="psk-badge tamper" id="eraseStateBadge" style="display:none">IDLE</span></div>
                 </div>
                 <div class="srow" id="eraseGenRow" style="display:none">
-                  <div class="srow-l"><b>Your erase key</b><p>The node made this key on first boot. Write it down, or change it below. Once you change it, it is no longer shown.</p></div>
+                  <div class="srow-l"><b>Your erase key</b><p>Made on first boot. Write it down. Hidden once changed.</p></div>
                   <div class="srow-c"><code id="eraseGenKey" style="font-size:15px;user-select:all;"></code></div>
                 </div>
                 <div class="srow">
@@ -1466,11 +1466,11 @@ R"HTML(
                   <div class="srow-c"><input type="password" id="eraseNewPsk" placeholder="new key" autocomplete="off" style="flex:1;"><button class="btn alt" type="button" id="eraseKeyBtn" onclick="changeErasePsk()">Change key</button></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><label for="eraseConfirm">Erase key</label><p>Enter your key to wipe now or to save the auto-erase settings below.</p></div>
+                  <div class="srow-l"><label for="eraseConfirm">Erase key</label><p>Needed to wipe or save auto-erase.</p></div>
                   <div class="srow-c"><input type="password" id="eraseConfirm" placeholder="erase key" autocomplete="off"></div>
                 </div>
                 <div class="srow">
-                  <div class="srow-l"><b>Wipe now</b><p>Permanently wipes the node's data. Uses the erase key above.</p></div>
+                  <div class="srow-l"><b>Wipe now</b><p>Wipes the node's data. Needs the erase key.</p></div>
                   <div class="srow-c"><button class="btn danger" type="button" onclick="requestErase()">Wipe now</button><button class="btn alt" type="button" onclick="cancelErase()" id="eraseAbortBtn" style="display:none">Abort tamper countdown</button></div>
                 </div>
                 <div id="eraseStatus" class="srow-msg" style="display:none;"></div>
@@ -1480,11 +1480,11 @@ R"HTML(
               <h3>Auto-erase on tampering<span class="help-q" onclick="showAutoEraseHelp()" title="Click for help">?</span></h3>
               <div class="set-box dz">
                 <div class="srow tog">
-                  <div class="srow-l"><label for="autoEraseEnabled">Auto-erase</label><p>Wipe when the vibration sensor reports tampering and the countdown runs out. Takes effect on Save.</p></div>
+                  <div class="srow-l"><label for="autoEraseEnabled">Auto-erase</label><p>Wipes after tampering and the countdown. Applies on Save.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="autoEraseEnabled"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow field-row" data-field="setupDelay">
-                  <div class="srow-l"><b>Setup period</b><p>Grace period after you turn it on, before tamper detection arms.</p></div>
+                  <div class="srow-l"><b>Setup period</b><p>Delay before tamper detection arms.</p></div>
                   <div class="srow-c">
                     <div class="chip-row">
                       <span class="chip" data-value="30000">30s</span>
@@ -1496,7 +1496,7 @@ R"HTML(
                   </div>
                 </div>
                 <div class="srow field-row" data-field="autoEraseDelay">
-                  <div class="srow-l"><b>Erase countdown</b><p>Time you have to cancel after tamper is detected.</p></div>
+                  <div class="srow-l"><b>Erase countdown</b><p>Time to cancel after tampering.</p></div>
                   <div class="srow-c">
                     <div class="chip-row">
                       <span class="chip" data-value="10000">10s</span>
@@ -1508,7 +1508,7 @@ R"HTML(
                   </div>
                 </div>
                 <div class="srow field-row" data-field="autoEraseCooldown">
-                  <div class="srow-l"><b>Trigger cooldown</b><p>Minimum gap before another tamper event can trigger an erase.</p></div>
+                  <div class="srow-l"><b>Trigger cooldown</b><p>Gap before the next erase trigger.</p></div>
                   <div class="srow-c">
                     <div class="chip-row">
                       <span class="chip" data-value="60000">1m</span>
@@ -1520,7 +1520,7 @@ R"HTML(
                   </div>
                 </div>
                 <div class="srow field-row" data-field="vibrationsRequired">
-                  <div class="srow-l"><b>Vibrations required</b><p>How many vibrations inside the window count as tampering.</p></div>
+                  <div class="srow-l"><b>Vibrations required</b><p>Vibrations in the window that mean tampering.</p></div>
                   <div class="srow-c">
                     <div class="chip-row">
                       <span class="chip" data-value="2">2</span>
@@ -1531,7 +1531,7 @@ R"HTML(
                   </div>
                 </div>
                 <div class="srow field-row" data-field="detectionWindow">
-                  <div class="srow-l"><b>Detection window</b><p>Time span for counting vibrations.</p></div>
+                  <div class="srow-l"><b>Detection window</b><p>Span for counting vibrations.</p></div>
                   <div class="srow-c">
                     <div class="chip-row">
                       <span class="chip" data-value="5000">5s</span>
@@ -1549,7 +1549,7 @@ R"HTML(
               <h3>Factory reset</h3>
               <div class="set-box dz">
                 <div class="srow">
-                  <div class="srow-l"><label for="factoryResetTier">What to reset</label><p id="factoryResetScopeHint">Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</p></div>
+                  <div class="srow-l"><label for="factoryResetTier">What to reset</label><p id="factoryResetScopeHint">Erases all SD data and all settings. The node reboots.</p></div>
                   <div class="srow-c">
                     <select id="factoryResetTier" onchange="updateFactoryResetTier()">
                       <option value="full">Full reset: data and settings</option>
@@ -1567,11 +1567,11 @@ R"HTML(
 )HTML"
 #else
 R"HTML(
-            Removes: devicedb, probedb, probes, deauth, drones, vibrations, baseline, syslog, randdet identities, all logs.<br>
+            Removes: device and probe lists, probe, deauth, drone and vibration logs, baseline, system log, randomized-MAC identities.<br>
 )HTML"
 #endif
 R"HTML(
-            Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.</p></div>
+            Resets to defaults: Wi-Fi login, node ID, targets, allowlist, and RF, mesh and auto-erase settings.</p></div>
                 </div>
                 <div class="srow">
                   <div class="srow-l"><label for="factoryWipeConfirm">Erase key</label><p id="factoryWipeHint">Enter your erase key</p></div>
@@ -1680,12 +1680,12 @@ R"HTML(
         </div>
         </div>
         <div id="campView" class="dn-main" style="flex:none;display:none;">
-          <div><h2>Campaigns</h2><p class="dn-desc">A campaign tags everything the chosen nodes log between Start and Stop, so you can export it as one set.</p></div>
+          <div><h2>Campaigns</h2><p class="dn-desc">Tags what the chosen nodes log between Start and Stop.</p></div>
           <section>
             <h3>New campaign</h3>
             <div class="dn-box">
               <div class="dn-row"><b>Name</b><input type="text" id="campName" maxlength="23" placeholder="Campaign name" style="max-width:280px;"></div>
-              <div class="dn-row"><div><b>Nodes</b><p>Check the nodes that record. With no other nodes heard on the mesh, only this node records.</p></div><div id="campNodes" style="display:none;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px;"></div></div>
+              <div class="dn-row"><div><b>Nodes</b><p>Nodes that record. Alone, only this node records.</p></div><div id="campNodes" style="display:none;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px;"></div></div>
               <div class="dn-foot"><span id="campState"></span><span style="display:flex;gap:8px;"><button class="btn alt" onclick="fleetCampaign(false)">Stop campaign</button><button class="btn primary" onclick="fleetCampaign(true)">Start campaign</button></span></div>
             </div>
           </section>
@@ -1844,14 +1844,14 @@ R"HTML(
         <div class="card" data-key="listen">
           <h3>Listening</h3>
           <div class="sn-row">
-            <div><b>Radio</b><p>Defend this AP keeps the radio on the channel of this node's Wi-Fi access point. Scan all channels moves through the Wi-Fi channels list and covers more channels, but misses traffic on each channel while it listens to the others. Sentinel always starts in Defend this AP after a reboot.</p></div>
+            <div><b>Radio</b><p>Defend watches this node's channel. Scan covers more, with gaps. Boots in Defend.</p></div>
             <div style="display:flex;gap:0;border:1px solid var(--bord);border-radius:6px;overflow:hidden;">
               <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
               <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
             </div>
           </div>
           <div class="sn-row">
-            <div><b>Start on boot</b><p>Sentinel starts by itself after a reboot.</p></div>
+            <div><b>Start on boot</b><p>Runs Sentinel after a reboot.</p></div>
             <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
           </div>
         </div>
@@ -1892,7 +1892,7 @@ R"HTML(
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
               <button class="btn" onclick="detectClearSession()">Clear Session</button>
-              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every detection in memory and deletes the detection logs saved on the SD card. Clear Session resets the counts on this page and deletes nothing.</span>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State also deletes SD logs. Clear Session only resets counts.</span>
             </div>
           </div>
         </div>
@@ -1937,7 +1937,7 @@ R"HTML(
           <div>
             <div class="ar-box">
               <div class="ar-head">On confirmed attack</div>
-              <div class="ar-sub">Runs when a detector reports an attack with a source MAC. The responses you turn on run in the order listed, one at a time, when the radio is free. Each attacker triggers them at most once per Hunt Cooldown. A response still waiting after 15 minutes is dropped.</div>
+              <div class="ar-sub">Needs the attacker's MAC. Runs in order when the radio is free. Once per Hunt Cooldown. Dropped after 15 minutes.</div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Triangulate attacker</span>
@@ -1970,7 +1970,7 @@ R"HTML(
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arPreempt" onchange="arSave()"><span class="dsw-s"></span></label>
-                <span class="ar-name">Interrupt a running scheduled scan. It resumes afterward with the time it had left.</span>
+                <span class="ar-name">Pause scheduled scans. They resume after.</span>
               </div>
               <div class="ar-row">
                 <span class="ar-name">Pending response: <span id="arPending" class="num">--</span></span>
@@ -2024,7 +2024,7 @@ R"HTML(
               <button class="btn alt" onclick="fleetClear()" style="padding:6px 12px;font-size:12px;">Clear Roster</button>
             </div>
             <div id="detRadios" class="res-list"></div>
-            <div style="font-size:11px;color:var(--mut);margin-top:8px;">The node's Meshtastic radio passes it message text only. Signal strength, signal-to-noise ratio and hop count are not available.</div>
+            <div style="font-size:11px;color:var(--mut);margin-top:8px;">Text only. No signal strength or hop count.</div>
           </div>
         </div>
 
@@ -2099,7 +2099,7 @@ R"HTML(
             <span class="collapse-icon" id="detConfigCardIcon">▶</span>
           </div>
           <div class="card-body" id="detConfigCardBody">
-            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Turn detectors on or off on the Detectors tab. This card sets which detections the node sends over mesh, and the detection thresholds.</p>
+            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Detector switches are on the Detectors tab.</p>
             <div class="det-quick" style="margin-bottom:6px;">
               <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
               <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
@@ -2451,11 +2451,11 @@ R"HTML(
 
       function isRadioBusy() {
         if (stopPending) {
-          toast('Stop in progress — waiting for the node to release the radio', 'warning');
+          toast('Stopping. Waiting for the radio.', 'warning');
           return true;
         }
         if (radioBusy) {
-          toast('Radio busy — ' + (scanTaskLabels[radioBusyTask] || radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
+          toast('Radio busy: ' + (scanTaskLabels[radioBusyTask] || radioBusyTask || 'scan') + ' is running. Stop it first.', 'warning');
           return true;
         }
         return false;
@@ -2569,7 +2569,7 @@ R"HTML(
             warned = true;
             stopStalled = true;
             syncStopAllBtn();
-            toast('Node still has the radio after 15s — press STOP again to retry', 'warning');
+            toast('Radio still busy after 15 s. Press STOP again.', 'warning');
           }
         }
         } finally {
@@ -2655,7 +2655,7 @@ R"HTML(
               toast(val + ' copied', 'success');
             } else {
               resSelectNode(el);
-              toast('Clipboard blocked — text selected, press Ctrl/⌘+C', 'warning');
+              toast('Clipboard blocked. Text is selected, press Ctrl/⌘+C.', 'warning');
             }
           });
         });
@@ -3121,7 +3121,7 @@ R"HTML(
           }
           const v = x => x === null ? 'none' : x + ' dBm';
           el.textContent = d.distance === null
-            ? 'Not calibrated. Distances use the RF environment.'
+            ? 'Not calibrated. Uses the RF environment setting.'
             : 'Calibrated at ' + d.distance + ' m. Signal at 1 m: Wi-Fi ' + v(d.wifiRssi0) + ', BLE ' + v(d.bleRssi0) + '.';
         } catch (e) { console.warn('calibration status', e); }
       }
@@ -4971,7 +4971,7 @@ R"HTML(
           if (classMatch) kvs.push(['Classification', classMatch[1]]);
           if (areaMatch) kvs.push(['Operational area', areaMatch[1]]);
           if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
-          if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? ' — no Remote ID for 120s' : '')]);
+          if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? '. No Remote ID for 120 s' : '')]);
           if (kvs.length) {
             html += '<div class="res-kvs">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
@@ -5471,7 +5471,7 @@ R"HTML(
           if (s && s.startsWith('TAMPER_ACTIVE')) {
             const sec = (s.split(':')[1] || '').replace('s','');
             badge.style.display = 'inline-flex';
-            badge.textContent = 'TAMPER ACTIVE — ' + sec + 's to wipe';
+            badge.textContent = 'TAMPER: ' + sec + 's to wipe';
             abort.style.display = 'block';
           } else {
             badge.style.display = 'none';
@@ -5482,12 +5482,12 @@ R"HTML(
       setInterval(() => { if (pageActive('system')) pollSecureState(); }, 5000);
 
       const _factoryResetTiers = {
-        full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
-        config: {btn: 'RESET CONFIG', hint: 'Resets NVS config (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase, erase PSK) to defaults. Captured SD data is KEPT. Device reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
+        full: {btn: 'WIPE EVERYTHING', hint: 'Erases all SD data and all settings. The node reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
+        config: {btn: 'RESET CONFIG', hint: 'Resets all settings, including the erase key. Keeps captured data. The node reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (devicedb, probedb, probes, deauth, drones, baseline, logs, incidents). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
 )HTML"
 #else
 R"HTML(
@@ -5524,7 +5524,7 @@ R"HTML(
           const el = document.getElementById('factoryWipeStatus');
           el.style.display = 'block';
           el.innerHTML = '<pre>' + data + '</pre>';
-          toast('Reset complete — rebooting', 'success');
+          toast('Reset complete. Rebooting.', 'success');
         }).catch(error => {
           toast('Reset error: ' + error, 'error');
         });
@@ -7205,8 +7205,8 @@ R"HTML(
               t=document.getElementById('dos-mode-desc');
         if(d)d.className=scan?'btn alt':'btn primary';
         if(s)s.className=scan?'btn primary':'btn alt';
-        if(t)t.textContent=scan?'Scanning every channel in the Wi-Fi channels list. Devices connected to this node\'s Wi-Fi can disconnect.'
-                               :'Watching the channel of this node\'s Wi-Fi access point.';
+        if(t)t.textContent=scan?'Scanning all channels. Clients may disconnect.'
+                               :'Watching this node\'s Wi-Fi channel.';
       }
       async function detScanMode(scan){
         _dosSyncMode(scan);
