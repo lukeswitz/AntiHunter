@@ -475,13 +475,13 @@ void startWebServer()
       id.toUpperCase();
       
       if (id.length() < 2 || id.length() > 5) {
-          req->send(400, "text/plain", "Node ID must be 2-5 characters");
+          req->send(400, "text/plain", "Node ID: 2 to 5 characters.");
           return;
       }
       
       for (size_t i = 0; i < id.length(); i++) {
           if (!isalnum(id[i])) {
-              req->send(400, "text/plain", "Only alphanumeric characters (A-Z, 0-9) allowed");
+              req->send(400, "text/plain", "Use letters and digits only.");
               return;
           }
       }
@@ -498,7 +498,7 @@ void startWebServer()
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-          req->send(409, "text/plain", "Radio busy - stop the running scan first");
+          req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
           return;
       }
 
@@ -570,7 +570,7 @@ void startWebServer()
       }
       
       if (getTargetCount() == 0) {
-          req->send(400, "text/plain", "No targets - add MACs or OUIs to the target list first");
+          req->send(400, "text/plain", "No targets. Add MACs or OUIs to the target list.");
           return;
       }
 
@@ -704,11 +704,11 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/mesh-tx/cancel", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!meshTxPending()) {
-          req->send(200, "text/plain", "Mesh TX queue already empty");
+          req->send(200, "text/plain", "Mesh send queue is already empty.");
           return;
       }
       stopMeshDrain.store(true);
-      req->send(200, "text/plain", "Mesh TX queue cleared, scan left running");
+      req->send(200, "text/plain", "Mesh send queue cleared. The scan keeps running.");
   });
 
   server->on("/sd-repair", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -722,7 +722,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/sd-repair", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (req->hasParam("now", true)) {
           sdRepairPending = true;
-          req->send(200, "text/plain", "SD repair queued - the card is erased if it will not mount");
+          req->send(200, "text/plain", "SD repair queued. The card is erased if it won't mount.");
           return;
       }
       if (req->hasParam("auto", true)) setSdAutoRepair(req->getParam("auto", true)->value() == "1");
@@ -1182,7 +1182,7 @@ void registerRemainingRoutes() {
              {
         // Radio-busy guard: reject if any scan task is already running
         if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-            req->send(409, "text/plain", "Radio busy - stop the running scan first");
+            req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
             return;
         }
 
@@ -1337,7 +1337,7 @@ void registerRemainingRoutes() {
     unsigned long interval = req->getParam("interval", true)->value().toInt();
     
     if (interval < 1500 || interval > 30000) {
-        req->send(400, "text/plain", "Interval must be 1500-30000ms");
+        req->send(400, "text/plain", "Interval: 1500 to 30000 ms.");
         return;
     }
     
@@ -1369,7 +1369,7 @@ void registerRemainingRoutes() {
     }
     long ttl = req->getParam("ttl", true)->value().toInt();
     if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
-      req->send(400, "text/plain", "ttl must be 0-3600 (0=disable, value=seconds)");
+      req->send(400, "text/plain", "Repeat filter: 0 to 3600 s.");
       return;
     }
     setMeshDedupTtlSec((uint32_t)ttl);
@@ -1501,7 +1501,7 @@ void registerRemainingRoutes() {
     }
 
     if (g_eraseWipeBusy.exchange(true)) {
-        req->send(409, "text/plain", "Erase/wipe already in progress");
+        req->send(409, "text/plain", "An erase is already running.");
         return;
     }
     String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
@@ -1530,7 +1530,7 @@ void registerRemainingRoutes() {
     }
     String key = req->getParam("key", true)->value();
     if (!erasePskValid(key)) {
-        req->send(400, "text/plain", "Erase key must be 8-64 chars, no ':'");
+        req->send(400, "text/plain", "Erase key: 8 to 64 characters, no colon.");
         return;
     }
     setErasePSK(key);
@@ -1556,7 +1556,7 @@ void registerRemainingRoutes() {
         return;
     }
     if (g_eraseWipeBusy.exchange(true)) {
-        req->send(409, "text/plain", "Erase/wipe already in progress");
+        req->send(409, "text/plain", "An erase is already running.");
         return;
     }
     req->send(200, "text/plain", "Factory reset (" + tier + ") initiated — device will reboot");
@@ -1619,7 +1619,7 @@ void registerRemainingRoutes() {
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
         // Radio-busy guard: reject if any scan task is already running
         if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-            req->send(409, "text/plain", "Radio busy - stop the running scan first");
+            req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
             return;
         }
 
@@ -1792,11 +1792,11 @@ void registerRemainingRoutes() {
             }
 
             if (!SafeSD::isAvailable()) {
-                req->send(409, "text/plain", "No SD card - packet capture needs SD storage");
+                req->send(409, "text/plain", "No SD card. Packet capture needs one.");
                 return;
             }
             if (workerTaskHandle) {
-                req->send(409, "text/plain", "Radio busy - stop the running scan");
+                req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
                 return;
             }
 
@@ -1867,7 +1867,7 @@ void registerRemainingRoutes() {
           return;
       }
       if (!pcapDeleteFile(name)) {
-          r->send(409, "text/plain", "Could not delete - capture missing or still recording");
+          r->send(409, "text/plain", "Can't delete. The capture is missing or still recording.");
           return;
       }
       r->send(200, "text/plain", "Deleted " + name);
@@ -1897,7 +1897,7 @@ void registerRemainingRoutes() {
 
   server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
       if (scanning || workerTaskHandle) {
-          r->send(409, "text/plain", "Radio busy - stop detection before reset");
+          r->send(409, "text/plain", "Radio busy. Stop detection first.");
           return;
       }
       resetRandomizationDetection();
@@ -1962,7 +1962,7 @@ void registerRemainingRoutes() {
   server->on("/allowlist-save", HTTP_POST, [](AsyncWebServerRequest *req)
             {
         if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-            req->send(409, "text/plain", "Radio busy - stop scan before changing allowlist");
+            req->send(409, "text/plain", "Radio busy. Stop the scan first.");
             return;
         }
         if (!req->hasParam("list", true)) {
@@ -1985,7 +1985,7 @@ void registerRemainingRoutes() {
 
       String err;
       if (!calibratePathLoss(targetMac, distance, &err)) {
-          if (err == "BUSY") req->send(409, "text/plain", "Radio busy - stop the running scan first");
+          if (err == "BUSY") req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
           else if (err == "INVALID") req->send(400, "text/plain", "Need a valid MAC and a distance from 0.5 to 100 m");
           else req->send(500, "text/plain", "Calibration failed to start");
           return;
@@ -2028,7 +2028,7 @@ void registerRemainingRoutes() {
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
     if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-        req->send(409, "text/plain", "Radio busy - stop scan before changing RF config");
+        req->send(409, "text/plain", "Radio busy. Stop the scan first.");
         return;
     }
     bool updated = false;
@@ -2120,13 +2120,13 @@ void registerRemainingRoutes() {
           return;
       }
       setWebAuthEnabled(on);
-      req->send(200, "text/plain", on ? "Login required" : "Login off - anyone on the Wi-Fi can use the web UI");
+      req->send(200, "text/plain", on ? "Login required" : "Login off. Anyone on this Wi-Fi can use the web UI.");
   });
 
   server->on("/web-pass", HTTP_POST, [](AsyncWebServerRequest *req) {
       String pass = req->hasParam("pass", true) ? req->getParam("pass", true)->value() : String();
       if (!webPassValid(pass)) {
-          req->send(400, "text/plain", "Web password must be 8-63 characters, no ':'");
+          req->send(400, "text/plain", "Web password: 8 to 63 characters, no colon.");
           return;
       }
       String current = req->hasParam("current", true) ? req->getParam("current", true)->value() : String();
@@ -2266,7 +2266,7 @@ void registerRemainingRoutes() {
       ssid.trim();
       
       if (ssid.length() == 0 || ssid.length() > 32) {
-          req->send(400, "text/plain", "SSID must be 1-32 characters");
+          req->send(400, "text/plain", "Network name: 1 to 32 characters.");
           return;
       }
       
@@ -2274,7 +2274,7 @@ void registerRemainingRoutes() {
       if (req->hasParam("pass", true)) {
           pass = req->getParam("pass", true)->value();
           if (pass.length() > 0 && (pass.length() < 8 || pass.length() > 63)) {
-              req->send(400, "text/plain", "Password must be 8-63 characters or empty");
+              req->send(400, "text/plain", "Password: 8 to 63 characters, or blank.");
               return;
           }
       }
@@ -2294,7 +2294,7 @@ void registerRemainingRoutes() {
 
       saveConfiguration();
       
-      req->send(200, "text/plain", "WiFi settings saved. Restarting in 3s...");
+      req->send(200, "text/plain", "Wi-Fi settings saved. Restarting in 3 s.");
       esp_timer_handle_t timer;
       esp_timer_create_args_t timer_args = {
         .callback = restart_callback,
@@ -2429,7 +2429,7 @@ void registerRemainingRoutes() {
   });
   server->on("/api/sentinel/start", HTTP_POST, [](AsyncWebServerRequest *r) {
       if (scanning.load()) {
-          r->send(409, "text/plain", "cannot start: scan active");
+          r->send(409, "text/plain", "Can't start. A scan is running.");
           return;
       }
       sentinel_setUserEnabled(true);

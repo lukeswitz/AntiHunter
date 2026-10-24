@@ -2955,7 +2955,7 @@ R"HTML(
           if (!r.ok) throw new Error('HTTP ' + r.status);
         }).catch(function(e) {
           console.warn('fleet: ping failed', e);
-          toast('Mesh ping failed - is mesh enabled?', 'error');
+          toast('Mesh ping failed. Check that mesh is on.', 'error');
         }).then(function() {
           setTimeout(function() {
             fleetPoll();
@@ -3193,7 +3193,7 @@ R"HTML(
       async function saveMeshInterval() {
         const interval = document.getElementById('meshInterval').value;
         if (interval < 1500 || interval > 30000) {
-          toast('Invalid interval: must be 1500-30000ms', 'error');
+          toast('Interval: 1500 to 30000 ms.', 'error');
           return;
         }
 
@@ -3227,7 +3227,7 @@ R"HTML(
       async function saveDedupTtl() {
         const ttl = parseInt(document.getElementById('meshDedupTtl').value);
         if (isNaN(ttl) || ttl < 0 || ttl > 3600) {
-          toast('Invalid TTL: must be 0-3600 (0=disable)', 'error');
+          toast('Repeat filter: 0 to 3600 s.', 'error');
           return;
         }
         try {
@@ -3429,7 +3429,7 @@ R"HTML(
 
       async function saveHbInterval() {
         const minutes = parseInt(document.getElementById('hbIntervalInput').value);
-        if (isNaN(minutes) || minutes < 1 || minutes > 60) { toast('Interval must be 1–60 min', 'error'); return; }
+        if (isNaN(minutes) || minutes < 1 || minutes > 60) { toast('Interval: 1 to 60 minutes.', 'error'); return; }
         try {
           const r = await fetch('/mesh-hb-interval', {
             method: 'POST',
@@ -3471,7 +3471,7 @@ R"HTML(
         const pass = document.getElementById('apPass').value;
         
         if (ssid.length === 0) {
-          toast('SSID cannot be empty');
+          toast('Enter a network name.');
           return;
         }
         
@@ -3532,7 +3532,7 @@ R"HTML(
       async function saveWebPass() {
         const pass = document.getElementById('webPass').value;
         if (pass.length < 8 || pass.length > 63 || pass.includes(':')) {
-          toast('Web password must be 8-63 characters, no :');
+          toast('Web password: 8 to 63 characters, no colon.');
           return;
         }
         const cur = document.getElementById('webPassCur').value;
@@ -3731,7 +3731,7 @@ R"HTML(
           toast(data, 'success');
           await updateBaselineStatus();
         } catch (error) {
-          toast('Error resetting baseline: ' + error, 'error');
+          toast('Baseline reset failed: ' + error, 'error');
         }
       }
 
@@ -3759,7 +3759,7 @@ R"HTML(
             toast(msg, 'error');
           }
         } catch (error) {
-          toast('Error setting marker: ' + error, 'error');
+          toast('Marker failed: ' + error, 'error');
         }
       }
 
@@ -4086,7 +4086,7 @@ R"HTML(
       async function cancelMeshDrain() {
         try {
           const r = await fetch('/mesh-tx/cancel', { method: 'POST' });
-          if (r.ok) toast('Mesh TX queue cleared, scan still running', 'info');
+          if (r.ok) toast('Mesh send queue cleared. The scan keeps running.', 'info');
           else toast('Cancel failed (' + r.status + ')', 'error');
         } catch (e) { toast('Cancel failed: ' + e, 'error'); }
         setTimeout(tick, 200);
@@ -4231,8 +4231,8 @@ R"HTML(
         fd.append('preempt', document.getElementById('vibScanPre').checked ? 1 : 0);
         try {
           const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
-          toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
-        } catch(e){ toast('Save failed', 'err'); }
+          toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'success' : 'error');
+        } catch(e){ toast('Save failed', 'error'); }
       }
       async function saveAutoEraseConfig() {
       try {
@@ -5431,7 +5431,7 @@ R"HTML(
               clearInterval(poll);
               // Show persistent success message
               document.getElementById('eraseStatus').innerHTML = '<pre style="color:var(--c-ok);font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
-              toast('All data has been securely destroyed', 'success');
+              toast('All data erased.', 'success');
               // Clear the form
               document.getElementById('eraseConfirm').value = '';
             } else if (status.startsWith('FAILED')) {
@@ -5509,7 +5509,7 @@ R"HTML(
         const t = _factoryResetTiers[tier] || _factoryResetTiers.full;
         const code = document.getElementById('factoryWipeConfirm').value;
         if (!code) {
-          toast('Enter erase PSK', 'error');
+          toast('Enter the erase key.', 'error');
           return;
         }
         if (!window.confirm(t.warn)) {
@@ -5544,19 +5544,19 @@ R"HTML(
           if (r.ok) { nk.value = ''; if (cur) cur.value = ''; }
           refreshPskStatus();
         }))
-          .catch(e => toast('PSK change error: ' + e, 'error'));
+          .catch(e => toast('Key change failed: ' + e, 'error'));
       }
 
       function requestErase() {
         const confirm = document.getElementById('eraseConfirm').value;
         if (!confirm) {
-          toast('Enter erase PSK', 'error');
+          toast('Enter the erase key.', 'error');
           return;
         }
         if (!window.confirm('Last check: erase all data permanently?')) {
           return;
         }
-        toast('Initiating secure erase operation...', 'warning');
+        toast('Starting erase.', 'warning');
         fetch('/erase/request', {
           method: 'POST',
           headers: {
@@ -5566,7 +5566,7 @@ R"HTML(
         }).then(response => response.text()).then(data => {
           document.getElementById('eraseStatus').style.display = 'block';
           document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-          toast('Secure erase started', 'info');
+          toast('Erase started.', 'info');
           // Start polling for status
           pollEraseStatus();
         }).catch(error => {
@@ -5864,12 +5864,12 @@ R"HTML(
             const first = firstTriangulatableTarget();
             if (first) {
               tgtInput.value = first;
-              toast('Target MAC set from Target List: ' + first);
+              toast('Using target from the list: ' + first);
             }
           }
           if (parseInt(secsInput.value) < 20) {
             secsInput.value = 20;
-            toast('Triangulation requires minimum 20 seconds');
+            toast('Triangulation needs at least 20 seconds.');
           }
           secsInput.setAttribute('min', '20');
         } else {
@@ -5905,12 +5905,12 @@ R"HTML(
         }
         
         if (value.length < 2) {
-            toast('Node ID too short - minimum 2 characters', 'error');
+            toast('Node ID: at least 2 characters.', 'error');
             return;
         }
         
         if (value.length > 5) {
-            toast('Node ID too long - maximum 5 characters', 'error');
+            toast('Node ID: at most 5 characters.', 'error');
             return;
         }
         
@@ -5972,14 +5972,14 @@ R"HTML(
 
           // Prevent double-submission
           if (state.inProgress) {
-              toast('Scan already in progress', 'warning');
+              toast('A scan is already running.', 'warning');
               return;
           }
 
           // Enforce cooldown period
           if (now - state.lastSubmit < state.cooldown) {
               const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
-              toast(`Please wait ${remaining}s before starting another scan`, 'warning');
+              toast(`Wait ${remaining}s before the next scan.`, 'warning');
               return;
           }
 
@@ -5996,12 +5996,12 @@ R"HTML(
               tgt = firstTriangulatableTarget();
               if (tgt) {
                 if (tgtInput) tgtInput.value = tgt;
-                toast('No target MAC entered - using first target: ' + tgt);
+                toast('No MAC entered. Using the first target: ' + tgt);
               }
             }
             if (!isTriangulateTarget(tgt)) {
-              toast(tgt ? 'Invalid target: ' + tgt + ' - use AA:BB:CC:DD:EE:FF'
-                        : 'Enter a target MAC, or add a full MAC to the Target List', 'error');
+              toast(tgt ? 'Invalid target: ' + tgt + '. Use AA:BB:CC:DD:EE:FF.'
+                        : 'Enter a target MAC or add one to the target list.', 'error');
               if (tgtInput) tgtInput.focus();
               return;
             }
@@ -6276,13 +6276,13 @@ R"HTML(
         const state = scanDebounce.sniffer;
 
         if (state.inProgress) {
-          toast('Detection/scan already in progress', 'warning');
+          toast('A scan is already running.', 'warning');
           return;
         }
 
         if (now - state.lastSubmit < state.cooldown) {
           const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
-          toast(`Please wait ${remaining}s before starting another scan`, 'warning');
+          toast(`Wait ${remaining}s before the next scan.`, 'warning');
           return;
         }
 
@@ -6554,7 +6554,7 @@ R"HTML(
         const body = new URLSearchParams(fd).toString();
         if (node) {
           const rr = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node, cmd: `SCHED_ADD:${at}|${document.getElementById('schRep').value}|${path}|${body}` }) });
-          toast((await rr.text()) + (rr.ok ? ' - its SCHED_ACK shows in Fleet' : ''), rr.ok ? 'success' : 'error');
+          toast((await rr.text()) + (rr.ok ? '. The reply shows in Fleet.' : ''), rr.ok ? 'success' : 'error');
           if (rr.ok) schedOpen(false);
           return;
         }
@@ -7565,8 +7565,8 @@ R"HTML(
       async function sentinelSetBoot(on){
         try{
           await fetch('/api/sentinel/boot',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'on='+(on?1:0)});
-          toast(on?'Sentinel will auto-start on boot':'Boot auto-start disabled');
-        }catch(err){ console.warn('sentinelSetBoot failed', err); toast('Failed to set boot state','warning'); }
+          toast(on?'Sentinel starts on boot.':'Sentinel stays off on boot.');
+        }catch(err){ console.warn('sentinelSetBoot failed', err); toast('Boot setting failed.','warning'); }
       }
       async function sentinelBootRefresh(){
         try{
@@ -7779,7 +7779,7 @@ R"HTML(
         ['tsf','Two-Channel Twin'],['jam','Wi-Fi Interference'],['mesh_guard','Mesh Disruption'],
         ['ble_malformed','Malformed BLE'],
         ['rid_spoof','Remote ID Spoofing'],
-        ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Triangulation'],
+        ['bloom_gossip','Baseline Sharing'],['attacker_trilat','Attacker Triangulation'],
         ['karma','Karma'],
         ['probe_flood','Probe Flood'],['assoc_sleep','Association Sleep']
       ];
