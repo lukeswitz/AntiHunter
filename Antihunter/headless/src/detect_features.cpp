@@ -966,7 +966,7 @@ static bool isDetectorPrefix(const String &type) {
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
-        "JAMMING","MESH_FLOOD","MESH_SPOOF_SELF",
+        "JAMMING","JAMMING_BASELINE","MESH_FLOOD","MESH_SPOOF_SELF","MESHTASTIC","MESHCORE",
         nullptr
     };
     for (const char **p = kPrefixes; *p; ++p) {
@@ -989,7 +989,7 @@ void detect_logIncident(const String &raw, const char *src, const String &ev) {
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
-        "JAMMING","MESH_FLOOD","MESH_SPOOF_SELF", nullptr
+        "JAMMING","JAMMING_BASELINE","MESH_FLOOD","MESH_SPOOF_SELF","MESHTASTIC","MESHCORE", nullptr
     };
     bool matched = false;
     for (const char **p = kPrefixesFast; *p; ++p) {

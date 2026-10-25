@@ -255,11 +255,12 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/karma/enable` | POST | `on`: `0` or `1` (default `1`). Returns JSON `enabled` |
 | `/api/karma/stats` | GET | JSON: `enabled`, `candidates`, `confirmed` |
 | `/api/pwnagotchi` | GET | Pwnagotchi sightings (JSON) |
+| `/api/meshradio` | GET | Meshtastic and MeshCore radios heard over Bluetooth. JSON array: `mac`, `type`, `name`, `seen`, `last_rssi`, `best_rssi`, `first`, `last`, `ago_ms` (time since last heard) |
 | `/api/recon` | GET | BLE recon state (JSON) |
 | `/api/probegraph` | GET | Probe graph (JSON) |
 | `/detect` | GET | Detector dashboard (HTML) |
 
-Each of these clears its own state with a POST to `<route>/clear`: `/api/handshakes`, `/api/attacker_hunts`, `/api/tof`, `/api/tsf_skew`, `/api/karma`, `/api/pwnagotchi`, `/api/recon`, `/api/probegraph`.
+Each of these clears its own state with a POST to `<route>/clear`: `/api/handshakes`, `/api/attacker_hunts`, `/api/tof`, `/api/tsf_skew`, `/api/karma`, `/api/pwnagotchi`, `/api/meshradio`, `/api/recon`, `/api/probegraph`.
 
 Each detector keeps a log at `/api/<name>.jsonl`. The first group reads the log in memory, and the second reads the SD card. A missing file gives an empty reply.
 

@@ -60,7 +60,12 @@ This applies to all three channels.
 - The target list accepts hex tracer IDs (`T-00A3`).
 - PCAP files carry the radiotap MCS field for HT frames.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
-- Full and Headless: each Sentinel incident records what triggered it, such as the source MACs and their vendors, network names, frame counts, signal range, and channels. Serial prints it on a `[DETECT] ... evidence` line. `/incidents.jsonl` stores it in the `ev` field. The Sentinel tab's **Incidents** view and the Data tab's incident table show it in an **Evidence** column. Mesh alerts are unchanged.
+- Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
+- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:lora:on`. Alerts are `MESHTASTIC:<mac>:<rssi>` and `MESHCORE:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
+- Full and Headless: Wi-Fi interference has a baseline mode, `jam_baseline`, off by default. It alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned, or when a busy channel goes quiet. The alert is `JAMMING_BASELINE:<ch>:<rule>:<value>`.
+- Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
+- Malformed BLE alerts record the advert bytes.
+- The web flasher adds **LoRa Mesh Radios** and **Interference Baseline**.
 
 ## Fixed
 
@@ -114,9 +119,10 @@ This applies to all three channels.
 - The Data tab search keeps the selected sort column.
 - Vendor names are brand names, such as Sony, Nokia, or Hitachi. Before, the vendor table cut company names at 20 characters, such as "Nokia Solutions and". The Data tab's top-vendor tile counted devices with no vendor by MAC address.
 - Probe Flood: when more than 512 MACs sent probes within 5 seconds, the detector could free a MAC's probe count and then read it. It now copies the count before freeing.
-- `JAMMING`, `MESH_FLOOD`, and `MESH_SPOOF_SELF` incidents were left out of `/incidents.jsonl` and the incident tables. They are now logged.
-- `CSA_SPOOF` and `QUIET_ABUSE` logged each incident twice and counted it twice toward the mesh quorum.
-- The Data tab inserted over-the-air text, such as network and device names, into the page as HTML. It is now escaped.
+- The incident log skipped `JAMMING`, `MESH_FLOOD`, and `MESH_SPOOF_SELF`.
+- `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
+- The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
+- Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.

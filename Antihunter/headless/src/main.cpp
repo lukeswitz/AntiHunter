@@ -89,6 +89,9 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("KRACK:") ||
                 toProcess.startsWith("ATTACKER_HUNT:") ||
                 toProcess.startsWith("PWNAGOTCHI:") ||
+                toProcess.startsWith("MESHTASTIC:") ||
+                toProcess.startsWith("MESHCORE:") ||
+                toProcess.startsWith("JAMMING_BASELINE:") ||
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
                 toProcess.startsWith("TOF_PING:") ||
