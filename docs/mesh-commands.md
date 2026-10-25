@@ -456,7 +456,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `SAE_DOS:<bssid>:<commits>` | |
 | `JAMMING:<ch>:<pdr_pct>:<err_frames>` | |
 | `JAMMING_BASELINE:<ch>:<rule>:<value>` | `noise_rise` (value: dB above the learned noise floor) `silence` (value: the channel's usual frames per second) |
-| `MESHTASTIC:<mac>:<rssi>` and `MESHCORE:<mac>:<rssi>` | |
+| `RADIO_DETECTED:<radio>:<mac>:<rssi>` | `Meshtastic` `MeshCore` |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
