@@ -414,7 +414,7 @@ Both builds run the same detectors. Full adds a Wi-Fi access point with the web 
 | Results | Results tab and `/last_results.txt` on SD | `/last_results.txt` on SD |
 | Device database | `/devicedb.jsonl` | `/devicedb.jsonl` |
 | Scheduling | Scan tab and `SCHED_ADD` | `SCHED_ADD`, once the clock is set |
-| Fleet roster | Fleet card on the System tab | Not tracked |
+| Fleet roster | System tab → **Fleet** | Not tracked |
 | Radio footprint | Access point beacons, unless hidden | No access point |
 
 ### Web UI
@@ -425,7 +425,7 @@ The web UI has five tabs: **Scan**, **Results**, **System**, **Data**, and **Sen
 <img width="880" alt="AntiHunter Scan tab" src="docs/img/scan-tab.jpg" />
 </p>
 
-The **System** tab shows diagnostics, the **Fleet** card, and **Settings**. Pick a settings section from the menu on the left, or the row of tabs on a phone. The **Data** tab shows findings, device logs, and scan data.
+The **System** tab has a menu on the left, or a row of tabs on a phone. It opens **Diagnostics**, **Fleet**, or one of the **Settings** sections. The **Data** tab shows findings, device logs, and scan data.
 
 <details>
 <summary>System tab contents</summary>
@@ -436,7 +436,7 @@ The **System** tab shows diagnostics, the **Fleet** card, and **Settings**. Pick
 
 | Section | What it holds |
 |---|---|
-| **System Diagnostics** | Uptime, frame counts, hits, temperature, memory, SD, GPS, clock, vibration sensor, and network state |
+| **Diagnostics** | Uptime, frame counts, hits, temperature, memory, SD, GPS, clock, vibration sensor, and network state |
 | **Fleet** | Nodes and radios heard on the mesh, with mode, uptime, hits, and GPS |
 | Settings → **Scanning** | Signal filter, RF environment, scan profile, channel time and list, BLE timing |
 | Settings → **Node & mesh** | Node ID, mesh on/off, heartbeat, alert interval, repeat filters |
@@ -451,7 +451,7 @@ The **System** tab shows diagnostics, the **Fleet** card, and **Settings**. Pick
 </p>
 
 <p align="center">
-  <img width="880" alt="Fleet card" src="docs/img/fleet.jpg" />
+  <img width="880" alt="Fleet section" src="docs/img/fleet.jpg" />
 </p>
 
 </details>
