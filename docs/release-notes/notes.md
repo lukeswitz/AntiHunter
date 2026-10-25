@@ -123,6 +123,7 @@ This applies to all three channels.
 - `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
 - The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
 - Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
+- At 00:00 UTC the node could set its clock back one day for a few seconds. It paired the new time from one GPS sentence with the old date from another. It now waits for the new date.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.

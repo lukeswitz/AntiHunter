@@ -1990,14 +1990,24 @@ static String formatEpochLocalOrUTC(time_t epoch) {
     return String(buffer);
 }
 
+bool gpsDateMatchesTime() {
+    uint32_t dAge = gps.date.age();
+    uint32_t tAge = gps.time.age();
+    uint32_t lagMs = dAge > tAge ? dAge - tAge : 0;
+    uint32_t todMs = ((uint32_t)gps.time.hour() * 3600UL + (uint32_t)gps.time.minute() * 60UL +
+                      (uint32_t)gps.time.second()) * 1000UL;
+    return todMs >= lagMs + 1000UL;
+}
+
 void syncRTCFromGPS() {
     if (!rtcAvailable) return;
     if (!gpsValid) return;
     if (!gps.date.isValid() || !gps.time.isValid()) return;
-    
+
     if (rtcSynced && lastRTCSync > 0 && (millis() - lastRTCSync) < 3600000) return;
-    
+
     if (triangulationActive) return;
+    if (!gpsDateMatchesTime()) return;
     if (rtcMutex == nullptr) return;
     
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;

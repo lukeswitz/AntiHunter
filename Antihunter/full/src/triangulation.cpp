@@ -1898,7 +1898,8 @@ void disciplineRTCFromGPS() {
     if (!rtcAvailable || !gpsValid) return;
     if (!gps.date.isValid() || !gps.time.isValid()) return;
     if (triangulationActive) return;
-    
+    if (!gpsDateMatchesTime()) return;
+
     if (rtcMutex == nullptr) return;
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
     

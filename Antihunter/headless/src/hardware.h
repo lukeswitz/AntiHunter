@@ -96,6 +96,7 @@ extern SemaphoreHandle_t rtcMutex;
 bool waitForInitialConfig();
 void initializeRTC();
 void syncRTCFromGPS();
+bool gpsDateMatchesTime();
 void updateRTCTime();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
