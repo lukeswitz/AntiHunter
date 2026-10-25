@@ -2996,10 +2996,10 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
         s.lastAlert = now;
         snap = s;
     }
-    const char *type = (kind == 1) ? "MESHTASTIC" : "MESHCORE";
+    const char *radio = (kind == 1) ? "Meshtastic" : "MeshCore";
     String ms = macStr(mac);
-    Serial.printf("[DETECT] %s src=%s rssi=%d name=%s\n", type, ms.c_str(), (int)rssi, snap.name);
-    String ev = String("{\"reason\":\"") + type + "\",\"mac\":\"" + ms +
+    Serial.printf("[DETECT] RADIO_DETECTED radio=%s src=%s rssi=%d name=%s\n", radio, ms.c_str(), (int)rssi, snap.name);
+    String ev = String("{\"reason\":\"RADIO_DETECTED\",\"radio\":\"") + radio + "\",\"mac\":\"" + ms +
                 "\",\"addr_type\":\"" + (addrType ? "random" : "public") +
                 "\",\"name\":\"" + jsonEscape(String(snap.name)) +
                 "\",\"match\":\"" + (kind == 1 ? "service_uuid" : "service_uuid+name") +
@@ -3007,12 +3007,12 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
                 "\",\"rssi\":" + String((int)rssi) + ",\"best_rssi\":" + String((int)snap.bestRssi) +
                 ",\"seen\":" + String((unsigned)snap.seen) +
                 ",\"since_first_ms\":" + String((unsigned)(now - snap.firstSeen)) + "}";
-    Serial.println(String("[DETECT] ") + type + " evidence " + ev);
+    Serial.println("[DETECT] RADIO_DETECTED evidence " + ev);
     logEventToSD("/meshradio.jsonl", evClose(ev, now));
-    ::detect_logIncident(String(type) + ":" + ms + ":" + String((int)rssi), nullptr, ev);
+    ::detect_logIncident(String("RADIO_DETECTED:") + radio + ":" + ms + ":" + String((int)rssi), nullptr, ev);
     if (meshEnabled && sentinel_isRunning() && g_meshMeshRadio.load() &&
-        meshRateGate(String(type) + "_" + ms, MESH_RADIO_REALERT_MS))
-        sendToSerial1(getNodeId() + ": " + type + ":" + ms + ":" + String((int)rssi), true);
+        meshRateGate("RADIO_" + ms, MESH_RADIO_REALERT_MS))
+        sendToSerial1(getNodeId() + ": RADIO_DETECTED:" + radio + ":" + ms + ":" + String((int)rssi), true);
 }
 
 String meshradio_getJson() {
