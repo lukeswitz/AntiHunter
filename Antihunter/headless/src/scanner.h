@@ -88,6 +88,7 @@ struct Hit {
    bool isBLE = false;
    bool isApple = false;
    char cls[24] = {0};
+   uint8_t auth = 0xFF;
 };
 
 using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
@@ -321,6 +322,7 @@ void saveDeviceDB();
 void mergeHitToDeviceDB(const Hit &h);
 uint32_t getDeviceDBSize();
 void clearDeviceDB();
+void clearProbeDB();
 
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
 const uint32_t MAX_LOG_SIZE = 1000;                // Max RAM log entries
@@ -367,6 +369,7 @@ struct ApInfoEvent {
     int8_t rssi;
     uint8_t channel;
     char ssid[33];
+    uint8_t auth;
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;

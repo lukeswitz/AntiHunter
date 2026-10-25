@@ -77,6 +77,7 @@ String meshRedactSecrets(const String &line);
 void processUSBToMesh();
 void serviceVibrationAutoScan();
 void scheduleTick();
+bool schedulerYieldRadio(const char *who);
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;
