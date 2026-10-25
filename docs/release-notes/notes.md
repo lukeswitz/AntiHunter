@@ -116,6 +116,7 @@ This applies to all three channels.
 - The node keeps settings in two places: its built-in memory and the SD card. If its built-in memory gets wiped, the node now rebuilds the detector settings and the start-Sentinel-at-boot flag from the SD card. The erase key and the web password are the exception. They stay in the built-in memory and are never written to the card.
 - A node with no campaign or schedule saved no longer logs an error line at boot.
 - A failed vibration auto-scan save showed as INFO and disappeared after 4 seconds. It now shows as an error.
+- Every BLE start leaked about 20 bytes of internal RAM and fragmented the heap. The node created a new scan callback object at each start, and nothing freed it. It now reuses one object. On a C5 over 10 start/stop cycles, free internal RAM after each stop held within 12 bytes, where it had fallen about 21 bytes per cycle.
 
 **Build and release**
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
