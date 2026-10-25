@@ -2381,8 +2381,7 @@ R"HTML(
                 <option>FRAG</option>
                 <option>KRACK</option>
                 <option>PWNAGOTCHI</option>
-                <option>MESHTASTIC</option>
-                <option>MESHCORE</option>
+                <option>RADIO_DETECTED</option>
                 <option>ATTACKER_HUNT</option>
                 <option>RECON</option>
                 <option>JAMMING</option>
@@ -5751,7 +5750,7 @@ R"HTML(
         if(t.startsWith('FRAG'))return '#c084fc';
         if(t.startsWith('TSF'))return '#2dd4bf';
         if(t.startsWith('JAM'))return '#f43f5e';
-        if(t.startsWith('MESHTASTIC')||t.startsWith('MESHCORE'))return '#38bdf8';
+        if(t.startsWith('RADIO_DETECTED'))return '#38bdf8';
         if(t.startsWith('MESH'))return '#818cf8';
         if(t.startsWith('PWNA'))return '#fbbf24';
         if(t.startsWith('ATTACKER'))return '#fb923c';
@@ -7203,7 +7202,7 @@ R"HTML(
         physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAMMING','Wi-Fi Interference','jam'],
           ['JAMMING_BASELINE','Interference Baseline','jam_baseline']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']],
-        lora:[['MESHTASTIC','Meshtastic','meshradio'],['MESHCORE','MeshCore','meshradio']]      };
+        lora:[['RADIO_DETECTED','Meshtastic / MeshCore','meshradio']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
         let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
@@ -7290,7 +7289,7 @@ R"HTML(
         setc('d-jam',['JAMMING','JAMMING_BASELINE']);
         setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD']);
         setc('d-pwna',['PWNAGOTCHI']);
-        setc('d-mrd',['MESHTASTIC','MESHCORE']);
+        setc('d-mrd',['RADIO_DETECTED']);
         setc('d-rid-ov',['RID']);
         _overviewVisibility(cfg);
       }

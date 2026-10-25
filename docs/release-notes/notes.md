@@ -64,7 +64,7 @@ This applies to all three channels.
 - PCAP files carry the radiotap MCS field for HT frames.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 - Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
-- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:lora:on`. Alerts are `MESHTASTIC:<mac>:<rssi>` and `MESHCORE:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
+- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:lora:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
 - Full and Headless: Wi-Fi interference has a baseline mode, `jam_baseline`, off by default. It alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned, or when a busy channel goes quiet. The alert is `JAMMING_BASELINE:<ch>:<rule>:<value>`.
 - Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
 - Malformed BLE alerts record the advert bytes.
