@@ -35,7 +35,7 @@
 
 ## What is AntiHunter?
 
-AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and Wi-Fi attacks. It saves everything it finds to the SD card.
+AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and threats such as Wi-Fi attacks and jamming. It saves everything it finds to the SD card.
 
 You control a node from its web UI (Full build), or by sending text commands over LoRa from any Meshtastic radio on your channel (Full and Headless). A node needs no internet and runs on battery. Several nodes can estimate where a device is, and the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) shows a fleet on one map.
 
@@ -86,21 +86,38 @@ The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** covers each step
 
 ## What it detects
 
-Every feature starts from the web UI's Scan tab, or by a text command over the mesh. **(Beta)** features exist only in the Beta firmware. **(experimental)** features may give inaccurate results.
+Every feature starts from the web UI or a text command over the mesh. **(Beta)** features exist only in the Beta firmware. **(experimental)** features may give inaccurate results.
+
+**Find and follow devices**
 
 | Feature | What it does | Mesh example | The example runs |
 |---|---|---|---|
 | [**Target scan**](#target-scan) | Alerts when it hears a watchlist MAC, vendor prefix, or SSID | `SCAN_START:2:300:1..11` | Wi-Fi and BLE for 300 s, channels 1-11 |
-| [**Baseline anomaly**](#detection-baseline-anomaly) | Learns which devices are normally present, then reports new, gone, returning, and moved ones | `BASELINE_START:300` | Learning, then 300 s of monitoring |
 | [**Device discovery**](#recon-device-discovery) | Lists nearby access points and BLE devices | `DEVICE_SCAN_START:2:300` | Wi-Fi and BLE for 300 s |
 | [**Probe request scanner**](#recon-probe-request-scanner) | Lists the network names Wi-Fi devices ask for | `PROBE_START:2:300` | Wi-Fi and BLE for 300 s |
 | [**Randomized MAC tracer**](#recon-randomized-mac-tracer-experimental) *(experimental)* | Groups a device's changing MACs into one identity | `RANDOMIZATION_START:2:300` | Wi-Fi and BLE for 300 s |
 | [**Drone Remote ID**](#recon-drone-remote-id) | Reports drone ID, position, flight data, and operator location | `DRONE_START:300` | 300 s |
-| [**Deauth detection**](#detection-deauth) | Logs deauth and disassociation frames and flags floods | `DEAUTH_START:300` | 300 s |
-| [**Sentinel**](#detection-sentinel) | Detects Wi-Fi attacks in progress and names the tool when it recognizes one | `SENTINEL_ON` | Until `SENTINEL_OFF` |
-| [**CSI motion**](#detection-csi-motion-beta) *(Beta)* | Detects movement from changes in the Wi-Fi signals around the node | `CSI_MOTION_START:0:FOREVER` | Until `STOP` |
-| [**Packet capture**](#capture-packet-capture) | Writes Wi-Fi or BLE traffic to SD as a pcap file | `PCAP_START:0:300:0` | Wi-Fi, 300 s, 2.4 GHz |
 | [**Triangulation**](#locate-triangulation-experimental) *(experimental)* | Three or more nodes with GPS estimate a device's location | `TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` | That MAC for 60 s |
+
+**Notice changes in an area**
+
+| Feature | What it does | Mesh example | The example runs |
+|---|---|---|---|
+| [**Baseline anomaly**](#detection-baseline-anomaly) | Learns which devices are normally present, then reports new, gone, returning, and moved ones | `BASELINE_START:300` | Learning, then 300 s of monitoring |
+| [**CSI motion**](#detection-csi-motion-beta) *(Beta)* | Detects movement from changes in the Wi-Fi signals around the node | `CSI_MOTION_START:0:FOREVER` | Until `STOP` |
+
+**Detect threats**
+
+| Feature | What it does | Mesh example | The example runs |
+|---|---|---|---|
+| [**Sentinel**](#detection-sentinel) | Reports Wi-Fi attacks, interference, attack devices, and Meshtastic or MeshCore radios | `SENTINEL_ON` | Until `SENTINEL_OFF` |
+| [**Deauth detection**](#detection-deauth) | Logs deauth and disassociation frames and flags floods | `DEAUTH_START:300` | 300 s |
+
+**Capture and respond**
+
+| Feature | What it does | Mesh example | The example runs |
+|---|---|---|---|
+| [**Packet capture**](#capture-packet-capture) | Writes Wi-Fi or BLE traffic to SD as a pcap file | `PCAP_START:0:300:0` | Wi-Fi, 300 s, 2.4 GHz |
 | [**Tamper response**](#field-controls) | Starts a scan, or wipes the node, when someone moves it | `VIBSCAN_SET:1:2:60` | A 60 s probe scan when moved |
 | [**Scheduling**](#field-controls) | Runs a scan at a set time, once or repeating | `SCHED_ADD:...` | See [Scheduled scans](#field-controls) |
 
@@ -273,7 +290,7 @@ Watches for deauthentication and disassociation frames, which knock devices off 
 
 ### Detection: Sentinel
 
-Sentinel listens for Wi-Fi attacks in the background and pauses while another scan runs. It detects deauth floods, beacon spam, evil twin access points, PMKID requests, forced WPA handshakes, and more. It names the tool when it recognizes one: Marauder, MDK4, ESP Deauther, aireplay-ng, bettercap, hcxdumptool, Bruce, or Pwnagotchi.
+Sentinel is the node's threat detection. It runs in the background and pauses while another scan runs. It detects Wi-Fi attacks, Wi-Fi interference, disruption of the node's Meshtastic channel, attack devices such as a Pwnagotchi, and Meshtastic and MeshCore radios. It names the tool when it recognizes one: Marauder, MDK4, ESP Deauther, aireplay-ng, bettercap, hcxdumptool, Bruce, or Pwnagotchi.
 
 <p align="center">
   <img width="880" alt="Sentinel" src="docs/img/sentinel.jpg" />
@@ -288,12 +305,15 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
 | `@ALL SENTINEL_ON` / `SENTINEL_OFF` | Starts or stops Sentinel |
 | `@ALL SENTINEL_BOOT:1` | Starts Sentinel at every power-on. `0` turns this off |
 | `@ALL SENTINEL_MODE:scan` | Hops across channels. `defend` stays on the node's own access point channel. Headless has no access point, so use `scan` |
-| `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, or `all` |
+| `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, `lora`, or `all` |
+| `@AH01 DETECT_CFG:{"meshradio":true}` | Turns on LoRa mesh radio detection. `jam_baseline` turns on the interference baseline |
 
 - After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **Attack response** → **On confirmed attack**.
-- Karma bait is the only detector that transmits: one probe request every 8 s while on. It is off by default.
+- Karma bait is the only detector that transmits Wi-Fi: one probe request every 8 s while on. It is off by default.
+- LoRa mesh radio detection finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. It also finds your own nodes' radios. Add their MACs to the allowlist.
+- The interference baseline learns each channel's noise floor for 60 seconds. It then alerts when the noise floor rises 8 dB, or when a busy channel goes quiet. It is off by default. Turn it off and on after you move the node.
 - Detections go to serial, SD, and `/incidents.jsonl`, and to the mesh if that detector's broadcast is on.
-- Each detection records what triggered it, such as the source MACs, network names, counts, signal, and channel. Serial prints it on a `[DETECT] ... evidence` line, and the SD logs and `/incidents.jsonl` store it in the `ev` field. Mesh alerts carry only the short alert line, so a peer's evidence stays on that peer's SD card.
+- Each detection records what triggered it in its `ev` field and on a `[DETECT] ... evidence` serial line. Mesh alerts carry only the alert line.
 
 <details>
 <summary>Detector groups and test coverage</summary>
@@ -303,11 +323,12 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
 | **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS |
 | **Rogue AP** | Evil twin, OWE abuse, Karma / MANA |
 | **Recon** | PMKID harvest, probe flood, forced handshake |
-| **Physical** | FragAttacks, two-channel twin, Wi-Fi interference |
+| **Physical** | FragAttacks, two-channel twin, Wi-Fi interference, interference baseline |
 | **Mesh disruption** | Self-spoof, channel flood, command audit |
+| **LoRa radios** | Meshtastic, MeshCore |
 
-- **Confirmed on hardware:** deauth flood, deauth forge, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil twin, probe flood, forced handshake.
-- **Experimental:** OWE abuse, PMKID harvest, FragAttacks, two-channel twin, Wi-Fi interference, mesh disruption.
+- **Confirmed on hardware:** deauth flood, deauth forge, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil twin, probe flood, forced handshake, Meshtastic radios.
+- **Experimental:** OWE abuse, PMKID harvest, FragAttacks, two-channel twin, Wi-Fi interference, interference baseline, mesh disruption, MeshCore radios.
 - **Tested against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, and common ESP32 attack firmware.
 - Detectors that check crypto and beacons skip phone hotspots. Flood detectors do not.
 

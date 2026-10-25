@@ -115,7 +115,8 @@ struct DetectFrameEvent {
         BLE_ADV = 6,      // BLE adv (deferred from NimBLE callback)
         PROBE_REQ = 7,    // probe request — tool probe-flood fingerprint
         DEAUTH = 8,       // deauth/disassoc — tool/tool tool fingerprint
-        ASSOC_REQ = 9     // association request — tool assoc-sleep fingerprint
+        ASSOC_REQ = 9,    // association request — tool assoc-sleep fingerprint
+        MESH_RADIO = 10
     };
     uint8_t kind;
     uint8_t channel;
@@ -216,7 +217,7 @@ void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8
 
 // PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
 // (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
-void detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
+void detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor, uint8_t channel);
 
 // Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
 void mesh_observeInbound(const String &sender, const String &body);
@@ -242,6 +243,8 @@ bool detect_isSelfApMac(const uint8_t *mac);
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name);
+void detect_onMeshRadioAdv(const uint8_t *addr, uint8_t addrType, int8_t rssi,
+                           const uint8_t *payload, uint16_t payloadLen);
 
 // Mesh
 void detect_processMesh(const String &fromNode, const String &msg);
@@ -357,6 +360,21 @@ struct PwnagotchiSighting {
 String pwnagotchi_getJson();
 void   pwnagotchi_clear();
 size_t pwnagotchi_count();
+
+struct MeshRadioSighting {
+    uint8_t mac[6];
+    uint8_t kind;
+    uint8_t addrType;
+    int8_t lastRssi;
+    int8_t bestRssi;
+    uint32_t seen;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    uint32_t lastAlert;
+    char name[32];
+};
+
+size_t meshradio_count();
 
 // =============================================================================
 // Feature 6: Attacker reverse-trilateration

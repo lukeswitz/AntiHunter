@@ -943,7 +943,7 @@ chmod +x flashAntihunter.sh
       await port.setSignals({ dataTerminalReady: false, requestToSend: false });
     }
 
-    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Association Sleep'],['frag','FragAttacks'],['tsf','Two-Channel Twin'],['jam','Wi-Fi Interference'],['mesh_guard','Mesh Disruption']];
+    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Association Sleep'],['frag','FragAttacks'],['tsf','Two-Channel Twin'],['jam','Wi-Fi Interference'],['mesh_guard','Mesh Disruption'],['meshradio','LoRa Mesh Radios'],['jam_baseline','Interference Baseline']];
     const SENT_MESH=[['mesh_pmkid','PMKID Harvest'],['mesh_eviltwin','Evil Twin'],['mesh_sae','SAE DoS'],['mesh_frag','FragAttacks'],['mesh_hshk','Handshake / KRACK'],['mesh_karma','Karma']];
     const SENT_THRESH=[['pmkid_window','PMKID Window (ms)'],['pmkid_min_bssids','PMKID Min BSSIDs'],['sae_window','SAE Window (ms)'],['sae_unmatched_thresh','SAE Unmatched'],['probe_single_thresh','Probe Flood: probes from one MAC per 5 s'],['probe_rand_total','Probe Flood: randomized probes per 5 s'],['probe_rand_distinct','Probe Flood: randomized MACs per 5 s']];
     function renderSentinelCfg(){

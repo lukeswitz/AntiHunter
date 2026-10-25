@@ -2630,6 +2630,13 @@ void registerRemainingRoutes() {
       pwnagotchi_clear();
       r->send(200, "text/plain", "cleared");
   });
+  server->on("/api/meshradio", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", meshradio_getJson());
+  });
+  server->on("/api/meshradio/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      meshradio_clear();
+      r->send(200, "text/plain", "cleared");
+  });
 
   server->on("/api/attack_response", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", String("{\"pending\":") + String((unsigned)attack_responsePending()) + "}");

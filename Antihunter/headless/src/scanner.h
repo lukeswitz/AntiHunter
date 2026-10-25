@@ -215,6 +215,7 @@ extern std::atomic<uint32_t> meshTxDroppedTriGate;
 extern std::atomic<uint32_t> meshTxDroppedEvicted;
 void initBLEOnce();
 void radioReleaseBLE();
+bool sentinelBleTick(bool want);
 
 bool meshShouldSendMac(const String& mac);
 void meshMarkMacSent(const String& mac);

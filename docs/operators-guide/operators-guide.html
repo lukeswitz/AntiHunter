@@ -637,8 +637,8 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL DEAUTH_START:300</pre>
   <p>Alert: <span class="mono">AH01: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. <span class="mono">SRC</span> is the sender, <span class="mono">DST</span> the target, <span class="mono">CH</span> the channel and <span class="mono">R</span> the IEEE reason code. The code is context only: codes 1, 2, 6 and 7 occur in normal traffic.</p>
 
-  <h3>9.7 Sentinel counter-intelligence</h3>
-  <p>Sentinel passively detects Wi-Fi attacks and the tools that run them: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. It names the tool where a frame carries a recognizable template. Control it on the Sentinel tab. <b>Start Sentinel</b> in the top bar starts and stops it. Under <b>Listening</b> → <b>Radio</b>, pick <b>Defend this AP</b> or <b>Scan all channels</b>. <b>Start on boot</b> starts it after a reboot.</p>
+  <h3>9.7 Sentinel threat detection</h3>
+  <p>Sentinel is the node's threat detection. It detects Wi-Fi attacks and the tools that run them: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. It also detects interference, disruption of the node's Meshtastic channel, attack devices such as a Pwnagotchi, and Meshtastic and MeshCore radios. It names the tool where a frame carries a recognizable template. Control it on the Sentinel tab. <b>Start Sentinel</b> in the top bar starts and stops it. Under <b>Listening</b> → <b>Radio</b>, pick <b>Defend this AP</b> or <b>Scan all channels</b>. <b>Start on boot</b> starts it after a reboot.</p>
   <pre>@ALL SENTINEL_ON
 @ALL SENTINEL_MODE:scan
 @ALL SENTINEL_BOOT:1
@@ -650,14 +650,18 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">SENTINEL_ON</span></td><td>Starts Sentinel. <span class="mono">SENTINEL_OFF</span> stops it.</td></tr>
     <tr><td><span class="mono">SENTINEL_MODE:scan</span></td><td><span class="mono">scan</span> hops the configured channels. <span class="mono">defend</span> stays on the node's own access point channel. Headless has no access point, so use <span class="mono">scan</span>.</td></tr>
     <tr><td><span class="mono">SENTINEL_BOOT:1</span></td><td>1 starts Sentinel at power-on, 0 does not.</td></tr>
-    <tr><td><span class="mono">GROUP:dos:on</span></td><td>Turns a detector group on or off: <span class="mono">dos</span>, <span class="mono">rogue</span>, <span class="mono">recon</span>, <span class="mono">physical</span>, <span class="mono">mesh</span> or <span class="mono">all</span>.</td></tr>
+    <tr><td><span class="mono">GROUP:dos:on</span></td><td>Turns a detector group on or off: <span class="mono">dos</span>, <span class="mono">rogue</span>, <span class="mono">recon</span>, <span class="mono">physical</span>, <span class="mono">mesh</span>, <span class="mono">lora</span> or <span class="mono">all</span>.</td></tr>
     <tr><td><span class="mono">SENTINEL_STATUS</span></td><td>Reports <span class="mono">en=</span> (you enabled it) and <span class="mono">run=</span> (it is running now).</td></tr>
     <tr><td><span class="mono">INCIDENTS:50</span></td><td>Prints the newest 50 incidents (1 to 200, default 20) as JSON on USB serial. The mesh reply is only the length. <span class="mono">INCIDENTS_CLEAR</span> deletes the log.</td></tr>
   </table>
-  <p>Deauth flood, beacon flood and auth flood detection are always on. Their <span class="mono">mesh_deauth</span>, <span class="mono">mesh_beacon</span> and <span class="mono">mesh_auth</span> switches only decide whether the alert goes out over the mesh. Sentinel covers Wi-Fi only. <span class="mono">DETECT_CFG</span> changes individual detectors and thresholds with a JSON object of up to 230 characters, for example <span class="mono">DETECT_CFG:{"karma":true,"pmkid_window":5000}</span>. The Sentinel tab sets the same keys. Each key's meaning, range and default are in <span class="mono">docs/mesh-commands.md</span> in the repository.</p>
+  <p>Deauth flood, beacon flood and auth flood detection are always on. Their <span class="mono">mesh_deauth</span>, <span class="mono">mesh_beacon</span> and <span class="mono">mesh_auth</span> switches only decide whether the alert goes out over the mesh. Sentinel listens to Wi-Fi, plus Bluetooth while LoRa mesh radio detection is on. <span class="mono">DETECT_CFG</span> changes individual detectors and thresholds with a JSON object of up to 230 characters, for example <span class="mono">DETECT_CFG:{"karma":true,"pmkid_window":5000}</span>. The Sentinel tab sets the same keys. Each key's meaning, range and default are in <span class="mono">docs/mesh-commands.md</span> in the repository.</p>
   <div class="box"><span class="t">Karma bait</span>
-    <p>Karma bait is the only Sentinel detector that transmits: a probe request every 8 seconds to bait a karma access point into answering. It is off by default. Turn it on with <span class="mono">GROUP:rogue:on</span> or the <b>Karma</b> switch on the Sentinel tab, and only where transmitting is lawful.</p>
+    <p>Karma bait is the only Sentinel detector that transmits Wi-Fi: a probe request every 8 seconds to bait a karma access point into answering. It is off by default. Turn it on with <span class="mono">GROUP:rogue:on</span> or the <b>Karma</b> switch on the Sentinel tab, and only where transmitting is lawful.</p>
   </div>
+  <h4>LoRa mesh radios</h4>
+  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on in the <b>LoRa Mesh Radios</b> card or with <span class="mono">GROUP:lora:on</span>. It also finds your own nodes' radios. Add their MACs to the allowlist.</p>
+  <h4>Interference baseline</h4>
+  <p>This mode learns each channel's noise floor for 60 seconds. It then alerts when the noise floor rises 8 dB, or when a busy channel goes quiet. It is off by default. Turn it on with the <b>Interference Baseline</b> switch or <span class="mono">DETECT_CFG:{"jam_baseline":true}</span>. Turn it off and on after you move the node.</p>
 
   <h4>Acting on a confirmed attack</h4>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: detector counters, associated clients, mesh command log and incident log.</figcaption></figure>
@@ -1009,7 +1013,7 @@ docker compose up -d --build</pre>
   <p>Set-and-forget setups. Set schedule blocks as in §9.12. The repeat of <span class="mono">86400</span> seconds below means daily.</p>
 
   <h4>Overnight perimeter watch (home, shop, site)</h4>
-  <p>Learn what belongs, then flag anything new after dark. Sentinel covers attacks on your Wi-Fi.</p>
+  <p>Learn what belongs, then flag anything new after dark. Sentinel covers Wi-Fi attacks, interference, and attack devices.</p>
   <pre>@AH01 SCHED_ADD:2026-10-05T21:00|86400|/sniffer|detection=baseline&amp;secs=32400   <span class="c"># 21:00 daily, monitor 9 h after learning</span>
 @AH01 SENTINEL_BOOT:1                     <span class="c"># 1 = start Sentinel at power-on</span>
 @AH01 VIBRATION_ON                        <span class="c"># send vibration alerts over mesh</span></pre>

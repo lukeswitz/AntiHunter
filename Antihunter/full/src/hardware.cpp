@@ -73,6 +73,7 @@ String rtcTimeString = "RTC not initialized";
 
 // Vibration Sensor
 volatile bool vibrationDetected = false;
+volatile uint32_t vibrationPulses = 0;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
@@ -1944,6 +1945,7 @@ String getGPSData()
 // Vibration Sensor
 void IRAM_ATTR vibrationISR() {
     vibrationDetected = true;
+    vibrationPulses = vibrationPulses + 1;
     lastVibrationTime = millis();
 }
 
@@ -2038,6 +2040,9 @@ void checkAndSendVibrationAlert() {
         }
 
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
+            const uint32_t vibSinceLast = millis() - lastVibrationAlert;
+            const uint32_t vibPulses = vibrationPulses;
+            vibrationPulses = 0;
             lastVibrationAlert = millis();
 
             // Use stack buffers to avoid heap fragmentation
@@ -2071,12 +2076,17 @@ void checkAndSendVibrationAlert() {
                 vibAutoScanPending = true;
             }
             logVibrationEvent(sensorValue);
+            Serial.printf("[VIBRATION] evidence {\"pulses\":%u,\"level\":%d,\"since_last_alert_ms\":%u}\n",
+                          (unsigned)vibPulses, sensorValue, (unsigned)vibSinceLast);
 
             // Structured vibration event log
             {
-                DynamicJsonDocument doc(128);
+                DynamicJsonDocument doc(256);
                 doc["t"] = getEventTimestamp();
                 doc["uptime_ms"] = millis();
+                doc["pulses"] = vibPulses;
+                doc["level"] = sensorValue;
+                doc["since_last_alert_ms"] = vibSinceLast;
                 if (gpsValid) {
                     doc["lat"] = gpsLat;
                     doc["lon"] = gpsLon;

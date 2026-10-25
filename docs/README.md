@@ -107,7 +107,7 @@ Every node that runs a command replies with its node ID and a result such as `SC
 | `@ALL SCAN_START:2:600:1..11` | Starts a target scan. The node alerts when it hears a watchlist entry. | `2` is the radio: `0` Wi-Fi, `1` Bluetooth LE, `2` both. `600` is the run time in seconds (0 to 86400; `0` runs until `STOP`). `1..11` is the Wi-Fi channels: a range (`1..11`) or a list (`1,6,11`). The channel field is required. Put `FOREVER` in its place to run until `STOP` on the default channels 1 to 11. |
 | `@ALL DEVICE_SCAN_START:2:300` | Lists every access point and Bluetooth LE device the node hears. | `2` is the radio, as above. `300` is the run time in seconds. |
 | `@ALL BASELINE_START:900` | Learns which devices are normally present, then reports new, missing, returning, and moved devices. | `900` is the monitoring time in seconds after learning (60 to 86400). The learning time is a separate setting: 300 seconds by default, changed in the web UI or the web flasher. |
-| `@ALL SENTINEL_ON` | Starts Sentinel, which detects Wi-Fi attacks in progress and names the tool when it recognizes one. | None. `SENTINEL_OFF` turns it off. |
+| `@ALL SENTINEL_ON` | Starts Sentinel, which detects Wi-Fi attacks, interference, attack devices, and LoRa mesh radios. | None. `SENTINEL_OFF` turns it off. |
 | `@ALL DRONE_START:0` | Starts the drone Remote ID scan. | `0` runs until `STOP`. Any other number is the run time in seconds. |
 | `@AH01 BATTERY_SAVER_START:10` | Stops scanning and lowers the CPU clock. The mesh stays on. | `10` is the minutes between heartbeat messages (1 to 30, default 5). `BATTERY_SAVER_STOP` ends it. |
 

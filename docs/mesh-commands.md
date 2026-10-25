@@ -267,7 +267,7 @@ To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in th
 
 ### Sentinel
 
-Sentinel watches for Wi-Fi and BLE attacks, such as evil twin access points and deauthentication floods. It is part of both builds. The [README](../README.md#detection-sentinel) describes what it detects.
+Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interference, attack devices, and Meshtastic and MeshCore radios. It is part of both builds. The [README](../README.md#detection-sentinel) describes what it detects.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -282,7 +282,7 @@ Sentinel watches for Wi-Fi and BLE attacks, such as evil twin access points and 
 | `INCIDENTS_CLEAR` | `INX` | Deletes the incident log | `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
 | `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON` or `:OFF` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | `ATQ` | Reports that setting | `ATTACKER_TRILAT_STATUS: ON` or `OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
-| `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |
+| `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> meshradio=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |
 
 | Command | Argument | Meaning | Range | Default |
 |---|---|---|---|---|
@@ -299,16 +299,17 @@ A `GROUP` name selects these detectors:
 | `dos` | Evil twin, SAE flood, association sleep |
 | `rogue` (or `rogue_ap`) | Evil twin, OWE downgrade, Karma bait |
 | `recon` | PMKID harvest, probe flood, forced handshake |
-| `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference |
+| `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference, interference baseline |
 | `mesh` | Mesh disruption |
+| `lora` | LoRa mesh radios (Meshtastic and MeshCore) |
 | `all` | All of the above |
 
 `DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`.
 
 | Keys | Value | Sets |
 |---|---|---|
-| `pmkid` `eviltwin` `ssid_confusion` `sae` `owe` `frag` `jam` `mesh_guard` `hshk` `pwna` `tsf` `csa_quiet` `rid_spoof` `karma` `probe_flood` `assoc_sleep` `ble_malformed` | switch | Turns that detector on or off |
-| `mesh_deauth` `mesh_beacon` `mesh_auth` `mesh_assoc_sleep` `mesh_sae` `mesh_eviltwin` `mesh_owe` `mesh_karma` `mesh_pmkid` `mesh_probe_flood` `mesh_hshk` `mesh_frag` `mesh_tsf` `mesh_jam` | switch | Sends that detector's alerts over the mesh |
+| `pmkid` `eviltwin` `ssid_confusion` `sae` `owe` `frag` `jam` `jam_baseline` `mesh_guard` `hshk` `pwna` `meshradio` `tsf` `csa_quiet` `rid_spoof` `karma` `probe_flood` `assoc_sleep` `ble_malformed` | switch | Turns that detector on or off. `jam_baseline` adds the interference baseline to `jam`. `meshradio` and `jam_baseline` are off by default |
+| `mesh_deauth` `mesh_beacon` `mesh_auth` `mesh_assoc_sleep` `mesh_sae` `mesh_eviltwin` `mesh_owe` `mesh_karma` `mesh_pmkid` `mesh_probe_flood` `mesh_hshk` `mesh_frag` `mesh_tsf` `mesh_jam` `mesh_meshradio` | switch | Sends that detector's alerts over the mesh. `mesh_jam` covers both interference alerts |
 | `bloom_gossip` | switch | Sends this node's baseline fingerprints over the mesh every 5 minutes. Received fingerprints only show as a count on `/api/bloom`. No detector uses them |
 | `sentinel_scan` | switch | Same as `SENTINEL_MODE`: `true` is `scan` |
 | `attacker_trilat` | switch | Same as `ATTACKER_TRILAT` |
@@ -323,6 +324,7 @@ A `GROUP` name selects these detectors:
 | `probe_rand_total` | Probe requests from randomized MACs in 5 seconds that raise a flood alert | count | 80 |
 | `probe_rand_distinct` | Distinct randomized MACs in 5 seconds that raise the same alert | count | 60 |
 | `deauth_targeted_thresh` | Deauth frames at one client that raise a targeted-deauth alert | count | 10 |
+| `jam_nf_db` | How far a channel's noise floor must rise above its learned level to raise an interference-baseline alert, from 3 to 30 | dB | 8 |
 | `hunt_cooldown_ms` | Time before the same attacker can start another location hunt | ms | 60000 |
 | `attack_resp_mask` | Follow-up actions after a confirmed attack. Add the values: `2` packet capture, `4` device discovery, `8` probe scan, `16` drone Remote ID scan, `32` stop the running scan to make room. `0` is off, and cannot be set back to `0` with this command | sum | 0 |
 | `ar_secs_pcap` | Length of the follow-up capture | s | 120 |
@@ -448,7 +450,9 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `KARMA_CAND:<bssid>:<ssids>` and `KARMA_CONFIRMED:<bssid>:<rssi>` | |
 | `AUTH_FLOOD:<bssid>:<srcs>:<frames>` | |
 | `SAE_DOS:<bssid>:<commits>` | |
-| `JAMMING:<ch>:<pdr_pct>:<err_frames>:<noise_dbm>` | |
+| `JAMMING:<ch>:<pdr_pct>:<err_frames>` | |
+| `JAMMING_BASELINE:<ch>:<rule>:<value>` | `noise_rise` (value: dB above the learned noise floor) `silence` (value: the channel's usual frames per second) |
+| `MESHTASTIC:<mac>:<rssi>` and `MESHCORE:<mac>:<rssi>` | |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.

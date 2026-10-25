@@ -1878,6 +1878,7 @@ R"HTML(
               <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Interference</div><div class="stat-value" id="d-jam">0</div></div>
               <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Disruption</div><div class="stat-value" id="d-mgd">0</div></div>
               <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
+              <div class="stat" data-cfg="meshradio"><div class="stat-label">LoRa Radios</div><div class="stat-value" id="d-mrd">0</div></div>
               <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
             </div>
             <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
@@ -1998,7 +1999,8 @@ R"HTML(
               <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
               <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
               <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
-              <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>            </div>
+              <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>
+              <button id="grpchip-lora" class="btn alt" onclick="detGroupToggle('lora')">LoRa radios</button>            </div>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
@@ -2084,6 +2086,19 @@ R"HTML(
           </div>
           <div class="card-body" id="detMeshGrpCardBody">
             <div id="mesh-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="lora" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detLoraCard')">
+            <h3><span class="sev info">radio</span>LoRa Mesh Radios <span class="num" id="mrd-n">0</span></h3>
+            <span class="collapse-icon open" id="detLoraCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detLoraCardBody">
+            <div id="lora-rows"></div>
+            <div style="font-size:11px;color:var(--mut);margin:8px 0 6px;">Finds radios by Bluetooth. Adds a Bluetooth scan.</div>
+            <button class="btn alt" onclick="mrdClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="mrd-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -2366,8 +2381,12 @@ R"HTML(
                 <option>FRAG</option>
                 <option>KRACK</option>
                 <option>PWNAGOTCHI</option>
+                <option>MESHTASTIC</option>
+                <option>MESHCORE</option>
                 <option>ATTACKER_HUNT</option>
                 <option>RECON</option>
+                <option>JAMMING</option>
+                <option>JAMMING_BASELINE</option>
               </select>
               <label style="font-size:12px;color:var(--mut);margin:0;">Source:</label>
               <select id="incSrc" style="width:auto;padding:6px 10px;font-size:12px;">
@@ -5732,6 +5751,7 @@ R"HTML(
         if(t.startsWith('FRAG'))return '#c084fc';
         if(t.startsWith('TSF'))return '#2dd4bf';
         if(t.startsWith('JAM'))return '#f43f5e';
+        if(t.startsWith('MESHTASTIC')||t.startsWith('MESHCORE'))return '#38bdf8';
         if(t.startsWith('MESH'))return '#818cf8';
         if(t.startsWith('PWNA'))return '#fbbf24';
         if(t.startsWith('ATTACKER'))return '#fb923c';
@@ -6870,8 +6890,8 @@ R"HTML(
           cols:['Time','MAC','RSSI','UAV ID','Type','Lat','Lon'],
           keys:['timestamp','mac','rssi','uav_id','type','lat','lon']},
         vibrations:{url:'/api/vibrations.jsonl',clear:'/api/vibrations/clear',fmt:'jsonl',
-          cols:['Time','Uptime','Lat','Lon'],
-          keys:['t','uptime_ms','lat','lon']},
+          cols:['Time','Uptime','Pulses','Lat','Lon'],
+          keys:['t','uptime_ms','pulses','lat','lon']},
         baseline:{url:'/baseline/config',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',top:['_msg','Top types'],
           cols:['Time','Message'],keys:['_time','_msg']},
@@ -7180,8 +7200,10 @@ R"HTML(
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake / KRACK','hshk']],
-        physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAM','Wi-Fi Interference','jam']],
-        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]      };
+        physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAMMING','Wi-Fi Interference','jam'],
+          ['JAMMING_BASELINE','Interference Baseline','jam_baseline']],
+        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']],
+        lora:[['MESHTASTIC','Meshtastic','meshradio'],['MESHCORE','MeshCore','meshradio']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
         let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
@@ -7235,7 +7257,7 @@ R"HTML(
           const el=document.getElementById(gid+'-rows');
           if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
         }
-        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE'};
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE',lora:'LoRa radios'};
         let qv='';
         for(const gid in GROUPS){
           const dets=GROUPS[gid]; let en=0,ht=0;
@@ -7265,9 +7287,10 @@ R"HTML(
         setc('d-asl',['ASSOC_SLEEP']);
         setc('d-pfl',['PROBE_FLOOD','PROBE_FLOOD_BEHAVE','PROBE_FLOOD_AP']);
         setc('d-tsf',['TSF']);
-        setc('d-jam',['JAM']);
+        setc('d-jam',['JAMMING','JAMMING_BASELINE']);
         setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD']);
         setc('d-pwna',['PWNAGOTCHI']);
+        setc('d-mrd',['MESHTASTIC','MESHCORE']);
         setc('d-rid-ov',['RID']);
         _overviewVisibility(cfg);
       }
@@ -7402,6 +7425,18 @@ R"HTML(
         if((p||[]).length>0)detMarkActive('pwna');
       }
       async function pwnaClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwnaTick();}
+      async function mrdTick(){
+        if(!detTabActive())return;
+        const p=await _jj('/api/meshradio');
+        {const _e=document.getElementById('mrd-n');if(_e)_e.textContent=(p||[]).length;}
+        detRenderTable('mrd-pre',p||[],[
+          {key:'type',label:'Type'},{key:'name',label:'Name'},{key:'mac',label:'MAC'},
+          {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},{key:'seen',label:'Seen'},
+          {key:'ago_ms',label:'Last',get:r=>_ago(Date.now()-(r.ago_ms||0))}
+        ]);
+        if((p||[]).length>0)detMarkActive('lora');
+      }
+      async function mrdClear(){await fetch('/api/meshradio/clear',{method:'POST'});mrdTick();}
       async function rtcFromBrowser(){
         const fd=new FormData();fd.append('epoch',String(Math.floor(Date.now()/1000)));
         const r=await fetch('/api/time',{method:'POST',body:fd}).catch(()=>null);
@@ -7796,7 +7831,7 @@ R"HTML(
         ['mesh_pmkid','PMKID Harvest'],['mesh_probe_flood','Probe Flood'],
         ['mesh_hshk','Handshake / KRACK'],['mesh_frag','FragAttacks'],
         ['mesh_tsf','Two-Channel Twin'],['mesh_jam','Wi-Fi Interference'],
-        ['mesh_guard','Mesh Disruption']
+        ['mesh_guard','Mesh Disruption'],['mesh_meshradio','LoRa Mesh Radios']
       ];
       const DET_THRESHOLDS=[
         ['pmkid_window','PMKID Window (ms)',1000,60000],
@@ -7806,6 +7841,7 @@ R"HTML(
         ['probe_single_thresh','Probe Flood: probes from one MAC per 5 s',10,500],
         ['probe_rand_total','Probe Flood: randomized probes per 5 s',10,1000],
         ['probe_rand_distinct','Probe Flood: randomized MACs per 5 s',5,500],
+        ['jam_nf_db','Interference Baseline: noise rise (dB)',3,30],
         ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
       ];
       let _detCfg=null;
@@ -7897,14 +7933,15 @@ R"HTML(
         dos:      ['sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
-        physical: ['frag','tsf','jam'],
+        physical: ['frag','tsf','jam','jam_baseline'],
         mesh:     ['mesh_guard'],
+        lora:     ['meshradio'],
         ble:      ['ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
       const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
         'mesh_sae','mesh_eviltwin','mesh_owe','mesh_karma','mesh_pmkid',
-        'mesh_probe_flood','mesh_hshk','mesh_frag','mesh_tsf','mesh_jam','mesh_guard'];
+        'mesh_probe_flood','mesh_hshk','mesh_frag','mesh_tsf','mesh_jam','mesh_guard','mesh_meshradio'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).
       async function detGroupToggle(group){
         const members=DET_GROUPS[group]; if(!members) return;
@@ -7987,7 +8024,7 @@ R"HTML(
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();pgTick();hsTick();
-        ahTick();kmTick();tsfTick();tofTick();pwnaTick();verboseTick();arTick();detHealthTick();
+        ahTick();kmTick();tsfTick();tofTick();pwnaTick();mrdTick();verboseTick();arTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();apClientsTick();meshCmdTick();
       }
       async function _jsonl(path){

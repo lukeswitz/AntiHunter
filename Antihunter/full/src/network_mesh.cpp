@@ -2066,9 +2066,10 @@ static const char *groupMembers(const String &name)
   if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
   if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
-  if (name == "physical" || name == "phys")  return "frag,tsf,jam";
+  if (name == "physical" || name == "phys")  return "frag,tsf,jam,jam_baseline";
   if (name == "mesh")                        return "mesh_guard";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard";
+  if (name == "lora")                        return "meshradio";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,jam_baseline,mesh_guard,meshradio";
   return nullptr;
 }
 
@@ -2152,6 +2153,7 @@ static void handleDetectCounts(const String &command)
   sendToSerial1(nodeId + ": DETECT_COUNTS: karmaCand=" + String(karma_candidateCount()) +
                 " karmaConf=" + String(karma_confirmedCount()) +
                 " pwna=" + String(pwnagotchi_count()) +
+                " meshradio=" + String(meshradio_count()) +
                 " tsf=" + String(tsf_count()) +
                 " pg=" + String(pg_size()) +
                 " tof=" + String(tof_peerCount()) +

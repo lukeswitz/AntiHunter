@@ -258,6 +258,24 @@ static std::atomic<int32_t>  g_jamErrRssi[14];
 static uint32_t g_jamEverValid[14] = {0};
 static uint32_t g_jamLastEmit[14]  = {0};
 static uint32_t g_jamLastEval = 0;
+std::atomic<bool>    g_jamBaseline{false};
+std::atomic<uint8_t> g_jamNfDb{8};
+static std::atomic<int32_t>  g_jamNfSum[14];
+static std::atomic<uint32_t> g_jamNfCnt[14];
+struct JamBase {
+    float nf;
+    float nfDev;
+    float rate;
+    uint32_t seconds;
+    uint32_t nfSeconds;
+    uint8_t noiseStreak;
+    uint8_t quietStreak;
+};
+static JamBase g_jamBase[14] = {};
+static uint32_t g_jamBaseLastEmit[14] = {0};
+static uint32_t g_jamBaseLastReport = 0;
+static uint32_t g_jamBaseLiveSince = 0;
+static bool g_jamBaseScanMode = false;
 
 // Mesh-channel disruption guard (text-layer, AntiHunter's own Meshtastic channel).
 // Detects: self-ID spoof (we receive our own node id), channel flood (inbound rate),
@@ -286,6 +304,7 @@ std::atomic<bool> g_oweEnabled{false};
 std::atomic<bool> g_bleMalformedEnabled{false};
 std::atomic<bool> g_hshkEnabled{true};
 std::atomic<bool> g_pwnaEnabled{true};
+std::atomic<bool> g_meshRadioEnabled{false};
 std::atomic<bool> g_tsfEnabled{false};
 std::atomic<bool> g_csaQuietEnabled{true};
 std::atomic<bool> g_ridSpoofEnabled{false};
@@ -320,6 +339,7 @@ std::atomic<bool> g_meshBleMalformed{false};
 std::atomic<bool> g_meshKrack{true};
 std::atomic<bool> g_meshTracker{true};
 std::atomic<bool> g_meshPwna{true};
+std::atomic<bool> g_meshMeshRadio{true};
 std::atomic<bool> g_meshRecon{true};
 std::atomic<bool> g_meshAttackerHunt{true};
 std::atomic<bool> g_meshEapolBait{true};
@@ -2841,11 +2861,17 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         g_bleMalformedLog.push_back(ev);
         if (g_bleMalformedLog.size() > MAX_BLEM_LOG) g_bleMalformedLog.erase(g_bleMalformedLog.begin());
         String addr_s = macStr(addr);
+        char hx[2 * 64 + 1];
+        uint16_t hn = payload ? (len < 64 ? len : 64) : 0;
+        for (uint16_t i = 0; i < hn; ++i) snprintf(hx + 2 * i, 3, "%02X", payload[i]);
+        hx[2 * hn] = '\0';
         String line = String("{\"addr\":\"") + addr_s +
                       "\",\"rssi\":" + String(rssi) +
                       ",\"reason\":\"" + malformedReason +
                       "\",\"len\":" + String(len) +
+                      ",\"payload\":\"" + hx + "\"" +
                       ",\"ts\":" + String(now) + "}";
+        Serial.println("[DETECT] BLE_MALFORMED evidence " + line);
         logEventToSD("/ble_malformed.jsonl", line);
         return;
     }
@@ -2930,6 +2956,70 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     }
 }
 
+PsramMap<uint64_t, MeshRadioSighting> g_meshRadio;
+static constexpr size_t MAX_MESH_RADIO = 64;
+static constexpr uint32_t MESH_RADIO_REALERT_MS = 600000;
+
+void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t rssi, const char *name) {
+    if (isAllowlisted(mac)) return;
+    uint32_t now = millis();
+    uint64_t k = packMac(mac);
+    MeshRadioSighting snap{};
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto sit = g_meshRadio.find(k);
+        if (sit == g_meshRadio.end()) {
+            if (g_meshRadio.size() >= MAX_MESH_RADIO) {
+                uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+                for (const auto &kv : g_meshRadio) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                g_meshRadio.erase(oldestK);
+            }
+            MeshRadioSighting ns{};
+            memcpy(ns.mac, mac, 6);
+            ns.firstSeen = now;
+            ns.bestRssi = rssi;
+            g_meshRadio[k] = ns;
+            sit = g_meshRadio.find(k);
+        }
+        MeshRadioSighting &s = sit->second;
+        s.kind = kind;
+        s.addrType = addrType;
+        s.lastRssi = rssi;
+        if (rssi > s.bestRssi) s.bestRssi = rssi;
+        if (s.seen < UINT32_MAX) s.seen++;
+        s.lastSeen = now;
+        if (name && name[0]) {
+            strncpy(s.name, name, sizeof(s.name) - 1);
+            s.name[sizeof(s.name) - 1] = 0;
+        }
+        if (s.lastAlert != 0 && (now - s.lastAlert) < MESH_RADIO_REALERT_MS) return;
+        s.lastAlert = now;
+        snap = s;
+    }
+    const char *type = (kind == 1) ? "MESHTASTIC" : "MESHCORE";
+    String ms = macStr(mac);
+    Serial.printf("[DETECT] %s src=%s rssi=%d name=%s\n", type, ms.c_str(), (int)rssi, snap.name);
+    String ev = String("{\"reason\":\"") + type + "\",\"mac\":\"" + ms +
+                "\",\"addr_type\":\"" + (addrType ? "random" : "public") +
+                "\",\"name\":\"" + jsonEscape(String(snap.name)) +
+                "\",\"match\":\"" + (kind == 1 ? "service_uuid" : "service_uuid+name") +
+                "\",\"uuid\":\"" + (kind == 1 ? "6ba1b218-15a8-461f-9fa8-5dcae273eafd" : "6e400001-b5a3-f393-e0a9-e50e24dcca9e") +
+                "\",\"rssi\":" + String((int)rssi) + ",\"best_rssi\":" + String((int)snap.bestRssi) +
+                ",\"seen\":" + String((unsigned)snap.seen) +
+                ",\"since_first_ms\":" + String((unsigned)(now - snap.firstSeen)) + "}";
+    Serial.println(String("[DETECT] ") + type + " evidence " + ev);
+    logEventToSD("/meshradio.jsonl", evClose(ev, now));
+    ::detect_logIncident(String(type) + ":" + ms + ":" + String((int)rssi), nullptr, ev);
+    if (meshEnabled && sentinel_isRunning() && g_meshMeshRadio.load() &&
+        meshRateGate(String(type) + "_" + ms, MESH_RADIO_REALERT_MS))
+        sendToSerial1(getNodeId() + ": " + type + ":" + ms + ":" + String((int)rssi), true);
+}
+
+size_t meshradio_count() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_meshRadio.size();
+}
+
 } // namespace ah_detect
 
 void detect_persistTunables();
@@ -2954,6 +3044,7 @@ size_t karma_confirmedCount()                { return ah_detect::karma_confirmed
 String pwnagotchi_getJson()                  { return ah_detect::pwnagotchi_getJson(); }
 void pwnagotchi_clear()                      { ah_detect::pwnagotchi_clear(); }
 size_t pwnagotchi_count()                    { return ah_detect::pwnagotchi_count(); }
+size_t meshradio_count()                     { return ah_detect::meshradio_count(); }
 void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick(mac, t); }
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel, forged); }
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
@@ -3075,10 +3166,14 @@ void initializeDetect() {
             ah_detect::g_oweEnabled.store(p.getBool("oweOn", false));
             ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
             ah_detect::g_jamEnabled.store(p.getBool("jamOn", true));
+            ah_detect::g_jamBaseline.store(p.getBool("jamBase", false));
+            ah_detect::g_jamNfDb.store(p.getUChar("jamNfDb", 8));
             ah_detect::g_meshGuardEnabled.store(p.getBool("mgdOn", false));
             ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", false));
             ah_detect::g_hshkEnabled.store(p.getBool("hshkOn", true));
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
+            ah_detect::g_meshRadioEnabled.store(p.getBool("mrdOn", false));
+            ah_detect::g_meshMeshRadio.store(p.getBool("mMrd", true));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
@@ -3119,7 +3214,8 @@ void initializeDetect() {
             "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl",
             "/sae_dos.jsonl", "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl",
             "/ssid_confusion.jsonl", "/owe_abuse.jsonl", "/fragattack.jsonl",
-            "/ble_malformed.jsonl", "/ble_attack.jsonl", "/probe_flood.jsonl"
+            "/ble_malformed.jsonl", "/ble_attack.jsonl", "/probe_flood.jsonl",
+            "/meshradio.jsonl"
         };
         for (const char *pth : kBootClear) {
             if (SafeSD::exists(pth)) SafeSD::remove(pth);
@@ -3177,6 +3273,7 @@ static void sentinelAlwaysOnTask(void *pv) {
     bool weOwn = false;
     uint32_t s_appliedMask = 0;
     while (g_sentinelUserEnabled.load() && !scanning.load()) {
+        sentinelBleTick(g_meshRadioEnabled.load());
         // Mask re-evaluated every pass: toggling jam/hshk/pmkid/frag at runtime must
         // re-apply the filter, or FCSFAIL/DATA never arrive until the task restarts.
         bool wantData = g_pmkidEnabled.load() || g_hshkEnabled.load() || g_fragEnabled.load();
@@ -3268,6 +3365,7 @@ static void sentinelAlwaysOnTask(void *pv) {
             }
         }
     }
+    sentinelBleTick(false);
     if (weOwn) {
         esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
         esp_wifi_set_promiscuous(false);
@@ -3385,10 +3483,14 @@ void detect_persistTunables() {
     p.putBool("oweOn", ah_detect::g_oweEnabled.load());
     p.putBool("fragOn", ah_detect::g_fragEnabled.load());
     p.putBool("jamOn", ah_detect::g_jamEnabled.load());
+    p.putBool("jamBase", ah_detect::g_jamBaseline.load());
+    p.putUChar("jamNfDb", ah_detect::g_jamNfDb.load());
     p.putBool("mgdOn", ah_detect::g_meshGuardEnabled.load());
     p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
     p.putBool("hshkOn", ah_detect::g_hshkEnabled.load());
     p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
+    p.putBool("mrdOn", ah_detect::g_meshRadioEnabled.load());
+    p.putBool("mMrd", ah_detect::g_meshMeshRadio.load());
     p.putBool("tsfOn", ah_detect::g_tsfEnabled.load());
     p.putBool("csaqOn", ah_detect::g_csaQuietEnabled.load());
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
@@ -3503,12 +3605,73 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
     xQueueSend(detectFrameQueue, &ev, 0);
 }
 
+static const uint8_t kMeshtasticSvcUuid[16] = {0xFD, 0xEA, 0x73, 0xE2, 0xCA, 0x5D, 0xA8, 0x9F,
+                                               0x1F, 0x46, 0xA8, 0x15, 0x18, 0xB2, 0xA1, 0x6B};
+static const uint8_t kNordicUartSvcUuid[16] = {0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0,
+                                               0x93, 0xF3, 0xA3, 0xB5, 0x01, 0x00, 0x40, 0x6E};
+
+void detect_onMeshRadioAdv(const uint8_t *addr, uint8_t addrType, int8_t rssi,
+                           const uint8_t *payload, uint16_t payloadLen) {
+    if (!g_meshRadioEnabled.load(std::memory_order_relaxed) || !detectFrameQueue || !addr || !payload) return;
+    bool meshtastic = false, nus = false;
+    const uint8_t *nm = nullptr;
+    uint8_t nl = 0;
+    uint16_t off = 0;
+    while (off + 2 <= payloadLen) {
+        uint8_t l = payload[off];
+        if (l == 0) { off += 1; continue; }
+        if (off + 1 + l > payloadLen) break;
+        uint8_t t = payload[off + 1];
+        const uint8_t *v = payload + off + 2;
+        uint8_t vl = (uint8_t)(l - 1);
+        if (t == 0x06 || t == 0x07) {
+            for (uint8_t i = 0; i + 16 <= vl; i += 16) {
+                if (memcmp(v + i, kMeshtasticSvcUuid, 16) == 0) meshtastic = true;
+                else if (memcmp(v + i, kNordicUartSvcUuid, 16) == 0) nus = true;
+            }
+        } else if ((t == 0x09 || (t == 0x08 && !nm)) && vl > 0) {
+            nm = v;
+            nl = vl;
+        }
+        off += 1 + l;
+    }
+    uint8_t kind = 0;
+    if (meshtastic) kind = 1;
+    else if (nus && nm && nl >= 9 && memcmp(nm, "MeshCore-", 9) == 0) kind = 2;
+    if (!kind) return;
+    static uint8_t s_lastMac[8][6];
+    static uint32_t s_lastMs[8];
+    static uint8_t s_next = 0;
+    uint32_t now = millis();
+    for (uint8_t i = 0; i < 8; ++i) {
+        if (s_lastMs[i] && memcmp(s_lastMac[i], addr, 6) == 0 && (now - s_lastMs[i]) < 5000) return;
+    }
+    memcpy(s_lastMac[s_next], addr, 6);
+    s_lastMs[s_next] = now;
+    s_next = (uint8_t)((s_next + 1) & 7);
+    if (uxQueueSpacesAvailable(detectFrameQueue) < 4) { g_droppedBle.fetch_add(1); return; }
+    DetectFrameEvent ev;
+    ev.kind = DetectFrameEvent::MESH_RADIO;
+    ev.channel = kind;
+    ev.rssi = rssi;
+    ev.rxMicrosLo = 0;
+    memcpy(ev.payload, addr, 6);
+    ev.payload[6] = addrType;
+    uint8_t cn = nm ? (nl < 31 ? nl : 31) : 0;
+    ev.payload[7] = cn;
+    if (cn) memcpy(ev.payload + 8, nm, cn);
+    ev.len = (uint16_t)(8 + cn);
+    xQueueSend(detectFrameQueue, &ev, 0);
+}
+
 // PHY-stat hook for jamming detection — called from sniffer_cb for EVERY packet
 // (incl. CRC-fail). ISR-context: cheap atomic increments only. rxState!=0 = PHY/
 // CRC error frame (ESP-IDF sniffer dumps these when FCSFAIL filter set).
-void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel) {
+void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor, uint8_t channel) {
     if (!sentinel_isUserEnabled() || !g_jamEnabled.load(std::memory_order_relaxed)) return;
     if (channel < 1 || channel > 13) return;
+    g_jamNfSum[channel].fetch_add(noiseFloor, std::memory_order_relaxed);
+    g_jamNfCnt[channel].fetch_add(1, std::memory_order_relaxed);
     if (rxState == 0) {
         g_jamValid[channel].fetch_add(1, std::memory_order_relaxed);
     } else {
@@ -3518,16 +3681,99 @@ void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel) {
 }
 
 // Per-channel jamming eval — self-gated to 1s, called each detectTask iteration.
+static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, int32_t nfs, uint32_t now) {
+    JamBase &b = g_jamBase[ch];
+    uint32_t tot = v + e;
+    float nfNow = nfc ? (float)nfs / (float)nfc : 0.0f;
+    bool pin = !g_sentinelScanMode.load();
+    uint8_t thr = g_jamNfDb.load();
+    if (thr < 3) thr = 3;
+    if (thr > 30) thr = 30;
+    if (nfc >= 5 && b.nfSeconds >= 60 && nfNow >= b.nf + (float)thr) {
+        if (b.noiseStreak < 255) b.noiseStreak++;
+    } else {
+        b.noiseStreak = 0;
+    }
+    if (pin && b.seconds >= 60 && b.rate >= 20.0f && (float)tot * 10.0f < b.rate) {
+        if (b.quietStreak < 255) b.quietStreak++;
+    } else {
+        b.quietStreak = 0;
+    }
+    if (b.noiseStreak == 0 && b.quietStreak == 0) {
+        if (nfc >= 5) {
+            if (b.nfSeconds == 0) { b.nf = nfNow; b.nfDev = 0.0f; }
+            else { float d = nfNow - b.nf; b.nf += d / 32.0f; b.nfDev += (fabsf(d) - b.nfDev) / 32.0f; }
+            if (b.nfSeconds < UINT32_MAX) b.nfSeconds++;
+        }
+        b.rate = (b.seconds == 0) ? (float)tot : b.rate + ((float)tot - b.rate) / 32.0f;
+        if (b.seconds < UINT32_MAX) b.seconds++;
+        return;
+    }
+    const char *rule = (b.noiseStreak >= 3) ? "noise_rise" : (b.quietStreak >= 5 ? "silence" : nullptr);
+    if (!rule) return;
+    if (g_jamBaseLastEmit[ch] && (now - g_jamBaseLastEmit[ch]) < 60000UL) return;
+    g_jamBaseLastEmit[ch] = now;
+    bool noise = (rule[0] == 'n');
+    int value = noise ? (int)lroundf(nfNow - b.nf) : (int)lroundf(b.rate);
+    String ev = String("{\"reason\":\"JAMMING_BASELINE\",\"rule\":\"") + rule +
+                "\",\"ch\":" + String((unsigned)ch) +
+                ",\"mode\":\"" + (pin ? "pin" : "scan") + "\"" +
+                (nfc ? String(",\"nf\":") + String(nfNow, 1) : String()) +
+                ",\"nf_base\":" + String(b.nf, 1) + ",\"nf_dev\":" + String(b.nfDev, 1) +
+                ",\"nf_rise_db\":" + String((unsigned)thr) +
+                ",\"frames\":" + String((unsigned)tot) + ",\"valid\":" + String((unsigned)v) +
+                ",\"err\":" + String((unsigned)e) + ",\"rate_base\":" + String(b.rate, 1) +
+                ",\"noise_secs\":" + String((unsigned)b.noiseStreak) +
+                ",\"quiet_secs\":" + String((unsigned)b.quietStreak) +
+                ",\"learned_s\":" + String((unsigned)b.seconds) + "}";
+    Serial.printf("[DETECT] JAMMING_BASELINE ch=%u rule=%s value=%d\n", (unsigned)ch, rule, value);
+    Serial.println("[DETECT] JAMMING_BASELINE evidence " + ev);
+    logEventToSD("/jamming.jsonl", evClose(ev, now));
+    char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
+    ::detect_logIncident(String("JAMMING_BASELINE:") + bch + ":" + rule + ":" + String(value), nullptr, ev);
+    quorum_addReport("JAMMING", String(bch), getNodeId(), (int8_t)(nfc ? lroundf(nfNow) : -128));
+    if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAMB_") + bch, 60000))
+        sendToSerial1(getNodeId() + ": JAMMING_BASELINE:" + bch + ":" + rule + ":" + String(value), true);
+}
+
+static void jamBaselineReport(uint32_t now) {
+    if (now - g_jamBaseLastReport < 60000UL) return;
+    g_jamBaseLastReport = now;
+    for (uint8_t ch = 1; ch <= 13; ch++) {
+        const JamBase &b = g_jamBase[ch];
+        if (!b.nfSeconds) continue;
+        Serial.printf("[JAMBASE] ch=%u nf_base=%.1f nf_dev=%.1f rate_base=%.1f learned_s=%u\n",
+                      (unsigned)ch, b.nf, b.nfDev, b.rate, (unsigned)b.seconds);
+    }
+}
+
 static void jammingEval(uint32_t now) {
     if (!g_jamEnabled.load()) return;
     if (now - g_jamLastEval < 1000) return;
     g_jamLastEval = now;
+    bool baseOn = g_jamBaseline.load();
+    bool live = sentinel_isRunning() && !scanning.load();
+    bool scanMode = g_sentinelScanMode.load();
+    static bool s_baseWasOn = false;
+    if (scanMode != g_jamBaseScanMode || (baseOn && !s_baseWasOn)) {
+        g_jamBaseScanMode = scanMode;
+        for (JamBase &jb : g_jamBase) jb = JamBase{};
+    }
+    s_baseWasOn = baseOn;
+    if (!live) g_jamBaseLiveSince = 0;
+    else if (!g_jamBaseLiveSince) g_jamBaseLiveSince = now;
+    bool baseEval = baseOn && live && (now - g_jamBaseLiveSince) >= 5000UL;
+    if (baseEval) jamBaselineReport(now);
     for (uint8_t ch = 1; ch <= 13; ch++) {
         uint32_t v = g_jamValid[ch].exchange(0);
         uint32_t e = g_jamErr[ch].exchange(0);
         int32_t ersum = g_jamErrRssi[ch].exchange(0);
+        uint32_t nfc = g_jamNfCnt[ch].exchange(0);
+        int32_t nfs = g_jamNfSum[ch].exchange(0);
         uint32_t tot = v + e;
         if (v > 0) g_jamEverValid[ch] = now;
+        if (baseEval) jamBaselineEval(ch, v, e, nfc, nfs, now);
+        else { g_jamBase[ch].noiseStreak = 0; g_jamBase[ch].quietStreak = 0; }
         if (tot < 20) continue;                         // idle / low traffic -> no decision
         float pdr = (float)v / (float)tot;
         int8_t avgErrRssi = e ? (int8_t)(ersum / (int32_t)e) : -128;
@@ -3545,7 +3791,7 @@ static void jammingEval(uint32_t now) {
             logEventToSD("/jamming.jsonl", String(line));
             char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
             ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), nullptr,
-                                 String("{\"reason\":\"JAMMING\",") + String(line + 1));
+                                 String("{\"reason\":\"JAMMING\",\"rule\":\"pdr_collapse\",") + String(line + 1));
             quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
             if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
                 char mb[80];
@@ -3670,6 +3916,14 @@ void detectTask(void *pv) {
                     }
                     break;
                 }
+                case DetectFrameEvent::MESH_RADIO: {
+                    if (ev.len >= 8) {
+                        uint8_t cn = ev.payload[7] < 31 ? ev.payload[7] : 31;
+                        String nm = sanitizeAscii(reinterpret_cast<const char *>(ev.payload + 8), cn);
+                        meshRadioObserve(ev.payload, ev.payload[6], ev.channel, ev.rssi, nm.c_str());
+                    }
+                    break;
+                }
                 default: break;
             }
         }
@@ -3721,6 +3975,10 @@ void detectTask(void *pv) {
             }
             for (auto it = g_pwna.begin(); it != g_pwna.end(); ) {
                 if (now - it->second.lastSeen > 1800000UL) it = g_pwna.erase(it);
+                else ++it;
+            }
+            for (auto it = g_meshRadio.begin(); it != g_meshRadio.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_meshRadio.erase(it);
                 else ++it;
             }
             for (auto it = g_karma.begin(); it != g_karma.end(); ) {
@@ -4296,10 +4554,13 @@ String detect_getConfigJson() {
     j += _bjson("owe", g_oweEnabled.load());
     j += _bjson("frag", g_fragEnabled.load());
     j += _bjson("jam", g_jamEnabled.load());
+    j += _bjson("jam_baseline", g_jamBaseline.load());
     j += _bjson("mesh_guard", g_meshGuardEnabled.load());
     j += _bjson("ble_malformed", g_bleMalformedEnabled.load());
     j += _bjson("hshk", g_hshkEnabled.load());
     j += _bjson("pwna", g_pwnaEnabled.load());
+    j += _bjson("meshradio", g_meshRadioEnabled.load());
+    j += _bjson("mesh_meshradio", g_meshMeshRadio.load());
     j += _bjson("tsf", g_tsfEnabled.load());
     j += _bjson("csa_quiet", g_csaQuietEnabled.load());
     j += _bjson("rid_spoof", g_ridSpoofEnabled.load());
@@ -4331,6 +4592,7 @@ String detect_getConfigJson() {
     j += _ijson("deauth_targeted_thresh", g_deauthTargetedThresh.load());
     j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
+    j += _ijson("jam_nf_db", g_jamNfDb.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
     j += _ijson("attack_resp_mask", g_attackRespMask.load());
     j += _ijson("ar_secs_trilat", g_arSecsTrilat.load());
@@ -4383,10 +4645,13 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "owe", g_oweEnabled);
     _setb(b, "frag", g_fragEnabled);
     _setb(b, "jam", g_jamEnabled);
+    _setb(b, "jam_baseline", g_jamBaseline);
     _setb(b, "mesh_guard", g_meshGuardEnabled);
     _setb(b, "ble_malformed", g_bleMalformedEnabled);
     _setb(b, "hshk", g_hshkEnabled);
     _setb(b, "pwna", g_pwnaEnabled);
+    _setb(b, "meshradio", g_meshRadioEnabled);
+    _setb(b, "mesh_meshradio", g_meshMeshRadio);
     _setb(b, "tsf", g_tsfEnabled);
     _setb(b, "csa_quiet", g_csaQuietEnabled);
     _setb(b, "rid_spoof", g_ridSpoofEnabled);
@@ -4417,6 +4682,7 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "deauth_targeted_thresh", g_deauthTargetedThresh);
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
+    _setu8(b, "jam_nf_db", g_jamNfDb);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
     _setu8(b, "attack_resp_mask", g_attackRespMask);
     _seti(b, "ar_secs_trilat", g_arSecsTrilat);

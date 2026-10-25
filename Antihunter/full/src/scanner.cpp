@@ -852,10 +852,22 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (woken) portYIELD_FROM_ISR();
 }
 
+static std::atomic<bool> g_sentinelBle{false};
+static std::recursive_mutex g_bleLifeMtx;
+
 // Main NimBLE callback
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     // cppcheck-suppress unusedFunction // NimBLEScanCallbacks override, invoked by NimBLE per advertisement
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
+        if (g_sentinelBle.load(std::memory_order_relaxed) && !scanning.load()) {
+            const NimBLEAddress &sa = advertisedDevice->getAddress();
+            const uint8_t *sv = sa.getVal();
+            const uint8_t sm[6] = {sv[5], sv[4], sv[3], sv[2], sv[1], sv[0]};
+            const std::vector<uint8_t> &spl = advertisedDevice->getPayload();
+            detect_onMeshRadioAdv(sm, sa.getType() == 0 ? 0 : 1, advertisedDevice->getRSSI(),
+                                  spl.data(), (uint16_t)spl.size());
+            return;
+        }
         bleFramesSeen = bleFramesSeen + 1;
 
         int8_t rssi = advertisedDevice->getRSSI();
@@ -2469,7 +2481,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     // Jamming PHY-stat: feed EVERY packet (incl. CRC-fail / short error frames)
     // before any length/rssi gate, so PDR-vs-error accounting sees the failures.
-    detect_onPhyStat(ppkt->rx_ctrl.rx_state, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
+    detect_onPhyStat(ppkt->rx_ctrl.rx_state, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.noise_floor, ppkt->rx_ctrl.channel);
 
     if (ppkt->rx_ctrl.sig_len < 24) {
         return;
@@ -2817,6 +2829,8 @@ static void bleInitTask(void *pv) {
 }
 
 void radioReleaseBLE() {
+    std::lock_guard<std::recursive_mutex> lk(g_bleLifeMtx);
+    g_sentinelBle.store(false);
     if (!bleInitDone && !bleInitStarted.load()) return;
     if (pBLEScan) {
         if (pBLEScan->isScanning()) pBLEScan->stop();
@@ -2859,8 +2873,43 @@ void radioStartBLE()
     (void)radioStartBLEChecked();
 }
 
+bool sentinelBleTick(bool want)
+{
+    std::lock_guard<std::recursive_mutex> lk(g_bleLifeMtx);
+    if (!want || scanning.load()) {
+        if (!g_sentinelBle.exchange(false)) return false;
+        if (pBLEScan) {
+            if (pBLEScan->isScanning()) pBLEScan->stop();
+            pBLEScan->setMaxResults(200);
+            pBLEScan->clearResults();
+        }
+        Serial.println("[SENTINEL] BLE listen off");
+        if (!scanning.load()) radioReleaseBLE();
+        return false;
+    }
+    if (!g_sentinelBle.load()) {
+        initBLEOnce();
+        if (!pBLEScan || bleInitFailed || pBLEScan->isScanning()) return false;
+        pBLEScan->setMaxResults(0);
+        pBLEScan->setInterval(1000);
+        pBLEScan->setWindow(100);
+        g_sentinelBle.store(true);
+        Serial.println("[SENTINEL] BLE listen on (Meshtastic/MeshCore)");
+    }
+    if (!pBLEScan) return false;
+    if (!pBLEScan->isScanning()) pBLEScan->start(30000, false);
+    return true;
+}
+
 bool radioStartBLEChecked()
 {
+    std::lock_guard<std::recursive_mutex> lk(g_bleLifeMtx);
+    if (g_sentinelBle.exchange(false) && pBLEScan) {
+        if (pBLEScan->isScanning()) pBLEScan->stop();
+        pBLEScan->setMaxResults(200);
+        pBLEScan->clearResults();
+        Serial.println("[SENTINEL] BLE listen handed to scan");
+    }
     initBLEOnce();
     if (!pBLEScan || bleInitFailed) {
         Serial.println("[RADIO] BLE not available");
