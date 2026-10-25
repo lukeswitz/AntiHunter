@@ -212,6 +212,7 @@ bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime);
 
 void cleanupStaleSessions();
 void cleanupStaleTracks();
+void resetRandomizationDetection();
 
 void saveDeviceIdentities();
 void loadDeviceIdentities();

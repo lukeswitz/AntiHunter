@@ -110,6 +110,25 @@ static std::string fmtRange(int8_t rssi, bool isBLE) {
 
 extern TaskHandle_t blueTeamTaskHandle;
 
+static std::string fmtAuth(const Hit &h) {
+    if (h.isBLE || h.auth == 0xFF) return std::string();
+    const char *a;
+    switch (h.auth) {
+        case WIFI_AUTH_OPEN: a = "Open"; break;
+        case WIFI_AUTH_WEP: a = "WEP"; break;
+        case WIFI_AUTH_WPA_PSK: a = "WPA"; break;
+        case WIFI_AUTH_WPA2_PSK: a = "WPA2"; break;
+        case WIFI_AUTH_WPA_WPA2_PSK: a = "WPA/WPA2"; break;
+        case WIFI_AUTH_WPA2_ENTERPRISE: a = "WPA2-EAP"; break;
+        case WIFI_AUTH_WPA3_PSK: a = "WPA3"; break;
+        case WIFI_AUTH_WPA2_WPA3_PSK: a = "WPA2/WPA3"; break;
+        case WIFI_AUTH_WAPI_PSK: a = "WAPI"; break;
+        case WIFI_AUTH_OWE: a = "OWE"; break;
+        default: a = "Other"; break;
+    }
+    return std::string(" AUTH=") + a;
+}
+
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
 static std::mutex snifferCacheMutex;
@@ -1058,6 +1077,7 @@ void snifferScanTask(void *pv)
                     memcpy(h.mac, bssidBytes, 6);
                     h.rssi = rssi;
                     h.ch = WiFi.channel(i);
+                    h.auth = WiFi.encryptionType(i);
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
@@ -1112,6 +1132,7 @@ void snifferScanTask(void *pv)
                     memcpy(h.mac, ae.bssid, 6);
                     h.rssi = ae.rssi;
                     h.ch = ae.channel;
+                    h.auth = ae.auth;
                     strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
@@ -1404,13 +1425,16 @@ void snifferScanTask(void *pv)
                       "\nBLE devices: " + std::to_string(bleDeviceCache.size()) + 
                       "\nUnique devices: " + std::to_string(uniqueMacs.size()) + 
                       "\nTarget Hits: " + std::to_string(totalHits) + "\n\n";
-            
+
             HitsVecPsram sortedHits = hitsLog;
-            std::sort(sortedHits.begin(), sortedHits.end(), 
+            std::sort(sortedHits.begin(), sortedHits.end(),
                      [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-            
+            const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
+                     [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
+
             int shown = 0;
             for (const auto& hit : sortedHits) {
+                const bool isTarget = static_cast<size_t>(shown) < nTargets;
                 if (shown++ >= 50) break;
                 results += std::string(hit.isBLE ? "BLE " : "WiFi");
                 char macStr[18];
@@ -1423,6 +1447,8 @@ void snifferScanTask(void *pv)
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
                 }
+                results += fmtAuth(hit);
+                if (isTarget) results += " TARGET";
                 if (hit.isBLE && hit.isApple) results += " APPLE";
                 if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
                 { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
@@ -1533,9 +1559,12 @@ void snifferScanTask(void *pv)
         HitsVecPsram sortedHits = hitsLog;
         std::sort(sortedHits.begin(), sortedHits.end(),
                 [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+        const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
+                [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
 
         int shown = 0;
         for (const auto& hit : sortedHits) {
+            const bool isTarget = static_cast<size_t>(shown) < nTargets;
             if (shown++ >= 100) break;
 
             results += (hit.isBLE ? "BLE  " : "WiFi ");
@@ -1553,6 +1582,29 @@ void snifferScanTask(void *pv)
                 results += "\"";
             }
 
+            if (hadProbes) {
+                char hitMacStr[18];
+                snprintf(hitMacStr, sizeof(hitMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+                std::lock_guard<std::mutex> plock(probeMutex);
+                auto pit = probeDevices.find(String(hitMacStr));
+                if (pit != probeDevices.end() && pit->second.ssidCount > 0) {
+                    bool any = false;
+                    for (uint8_t si = 0; si < pit->second.ssidCount; si++) {
+                        std::string s = sanitizeAsciiStd(pit->second.ssids[si], 33);
+                        if (s.empty()) continue;
+                        if (!any) { results += " probes:"; any = true; }
+                        else results += ",";
+                        bool ghost = respondedSsids.find(String(pit->second.ssids[si])) == respondedSsids.end();
+                        results += (ghost ? "~\"" : "\"") + s + "\"";
+                    }
+                }
+            }
+
+            results += fmtAuth(hit);
+            if (isTarget) results += " TARGET";
+            if (hit.isBLE && hit.isApple) results += " APPLE";
+            if (hit.isBLE && hit.cls[0]) results += std::string(" C=") + hit.cls;
             { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
@@ -2159,6 +2211,51 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     return 0;
 }
 
+static uint8_t extractAuthFromBeacon(const uint8_t *payload, uint16_t length) {
+    if (length < 36) return 0xFF;
+    const bool privacy = (payload[34] & 0x10) != 0;
+    bool rsn = false, wpa = false, psk = false, sae = false, eap = false, owe = false;
+    uint16_t offset = 36;
+    while (offset + 2 <= length) {
+        const uint8_t tag = payload[offset];
+        const uint8_t len = payload[offset + 1];
+        const uint8_t *d = payload + offset + 2;
+        if (offset + 2 + len > length) break;
+        if (tag == 48 && len >= 8) {
+            rsn = true;
+            uint16_t p = 6;
+            const uint16_t pairCount = d[p] | (d[p + 1] << 8);
+            p += 2 + 4 * pairCount;
+            if (p + 2 <= len) {
+                const uint16_t akmCount = d[p] | (d[p + 1] << 8);
+                p += 2;
+                for (uint16_t i = 0; i < akmCount && p + 4 <= len; i++, p += 4) {
+                    if (d[p] != 0x00 || d[p + 1] != 0x0F || d[p + 2] != 0xAC) continue;
+                    switch (d[p + 3]) {
+                        case 1: case 5: case 12: eap = true; break;
+                        case 2: case 6: psk = true; break;
+                        case 8: case 24: sae = true; break;
+                        case 18: owe = true; break;
+                        default: break;
+                    }
+                }
+            }
+        } else if (tag == 221 && len >= 4 && d[0] == 0x00 && d[1] == 0x50 && d[2] == 0xF2 && d[3] == 0x01) {
+            wpa = true;
+        }
+        offset += 2 + len;
+    }
+    if (!privacy && !rsn && !wpa) return WIFI_AUTH_OPEN;
+    if (owe) return WIFI_AUTH_OWE;
+    if (eap) return WIFI_AUTH_WPA2_ENTERPRISE;
+    if (sae && psk) return WIFI_AUTH_WPA2_WPA3_PSK;
+    if (sae) return WIFI_AUTH_WPA3_PSK;
+    if (rsn && wpa) return WIFI_AUTH_WPA_WPA2_PSK;
+    if (rsn) return WIFI_AUTH_WPA2_PSK;
+    if (wpa) return WIFI_AUTH_WPA_PSK;
+    return WIFI_AUTH_WEP;
+}
+
 void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
@@ -2213,6 +2310,7 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
             uint8_t chIe = extractChannelFromIE(p, ppkt->rx_ctrl.sig_len, 36);
             ae.channel = (chIe >= 1 && chIe <= 14) ? chIe : ppkt->rx_ctrl.channel;
             extractSsidFromIE(p, ppkt->rx_ctrl.sig_len, 36, ae.ssid, sizeof(ae.ssid));
+            ae.auth = extractAuthFromBeacon(p, ppkt->rx_ctrl.sig_len);
             BaseType_t woken = pdFALSE;
             xQueueSendFromISR(apInfoQueue, &ae, &woken);
             if (woken) portYIELD_FROM_ISR();
@@ -2820,9 +2918,9 @@ void initializeScanner()
         }
     }
     if (!authFrameQueue) {
-        authFrameQueue = xQueueCreateWithCaps(32, sizeof(AuthFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        authFrameQueue = xQueueCreateWithCaps(64, sizeof(AuthFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (authFrameQueue) {
-            Serial.printf("[INIT] authFrameQueue pre-allocated (32 entries, heap: %u)\n", ESP.getFreeHeap());
+            Serial.printf("[INIT] authFrameQueue pre-allocated (64 entries, heap: %u)\n", ESP.getFreeHeap());
         } else {
             Serial.println("[INIT] authFrameQueue alloc failed at boot");
         }
@@ -3025,20 +3123,81 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 
 // Scan tasks
+static String triModeStr(const String& selected) {
+    if (triangulationActive.load()) {
+        uint8_t r = triTargetRadio.load();
+        if (r == 1) return String("BLE");
+        if (r == 2) return String("WiFi");
+    }
+    return selected;
+}
+
+static const uint8_t FOX_SLOTS = 12;
+static const uint32_t FOX_WINDOW_MS = 60000;
+static const uint8_t FOX_MIN_SAMPLES = 6;
+static const uint32_t FOX_MIN_SPAN_MS = 15000;
+static const float FOX_MIN_CHANGE_DB = 6.0f;
+static const float FOX_MIN_T = 3.0f;
+
+struct FoxTrack {
+    uint32_t ms[FOX_SLOTS] = {};
+    int8_t rssi[FOX_SLOTS] = {};
+    uint8_t head = 0;
+    uint8_t count = 0;
+};
+
+static void foxUpdate(FoxTrack &t, int8_t rssi) {
+    t.ms[t.head] = millis();
+    t.rssi[t.head] = rssi;
+    t.head = (t.head + 1) % FOX_SLOTS;
+    if (t.count < FOX_SLOTS) t.count++;
+}
+
+static std::string foxToken(const FoxTrack &t) {
+    uint32_t now = millis();
+    float xs[FOX_SLOTS], ys[FOX_SLOTS];
+    uint8_t n = 0;
+    uint32_t oldest = 0;
+    for (uint8_t i = 0; i < t.count; i++) {
+        uint32_t age = now - t.ms[i];
+        if (age > FOX_WINDOW_MS) continue;
+        xs[n] = -(float)age / 1000.0f;
+        ys[n] = t.rssi[i];
+        if (age > oldest) oldest = age;
+        n++;
+    }
+    if (n < FOX_MIN_SAMPLES || oldest < FOX_MIN_SPAN_MS) return " TREND=WAIT";
+    float mx = 0, my = 0;
+    for (uint8_t i = 0; i < n; i++) { mx += xs[i]; my += ys[i]; }
+    mx /= n; my /= n;
+    float sxx = 0, sxy = 0;
+    for (uint8_t i = 0; i < n; i++) { sxx += (xs[i] - mx) * (xs[i] - mx); sxy += (xs[i] - mx) * (ys[i] - my); }
+    float slope = sxy / sxx;
+    float sse = 0;
+    for (uint8_t i = 0; i < n; i++) { float r = ys[i] - (my + slope * (xs[i] - mx)); sse += r * r; }
+    float se = sqrtf((sse / (n - 2)) / sxx);
+    float tstat = se > 0 ? slope / se : (slope != 0 ? 1e6f : 0);
+    float change = slope * (oldest / 1000.0f);
+    const char *s = "STEADY";
+    if (fabsf(tstat) >= FOX_MIN_T && fabsf(change) >= FOX_MIN_CHANGE_DB) s = change > 0 ? "CLOSING" : "OPENING";
+    char b[40];
+    snprintf(b, sizeof(b), " TREND=%s(%+.1f)", s, change);
+    return b;
+}
+
 void listScanTask(void *pv) {
     sentinel_kill();
     bool triMode = listScanTriMode.load();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (secs <= 0);
 
-    // Clear old results
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
-
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Target scan starting...\nMode: " + std::string(triModeStr(modeStr).c_str()) + "\n";
+    }
 
     Serial.printf("[SCAN] List scan %s (%s)...\n",
                   forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(),
@@ -3061,6 +3220,9 @@ void listScanTask(void *pv) {
     totalHits = 0;
     std::set<String> seenTargets;
     std::set<String> transmittedDevices;
+    std::map<std::string, FoxTrack> foxTracks;
+    uint32_t lastListProgressUpdate = millis() + 1000;
+    size_t lastListHitCount = SIZE_MAX;
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
@@ -3206,6 +3368,7 @@ void listScanTask(void *pv) {
                 memcpy(wh.mac, bssidBytes, 6);
                 wh.rssi = rssi;
                 wh.ch = WiFi.channel(i);
+                wh.auth = WiFi.encryptionType(i);
                 strncpy(wh.name, apSsid.c_str(), sizeof(wh.name) - 1);
                 wh.name[sizeof(wh.name) - 1] = '\0';
                 wh.isBLE = false;
@@ -3245,6 +3408,7 @@ void listScanTask(void *pv) {
                 memcpy(wh.mac, ae.bssid, 6);
                 wh.rssi = ae.rssi;
                 wh.ch = ae.channel;
+                wh.auth = ae.auth;
                 String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
                 strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
                 wh.name[sizeof(wh.name) - 1] = '\0';
@@ -3345,6 +3509,9 @@ void listScanTask(void *pv) {
                 totalHits = totalHits + 1;
             }
 
+            FoxTrack &fox = foxTracks[std::string(macStr.c_str())];
+            foxUpdate(fox, h.rssi);
+
             String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macStrOrig +
                               " RSSI=" + String(h.rssi) + "dBm";
             if (!h.isBLE && h.ch > 0) logEntry += " CH=" + String(h.ch);
@@ -3352,6 +3519,7 @@ void listScanTask(void *pv) {
                 logEntry += " Name=" + String(h.name);
             }
             if (h.cls[0]) logEntry += " Class=" + String(h.cls);
+            logEntry += foxToken(fox).c_str();
             if (gpsValid) {
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                     logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
@@ -3558,11 +3726,17 @@ void listScanTask(void *pv) {
             Serial.println("[SCAN] Updating IN PROGRESS triangulation results");
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                std::lock_guard<std::mutex> triLock(triangulationMutex);
 
-                std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
+                uint32_t elapsedSec = (millis() - triangulationStart) / 1000;
+                uint32_t remainingSec = (elapsedSec < triangulationDuration) ? (triangulationDuration - elapsedSec) : 0;
+
+                std::string results = "TRIANGULATING: Scanning... " + std::to_string(elapsedSec) + "s elapsed, " +
+                                      std::to_string(remainingSec) + "s remaining\n\n";
+                results += "=== Triangulation Results (IN PROGRESS) ===\n";
                 results += "Target MAC: " + std::string(triangulationTargetStr().c_str()) + "\n";
                 results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
-                results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
+                results += "Elapsed: " + std::to_string(elapsedSec) + "s\n";
                 results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n";
 
                 std::vector<TriangulationNode> liveGps;
@@ -3622,6 +3796,59 @@ void listScanTask(void *pv) {
             }
         }
 
+        if (!triangulationActive && ((int32_t)(millis() - lastListProgressUpdate) >= 0 || hitsLog.size() != lastListHitCount)) {
+            std::string pr = "Target scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\nElapsed: ";
+            pr += std::to_string((millis() - lastScanStart) / 1000) + "s";
+            if (!forever && secs > 0) pr += " / " + std::to_string(secs) + "s";
+            pr += "\nTarget Hits: " + std::to_string(totalHits.load());
+            pr += "\nUnique devices: " + std::to_string(uniqueMacs.size());
+            pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
+            pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
+
+            std::map<std::string, Hit> bestByMac;
+            for (const auto& sh : hitsLog) {
+                char mb[18];
+                snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
+                std::string key(mb);
+                auto it = bestByMac.find(key);
+                if (it == bestByMac.end() || sh.rssi > it->second.rssi) {
+                    bestByMac[key] = sh;
+                }
+            }
+            std::vector<Hit> deduped;
+            deduped.reserve(bestByMac.size());
+            std::transform(bestByMac.begin(), bestByMac.end(), std::back_inserter(deduped),
+                [](const std::pair<const std::string, Hit>& p) { return p.second; });
+            std::sort(deduped.begin(), deduped.end(), [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+            int shown = 0;
+            for (const auto& sh : deduped) {
+                if (shown++ >= 50) break;
+                char mb[18];
+                snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
+                pr += std::string(sh.isBLE ? "BLE " : "WiFi") + " " + mb;
+                pr += " RSSI=" + std::to_string(sh.rssi) + "dBm";
+                pr += fmtRange(sh.rssi, sh.isBLE);
+                if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
+                if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
+                    pr += " \"" + std::string(sh.name) + "\"";
+                pr += fmtAuth(sh) + " TARGET";
+                if (sh.isBLE && sh.cls[0]) pr += std::string(" C=") + sh.cls;
+                { auto ft = foxTracks.find(mb); if (ft != foxTracks.end()) pr += foxToken(ft->second); }
+                { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
+                pr += "\n";
+            }
+            if (deduped.size() > 50) pr += "... (" + std::to_string(deduped.size() - 50) + " more)\n";
+
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = pr;
+            }
+            lastListProgressUpdate = millis() + 2000;
+            lastListHitCount = hitsLog.size();
+        }
+
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 
@@ -3632,6 +3859,7 @@ void listScanTask(void *pv) {
         " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(secs) + "s\n")) +
         "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
         "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
+        "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n" +
         "Target Hits: " + std::to_string(totalHits) + "\n\n";
 
     std::map<String, Hit> hitsMap;
@@ -3675,11 +3903,14 @@ void listScanTask(void *pv) {
             String macOut = macFmt6(e.mac);
             results += " " + std::string(macOut.c_str());
             results += " RSSI=" + std::to_string(e.rssi) + "dBm";
+            results += fmtRange(e.rssi, e.isBLE);
             if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
             }
+            results += fmtAuth(e) + " TARGET";
             if (e.isBLE && e.cls[0]) results += std::string(" C=") + e.cls;
+            { String up = macOut; up.toUpperCase(); auto ft = foxTracks.find(std::string(up.c_str())); if (ft != foxTracks.end()) results += foxToken(ft->second); }
             { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }

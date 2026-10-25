@@ -113,7 +113,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     bool isPriority = isTriangulationMessage;
     size_t msgLen = message.length() + 2;
 
-    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
+    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(1000);
     if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
         Serial.printf("[MESH] Mutex timeout\n");
         return false;
@@ -501,6 +501,32 @@ static void handleDeviceDbClear()
   sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:OK", true);
 }
 
+static void handleProbeDbClear()
+{
+  clearProbeDB();
+  sendToSerial1(nodeId + ": PROBE_DB_CLEAR_ACK:OK", true);
+}
+
+static void handleBaselineReset()
+{
+  if (scanning || workerTaskHandle) {
+    sendToSerial1(nodeId + ": BASELINE_RESET_ACK:BUSY", true);
+    return;
+  }
+  resetBaselineDetection();
+  sendToSerial1(nodeId + ": BASELINE_RESET_ACK:OK", true);
+}
+
+static void handleRandomizationReset()
+{
+  if (scanning || workerTaskHandle) {
+    sendToSerial1(nodeId + ": RANDOMIZATION_RESET_ACK:BUSY", true);
+    return;
+  }
+  resetRandomizationDetection();
+  sendToSerial1(nodeId + ": RANDOMIZATION_RESET_ACK:OK", true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   String nodeID = command.substring(14);
@@ -831,7 +857,7 @@ static void handleDeviceScanStart(const String &command)
       if (captureProbes) {
           probeDetectionEnabled = true;
           if (probeRequestQueue == nullptr) {
-              probeRequestQueue = xQueueCreateWithCaps(128, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+              probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
           } else {
               xQueueReset(probeRequestQueue);
           }
@@ -1215,6 +1241,12 @@ static void handleIncidentsClear(const String &command)
   detect_clearIncidents();
   sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
 }
+
+static void handleDetectClear()
+{
+  detect_clearAll();
+  sendToSerial1(nodeId + ": DETECT_CLEAR_ACK:OK", true);
+}
 #endif
 
 static String detectArg(const String &command)
@@ -1459,6 +1491,12 @@ static void handleTriangulateStart(const String &command, const String &targetId
       if (target.length() < 6 || duration <= 0) {
           Serial.printf("[TRIANGULATE] Invalid parameters - target='%s' duration=%d\n",
                        target.c_str(), duration);
+          return;
+      }
+
+      uint8_t dMac[6];
+      if (!target.startsWith("T-") && !parseMac6(target, dMac)) {
+          Serial.printf("[TRIANGULATE] Invalid target MAC '%s' - ignoring directed command\n", target.c_str());
           return;
       }
 
@@ -2271,7 +2309,7 @@ static bool schedScanBusy() {
   return scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive;
 }
 
-static bool schedulerYieldRadio(const char *who) {
+bool schedulerYieldRadio(const char *who) {
   if (!s_runEndMs || !schedScanBusy()) return false;
   int32_t left = (int32_t)(s_runEndMs - millis()) / 1000;
   s_runEndMs = 0;
@@ -2434,6 +2472,8 @@ static void selftestCampaignCheck() {
 static const char *const kCmdAliases[][2] = {
   {"CC", "CONFIG_CHANNELS"},      {"CEP", "CONFIG_ERASE_PSK"},       {"CDT", "CONFIG_DEDUP_TTL"},
   {"CSD", "CONFIG_SESSION_DEDUP"}, {"MDC", "MESH_DEDUP_CLEAR"},      {"DBX", "DEVICE_DB_CLEAR"},
+  {"PDX", "PROBE_DB_CLEAR"},       {"BLR", "BASELINE_RESET"},        {"RRX", "RANDOMIZATION_RESET"},
+  {"DCX", "DETECT_CLEAR"},
   {"CT", "CONFIG_TARGETS"},
   {"CN", "CONFIG_NODEID"},        {"CR", "CONFIG_RSSI"},             {"SS", "SCAN_START"},
   {"BLS", "BASELINE_START"},      {"BLQ", "BASELINE_STATUS"},        {"BLW", "BASELINE_WATCH"},
@@ -2520,6 +2560,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
   else if (command == "MESH_DEDUP_CLEAR")             handleMeshDedupClear();
   else if (command == "DEVICE_DB_CLEAR")              handleDeviceDbClear();
+  else if (command == "PROBE_DB_CLEAR")               handleProbeDbClear();
+  else if (command == "BASELINE_RESET")               handleBaselineReset();
+  else if (command == "RANDOMIZATION_RESET")          handleRandomizationReset();
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("SCHED_ADD:"))          handleSchedAdd(command);
   else if (command == "SCHED_LIST")                   handleSchedList();
@@ -2578,6 +2621,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (cmdIs(command, "DETECT_CFG_GET"))          handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
   else if (cmdIs(command, "INCIDENTS_CLEAR"))         handleIncidentsClear(command);
+  else if (command == "DETECT_CLEAR")                 handleDetectClear();
   else if (cmdIs(command, "INCIDENTS"))               handleIncidents(command);
   else if (command == "DETECT_COUNTS")                handleDetectCounts(command);
 #endif

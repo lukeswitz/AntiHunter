@@ -922,7 +922,7 @@ void scheduleTick() {
   last = millis();
   if (s_runEndMs && !scanBusy()) s_runEndMs = 0;
   if (scanBusy() || triangulationActive) return;
-  if (attack_responsePending() || vibAutoScanWaiting()) return;
+  if (attack_responsePending() || vibAutoScanPending || vibAutoScanWaiting()) return;
   if (s_resumePath.length()) {
     int rc = schedPost(s_resumePath, s_resumeBody);
     if (rc == 0 || rc == 409) return;

@@ -5108,6 +5108,7 @@ static const char *kDetectLogs[] = {
     "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl", "/ssid_confusion.jsonl",
     "/owe_abuse.jsonl", "/fragattack.jsonl", "/ble_malformed.jsonl", "/ble_attack.jsonl",
     "/ble_follow.jsonl", "/eapol_bait.jsonl", "/probe_flood.jsonl", "/probe_ap.jsonl",
+    "/jamming.jsonl", "/beacon_dos.jsonl", "/meshradio.jsonl",
     "/incidents.jsonl"
 };
 static constexpr size_t kDetectLogCount = sizeof(kDetectLogs) / sizeof(kDetectLogs[0]);

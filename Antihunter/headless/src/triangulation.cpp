@@ -636,6 +636,38 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
 
 // Traingulation actions
 
+static void triAbortCleanup(const char *reason) {
+    if (triangulationInitiator && !triStopCameFromMesh) {
+        sendMeshCommand("@ALL TRIANGULATE_STOP");
+        Serial.println("[TRIANGULATE] Abort - STOP broadcast to child nodes");
+    }
+    triSetupAbort.store(false);
+    coordinatorSetupTaskHandle = nullptr;
+    triangulationActive = false;
+    triangulationInitiator = false;
+    triangulationDuration = 0;
+    waitingForFinalReports = false;
+    stopSentTimestamp = 0;
+    triangulationOrchestratorAssigned = false;
+    triStopCameFromMesh = false;
+    listScanTriMode = false;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        triangulateAcks.clear();
+        triangulateReportedNodes.clear();
+        triangulationNodes.clear();
+        nodeSyncStatus.clear();
+        nodePropagationDelays.clear();
+    }
+    reportingSchedule.reset();
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Triangulation stopped.";
+    }
+    lastTriangulationStopTime = millis();
+    Serial.printf("[TRIANGULATE] %s\n", reason);
+}
+
 // Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
 void coordinatorSetupTask(const void *parameter) {
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(parameter));
@@ -660,7 +692,7 @@ void coordinatorSetupTask(const void *parameter) {
             vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
-    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
+    if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
     int ackedChildren;
@@ -713,15 +745,14 @@ void coordinatorSetupTask(const void *parameter) {
                   cycleStartMs, nodeList.size(), nodeListStr.c_str());
 
     vTaskDelay(pdMS_TO_TICKS(500));
-    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
+    if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
         listScanTriMode = true;
         if (ahCreateTask(listScanTask, "triangulate", 8192,
                 reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
-            Serial.println("[TRIANGULATE] scan task create failed - aborting setup");
             workerTaskHandle = nullptr;
-            coordinatorSetupTaskHandle = nullptr;
+            triAbortCleanup("scan task create failed - aborting setup");
             vTaskDelete(NULL);
         }
     }
@@ -1171,6 +1202,7 @@ void stopTriangulation() {
                 selfNode.lat = lat;
                 selfNode.lon = lon;
                 selfNode.hdop = hdop;
+                selfNode.gpsSamples = 1;
                 selfNode.rssi = avgRssi;
                 selfNode.hitCount = totalHits;
                 selfNode.hasGPS = hasGPS;
@@ -1797,6 +1829,7 @@ String calculateTriangulation() {
         results += "Suggestions:\n";
         results += "  • Reposition nodes (120 degree separation ideal)\n";
         results += "  • Improve with more runtime\n";
+        results += "  • Add more GPS nodes\n";
     }
 
     results += "\n=== End Triangulation ===\n";

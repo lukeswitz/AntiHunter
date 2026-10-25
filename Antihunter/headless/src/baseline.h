@@ -127,6 +127,7 @@ void updateBaselineStats();
 // Baseline configuration getters/setters
 int8_t getBaselineRssiThreshold();
 void setBaselineRssiThreshold(int8_t threshold);
+void resetBaselineDetection();
 uint32_t getBaselineRamCacheSize();
 void setBaselineRamCacheSize(uint32_t size);
 uint32_t getBaselineSdMaxDevices();

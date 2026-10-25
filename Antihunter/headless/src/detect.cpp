@@ -4692,3 +4692,50 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "ar_secs_drone", g_arSecsDrone);
     return true;
 }
+
+static const char *kDetectLogs[] = {
+    "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl", "/sae_dos.jsonl",
+    "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl", "/ssid_confusion.jsonl",
+    "/owe_abuse.jsonl", "/fragattack.jsonl", "/ble_malformed.jsonl", "/ble_attack.jsonl",
+    "/ble_follow.jsonl", "/eapol_bait.jsonl", "/probe_flood.jsonl", "/probe_ap.jsonl",
+    "/jamming.jsonl", "/beacon_dos.jsonl", "/meshradio.jsonl",
+    "/incidents.jsonl"
+};
+static constexpr size_t kDetectLogCount = sizeof(kDetectLogs) / sizeof(kDetectLogs[0]);
+
+void detect_clearAll() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_pmkidLog.clear();
+    g_pmkidBursts.clear();
+    g_evilTwinLog.clear();
+    g_ssidConfusionLog.clear();
+    g_saeDosLog.clear();
+    g_saeCounters.clear();
+    g_oweAbuseLog.clear();
+    g_fragLog.clear();
+    g_bleMalformedLog.clear();
+    g_ridClaims.clear();
+    g_alerts.clear();
+    g_recon.clear();
+    g_apBaseline.clear();
+    g_pgGraph.clear();
+    g_hshk.clear();
+    g_krackEvents.store(0);
+    g_hunts.clear();
+    g_pwna.clear();
+    g_meshRadio.clear();
+    g_karma.clear();
+    g_karmaSsids.clear();
+    g_baitSsids.clear();
+    g_tofPeers.clear();
+    g_tofPending.clear();
+    g_localBloom.clear();
+    g_neighborBloom.clear();
+    g_meshRateMap.clear();
+    g_deauthRate.clear();
+    g_assocSleep.clear();
+    g_authFlood.clear();
+    for (size_t i = 0; i < kDetectLogCount; ++i) {
+        if (SafeSD::exists(kDetectLogs[i])) SafeSD::remove(kDetectLogs[i]);
+    }
+}

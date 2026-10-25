@@ -375,6 +375,7 @@ struct MeshRadioSighting {
 };
 
 size_t meshradio_count();
+void detect_clearAll();
 
 // =============================================================================
 // Feature 6: Attacker reverse-trilateration
@@ -463,6 +464,7 @@ bool   detect_getAttackerTrilat();
 #define AR_DEVICE 0x04
 #define AR_PROBE  0x08
 #define AR_DRONE  0x10
+#define AR_PREEMPT 0x20
 void    attack_responseArm(const uint8_t *mac, const char *attackType);
 void    attack_responseCancel();
 void    attack_responsePump();
