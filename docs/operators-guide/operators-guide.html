@@ -330,7 +330,7 @@
   <p>Connect a USB-C cable to the <b>ESP32</b> only and open a serial monitor at 115200 baud. The firmware prints its banner and version, then the result of each hardware check: SD card, GPS, RTC, vibration sensor. It names any module that failed to start. On Full firmware a Wi-Fi access point named <span class="mono">Antihunter</span> also appears within a few seconds.</p>
 
   <h3>4.2 Confirming the hardware</h3>
-  <p>On Full firmware, System tab → <b>System Diagnostics</b> reports each subsystem:</p>
+  <p>On Full firmware, System tab → <b>Diagnostics</b> reports each subsystem:</p>
   <ul>
     <li><b>SD card.</b> Mounted and writable. Without it the node still scans but logs nothing.</li>
     <li><b>GPS.</b> Reports a fix once it has one. It needs a clear view of the sky and may never lock indoors. Detections carry coordinates only when the fix is valid.</li>
@@ -739,7 +739,7 @@ python3 scripts/meshtastic_config.py</pre>
     <pre>@ALL SD_REPAIR:ON
 @ALL SD_REPAIR:NOW
 @ALL SD_REPAIR:OFF</pre>
-    <p><span class="mono">ON</span> allows the rebuild, <span class="mono">OFF</span> forbids it. <span class="mono">NOW</span> tries to mount the card once, rebuilding it if every attempt fails, without changing the setting. With repair off, a failed mount says so once a minute and the SD line in System Diagnostics counts the failures.</p>
+    <p><span class="mono">ON</span> allows the rebuild, <span class="mono">OFF</span> forbids it. <span class="mono">NOW</span> tries to mount the card once, rebuilding it if every attempt fails, without changing the setting. With repair off, a failed mount says so once a minute and the SD line in System tab → <b>Diagnostics</b> counts the failures.</p>
   </div>
 
   <h3>9.12 Scheduling scans</h3>
@@ -799,7 +799,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li>Optionally starts a scan (§10.3)</li>
     <li>Counts toward the tamper auto-erase trigger when you arm it (§10.4)</li>
   </ul>
-  <p>Alerts are on by default. The node sends at most one vibration alert every 3 seconds, and logs and scans at the same rate. The tamper count sees every movement. System Diagnostics shows <span class="mono">Standby</span>, or <span class="mono">Active</span> with the time of the last movement.</p>
+  <p>Alerts are on by default. The node sends at most one vibration alert every 3 seconds, and logs and scans at the same rate. The tamper count sees every movement. System tab → <b>Diagnostics</b> shows <span class="mono">Standby</span>, or <span class="mono">Active</span> with the time of the last movement.</p>
   <p>Turn mesh alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or with <b>Mesh alert</b> under System tab → <b>Settings</b> → <b>Sensors &amp; power</b> → <b>Vibration sensor</b>. <span class="mono">VIBRATION_STATUS</span> reports whether alerts are on and the seconds since the last movement.</p>
 
   <h3 id="s10-2">10.2 Tuning the trimpot</h3>

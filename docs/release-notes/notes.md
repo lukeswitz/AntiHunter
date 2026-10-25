@@ -36,16 +36,17 @@ This applies to all three channels.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for Headless nodes.
 
 **Web UI**
-- System tab: one **Settings** area replaces the settings cards. A menu on the left (tabs on a phone) selects the section: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.
+- System tab: one menu on the left (tabs on a phone) opens **Diagnostics**, **Fleet**, and the **Settings** sections: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.
 - System tab: **Set RTC from this browser's clock** sets the node's clock.
 - Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System tab → **Settings** → **Access point** → **Web login**, or with `webPass` in the flasher config. Turn the login off in the same place, or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. You can't change either over mesh. The login does not affect scheduled scans.
 - Theme: Paper dark is the new default. Blue dark and Light remain under **Settings** → **Appearance**. In Paper dark, the default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners. A chosen accent scheme overrides them.
+- Sentinel tab: **Incidents** shows Sentinel Analysis and the session incidents at full width. **Mesh & thresholds** lays out the mesh alert switches and the thresholds in grids.
 - Sentinel tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a Pwnagotchi card, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
 - Scan tab: the split device scan moved here from the Fleet card. It is **Split across nodes** under Schedule when you select Device Discovery.
 - Scan tab, Target card: Targets and Allow list sit above the scan options. Trend badges read Steady and Measuring. A Movement toggle sits in the Forever/Triangulate row.
 - Baseline: the button is now **Compare from now**. It appears only after the node builds the baseline and starts monitoring.
 - Results: Wi-Fi rows show the advertised auth. The firmware marks target hits and lists them first. One sorter serves all result lists and offers only the options that apply. Collapsed sections stay closed. The toolbar is a full-width bar.
-- Data tab: a campaign picker, a From/To date filter for every dataset, and summary tiles for rows, first and last time, unique MACs, and the top 3 values. Long values wrap instead of being cut off. Date filtering needs the node's clock. Without it, only system log lines match a campaign.
+- Data tab: a campaign picker, a From/To date filter for every dataset, and one row of summary tiles for rows, first and last time, unique MACs, and the top 3 vendors, senders, or types. Long values wrap instead of being cut off. **Baseline Stats** shows the baseline status in tiles and its settings in a table. Date filtering needs the node's clock. Without it, only system log lines match a campaign.
 - Campaigns: one Data tab panel starts and stops a campaign on this node and on checked mesh nodes. A REC badge shows in the header. **Export campaign** saves it. Rows in the `.jsonl` files carry `campaign` and filter by it.
 - Text: help under each setting is a few words, and toasts, dialogs, and the node's replies are short plain sentences. Each detector has one name in the Sentinel tab, the settings, and the web flasher. Bloom Gossip is now Baseline Sharing.
 
@@ -110,6 +111,7 @@ This applies to all three channels.
 - BLE classes: Apple Nearby Info read the activity state from the wrong half of the byte and the Wi-Fi flag from the wrong bit. Labels are now `Nearby-<state>`. Before, an active iPhone showed as `iPhone-Idle`. Apple types 0x09, 0x0A, 0x0D, 0x0E, and 0x0F now read AirPlay-Target, AirPlay-Source, Tethering-Target, Tethering-Source, and Nearby-Action.
 - BLE classes: Microsoft beacons carry the MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and the Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - The Data tab search keeps the selected sort column.
+- Vendor names are brand names, such as Sony, Nokia, or Hitachi. Before, the vendor table cut company names at 20 characters, such as "Nokia Solutions and". The Data tab's top-vendor tile counted devices with no vendor by MAC address.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.

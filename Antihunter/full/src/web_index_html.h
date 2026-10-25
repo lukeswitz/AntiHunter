@@ -48,7 +48,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       input[type="checkbox"]:checked::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:14px;font-weight:bold}
       input[type="number"]{-moz-appearance:textfield}
       input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-      .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:8px;border:2px solid var(--bord);background:var(--surf);color:var(--txt);text-decoration:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;white-space:nowrap}
+      .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:8px;border:2px solid var(--bord);background:var(--surf);color:var(--txt);text-decoration:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;white-space:nowrap;line-height:normal}
       .btn::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:rgba(255,255,255,0.1);transform:translate(-50%,-50%);transition:width 0.4s,height 0.4s}
       .btn:hover::before{width:300px;height:300px}
       .btn:hover{transform:translateY(-2px);box-shadow:var(--shad-hover);border-color:var(--bord-focus)}
@@ -330,16 +330,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .dsw input:focus-visible+.dsw-s{outline:2px solid var(--acc);outline-offset:2px}
       #page-system>.card{margin-bottom:16px}
       .card-header:has(+.card-body.collapsed){margin-bottom:0}
-      .set-wrap{display:flex;flex-wrap:wrap;align-items:flex-start;gap:32px;margin-top:24px}
-      .set-nav{flex:0 1 220px;min-width:200px;display:flex;flex-direction:column;gap:2px}
+      .set-wrap{display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px}
+      .set-nav{flex:0 1 210px;min-width:190px;display:flex;flex-direction:column;gap:2px}
       .set-nav-h{padding:0 10px 10px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
       .set-nav-b{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--mut);font:inherit;font-size:14px;font-weight:500;text-align:left;cursor:pointer}
-      .set-nav-b::before{content:"";width:6px;height:6px;flex-shrink:0;background:transparent}
       .set-nav-b:hover{color:var(--txt)}
-      .set-nav-b.on{background:var(--surf-hover);color:var(--txt)}
-      .set-nav-b.on::before{background:var(--acc)}
+      .set-nav-b.on{background:var(--surf-hover);color:var(--txt);box-shadow:inset 3px 0 0 var(--acc)}
       .set-nav-b.dz,.set-sec h2.dz{color:var(--dang)}
-      .set-nav-b.dz.on::before{background:var(--dang)}
+      .set-nav-b.dz.on{box-shadow:inset 3px 0 0 var(--dang)}
       .set-main{flex:999 1 560px;min-width:0}
       .set-sec{display:none;flex-direction:column;gap:28px}
       .set-sec.on{display:flex}
@@ -365,7 +363,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .sfoot-t{flex:1 1 260px;font-size:13px;color:var(--mut)}
       .sfoot-b{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
       .set-pill{padding:4px 10px;border:1px solid var(--bord);border-radius:999px;font-size:12px}
-      @media(max-width:899px){.set-wrap{gap:20px}.set-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none}.set-nav-h,.set-nav-b::before{display:none}.set-nav-b{width:auto;flex-shrink:0;border:1px solid var(--bord);border-radius:999px;padding:0 14px;white-space:nowrap}.set-nav-b.on{border-color:var(--acc)}.srow{padding:14px 16px}.srow:not(.tog) .srow-c{flex:1 1 100%;justify-content:flex-start}.srow.tog{flex-wrap:nowrap}.srow.tog .srow-l{flex:1 1 0}.srow.tog .srow-c{flex:0 0 auto}.sfoot{padding:12px 16px}.srow-c .chip-row{justify-content:flex-start}}
+      @media(max-width:899px){.set-wrap{gap:20px}.set-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none}.set-nav-h{display:none}.set-nav-b{width:auto;flex-shrink:0;border:1px solid var(--bord);border-radius:999px;padding:0 14px;white-space:nowrap}.set-nav-b.on{border-color:var(--acc);box-shadow:none}.srow{padding:14px 16px}.srow:not(.tog) .srow-c{flex:1 1 100%;justify-content:flex-start}.srow.tog{flex-wrap:nowrap}.srow.tog .srow-l{flex:1 1 0}.srow.tog .srow-c{flex:0 0 auto}.sfoot{padding:12px 16px}.srow-c .chip-row{justify-content:flex-start}}
       .help-q{cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;vertical-align:middle}
       @media(max-width:899px){
         .scan-work{grid-template-columns:1fr}
@@ -981,7 +979,7 @@ R"HTML(
           </div>
           <div class="scan-run">
             <div class="sched-head"><span class="card-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><b>Schedule</b></div>
-            <div class="det-desc" style="margin:0;">Runs the selected scan at set times on the node, with this page closed, using the options set on the left.</div>
+            <div class="det-desc" style="margin:0;">Runs this scan at set times, even with this page closed.</div>
             <button type="button" class="sched-add" id="schedAddBtn" onclick="schedOpen(true)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="schedAddLbl">Schedule this scan</span></button>
             <div class="sched-sheet" id="schedSheet" style="display:none;">
               <input type="hidden" id="schScan">
@@ -1054,9 +1052,25 @@ R"HTML(
 
       <div class="page-tab" id="page-system">
 
-      <div class="card" style="margin-bottom:16px;">
-          <h3>System Diagnostics</h3>
-          <p class="card-sub">Live node telemetry · <span id="diagNodeId">--</span> · <span id="diagAge">live</span></p>
+      <div class="set-wrap">
+        <nav class="set-nav" aria-label="System sections">
+          <div class="set-nav-h">System</div>
+          <button type="button" class="set-nav-b on" aria-current="true" data-sec="setDiag" onclick="setSec(this)">Diagnostics</button>
+          <button type="button" class="set-nav-b" data-sec="setFleet" onclick="setSec(this)">Fleet</button>
+          <div class="set-nav-h" style="padding-top:18px;">Settings</div>
+          <button type="button" class="set-nav-b" data-sec="setScan" onclick="setSec(this)">Scanning</button>
+          <button type="button" class="set-nav-b" data-sec="setMesh" onclick="setSec(this)">Node &amp; mesh</button>
+          <button type="button" class="set-nav-b" data-sec="setAp" onclick="setSec(this)">Access point</button>
+          <button type="button" class="set-nav-b" data-sec="setSensors" onclick="setSec(this)">Sensors &amp; power</button>
+          <button type="button" class="set-nav-b" data-sec="setStorage" onclick="setSec(this)">Storage</button>
+          <button type="button" class="set-nav-b" data-sec="setLook" onclick="setSec(this)">Appearance</button>
+          <button type="button" class="set-nav-b dz" data-sec="setDanger" onclick="setSec(this)">Danger zone</button>
+        </nav>
+        <div class="set-main">
+
+          <section class="set-sec on" id="setDiag">
+            <header><h2>Diagnostics</h2><p>Live node telemetry · <span id="diagNodeId">--</span> · <span id="diagAge">live</span></p></header>
+            <div>
           <div class="tab-buttons">
             <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
             <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
@@ -1076,21 +1090,13 @@ R"HTML(
             <div style="margin-top:8px;"><button class="btn alt" onclick="rtcFromBrowser()">Set RTC from this browser's clock</button> <span id="rtcSetMsg" style="font-size:12px;color:var(--mut);"></span></div>
           </div>
           <div id="network" class="tab-content"><div id="networkDiag">Loading...</div></div>
-      </div>
+            </div>
+          </section>
 
-      <div class="card" style="margin-bottom:16px;">
-        <div class="card-header" onclick="toggleCollapse('fleetCard')" style="align-items:flex-start;gap:12px;flex-wrap:wrap;">
-          <div>
-            <h3 style="margin:0;">Fleet</h3>
-            <p class="card-sub" style="margin:4px 0 0;">Nodes and mesh radios heard on the mesh channel</p>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;margin-left:auto;">
-            <span class="res-toolbar-lab" id="fleetCount">--</span>
-            <span class="collapse-icon open" id="fleetCardIcon">&#9654;</span>
-          </div>
-        </div>
-        <div class="card-body" id="fleetCardBody">
-          <div class="res-toolbar" style="margin-top:14px;justify-content:flex-end;">
+          <section class="set-sec" id="setFleet">
+            <header style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;"><div><h2>Fleet</h2><p>Nodes and mesh radios heard on the mesh channel.</p></div><span class="res-toolbar-lab" id="fleetCount">--</span></header>
+            <div>
+          <div class="res-toolbar" style="justify-content:flex-end;">
             <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
             <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
             <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
@@ -1101,23 +1107,10 @@ R"HTML(
             <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
           </div>
           <div id="fleetRadios" class="res-list" style="margin-top:12px;"></div>
-        </div>
-      </div>
+            </div>
+          </section>
 
-      <div class="set-wrap">
-        <nav class="set-nav" aria-label="Settings sections">
-          <div class="set-nav-h">Settings</div>
-          <button type="button" class="set-nav-b on" aria-current="true" data-sec="setScan" onclick="setSec(this)">Scanning</button>
-          <button type="button" class="set-nav-b" data-sec="setMesh" onclick="setSec(this)">Node &amp; mesh</button>
-          <button type="button" class="set-nav-b" data-sec="setAp" onclick="setSec(this)">Access point</button>
-          <button type="button" class="set-nav-b" data-sec="setSensors" onclick="setSec(this)">Sensors &amp; power</button>
-          <button type="button" class="set-nav-b" data-sec="setStorage" onclick="setSec(this)">Storage</button>
-          <button type="button" class="set-nav-b" data-sec="setLook" onclick="setSec(this)">Appearance</button>
-          <button type="button" class="set-nav-b dz" data-sec="setDanger" onclick="setSec(this)">Danger zone</button>
-        </nav>
-        <div class="set-main">
-
-          <section class="set-sec on" id="setScan">
+          <section class="set-sec" id="setScan">
             <header><h2>Scanning</h2><p>Applies to every scan.</p></header>
             <div class="set-grp">
               <h3>Signal filter</h3>
@@ -1342,7 +1335,7 @@ R"HTML(
                   <div class="srow-l"><label for="vibScanPre">Interrupt scheduled scans</label><p>Pauses a scheduled scan. It resumes after.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="vibScanPre"><span class="dsw-s"></span></label></div>
                 </div>
-                <div class="sfoot"><span class="sfoot-t">Skipped if a scan is already running or during battery saver, unless the running scan is scheduled and Interrupt is on.</span><button class="btn primary" type="button" onclick="saveVibScanConfig()">Save</button></div>
+                <div class="sfoot"><span class="sfoot-t">Skipped during another scan or battery saver.</span><button class="btn primary" type="button" onclick="saveVibScanConfig()">Save</button></div>
               </div>
             </div>
             <div class="set-grp">
@@ -1575,7 +1568,7 @@ R"HTML(
                 </div>
                 <div class="srow">
                   <div class="srow-l"><label for="factoryWipeConfirm">Erase key</label><p id="factoryWipeHint">Enter your erase key</p></div>
-                  <div class="srow-c"><input type="text" id="factoryWipeConfirm" placeholder="erase key" autocomplete="off" style="flex:1;"><button class="btn danger" type="button" id="factoryWipeBtn" onclick="requestFactoryWipe()">WIPE EVERYTHING</button></div>
+                  <div class="srow-c"><input type="text" id="factoryWipeConfirm" placeholder="erase key" autocomplete="off" style="flex:1;"><button class="btn danger" type="button" id="factoryWipeBtn" onclick="requestFactoryWipe()">Wipe everything</button></div>
                 </div>
                 <div id="factoryWipeStatus" class="srow-msg" style="display:none;"></div>
               </div>
@@ -1598,15 +1591,15 @@ R"HTML(
         .dn-main{flex:999 1 520px;min-width:0;display:flex;flex-direction:column;gap:16px}
         .dn-main h2{margin:0 0 6px;font-size:22px;font-weight:600;color:var(--txt)}
         .dn-desc{margin:0;color:var(--mut)}
-        .dn-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+        .dn-tiles{display:flex;flex-wrap:wrap;gap:10px}
         .dn-tiles:empty{display:none}
-        .dn-tile{border:1px solid var(--bord);border-radius:8px;background:var(--surf);padding:12px 16px;min-width:0}
+        .dn-tile{flex:1 1 110px;border:1px solid var(--bord);border-radius:8px;background:var(--surf);padding:12px 16px;min-width:0}
         .dn-tile small{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
         .dn-tile div{margin-top:4px;font:500 18px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);overflow-wrap:break-word}
+        .dn-tile.sm{flex:1.4 1 150px}
         .dn-tile.sm div,.dn-tile.wide div{font-size:14px;line-height:1.5}
-        .dn-tile.wide{grid-column:span 2}
+        .dn-tile.wide{flex:2 1 210px}
         .dn-tile.wide b{font-weight:600;color:var(--mut)}
-        @media (max-width:360px){.dn-tile.wide{grid-column:auto}}
         .dn-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
         .dn-bar input[type=text]{flex:1 1 220px;min-width:0}
         .dn-bar select{width:auto}
@@ -1642,7 +1635,7 @@ R"HTML(
         </nav>
         <div class="dn-main">
         <div id="dataView" class="dn-main" style="flex:none;">
-        <div><div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;"><h2 id="dataTitle">All devices</h2><span id="dataTzLbl" style="font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);">Times shown in UTC</span></div><p class="dn-desc" id="dataDesc"></p></div>
+        <div><div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;"><h2 id="dataTitle">All Devices</h2><span id="dataTzLbl" style="font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);">Times shown in UTC</span></div><p class="dn-desc" id="dataDesc"></p></div>
         <div id="dataSummary" class="dn-tiles"></div>
         <div class="dn-bar">
           <select id="dataSet" onchange="loadDataSet()" style="display:none;">
@@ -1667,7 +1660,7 @@ R"HTML(
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
           <a class="btn alt" id="dataExport" download style="padding:8px 14px;font-size:12px;">Export</a>
           <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear dataset</button>
-          <button class="btn privacy-toggle" type="button" onclick="togglePrivacy()" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;"></button>
+          <button class="btn privacy-toggle" id="dataPriv" type="button" onclick="togglePrivacy()" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;"></button>
         </div>
         <div class="dn-box">
           <div id="dataArea" style="overflow-x:auto;">
@@ -1719,11 +1712,6 @@ R"HTML(
           #page-detect details>summary::-webkit-details-marker{display:none}
           #page-detect details>summary>span:first-child{display:inline-block;width:10px;transition:transform .15s}
           #page-detect details[open]>summary>span:first-child{transform:rotate(90deg)}
-          #page-detect .det-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bord)}
-          #page-detect .det-row:last-child{border-bottom:0}
-          #page-detect .det-row .name{flex:1;color:var(--txt)}
-          #page-detect .det-row label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);margin:0;cursor:pointer}
-          #page-detect .det-row input[type=checkbox]{margin:0;cursor:pointer}
           #page-detect .num{font-family:monospace;color:var(--acc);font-weight:700}
           #page-detect .log-pre{max-height:240px;overflow:auto;font-size:15px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
           #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
@@ -1753,7 +1741,14 @@ R"HTML(
           .det-quick button{padding:2px 7px;font-size:11px;min-height:0;line-height:1.4}
           #det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;align-items:start}
           #det-grid>.card{margin:0}
+          #det-grid>.card[data-key="analysis"],#det-grid>.card[data-key="events"]{grid-column:1/-1}
           #det-grid .log-pre{max-height:180px}
+          .mc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+          .mc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px 20px}
+          .mc-item{display:flex;align-items:center;gap:10px;padding:6px 0;margin:0;font-size:13px;font-weight:400;text-transform:none;color:var(--txt);cursor:pointer}
+          .mc-thr{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 20px;align-items:end}
+          .mc-thr label{display:block;font-size:12px;font-weight:500;text-transform:none;color:var(--mut);margin:0 0 4px}
+          .mc-foot{display:flex;justify-content:flex-end;margin-top:10px}
           @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
         </style>
 
@@ -1892,7 +1887,7 @@ R"HTML(
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
               <button class="btn" onclick="detectClearSession()">Clear Session</button>
-              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State also deletes SD logs. Clear Session only resets counts.</span>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State also deletes SD logs.</span>
             </div>
           </div>
         </div>
@@ -1911,7 +1906,7 @@ R"HTML(
 
         <div class="card" data-key="apclients">
           <div class="card-header" onclick="toggleCollapse('apClientsCard')">
-            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(devices connected to this node's Wi-Fi)</span></h3>
+            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients</h3>
             <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
           </div>
           <div class="card-body" id="apClientsCardBody">
@@ -1921,7 +1916,7 @@ R"HTML(
 
         <div class="card" data-key="meshcmd">
           <div class="card-header" onclick="toggleCollapse('meshCmdCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Mesh Commands <span style="font-size:11px;color:var(--mut);">(radio id &rarr; command)</span></h3>
+            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Mesh Commands</h3>
             <span class="collapse-icon open" id="meshCmdCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshCmdCardBody">
@@ -2013,7 +2008,7 @@ R"HTML(
 
         <div class="card" data-key="meshradios">
           <div class="card-header" onclick="toggleCollapse('meshRadiosCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios <span style="font-size:11px;color:var(--mut);">(radios on this channel that are not AntiHunter nodes)</span></h3>
+            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios</h3>
             <span class="collapse-icon open" id="meshRadiosCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshRadiosCardBody">
@@ -2094,44 +2089,37 @@ R"HTML(
         <div id="ble-rows" style="display:none;"></div>
 
         <div class="card" data-key="meshcfg">
-          <div class="card-header" onclick="toggleCollapse('detConfigCard')">
-            <h3><span class="sev info">config</span>Mesh &amp; Thresholds</h3>
-            <span class="collapse-icon" id="detConfigCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detConfigCardBody">
-            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Detector switches are on the Detectors tab.</p>
-            <div class="det-quick" style="margin-bottom:6px;">
-              <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
-              <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
+          <h3>Mesh &amp; Thresholds</h3>
+          <div class="ar-box">
+            <div class="mc-head">
+              <div><div class="ar-head">Send alerts over mesh</div><div class="ar-sub" style="margin:0;">Turn detectors on in the Detectors tab.</div></div>
+              <div class="det-quick">
+                <button class="btn alt" onclick="detPreset('mesh-all')">All on</button>
+                <button class="btn alt" onclick="detPreset('mesh-silent')">All off</button>
+              </div>
             </div>
-            <details open>
-              <summary><span>▶</span> Mesh Broadcast (send detections over mesh)</summary>
-              <div id="cfg-mesh"></div>
-            </details>
-            <details>
-              <summary><span>▶</span> Thresholds &amp; Timing</summary>
-              <div id="cfg-thresh" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
-              <button class="btn primary" onclick="detSaveThresh()" style="margin-top:8px;">Save Thresholds</button>
-            </details>
+            <div id="cfg-mesh" class="mc-grid" style="margin-top:8px;"></div>
+          </div>
+          <div class="ar-box">
+            <div class="ar-head" style="margin-bottom:10px;">Thresholds</div>
+            <div id="cfg-thresh" class="mc-thr"></div>
+            <div class="mc-foot"><button class="btn primary" onclick="detSaveThresh()">Save thresholds</button></div>
           </div>
         </div>
 
         <div class="card" data-key="meshdef">
-          <div class="card-header" onclick="toggleCollapse('detMeshCard')">
-            <h3><span class="sev info">mesh</span>Mesh Defense</h3>
-            <span class="collapse-icon open" id="detMeshCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detMeshCardBody">
-            <div style="font-size:12px;line-height:1.7;">
-              <div><span class="lbl">PPS Lock:</span><span id="d-pps" class="num">--</span></div>
-              <div><span class="lbl">Bloom Local:</span><span id="d-bl" class="num">--</span></div>
-              <div><span class="lbl">Bloom Neighbor:</span><span id="d-bn" class="num">--</span></div>
-              <div><span class="lbl">Quorum Candidates:</span><span id="d-qc" class="num">0</span></div>
-              <div><span class="lbl">Verbose Log:</span><span id="d-verbose" class="num">--</span>
-                <button class="btn alt" onclick="detVerbose(1)" style="margin-left:6px;">On</button>
-                <button class="btn alt" onclick="detVerbose(0)">Off</button></div>
+          <h3>Mesh Defense</h3>
+          <div>
+            <div class="dn-tiles">
+              <div class="dn-tile sm"><small>PPS lock</small><div id="d-pps">--</div></div>
+              <div class="dn-tile sm"><small>Shared baseline, local</small><div id="d-bl">--</div></div>
+              <div class="dn-tile sm"><small>Shared baseline, neighbors</small><div id="d-bn">--</div></div>
+              <div class="dn-tile sm"><small>Quorum candidates</small><div id="d-qc">0</div></div>
+              <div class="dn-tile sm"><small>Verbose log</small><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span id="d-verbose">--</span>
+                <button class="btn alt" onclick="detVerbose(1)" style="padding:4px 10px;font-size:12px;">On</button>
+                <button class="btn alt" onclick="detVerbose(0)" style="padding:4px 10px;font-size:12px;">Off</button></div></div>
             </div>
-            <details style="margin-top:10px;">
+            <details style="margin-top:12px;">
               <summary><span>▶</span> Quorum Status</summary>
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
                 <input id="q-type-in" type="text" placeholder="type (e.g. PMKID)" maxlength="16" style="width:140px;">
@@ -2832,8 +2820,6 @@ R"HTML(
         fleetFill(document.getElementById('detRadios'), radios, fleetRadioCard,
                   'No non-node senders heard.');
         fleetSplitNodesRender(peers);
-        var fb = document.getElementById('fleetCardBody');
-        if (fb && !fb.classList.contains('collapsed')) fb.style.maxHeight = 'none';
       }
       function fleetAliveIds(peers) {
         return (peers || []).filter(function(p) { return p.alive && !p.self && /^[A-Za-z0-9]{2,5}$/.test(p.id); }).map(function(p) { return p.id; });
@@ -5392,18 +5378,18 @@ R"HTML(
           if (typeof data.detectionWindow !== 'undefined') _setChipVal('detectionWindow', data.detectionWindow);
 
           if (!data.enabled) {
-            statusText = 'DISABLED - Manual erase only';
+            statusText = 'Off. Manual erase only.';
             statusClass = 'status-disabled';
           } else if (data.inSetupMode) {
             const elapsed = data.currentTime - data.setupStartTime;
             const remaining = Math.max(0, Math.floor((data.setupDelay - elapsed) / 1000));
-            statusText = `SETUP MODE - Activating in ${remaining}s`;
+            statusText = `Arming in ${remaining} s.`;
             statusClass = 'status-setup';
           } else if (data.tamperActive) {
-            statusText = 'TAMPER DETECTED - Auto-erase in progress';
+            statusText = 'Tampering detected. Erasing.';
             statusClass = 'status-danger';
           } else {
-            statusText = 'ACTIVE - Monitoring for tampering';
+            statusText = 'Armed. Watching for tampering.';
             statusClass = 'status-active';
           }
           statusDiv.textContent = statusText;
@@ -5482,16 +5468,16 @@ R"HTML(
       setInterval(() => { if (pageActive('system')) pollSecureState(); }, 5000);
 
       const _factoryResetTiers = {
-        full: {btn: 'WIPE EVERYTHING', hint: 'Erases all SD data and all settings. The node reboots.', warn: 'Erase all SD data and all settings? The node reboots. This cannot be undone.'},
-        config: {btn: 'RESET CONFIG', hint: 'Resets all settings, including the erase key. Keeps captured data. The node reboots.', warn: 'Reset all settings? Captured data is kept. The node reboots.'},
+        full: {btn: 'Wipe everything', hint: 'Erases all SD data and all settings. The node reboots.', warn: 'Erase all SD data and all settings? The node reboots. This cannot be undone.'},
+        config: {btn: 'Reset settings', hint: 'Resets all settings, including the erase key. Keeps captured data. The node reboots.', warn: 'Reset all settings? Captured data is kept. The node reboots.'},
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
+        data: {btn: 'Erase data', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
 )HTML"
 #else
 R"HTML(
-        data: {btn: 'ERASE DATA', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
+        data: {btn: 'Erase data', hint: 'Erases all captured data on the SD card. Keeps settings. The node reboots.', warn: 'Erase all captured data? Settings are kept. The node reboots.'}
 )HTML"
 #endif
 R"HTML(
@@ -6676,41 +6662,43 @@ R"HTML(
         var s=dataRowSpan(row);
         return !!s&&s[1]>=dataRange[0]&&s[0]<=dataRange[1];
       }
-      function dataGroupVal(row){
-        if(typeof row._msg==='string') return row._msg.replace(/^\[C:[^\]]*\]\s*/,'').split(/[\s:]/)[0];
-        return row.type||row.vendor||row.v||row.src||row.mac;
+      function dataGroupVal(row,k){
+        var v=row[k];
+        if(k==='_msg'&&typeof v==='string') v=v.replace(/^\[C:[^\]]*\]\s*/,'').split(/[\s:]/)[0];
+        return v;
       }
       function dataSummarize(){
         var el=document.getElementById('dataSummary');if(!el) return;
         var n=dataFiltered.length;if(!n){el.textContent='';return;}
+        var cfg=DATA_SETS[document.getElementById('dataSet').value],tk=cfg&&cfg.top;
         var lo=Infinity,hi=-Infinity,macs={},grp={};
         dataFiltered.forEach(function(r){
           var s=dataRowSpan(r);if(s){if(s[0]<lo)lo=s[0];if(s[1]>hi)hi=s[1];}
           var m=r.mac||r.src;if(m)macs[m]=1;
-          var g=dataGroupVal(r);if(g)grp[g]=(grp[g]||0)+1;
+          if(tk){var g=dataGroupVal(r,tk[0]);if(g)grp[g]=(grp[g]||0)+1;}
         });
         var fmt=nodeTime;
         var topK=Object.keys(grp).sort(function(a,b){return grp[b]-grp[a];}).slice(0,3);
-        var top=topK.map(function(k){return k+' '+grp[k];}).join(' · ');
+        var top=topK.length&&grp[topK[0]]>1?topK.map(function(k){return k+' '+grp[k];}).join(' · '):'';
         var he=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
         var tile=function(l,v,c,h){return '<div class="dn-tile'+(c?' '+c:'')+'"><small>'+he(l)+'</small><div title="'+he(v)+'">'+(h||he(v))+'</div></div>';};
         var topHtml=topK.map(function(k){return he(k)+' <b>'+grp[k]+'</b>';}).join('<br>');
         el.innerHTML=tile(dataCursor>0?'Rows loaded':'Rows',String(n))
           +(Object.keys(macs).length?tile('Unique MACs',String(Object.keys(macs).length)):'')
           +(lo<=hi?tile('First',fmt(lo),'sm')+tile('Last',fmt(hi),'sm'):'')
-          +(top?tile('Top',top,'wide',topHtml):'');
+          +(top?tile(tk[1],top,'wide',topHtml):'');
         privacyApply(el);
       }
       var DATA_INFO={
-        devicedb:['All devices','Every Wi-Fi and BLE device this node has logged.'],
-        probedb:['Probe devices','Devices that sent probe requests, with the network names they asked for.'],
-        probes:['Probe events','Each probe request, one row per frame.'],
-        deauth:['Deauth attacks','Deauthentication and disassociation frames this node detected.'],
-        drones:['Drone detections','Remote ID broadcasts from drones.'],
-        vibrations:['Vibration events','Tamper sensor triggers.'],
-        baseline:['Baseline stats','Device count and settings of the current baseline.'],
-        syslog:['System log','Boot, mesh and storage messages from this node.'],
-        incidents:['Sentinel incidents','Incidents logged by Sentinel.']
+        devicedb:['All Devices','Every Wi-Fi and BLE device this node has logged.'],
+        probedb:['Probe Devices','Devices that sent probe requests, with the network names they asked for.'],
+        probes:['Probe Events','Each probe request, one row per frame.'],
+        deauth:['Deauth Attacks','Deauthentication and disassociation frames this node detected.'],
+        drones:['Drone Detections','Remote ID broadcasts from drones.'],
+        vibrations:['Vibration Events','Tamper sensor triggers.'],
+        baseline:['Baseline Stats','Device count and settings of the current baseline.'],
+        syslog:['System Log','Boot, mesh and storage messages from this node.'],
+        incidents:['Sentinel Incidents','Incidents logged by Sentinel.']
       };
       function dataNavSync(id){
         document.querySelectorAll('#dataNav button[data-ds]').forEach(function(b){b.classList.toggle('active',b.dataset.ds===id);});
@@ -6785,7 +6773,7 @@ R"HTML(
         if(had){keep={};box.querySelectorAll('input:checked').forEach(function(c){keep[c.value]=1;});}
         box.innerHTML='';box.style.display='flex';
         [''].concat(ids).forEach(function(id){
-          var l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:4px;margin:0;cursor:pointer;';
+          var l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;text-transform:none;font-weight:500;color:var(--txt);';
           var c=document.createElement('input');c.type='checkbox';c.value=id;c.checked=!!keep[id];c.style.width='auto';
           l.appendChild(c);l.appendChild(document.createTextNode(id||'This node'));box.appendChild(l);
         });
@@ -6865,16 +6853,16 @@ R"HTML(
         }).finally(function(){if(gen===dataGen) dataBusy=false;});
       }
       var DATA_SETS={
-        devicedb:{url:'/api/devicedb',clear:'/api/devicedb/clear',fmt:'json',
+        devicedb:{url:'/api/devicedb',clear:'/api/devicedb/clear',fmt:'json',top:['vendor','Top vendors'],
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','rand']},
-        probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
+        probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',top:['vendor','Top vendors'],
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','ssids','rand']},
-        probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
+        probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',top:['v','Top vendors'],
           cols:['Time','MAC','Type','RSSI','Ch','Count','Vendor','Name','SSIDs','Rand','Hit'],
           keys:['t','mac','ble','rssi','ch','cnt','v','n','ss','rand','hit']},
-        deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',
+        deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',top:['src','Top senders'],
           cols:['Time','Src','Dst','BSSID','RSSI','Ch','Reason','Type'],
           keys:['t','src','dst','bssid','rssi','ch','reason','_type']},
         drones:{url:'/api/drones.jsonl',clear:'/api/drones/clear',fmt:'jsonl',
@@ -6884,12 +6872,12 @@ R"HTML(
           cols:['Time','Uptime','Lat','Lon'],
           keys:['t','uptime_ms','lat','lon']},
         baseline:{url:'/baseline/config',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
-        syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
+        syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',top:['_msg','Top types'],
           cols:['Time','Message'],keys:['_time','_msg']},
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-        incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',
+        incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',top:['type','Top types'],
           cols:['Uptime','Node','Src','Type','Raw'],
           keys:['ts','node','src','type','raw']}
 )HTML"
@@ -6972,8 +6960,9 @@ R"HTML(
         document.getElementById('dataSearch').value='';
         var exp=document.getElementById('dataExport');
         exp.href=cfg.url;
-        exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'?'.json':'.jsonl');
+        exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'||cfg.fmt==='baseline'?'.json':'.jsonl');
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
+        ['dataSearch','dataRangeSel','dataPriv'].forEach(function(id){document.getElementById(id).style.display=cfg.fmt==='baseline'?'none':'';});
         dataGen++;dataCursor=0;dataBusy=false;
         if(dataChunked(cfg)){
           var gen=dataGen;
@@ -7112,14 +7101,12 @@ R"HTML(
       function renderBaseline(text){
         var area=document.getElementById('dataArea');document.getElementById('dataPager').style.display='none';
         try{var d=JSON.parse(text);
-          area.innerHTML='<div class="stat-grid">'
-            +'<div class="stat-item"><div class="stat-label">Devices</div><div class="stat-value">'+(d.deviceCount||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">RAM Cache</div><div class="stat-value">'+(d.ramCacheSize||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">SD Cache</div><div class="stat-value">'+(d.sdMaxDevices||0)+'</div></div>'
-            +'<div class="stat-item"><div class="stat-label">RSSI Threshold</div><div class="stat-value">'+d.rssiThreshold+' dBm</div></div>'
-            +'<div class="stat-item"><div class="stat-label">Absence</div><div class="stat-value">'+d.absenceThreshold+'s</div></div>'
-            +'<div class="stat-item"><div class="stat-label">Reappear Window</div><div class="stat-value">'+d.reappearanceWindow+'s</div></div>'
-            +'</div><div style="margin-top:16px;"><button class="btn danger" onclick="if(confirm(\'Reset all baseline data?\'))fetch(\'/baseline/reset\',{method:\'POST\'}).then(function(){toast(\'Baseline reset\',\'success\');loadDataSet();})">Reset Baseline</button></div>';
+          var t=function(l,v){return '<div class="dn-tile"><small>'+l+'</small><div>'+v+'</div></div>';};
+          document.getElementById('dataSummary').innerHTML=t('Status',d.established?'Ready':'Not set')+t('Devices',d.deviceCount||0)+t('Anomalies',d.anomalyCount||0);
+          var rows=[['RSSI threshold',d.rssiThreshold+' dBm'],['Baseline time',d.baselineDuration+' s'],['Marked absent after',d.absenceThreshold+' s'],
+            ['Reappear window',d.reappearanceWindow+' s'],['RSSI variation',d.rssiChangeDelta+' dB'],['RAM cache',d.ramCacheSize+' devices'],['SD device storage',d.sdMaxDevices+' devices']];
+          area.innerHTML='<table id="data-table"><thead><tr><th>Setting</th><th>Value</th></tr></thead><tbody>'
+            +rows.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';}).join('')+'</tbody></table>';
         }catch(e){area.innerHTML='<div class="data-empty">No baseline data available.</div>';}
       }
 
@@ -7811,8 +7798,7 @@ R"HTML(
         const toolKeys=['probe_flood','assoc_sleep'];
         function rowMesh(k,label){
           const on=_detCfg[k]===true;
-          return `<div class="det-row"><div class="name">${label}</div>
-            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}></label></div>`;
+          return `<label class="mc-item"><span class="dsw"><input type="checkbox" data-cfg="${k}" ${on?'checked':''}><span class="dsw-s"></span></span>${label}</label>`;
         }
         const meshEl=document.getElementById('cfg-mesh');
         if(meshEl)meshEl.innerHTML=DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
@@ -7821,7 +7807,7 @@ R"HTML(
           let threshHtml='';
           DET_THRESHOLDS.forEach(t=>{
             const v=_detCfg[t[0]]||t[2];
-            threshHtml+=`<div><label style="font-size:11px;color:var(--mut);">${t[1]}</label>
+            threshHtml+=`<div><label>${t[1]}</label>
               <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
           });
           threshEl.innerHTML=threshHtml;
