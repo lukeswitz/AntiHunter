@@ -66,6 +66,8 @@ extern std::recursive_mutex g_mtx;
 extern PsramMap<uint64_t, ApBaseline> g_apBaseline;
 extern std::atomic<bool> g_karmaEnabled;
 extern std::atomic<bool> g_meshPwna;
+extern std::atomic<bool> g_meshRadioEnabled;
+extern std::atomic<bool> g_meshMeshRadio;
 extern std::atomic<bool> g_attackerTrilatEnabled;
 extern std::atomic<bool> g_meshAttackerHunt;
 extern std::atomic<bool> g_meshTracker;
@@ -91,6 +93,7 @@ extern PsramMap<uint64_t, KarmaCandidate> g_karma;
 extern PsramMap<uint64_t, PsramSet<String>> g_karmaSsids;
 extern PsramMap<uint32_t, ProbeGraphIdentity> g_pgGraph;
 extern PsramMap<uint64_t, PwnagotchiSighting> g_pwna;
+extern PsramMap<uint64_t, MeshRadioSighting> g_meshRadio;
 extern PsramMap<String, TofPeer> g_tofPeers;
 extern PsramVec<TofPendingPing> g_tofPending;
 
@@ -101,6 +104,7 @@ void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
                 uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now);
 void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi, const uint8_t *ie, uint16_t ieLen);
 bool isPwnagotchiBeacon(const uint8_t *frame, uint16_t len);
+void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t rssi, const char *name);
 void persistSnapshot();
 void loadSnapshot();
 
@@ -125,6 +129,9 @@ size_t karma_confirmedCount();
 String pwnagotchi_getJson();
 void pwnagotchi_clear();
 size_t pwnagotchi_count();
+String meshradio_getJson();
+void meshradio_clear();
+size_t meshradio_count();
 void attacker_setCooldown(uint32_t ms);
 String attacker_getActiveHuntsJson();
 void attacker_clearHunts();
