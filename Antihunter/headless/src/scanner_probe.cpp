@@ -713,6 +713,14 @@ static std::mutex probeDBMutex;
 static const char *PROBE_DB_PATH = "/probedb.jsonl";
 static const size_t PROBE_DB_MAX_ENTRIES = 500;
 
+void clearProbeDB()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    probeDB.clear();
+    SafeSD::remove(PROBE_DB_PATH);
+    Serial.println("[PROBEDB] Database cleared");
+}
+
 void loadProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);

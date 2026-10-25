@@ -32,7 +32,7 @@ Arguments used by many commands:
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
-| `STATUS` | `ST` | Reports radio mode, scan state, hit count, temperature, uptime, campaign, and GPS position | `STATUS: Mode:WiFi+BLE Scan:IDLE Hits:0 Temp:41.5C Up:00:12:03 [Camp:<name>] [GPS:<lat>,<lon> HDOP=<n>]`. Headless adds `Rst:<reset reason>` after `Up` | `@ALL STATUS` |
+| `STATUS` | `ST` | Reports radio mode, scan state, hit count, temperature, uptime, last reset reason, campaign, and GPS position | `STATUS: Mode:WiFi+BLE Scan:IDLE Hits:0 Temp:41.5C Up:00:12:03 Rst:<reason> [Camp:<name>] [GPS:<lat>,<lon> HDOP=<n>]` | `@ALL STATUS` |
 | `SUMMARY` | `SUM` | Reports the same state with device and target counts | `SUMMARY: Mode:.. Scan:.. Dev:<devices in the device database> Tgt:<targets> Hits:<n> [Inc:<incidents>] [Camp:<name>] Up:..` | `@ALL SUMMARY` |
 | `STOP` | `X` | Stops every running scan and cancels pending Sentinel follow-up scans | `STOP_ACK:OK` | `@ALL STOP` |
 | `MESH_TX_CANCEL` | `MTC` | Drops the messages waiting to be sent, except triangulation messages. A running scan continues | `MESH_TX_CANCEL_ACK:EMPTY` if nothing is queued. Otherwise no reply | `@ALL MESH_TX_CANCEL` |
@@ -54,7 +54,8 @@ These commands change settings and save them.
 | `CAMPAIGN_START` | `CS` | Starts a named campaign. Logged events carry the name, and the start and stop are recorded in the campaign log | `CAMPAIGN_ACK:START:<name>` or `:INVALID` | `@ALL CAMPAIGN_START:site-a` |
 | `CAMPAIGN_STOP` | `CX` | Ends the running campaign | `CAMPAIGN_ACK:STOP:<name>` or `:NONE` | `@ALL CAMPAIGN_STOP` |
 | `CAMPAIGN_STATUS` | `CQ` | Reports the running campaign | `CAMPAIGN_STATUS:<name>` or `:NONE` | `@AH01 CAMPAIGN_STATUS` |
-| `DEVICE_DB_CLEAR` | `DBX` | **Headless only.** Deletes the device database. On Full, use the web UI | `DEVICE_DB_CLEAR_ACK:OK` | `@AH01 DEVICE_DB_CLEAR` |
+| `DEVICE_DB_CLEAR` | `DBX` | Deletes the device database | `DEVICE_DB_CLEAR_ACK:OK` | `@AH01 DEVICE_DB_CLEAR` |
+| `PROBE_DB_CLEAR` | `PDX` | Deletes the probe database | `PROBE_DB_CLEAR_ACK:OK` | `@AH01 PROBE_DB_CLEAR` |
 
 | Command | Argument | Meaning | Range | Default |
 |---|---|---|---|---|
@@ -77,10 +78,12 @@ Each command starts one scan task. `secs` is the run time.
 | `DEVICE_SCAN_START` | `DS` | Device discovery. Lists every Wi-Fi network and BLE device it hears and adds each to the device database | `DEVICE_SCAN_ACK:STARTED`, `:BUSY`, `:FAILED`, or `:INVALID` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `BLS` | Learns the devices around the node, then reports new, returning, and changed ones | `BASELINE_ACK:STARTED`, `:BUSY`, or `:FAILED` | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | `BLQ` | Reports baseline progress | `BASELINE_STATUS: Scanning:<YES\|NO> Established:<YES\|NO> Devices:<n> Anomalies:<n> Phase1:<INACTIVE\|ACTIVE\|COMPLETE>` | `@ALL BASELINE_STATUS` |
-| `BASELINE_WATCH` | `BLW` | Marks the current moment in a running baseline. Changes are reported from this point on | `BASELINE_ACK:WATCHING` or `:NOT_RUNNING` | `@ALL BASELINE_WATCH` |
+| `BASELINE_WATCH` | `BLW` | Marks the current moment in a running baseline. When the baseline ends, the node sends `BASELINE_WATCH: New=<n> Gone=<n> Moved=<n> Both=<n>` for the devices before and after the mark | `BASELINE_ACK:WATCHING` or `:NOT_RUNNING` | `@ALL BASELINE_WATCH` |
+| `BASELINE_RESET` | `BLR` | Deletes the learned baseline from memory and SD | `BASELINE_RESET_ACK:OK`, or `:BUSY` while a scan runs | `@AH01 BASELINE_RESET` |
 | `DRONE_START` | `DR` | Listens for drone Remote ID broadcasts on both radios | `DRONE_ACK:STARTED`, `:BUSY`, or `:FAILED` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `DA` | Counts and reports deauthentication and disassociation frames (Wi-Fi frames that force a device off a network) | `DEAUTH_ACK:STARTED`, `:BUSY`, or `:FAILED` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | `RS` | Links devices that change their MAC address to one identity | `RANDOMIZATION_ACK:STARTED`, `:BUSY`, `:FAILED`, or `:INVALID` | `@ALL RANDOMIZATION_START:2:300` |
+| `RANDOMIZATION_RESET` | `RRX` | Deletes the saved identities from memory and SD | `RANDOMIZATION_RESET_ACK:OK`, or `:BUSY` while a scan runs | `@AH01 RANDOMIZATION_RESET` |
 | `PROBE_START` | `PS` | Collects probe requests (frames in which a device asks for a known network by name) and reports hits | `PROBE_ACK:STARTED`, `:BUSY`, `:FAILED`, or `:INVALID` | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | `PX` | Stops the running scan. Leaves the mesh queue alone | `PROBE_ACK:STOPPED` | `@ALL PROBE_STOP` |
 | `PCAP_START` | `PCS` | Records raw packets to a `.pcap` file on the SD card | `PCAP_ACK:STARTED`, `:BUSY`, `:NOSD`, or `:FAILED` | `@ALL PCAP_START:0:300:0:CH1,6,11` |
@@ -280,6 +283,7 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `DETECT_CFG_GET` | `DCG` | Prints every setting on USB serial | `DETECT_CFG_LEN:<n> (see serial)` | `@AH01 DETECT_CFG_GET` |
 | `INCIDENTS` | `IN` | Prints the most recent incidents on USB serial | `INCIDENTS_LEN:<n> (see serial)` | `@AH01 INCIDENTS:50` |
 | `INCIDENTS_CLEAR` | `INX` | Deletes the incident log | `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
+| `DETECT_CLEAR` | `DCX` | Clears all detector state and deletes the detector logs on SD | `DETECT_CLEAR_ACK:OK` | `@AH01 DETECT_CLEAR` |
 | `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON` or `:OFF` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | `ATQ` | Reports that setting | `ATTACKER_TRILAT_STATUS: ON` or `OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> meshradio=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |

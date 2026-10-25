@@ -114,6 +114,48 @@ static void fillAnomalyTag(AnomalyHit &hit, const char *cls) {
     hit.haveLoc = baselineReadGps(hit.lat, hit.lon);
 }
 
+static void baselineReportWatch() {
+    uint32_t onlyA = 0, onlyB = 0, both = 0, moved = 0, markerSecs;
+    String lines;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineMarkerMs == 0) return;
+        markerSecs = (baselineMarkerMs - baselineStartTime) / 1000;
+        for (const auto &e : baselineTags) {
+            const BaselineTag &t = e.second;
+            auto dIt = baselineCache.find(e.first);
+            if (dIt == baselineCache.end()) continue;
+            const BaselineDevice &dev = dIt->second;
+            const char *kind = nullptr;
+            int delta = 0;
+            if (t.slices == SLICE_A) { onlyA++; kind = "SLICE-GONE"; }
+            else if (t.slices == SLICE_B) { onlyB++; kind = "SLICE-NEW"; }
+            else if (t.slices == (SLICE_A | SLICE_B)) {
+                both++;
+                delta = (int)t.rssiB - (int)t.rssiA;
+                if (abs(delta) >= significantRssiChange) { moved++; kind = "SLICE-MOVED"; }
+            }
+            if (!kind) continue;
+            lines += String(kind) + " " + String(dev.isBLE ? "BLE " : "WiFi") + " " + macFmt6(dev.mac);
+            if (t.slices & SLICE_A) lines += " A:" + String(t.rssiA) + "dBm";
+            if (t.slices & SLICE_B) lines += " B:" + String(t.rssiB) + "dBm";
+            if (kind[6] == 'M') lines += " Delta:" + String(delta > 0 ? "+" : "") + String(delta);
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
+                lines += " \"" + String(dev.name) + "\"";
+            }
+            if (t.cls[0]) lines += " C=" + String(t.cls);
+            lines += "\n";
+        }
+    }
+    Serial.printf("[BASELINE] === SLICE A/B === Marker: %us after start\n", markerSecs);
+    Serial.printf("[BASELINE] Only before: %u, Only after: %u, Both: %u\n", onlyA, onlyB, both);
+    Serial.print(lines);
+    if (meshEnabled) {
+        meshEnqueue(getNodeId() + ": BASELINE_WATCH: New=" + String(onlyB) + " Gone=" + String(onlyA) +
+                    " Moved=" + String(moved) + " Both=" + String(both));
+    }
+}
+
 // RAM SD Cache
 PsramMap<uint64_t, bool> sdLookupCache;
 std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
@@ -1070,6 +1112,8 @@ void baselineDetectionTask(void *pv) {
         flushBaselineCacheToSD();
         Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
     }
+
+    baselineReportWatch();
 
     if (meshEnabled && !stopRequested) {
         uint32_t snapDeviceCount;

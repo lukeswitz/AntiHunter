@@ -33,6 +33,9 @@ This applies to all three channels.
 - Full and Headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot. Mesh `STATUS` adds `Camp:<name>`.
 - `BLE_CLASSIFY:0|1` turns the BLE classifier off or on. Off skips advertisement parsing during scans. It is on by default, and the setting persists. The Scan tab **Classify BLE devices** switch and the Data tab checkbox do the same. On Headless, list and device scan results carry `C=<class>`.
 - `/api/fleet/send` accepts the campaign commands and `BLE_CLASSIFY:`.
+- Full and Headless: `PROBE_DB_CLEAR`, `BASELINE_RESET`, `RANDOMIZATION_RESET`, and `DETECT_CLEAR` work over mesh. Before, only the Full web UI could do these. Full also accepts `DEVICE_DB_CLEAR`, and its `STATUS` reply adds `Rst:`, as Headless does.
+- Full sends the `BASELINE_WATCH` summary when a baseline ends, as Headless does.
+- Headless results match Full: target and device scan rows show the network's security, `TARGET`, range, signal trend, and probed networks. Baseline and target scans write their results to `/last_results.txt`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for Headless nodes.
 
 **Web UI**
@@ -123,6 +126,13 @@ This applies to all three channels.
 - `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
 - The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
 - Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
+- Headless: attack response ignored `attack_resp_mask` 32, which stops a scheduled scan to make room.
+- Headless: a stopped or failed triangulation setup left the node marked as triangulating. It now resets and tells the other nodes to stop.
+- Headless: baseline swapped the device queue without its lock, and the live triangulation results read node data without their lock.
+- Headless: mesh sends gave up after 100 ms waiting for the radio link. They now wait 1 s, as in Full.
+- Full: a scheduled scan could start while a vibration scan was waiting to run.
+- Full: `TRIANGULATE_START` sent to one node ignored a `T-xxxx` identity target.
+- Full: **Clear All State** left the jamming, beacon, and mesh radio logs on SD.
 - At 00:00 UTC the node could set its clock back one day for a few seconds. It paired the new time from one GPS sentence with the old date from another. It now waits for the new date.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
