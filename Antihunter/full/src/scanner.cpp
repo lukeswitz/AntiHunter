@@ -2804,7 +2804,8 @@ static void bleInitTask(void *pv) {
         vTaskDelete(NULL);
         return;
     }
-    pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
+    static MyBLEScanCallbacks bleScanCallbacks;
+    pBLEScan->setScanCallbacks(&bleScanCallbacks, true);
     pBLEScan->setActiveScan(true);
     pBLEScan->setDuplicateFilter(false);
     pBLEScan->setMaxResults(200);
