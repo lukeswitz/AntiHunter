@@ -1826,6 +1826,7 @@ R"HTML(
           .sa-type{font-weight:600;color:var(--txt);}
           .sa-mac{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;color:var(--txt);}
           .sa-detail{font-family:ui-monospace,monospace;font-size:15px;color:var(--txt);opacity:.8;}
+          .sa-ev{margin-top:4px;font-size:12px;color:var(--mut);white-space:normal;word-break:break-word;}
           .sa-when{font-size:12px;color:var(--mut);white-space:nowrap;}
           .sa-node{font-size:15px;font-weight:700;color:var(--txt);border:1px solid var(--bord);border-radius:5px;padding:2px 7px;white-space:nowrap;}
           .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
@@ -6878,8 +6879,8 @@ R"HTML(
 #if AH_SENTINEL
 R"HTML(
         incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',top:['type','Top types'],
-          cols:['Uptime','Node','Src','Type','Raw'],
-          keys:['ts','node','src','type','raw']}
+          cols:['Uptime','Node','Src','Type','Raw','Evidence'],
+          keys:['ts','node','src','type','raw','ev']}
 )HTML"
 #endif
 R"HTML(
@@ -6934,7 +6935,7 @@ R"HTML(
         area.innerHTML=chipBar
           +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
           +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th>'+(hasPeer?'<th>Source</th>':'')+'<th>Detail</th><th>Node</th></tr></thead><tbody>'
-          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td>`+(hasPeer?`<td class="sa-mac">${esc(r.src)}</td>`:'')+`<td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
+          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td>`+(hasPeer?`<td class="sa-mac">${esc(r.src)}</td>`:'')+`<td class="sa-detail">${esc(detailOf(r))}${r.ev?`<div class="sa-ev">${esc(evText(r.ev))}</div>`:''}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
           +'</tbody></table></div>';
         privacyApply(area);
       }
@@ -6942,7 +6943,7 @@ R"HTML(
       function _saSev(t){
         t=(t||'').toUpperCase();
         if(/^(PMKID|SAE_DOS|KARMA|EAPOL_BAIT|KRACK|PMKID_FORGE|ATTACKER)/.test(t))return 'crit';
-        if(/^(DEAUTH|BEACON|EVILTWIN|SSID_CONFUSION|PROBE_FLOOD|OWE_ABUSE|RID)/.test(t))return 'high';
+        if(/^(DEAUTH|BEACON|EVILTWIN|SSID_CONFUSION|PROBE_FLOOD|OWE_ABUSE|RID|JAMMING|MESH_)/.test(t))return 'high';
         if(/^(FRAG|ASSOC_SLEEP)/.test(t))return 'med';
         return 'info';
       }
@@ -6992,8 +6993,25 @@ R"HTML(
           renderDataTable(cfg);
         }).catch(function(e){area.innerHTML='<div class="data-empty">No data available.</div>';});
       }
+      function evText(ev){
+        if(!ev||typeof ev!=='object') return '';
+        var parts=[];
+        Object.keys(ev).forEach(function(k){
+          if(k==='reason') return;
+          var v=ev[k];
+          if(Array.isArray(v)){
+            if(!v.length) return;
+            parts.push(k+': '+v.map(function(x){return x&&typeof x==='object'?Object.keys(x).map(function(kk){return x[kk];}).join(' '):String(x);}).join(', '));
+          } else if(v&&typeof v==='object'){
+            parts.push(k+': '+Object.keys(v).map(function(kk){return kk+'='+v[kk];}).join(' '));
+          } else parts.push(k+'='+v);
+        });
+        return parts.join(' · ');
+      }
+      function htmlEsc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
       function getVal(row,key){
         if(key==='_type') return row.disassoc?'DISASSOC':'DEAUTH';
+        if(key==='ev') return row.ev?evText(row.ev):'';
         return row[key];
       }
       function fmtCell(val,key){
@@ -7002,7 +7020,7 @@ R"HTML(
           if(typeof val==='number'&&val>946684800) return nodeTime(val);
           if(typeof val==='number'&&val>0){var s=val%60,m=Math.floor(val/60)%60,h=Math.floor(val/3600);return (h?h+'h ':'')+(m?m+'m ':'')+s+'s (uptime)';}
           if(typeof val==='number') return '-';
-          return String(val);
+          return htmlEsc(val);
         }
         if(key==='rssi'){var cls=val>-50?'rssi-good':val>-70?'rssi-mid':'rssi-bad';return '<span class="'+cls+'">'+val+' dBm</span>';}
         if(key==='ble') return val?'BLE':'WiFi';
@@ -7012,25 +7030,25 @@ R"HTML(
         var _priv=(typeof privacyMode!=='undefined'&&privacyMode);
         if(key==='lat'||key==='lon'||key==='latitude'||key==='longitude'){
           if(_priv) return 'REDACTED';
-          return String(val);
+          return htmlEsc(val);
         }
         if(key==='uav_id'||key==='name'){
           if(_priv) return 'REDACTED';
-          return String(val);
+          return htmlEsc(val);
         }
         if(key==='ss'||key==='ssids'){
-          if(Array.isArray(val)){if(val.length===0) return '-';var names=_priv?val.map(ssidHash):val;var shown=names.slice(0,2).join(', ');if(names.length>2) shown+=' +'+(names.length-2)+' more';return shown;}
-          return _priv?ssidHash(String(val)):String(val);
+          if(Array.isArray(val)){if(val.length===0) return '-';var names=_priv?val.map(ssidHash):val;var shown=names.slice(0,2).join(', ');if(names.length>2) shown+=' +'+(names.length-2)+' more';return htmlEsc(shown);}
+          return htmlEsc(_priv?ssidHash(String(val)):String(val));
         }
         if(key==='ssid'||key==='last_ssid'){
-          return _priv?ssidHash(String(val)):String(val);
+          return htmlEsc(_priv?ssidHash(String(val)):String(val));
         }
         if(key==='uptime_ms'){var s=Math.floor(val/1000);var m=Math.floor(s/60);s=s%60;var h=Math.floor(m/60);m=m%60;return (h?h+'h ':'')+(m?m+'m ':'')+(s+'s');}
         if(key==='mac'||key==='src'||key==='dst'||key==='bssid'){
           if(typeof privacyMode!=='undefined'&&privacyMode&&typeof val==='string'&&val.length>=17) return 'XX:XX:XX:XX:XX:XX';
         }
         if(key==='_type') return val;
-        return String(val);
+        return htmlEsc(val);
       }
       function renderDataTable(cfg){
         var area=document.getElementById('dataArea');

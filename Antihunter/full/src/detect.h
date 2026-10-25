@@ -188,6 +188,7 @@ struct ReconAlert {
     uint8_t score;
     char reasons[96];
     uint32_t ts;
+    uint32_t lastIncidentMs;
 };
 
 enum OuiCategory : uint8_t {
@@ -254,7 +255,7 @@ void detect_periodicMeshGossip();
 // Unified incidents log — all detector mesh msgs from local TX + peer RX.
 // Persisted to /incidents.jsonl on SD + small in-RAM ring (200 entries).
 // raw = mesh line WITHOUT leading nodeId; src = "local" or peer node id.
-void detect_logIncident(const String &raw, const char *src);
+void detect_logIncident(const String &raw, const char *src, const String &ev = String());
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();
 size_t detect_incidentCount();
