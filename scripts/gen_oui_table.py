@@ -23,7 +23,7 @@ OUT_PATHS = [
     "Antihunter/full/src/oui_table.h",
     "Antihunter/headless/src/oui_table.h",
 ]
-NAME_MAX = 20
+NAME_MAX = 23
 TOP_ORGS = 400
 
 _SUFFIX = re.compile(
@@ -44,6 +44,33 @@ _GENERIC = re.compile(
     r")\s*$",
     re.I,
 )
+
+_TRAIL = re.compile(r"\s*(,|&|\b(and|of|the|for|by|de|du|la|e|y|und|et|ve)\b)\s*$", re.I)
+
+_BRANDS = [(re.compile(p, re.I), d) for p, d in (
+    (r"\bsony\b", "Sony"), (r"\bsamsung\b", "Samsung"), (r"\bhitachi\b", "Hitachi"),
+    (r"\bpanasonic\b", "Panasonic"), (r"\btoshiba\b", "Toshiba"), (r"\bhoneywell\b", "Honeywell"),
+    (r"\bmotorola\b", "Motorola"), (r"\bnokia\b", "Nokia"), (r"\bxiaomi\b", "Xiaomi"),
+    (r"\boppo\b", "OPPO"), (r"\brealme\b", "realme"), (r"\boneplus\b", "OnePlus"),
+    (r"\bhuawei\b", "Huawei"), (r"\bmarvell\b", "Marvell"), (r"\brealtek\b", "Realtek"),
+    (r"\bcypress semiconductor", "Cypress"), (r"\bbroadcom\b", "Broadcom"), (r"\bqualcomm\b", "Qualcomm"),
+    (r"\bmediatek\b", "MediaTek"), (r"\bintel\b", "Intel"), (r"\bapple\b", "Apple"),
+    (r"\bgoogle\b", "Google"), (r"\bamazon\b", "Amazon"), (r"\bmicrosoft\b", "Microsoft"),
+    (r"\blenovo\b", "Lenovo"), (r"\bdell\b", "Dell"), (r"\basus(tek)?\b", "ASUS"),
+    (r"\bacer\b", "Acer"), (r"\bhanwha\b", "Hanwha"), (r"\bbosch\b", "Bosch"),
+    (r"\braspberry pi\b", "Raspberry Pi"), (r"\bd-link\b", "D-Link"), (r"\btp-link\b", "TP-Link"),
+    (r"\bnetgear\b", "Netgear"), (r"\bxerox\b", "Xerox"), (r"\bcanon\b", "Canon"),
+    (r"\bnikon\b", "Nikon"), (r"\bepson\b", "Epson"), (r"\blg (electronics|innotek)\b", "LG"),
+    (r"\bgarmin\b", "Garmin"), (r"\bnxp\b", "NXP"), (r"\bespressif\b", "Espressif"),
+    (r"\btexas instruments?\b", "Texas Instruments"), (r"\bsilicon lab", "Silicon Labs"),
+    (r"\bu-?blox\b", "u-blox"), (r"\bvodafone\b", "Vodafone"), (r"\bhikvision\b", "Hikvision"),
+    (r"\bezviz\b", "Ezviz"), (r"\bdahua\b", "Dahua"), (r"\bubiquiti\b", "Ubiquiti"),
+    (r"\bcisco\b", "Cisco"), (r"\bhewlett\b|\bhp inc\b", "HP"), (r"\bhon hai\b|\bfoxconn\b", "Foxconn"),
+    (r"\bsharp\b", "Sharp"), (r"\bphilips\b", "Philips"), (r"\bnintendo\b", "Nintendo"),
+    (r"\bsonos\b", "Sonos"), (r"\broku\b", "Roku"), (r"\bgopro\b", "GoPro"),
+    (r"\blogitech\b", "Logitech"), (r"\bbelkin\b", "Belkin"), (r"\btesla\b", "Tesla"),
+    (r"\bdji\b", "DJI"), (r"\bfitbit\b", "Fitbit"), (r"\bbose\b", "Bose"),
+)]
 
 
 _ALWAYS = re.compile(
@@ -75,21 +102,30 @@ def normalize(name):
         prev = n
         n = _SUFFIX.sub("", n).strip().rstrip(",&").strip()
         n = _GENERIC.sub("", n).strip().rstrip(",&").strip()
+        n = _TRAIL.sub("", n).strip()
     if not n:
         n = name.strip()
     n = re.sub(r"[^\x20-\x7e]", " ", n)
     return re.sub(r"\s+", " ", n).strip()
 
 
+def brand(n):
+    hits = [(m.start(), name) for rx, name in _BRANDS for m in [rx.search(n)] if m]
+    return min(hits)[1] if hits else n
+
+
 def truncate(n):
     if len(n) <= NAME_MAX:
         return n
-    cut = n[:NAME_MAX]
-    if " " in cut and not n[NAME_MAX].isspace():
-        head = cut.rsplit(" ", 1)[0]
-        if len(head) * 2 >= NAME_MAX:
-            return head
-    return cut.rstrip()
+    cuts = [i for i in range(1, NAME_MAX + 1) if n[i] in " (&" or n[i - 1] == "&"]
+    out = n[: cuts[-1]] if cuts else n[:NAME_MAX]
+    prev = None
+    while prev != out:
+        prev = out
+        out = _TRAIL.sub("", out).strip()
+        if out.count("(") > out.count(")"):
+            out = out[: out.rindex("(")].strip()
+    return out or n[:NAME_MAX].rstrip()
 
 
 def load(path):
@@ -109,7 +145,7 @@ def main():
         assign = (r.get("Assignment") or "").strip().upper()
         if not re.fullmatch(r"[0-9A-F]{6}", assign):
             continue
-        name = truncate(normalize(r.get("Organization Name") or ""))
+        name = truncate(brand(normalize(r.get("Organization Name") or "")))
         if not name:
             continue
         recs[int(assign, 16)] = name
