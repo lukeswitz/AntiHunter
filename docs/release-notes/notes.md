@@ -60,6 +60,7 @@ This applies to all three channels.
 - The target list accepts hex tracer IDs (`T-00A3`).
 - PCAP files carry the radiotap MCS field for HT frames.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
+- Full and Headless: each Sentinel incident records what triggered it, such as the source MACs and their vendors, network names, frame counts, signal range, and channels. Serial prints it on a `[DETECT] ... evidence` line. `/incidents.jsonl` stores it in the `ev` field. The Sentinel tab's **Incidents** view and the Data tab's incident table show it in an **Evidence** column. Mesh alerts are unchanged.
 
 ## Fixed
 
@@ -113,6 +114,9 @@ This applies to all three channels.
 - The Data tab search keeps the selected sort column.
 - Vendor names are brand names, such as Sony, Nokia, or Hitachi. Before, the vendor table cut company names at 20 characters, such as "Nokia Solutions and". The Data tab's top-vendor tile counted devices with no vendor by MAC address.
 - Probe Flood: when more than 512 MACs sent probes within 5 seconds, the detector could free a MAC's probe count and then read it. It now copies the count before freeing.
+- `JAMMING`, `MESH_FLOOD`, and `MESH_SPOOF_SELF` incidents were left out of `/incidents.jsonl` and the incident tables. They are now logged.
+- `CSA_SPOOF` and `QUIET_ABUSE` logged each incident twice and counted it twice toward the mesh quorum.
+- The Data tab inserted over-the-air text, such as network and device names, into the page as HTML. It is now escaped.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.

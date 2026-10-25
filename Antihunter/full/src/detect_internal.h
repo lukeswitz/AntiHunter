@@ -140,7 +140,7 @@ String pg_getGraphJson();
 void pg_init();
 uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBytes,
                                  uint8_t ieOrderLen, const uint8_t *chanSeq, uint8_t chanSeqLen);
-void detect_logIncident(const String &raw, const char *src);
+void detect_logIncident(const String &raw, const char *src, const String &ev = String());
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();
 size_t detect_incidentCount();

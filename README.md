@@ -293,6 +293,7 @@ Sentinel listens for Wi-Fi attacks in the background and pauses while another sc
 - After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **Attack response** → **On confirmed attack**.
 - Karma bait is the only detector that transmits: one probe request every 8 s while on. It is off by default.
 - Detections go to serial, SD, and `/incidents.jsonl`, and to the mesh if that detector's broadcast is on.
+- Each detection records what triggered it, such as the source MACs, network names, counts, signal, and channel. Serial prints it on a `[DETECT] ... evidence` line, and the SD logs and `/incidents.jsonl` store it in the `ev` field. Mesh alerts carry only the short alert line, so a peer's evidence stays on that peer's SD card.
 
 <details>
 <summary>Detector groups and test coverage</summary>
