@@ -298,18 +298,30 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
     bool shouldEmitBait = false;
     uint8_t emitDistinctSsids = 0;
     uint8_t emitBssid[6];
+    String kev;
     if (!candidate.baitEmitted && candidate.distinctSsids >= KARMA_DISTINCT_THRESHOLD) {
         candidate.baitEmitted = true;
         shouldEmitBait = true;
         emitDistinctSsids = candidate.distinctSsids;
         memcpy(emitBssid, bssid, 6);
+        String list;
+        uint8_t shown = 0;
+        for (const auto &s : ssidSet) {
+            if (shown >= 8) break;
+            if (shown) list += ",";
+            list += String("\"") + jsonEscape(s) + "\"";
+            shown++;
+        }
+        kev = String("{\"reason\":\"KARMA_CAND\",\"bssid\":\"") + macStr(bssid) + "\",\"distinct_ssids\":" +
+              String((unsigned)ssidSet.size()) + ",\"ssids\":[" + list + "],\"win_ms\":" +
+              String((unsigned)(now - candidate.firstSseen)) + ",\"rssi\":" + String((int)rssi) + "}";
     }
-    (void)rssi;
     if (shouldEmitBait) {
         lk.unlock();
         karmaEmitBait(emitBssid);
         Serial.printf("[DETECT] KARMA_CAND bssid=%s distinct_ssids=%u\n", macStr(emitBssid).c_str(), (unsigned)emitDistinctSsids);
-        ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), nullptr);
+        Serial.println("[DETECT] KARMA_CAND evidence " + kev);
+        ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), nullptr, kev);
         if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
             sendToSerial1(getNodeId() + ": KARMA_CAND:" + macStr(emitBssid) +
                           ":" + String(emitDistinctSsids), true);
@@ -334,7 +346,9 @@ bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
     strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
     if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
         Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
-        ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), nullptr);
+        ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), nullptr,
+                             String("{\"reason\":\"KARMA_CONFIRMED\",\"bssid\":\"") + macStr(bssid) +
+                             "\",\"bait_ssid\":\"" + jsonEscape(String(ssid)) + "\",\"rssi\":" + String((int)rssi) + "}");
         if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
             sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
         }
@@ -447,7 +461,10 @@ void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
 
     Serial.printf("[DETECT] PWNAGOTCHI src=%s rssi=%d obs=%u name=%s\n",
                   macStr(bssid).c_str(), (int)rssi, (unsigned)s.observations, s.snippet);
-    ::detect_logIncident(String("PWNAGOTCHI:") + macStr(bssid) + ":" + String(rssi), nullptr);
+    ::detect_logIncident(String("PWNAGOTCHI:") + macStr(bssid) + ":" + String(rssi), nullptr,
+                         String("{\"reason\":\"PWNAGOTCHI\",\"bssid\":\"") + macStr(bssid) + "\",\"name\":\"" +
+                         jsonEscape(String(s.snippet)) + "\",\"obs\":" + String((unsigned)s.observations) +
+                         ",\"rssi\":" + String((int)rssi) + ",\"best_rssi\":" + String((int)s.bestRssi) + "}");
     if (meshEnabled && sentinel_isRunning() && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
         sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
     quorum_addReport("PWNAGOTCHI", macStr(bssid), getNodeId(), rssi);
@@ -949,6 +966,7 @@ static bool isDetectorPrefix(const String &type) {
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
+        "JAMMING","MESH_FLOOD","MESH_SPOOF_SELF",
         nullptr
     };
     for (const char **p = kPrefixes; *p; ++p) {
@@ -957,7 +975,7 @@ static bool isDetectorPrefix(const String &type) {
     return false;
 }
 
-void detect_logIncident(const String &raw, const char *src) {
+void detect_logIncident(const String &raw, const char *src, const String &ev) {
     if (raw.length() == 0) return;
     const char *rc = raw.c_str();
     const char *colon = strchr(rc, ':');
@@ -970,7 +988,8 @@ void detect_logIncident(const String &raw, const char *src) {
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
-        "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD", nullptr
+        "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
+        "JAMMING","MESH_FLOOD","MESH_SPOOF_SELF", nullptr
     };
     bool matched = false;
     for (const char **p = kPrefixesFast; *p; ++p) {
@@ -992,7 +1011,8 @@ void detect_logIncident(const String &raw, const char *src) {
                   ",\"node\":\"" + node +
                   "\",\"src\":\"" + (src ? src : "local") +
                   "\",\"type\":\"" + type +
-                  "\",\"raw\":\"" + escRaw + "\"}";
+                  "\",\"raw\":\"" + escRaw + "\"" +
+                  (ev.length() ? String(",\"ev\":") + ev : String()) + "}";
 
     {
         std::lock_guard<std::recursive_mutex> lk(g_incidentMtx);

@@ -230,7 +230,7 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/detect/verbose` | GET | JSON: `verbose`, `mesh_peers` |
 | `/api/detect/verbose/on`, `/api/detect/verbose/off` | POST | Turns verbose detector logging on or off |
 | `/api/incidents.json` | GET | Recent incidents (JSON). `limit`: 1-200, default 200 |
-| `/api/incidents.jsonl` | GET | Full incident log from the SD card |
+| `/api/incidents.jsonl` | GET | Full incident log from the SD card. One JSON line per incident: `ts`, `epoch`, `node`, `src`, `type`, `raw`, and `ev`, the detector's evidence object when it has one |
 | `/api/incidents`, `/api/incidents/clear` | DELETE, POST | Clears all incidents in memory and on the SD card |
 | `/api/mesh_cmd.jsonl` | GET | Which radio sent each mesh command (JSONL: `ts`, `epoch`, `src`, `cmd`) |
 | `/api/mesh_cmd` | DELETE | Clears that log |
