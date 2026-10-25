@@ -112,6 +112,7 @@ This applies to all three channels.
 - BLE classes: Microsoft beacons carry the MS-CDP device type (`CDP-WinDesktop`, `CDP-iPhone`, ...) and the Swift Pair mode (`SwiftPair-LE|BREDR|Dual`). Before, every CDP beacon showed as `MS-XboxOne`. Service data 0xFE2C reads `FastPair`.
 - The Data tab search keeps the selected sort column.
 - Vendor names are brand names, such as Sony, Nokia, or Hitachi. Before, the vendor table cut company names at 20 characters, such as "Nokia Solutions and". The Data tab's top-vendor tile counted devices with no vendor by MAC address.
+- Probe Flood: when more than 512 MACs sent probes within 5 seconds, the detector could free a MAC's probe count and then read it. It now copies the count before freeing.
 - The Data and Sentinel tabs show times in the node's time zone: the local zone the node sets from GPS, or UTC before a GPS fix. Before, table times were always UTC and other times used the browser's zone. The Data tab shows the zone in use, and its date filters use it.
 - System log lines carry the zone name after the time, such as `[2026-01-15 09:30:00 UTC]`. Before, the "RTC synced from GPS" line showed `[MUTEX_TIMEOUT]` instead of a time.
 - Split scan, Schedule **Run on**, and the campaign node list listed this node twice, as "This node" and by its node ID.

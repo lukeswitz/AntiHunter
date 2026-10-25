@@ -2066,8 +2066,9 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
     }
     if (g_probeGlobal.total < 65535) g_probeGlobal.total++;
     uint64_t sk = packMac(src);
-    uint16_t &sc = g_probeGlobal.srcCount[sk];
-    if (sc < 65535) sc++;
+    uint16_t &scRef = g_probeGlobal.srcCount[sk];
+    if (scRef < 65535) scRef++;
+    const uint16_t sc = scRef;
     if (g_probeGlobal.srcCount.size() > 512) evictOldestTs(g_probeGlobal.srcCount);
     if (g_probeGlobal.alerted) return;
     bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
