@@ -35,7 +35,7 @@
 
 ## What is AntiHunter?
 
-AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It listens to the Wi-Fi and Bluetooth around it and reports watchlist devices, new or missing devices, drones broadcasting Remote ID, and threats such as Wi-Fi attacks and jamming. It saves everything it finds to the SD card.
+AntiHunter is detection firmware for the DIGI node, an ESP32 board with a Meshtastic LoRa radio. It watches Wi-Fi, Bluetooth, and a vibration sensor, and reports watchlist devices, new or missing devices, drones, attacks, jamming, and tampering. It saves everything to SD.
 
 You control a node from its web UI (Full build), or by sending text commands over LoRa from any Meshtastic radio on your channel (Full and Headless). A node needs no internet and runs on battery. Several nodes can estimate where a device is, and the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) shows a fleet on one map.
 
