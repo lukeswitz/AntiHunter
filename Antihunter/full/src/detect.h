@@ -384,11 +384,15 @@ struct MeshRadioSighting {
     uint32_t lastSeen;
     uint32_t lastAlert;
     char name[32];
+    bool known;
 };
 
 String meshradio_getJson();
 void   meshradio_clear();
 size_t meshradio_count();
+int    knownradio_add(const String &mac, const String &type, const String &name);
+int    knownradio_del(const String &mac);
+int    knownradio_clear();
 
 // =============================================================================
 // Feature 6: Attacker reverse-trilateration

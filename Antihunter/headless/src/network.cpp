@@ -1170,10 +1170,10 @@ static const char *groupMembers(const String &name)
 {
   if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
   if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
-  if (name == "recon")                       return "pmkid,probe_flood,hshk";
+  if (name == "recon")                       return "pmkid,probe_flood,hshk,pwna";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam,jam_baseline";
   if (name == "mesh")                        return "mesh_guard";
-  if (name == "devices")                     return "pwna,meshradio";
+  if (name == "devices")                     return "meshradio";
   if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,jam_baseline,mesh_guard,pwna,meshradio";
   return nullptr;
 }
@@ -1246,6 +1246,30 @@ static void handleDetectClear()
 {
   detect_clearAll();
   sendToSerial1(nodeId + ": DETECT_CLEAR_ACK:OK", true);
+}
+
+static void sendKnownRadioAck(int n)
+{
+  String s = n >= 0 ? "OK:" + String(n) : n == -2 ? String("FAILED:FULL") : String("INVALID");
+  sendToSerial1(nodeId + ": RADIO_KNOWN_ACK:" + s, true);
+}
+
+static void handleRadioKnownAdd(const String &command)
+{
+  String rest = command.substring(strlen("RADIO_KNOWN_ADD:"));
+  int n = -1;
+  if (rest.length() >= 19 && rest[17] == ':') {
+    String tail = rest.substring(18);
+    int c = tail.indexOf(':');
+    n = knownradio_add(rest.substring(0, 17), c < 0 ? tail : tail.substring(0, c),
+                       c < 0 ? String("") : tail.substring(c + 1));
+  }
+  sendKnownRadioAck(n);
+}
+
+static void handleRadioKnownDel(const String &command)
+{
+  sendKnownRadioAck(knownradio_del(command.substring(strlen("RADIO_KNOWN_DEL:"))));
 }
 #endif
 
@@ -2248,7 +2272,8 @@ static bool meshIsResponse(const String &payload)
     "ATTACKER_TRILAT_ACK", "ATTACKER_TRILAT_STATUS: ", "STATUS_BOOT: ",
     "DETECT_JSON_ACK", "DETECT_JSON_LEN:", "DETECT_CLEAR_ACK", "DETECT_COUNTS: ",
     "DETECT_VERBOSE_ACK", "TOF_PING_ACK", "KARMA_ACK", "HUNT_COOLDOWN_ACK", "QUORUM_ACK",
-    "ATTACK_RESPONSE_ACK", "PCAP_AUTO_ACK", "PCAP_DELETE_ACK", "CALIBRATE_ACK", "CALIBRATE_DONE:"
+    "ATTACK_RESPONSE_ACK", "PCAP_AUTO_ACK", "PCAP_DELETE_ACK", "CALIBRATE_ACK", "CALIBRATE_DONE:",
+    "RADIO_KNOWN_ACK"
   };
   for (const char *p : kResponses) {
     if (payload.startsWith(p)) return true;
@@ -2497,6 +2522,7 @@ static const char *const kCmdAliases[][2] = {
   {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
   {"CAL", "CALIBRATE"},           {"CALX", "CALIBRATE_RESET"},
+  {"RKA", "RADIO_KNOWN_ADD"},     {"RKD", "RADIO_KNOWN_DEL"},        {"RKX", "RADIO_KNOWN_CLEAR"},
 };
 
 static String meshExpandCommand(const String &cmd)
@@ -2622,6 +2648,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
   else if (cmdIs(command, "INCIDENTS_CLEAR"))         handleIncidentsClear(command);
   else if (command == "DETECT_CLEAR")                 handleDetectClear();
+  else if (command.startsWith("RADIO_KNOWN_ADD:"))    handleRadioKnownAdd(command);
+  else if (command.startsWith("RADIO_KNOWN_DEL:"))    handleRadioKnownDel(command);
+  else if (command == "RADIO_KNOWN_CLEAR")            sendKnownRadioAck(knownradio_clear());
   else if (cmdIs(command, "INCIDENTS"))               handleIncidents(command);
   else if (command == "DETECT_COUNTS")                handleDetectCounts(command);
 #endif

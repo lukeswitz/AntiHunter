@@ -372,9 +372,13 @@ struct MeshRadioSighting {
     uint32_t lastSeen;
     uint32_t lastAlert;
     char name[32];
+    bool known;
 };
 
 size_t meshradio_count();
+int    knownradio_add(const String &mac, const String &type, const String &name);
+int    knownradio_del(const String &mac);
+int    knownradio_clear();
 void detect_clearAll();
 
 // =============================================================================

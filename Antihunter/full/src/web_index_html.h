@@ -2000,7 +2000,7 @@ R"HTML(
               <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
               <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
               <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>
-              <button id="grpchip-devices" class="btn alt" onclick="detGroupToggle('devices')">Devices</button>            </div>
+              <button id="grpchip-devices" class="btn alt" onclick="detGroupToggle('devices')">Mesh Radios</button>            </div>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
@@ -2066,6 +2066,9 @@ R"HTML(
           </div>
           <div class="card-body" id="detReconGrpCardBody">
             <div id="recon-rows"></div>
+            <div style="font-size:11px;color:var(--mut);margin:8px 0 6px;">Pwnagotchi sightings</div>
+            <button class="btn alt" onclick="pwnaClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pwna-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -2091,7 +2094,7 @@ R"HTML(
 
         <div class="card" data-key="devices" data-sev="info">
           <div class="card-header" onclick="toggleCollapse('detDevCard')">
-            <h3><span class="sev info">device</span>Devices Nearby <span class="num" id="dev-n">0</span></h3>
+            <h3><span class="sev info">device</span>Mesh Radios Nearby <span class="num" id="dev-n">0</span></h3>
             <span class="collapse-icon open" id="detDevCardIcon">▶</span>
           </div>
           <div class="card-body" id="detDevCardBody">
@@ -7188,11 +7191,12 @@ R"HTML(
         rogue:[['EVILTWIN','Evil Twin','eviltwin'],['OWE_ABUSE','OWE Abuse','owe'],
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
-          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake / KRACK','hshk']],
+          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake / KRACK','hshk'],
+          ['PWNAGOTCHI','Pwnagotchi','pwna']],
         physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAMMING','Wi-Fi Interference','jam'],
           ['JAMMING_BASELINE','Interference Baseline','jam_baseline']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']],
-        devices:[['PWNAGOTCHI','Pwnagotchi','pwna'],['RADIO_DETECTED','Meshtastic / MeshCore','meshradio']]      };
+        devices:[['RADIO_DETECTED','Meshtastic / MeshCore','meshradio']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
         let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
@@ -7246,7 +7250,7 @@ R"HTML(
           const el=document.getElementById(gid+'-rows');
           if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
         }
-        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE',devices:'Devices'};
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE',devices:'Mesh Radios'};
         let qv='';
         for(const gid in GROUPS){
           const dets=GROUPS[gid]; let en=0,ht=0;
@@ -7405,21 +7409,30 @@ R"HTML(
       async function devTick(){
         if(!detTabActive())return;
         const [p,m]=await Promise.all([_jj('/api/pwnagotchi'),_jj('/api/meshradio')]);
-        const rows=[];
-        (Array.isArray(p)?p:[]).forEach(r=>rows.push({type:'Pwnagotchi',name:r.snippet,mac:r.bssid,
+        const pr=(Array.isArray(p)?p:[]).map(r=>({name:r.snippet,mac:r.bssid,
           last_rssi:r.last_rssi,best_rssi:r.best_rssi,seen:r.observations,lastTxt:_agoUp(r.last)}));
-        (Array.isArray(m)?m:[]).forEach(r=>rows.push({type:r.type,name:r.name,mac:r.mac,
+        const mr=(Array.isArray(m)?m:[]).map(r=>({type:r.known?r.type+' (known)':r.type,name:r.name,mac:r.mac,
           last_rssi:r.last_rssi,best_rssi:r.best_rssi,seen:r.seen,lastTxt:_ago(Date.now()-(r.ago_ms||0))}));
-        {const _e=document.getElementById('dev-n');if(_e)_e.textContent=rows.length;}
-        detRenderTable('dev-pre',rows,[
+        {const _e=document.getElementById('dev-n');if(_e)_e.textContent=mr.length;}
+        detRenderTable('dev-pre',mr,[
           {key:'type',label:'Type'},{key:'name',label:'Name'},{key:'mac',label:'MAC'},
           {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},{key:'seen',label:'Seen'},
           {key:'lastTxt',label:'Last'}
         ]);
-        if(rows.length>0)detMarkActive('devices');
+        detRenderTable('pwna-pre',pr,[
+          {key:'name',label:'Name'},{key:'mac',label:'BSSID'},
+          {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},{key:'seen',label:'Seen'},
+          {key:'lastTxt',label:'Last'}
+        ]);
+        if(mr.length>0)detMarkActive('devices');
+        if(pr.length>0)detMarkActive('recongrp');
       }
       async function devClear(){
-        await Promise.all([fetch('/api/pwnagotchi/clear',{method:'POST'}),fetch('/api/meshradio/clear',{method:'POST'})]);
+        await fetch('/api/meshradio/clear',{method:'POST'});
+        devTick();
+      }
+      async function pwnaClear(){
+        await fetch('/api/pwnagotchi/clear',{method:'POST'});
         devTick();
       }
       async function rtcFromBrowser(){
@@ -7922,10 +7935,10 @@ R"HTML(
       const DET_GROUPS={
         dos:      ['sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
-        recon:    ['pmkid','probe_flood','hshk'],
+        recon:    ['pmkid','probe_flood','hshk','pwna'],
         physical: ['frag','tsf','jam','jam_baseline'],
         mesh:     ['mesh_guard'],
-        devices:  ['pwna','meshradio'],
+        devices:  ['meshradio'],
         ble:      ['ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];

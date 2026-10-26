@@ -284,6 +284,9 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `INCIDENTS` | `IN` | Prints the most recent incidents on USB serial | `INCIDENTS_LEN:<n> (see serial)` | `@AH01 INCIDENTS:50` |
 | `INCIDENTS_CLEAR` | `INX` | Deletes the incident log | `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
 | `DETECT_CLEAR` | `DCX` | Clears all detector state and deletes the detector logs on SD | `DETECT_CLEAR_ACK:OK` | `@AH01 DETECT_CLEAR` |
+| `RADIO_KNOWN_ADD` | `RKA` | Marks a Meshtastic or MeshCore radio as known. The node stops alerting on it | `RADIO_KNOWN_ACK:OK:<count>`, `:INVALID`, or `:FAILED:FULL` | `@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic` |
+| `RADIO_KNOWN_DEL` | `RKD` | Removes a radio from the known list | `RADIO_KNOWN_ACK:OK:<count>` or `:INVALID` | `@ALL RADIO_KNOWN_DEL:AA:BB:CC:DD:EE:FF` |
+| `RADIO_KNOWN_CLEAR` | `RKX` | Empties the known list | `RADIO_KNOWN_ACK:OK:0` | `@AH01 RADIO_KNOWN_CLEAR` |
 | `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON` or `:OFF` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | `ATQ` | Reports that setting | `ATTACKER_TRILAT_STATUS: ON` or `OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> meshradio=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |
@@ -295,6 +298,9 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `GROUP` | `name:on\|off` | `on`, `1`, or `true` enables. `off`, `0`, or `false` disables. Names are in the table below | | |
 | `INCIDENTS` | `n` | Number of incidents to print. Other values give 20 | 1-200 | 20 |
 | `ATTACKER_TRILAT` | `0`, `1`, `on`, or `off` | Turns locating on or off | | |
+| `RADIO_KNOWN_ADD` | `mac:type[:name]` | `type` is `Meshtastic` or `MeshCore`. `name` is the radio's Bluetooth name. If you leave it out, the node uses the name it last saw for that MAC | 32 radios, name up to 31 characters | |
+
+A known radio matches by MAC. A radio that changes its Bluetooth address also matches by type and name. A radio with a fixed address that uses a known name still raises an alert. The list survives a reboot. The node waits up to 30 seconds for the name of a radio that changes its address before it alerts.
 
 A `GROUP` name selects these detectors:
 
@@ -302,10 +308,10 @@ A `GROUP` name selects these detectors:
 |---|---|
 | `dos` | Evil twin, SAE flood, association sleep |
 | `rogue` (or `rogue_ap`) | Evil twin, OWE downgrade, Karma bait |
-| `recon` | PMKID harvest, probe flood, forced handshake |
+| `recon` | PMKID harvest, probe flood, forced handshake, Pwnagotchi |
 | `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference, interference baseline |
 | `mesh` | Mesh disruption |
-| `devices` | Pwnagotchi, LoRa mesh radios (Meshtastic and MeshCore) |
+| `devices` | LoRa mesh radios (Meshtastic and MeshCore) |
 | `all` | All of the above |
 
 `DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`.
@@ -456,7 +462,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `SAE_DOS:<bssid>:<commits>` | |
 | `JAMMING:<ch>:noise_rise:<db>` | `db`: how far the noise floor rose above its learned level |
 | `JAMMING_BASELINE:<ch>:silence:<fps>` | `fps`: the channel's usual frames per second |
-| `RADIO_DETECTED:<radio>:<mac>:<rssi>` | `Meshtastic` `MeshCore` |
+| `RADIO_DETECTED:<radio>:<mac>:<rssi>:<name>` | `Meshtastic` `MeshCore`. `name` is empty if the radio has not sent one yet |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
