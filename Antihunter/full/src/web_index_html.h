@@ -2000,7 +2000,7 @@ R"HTML(
               <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
               <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
               <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>
-              <button id="grpchip-lora" class="btn alt" onclick="detGroupToggle('lora')">LoRa radios</button>            </div>
+              <button id="grpchip-devices" class="btn alt" onclick="detGroupToggle('devices')">Devices</button>            </div>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
@@ -2089,16 +2089,16 @@ R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="lora" data-sev="info">
-          <div class="card-header" onclick="toggleCollapse('detLoraCard')">
-            <h3><span class="sev info">radio</span>LoRa Mesh Radios <span class="num" id="mrd-n">0</span></h3>
-            <span class="collapse-icon open" id="detLoraCardIcon">▶</span>
+        <div class="card" data-key="devices" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detDevCard')">
+            <h3><span class="sev info">device</span>Devices Nearby <span class="num" id="dev-n">0</span></h3>
+            <span class="collapse-icon open" id="detDevCardIcon">▶</span>
           </div>
-          <div class="card-body" id="detLoraCardBody">
-            <div id="lora-rows"></div>
-            <div style="font-size:11px;color:var(--mut);margin:8px 0 6px;">Finds radios by Bluetooth. Adds a Bluetooth scan.</div>
-            <button class="btn alt" onclick="mrdClear()" style="margin-bottom:6px;">Clear</button>
-            <pre id="mrd-pre" class="log-pre">--</pre>
+          <div class="card-body" id="detDevCardBody">
+            <div id="devices-rows"></div>
+            <div style="font-size:11px;color:var(--mut);margin:8px 0 6px;">Radio detection adds a Bluetooth scan.</div>
+            <button class="btn alt" onclick="devClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="dev-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -2332,16 +2332,6 @@ R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="pwna" data-sev="med">
-          <div class="card-header" onclick="toggleCollapse('detPwnaCard')">
-            <h3><span class="sev med">med</span>Pwnagotchi <span class="num" id="pwna-n">0</span></h3>
-            <span class="collapse-icon" id="detPwnaCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detPwnaCardBody">
-            <button class="btn alt" onclick="pwnaClear()" style="margin-bottom:6px;">Clear</button>
-            <pre id="pwna-pre" class="log-pre">--</pre>
-          </div>
-        </div>
 
         <div class="card" data-key="analysis">
           <h3>Sentinel Analysis</h3>
@@ -7202,7 +7192,7 @@ R"HTML(
         physical:[['FRAG','FragAttacks','frag'],['TSF','Two-Channel Twin','tsf'],['JAMMING','Wi-Fi Interference','jam'],
           ['JAMMING_BASELINE','Interference Baseline','jam_baseline']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']],
-        lora:[['RADIO_DETECTED','Meshtastic / MeshCore','meshradio']]      };
+        devices:[['PWNAGOTCHI','Pwnagotchi','pwna'],['RADIO_DETECTED','Meshtastic / MeshCore','meshradio']]      };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
         let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
@@ -7256,7 +7246,7 @@ R"HTML(
           const el=document.getElementById(gid+'-rows');
           if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
         }
-        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE',lora:'LoRa radios'};
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE',devices:'Devices'};
         let qv='';
         for(const gid in GROUPS){
           const dets=GROUPS[gid]; let en=0,ht=0;
@@ -7338,7 +7328,7 @@ R"HTML(
         {const _e=document.getElementById('d-rid');if(_e){_e.textContent=rid?JSON.stringify(rid,null,2):'[]';privacyApply(_e);}}
         detRenderTable('d-recpre',rc||[],[
           {key:'id',label:'TrackId'},{key:'score',label:'Score'},
-          {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
+          {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_agoUp(r.ts)}
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
         if(_countSess(pm,'/pmkid.jsonl')>0||_countSess(et,'/eviltwin.jsonl')>0||_countSess(sc,'/ssid_confusion.jsonl')>0||_countSess(sa,'/sae_dos.jsonl')>0)detMarkActive('rid');
@@ -7371,7 +7361,7 @@ R"HTML(
         detRenderTable('pg-pre',pg||[],[
           {key:'hash',label:'Hash'},{key:'local',label:'TrackId'},
           {key:'best_rssi',label:'Best RSSI'},{key:'sightings',label:'Sight'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
+          {key:'last',label:'Last',get:r=>_agoUp(r.last)}
         ]);
         if(n>0)detMarkActive('probegraph');
       }
@@ -7387,7 +7377,7 @@ R"HTML(
         detRenderTable('hs-pre',rows,[
           {key:'bssid',label:'BSSID'},{key:'sta',label:'STA'},
           {key:'mask',label:'Msgs'},{key:'complete',label:'Done'},
-          {key:'krack_events',label:'KRACK'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+          {key:'krack_events',label:'KRACK'},{key:'last',label:'Last',get:r=>_agoUp(r.last)}
         ]);
         if(s&&s.krack_events>0)detMarkActive('handshake');
       }
@@ -7400,8 +7390,8 @@ R"HTML(
         const o=document.getElementById('d-ah-n'); if(o)o.textContent=n;
         detRenderTable('ah-pre',h||[],[
           {key:'mac',label:'MAC'},{key:'type',label:'Type'},
-          {key:'started',label:'Started',get:r=>_ago(r.started)},
-          {key:'last_kick',label:'Last Kick',get:r=>_ago(r.last_kick)}
+          {key:'started',label:'Started',get:r=>_agoUp(r.started)},
+          {key:'last_kick',label:'Last Kick',get:r=>_agoUp(r.last_kick)}
         ]);
         if(n>0)detMarkActive('hunts');
       }
@@ -7412,30 +7402,26 @@ R"HTML(
         const fd=new FormData();fd.append('ms',String(s*1000));
         await fetch('/api/attacker_hunts/cooldown',{method:'POST',body:fd});ahTick();
       }
-      async function pwnaTick(){
+      async function devTick(){
         if(!detTabActive())return;
-        const p=await _jj('/api/pwnagotchi');
-        {const _e=document.getElementById('pwna-n');if(_e)_e.textContent=(p||[]).length;}
-        detRenderTable('pwna-pre',p||[],[
-          {key:'bssid',label:'BSSID'},{key:'observations',label:'Seen'},
-          {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},
-          {key:'snippet',label:'Identity'},{key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if((p||[]).length>0)detMarkActive('pwna');
-      }
-      async function pwnaClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwnaTick();}
-      async function mrdTick(){
-        if(!detTabActive())return;
-        const p=await _jj('/api/meshradio');
-        {const _e=document.getElementById('mrd-n');if(_e)_e.textContent=(p||[]).length;}
-        detRenderTable('mrd-pre',p||[],[
+        const [p,m]=await Promise.all([_jj('/api/pwnagotchi'),_jj('/api/meshradio')]);
+        const rows=[];
+        (Array.isArray(p)?p:[]).forEach(r=>rows.push({type:'Pwnagotchi',name:r.snippet,mac:r.bssid,
+          last_rssi:r.last_rssi,best_rssi:r.best_rssi,seen:r.observations,lastTxt:_agoUp(r.last)}));
+        (Array.isArray(m)?m:[]).forEach(r=>rows.push({type:r.type,name:r.name,mac:r.mac,
+          last_rssi:r.last_rssi,best_rssi:r.best_rssi,seen:r.seen,lastTxt:_ago(Date.now()-(r.ago_ms||0))}));
+        {const _e=document.getElementById('dev-n');if(_e)_e.textContent=rows.length;}
+        detRenderTable('dev-pre',rows,[
           {key:'type',label:'Type'},{key:'name',label:'Name'},{key:'mac',label:'MAC'},
           {key:'last_rssi',label:'RSSI'},{key:'best_rssi',label:'Best'},{key:'seen',label:'Seen'},
-          {key:'ago_ms',label:'Last',get:r=>_ago(Date.now()-(r.ago_ms||0))}
+          {key:'lastTxt',label:'Last'}
         ]);
-        if((p||[]).length>0)detMarkActive('lora');
+        if(rows.length>0)detMarkActive('devices');
       }
-      async function mrdClear(){await fetch('/api/meshradio/clear',{method:'POST'});mrdTick();}
+      async function devClear(){
+        await Promise.all([fetch('/api/pwnagotchi/clear',{method:'POST'}),fetch('/api/meshradio/clear',{method:'POST'})]);
+        devTick();
+      }
       async function rtcFromBrowser(){
         const fd=new FormData();fd.append('epoch',String(Math.floor(Date.now()/1000)));
         const r=await fetch('/api/time',{method:'POST',body:fd}).catch(()=>null);
@@ -7472,7 +7458,7 @@ R"HTML(
         detRenderTable('km-pre',c||[],[
           {key:'bssid',label:'BSSID'},{key:'distinct_ssids',label:'SSIDs'},
           {key:'bait_emitted',label:'Bait'},{key:'confirmed',label:'Confirmed'},
-          {key:'last_ssid',label:'Last SSID'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+          {key:'last_ssid',label:'Last SSID'},{key:'last',label:'Last',get:r=>_agoUp(r.last)}
         ]);
         if(s&&s.confirmed>0)detMarkActive('karma');
       }
@@ -7485,7 +7471,7 @@ R"HTML(
         detRenderTable('tsf-pre',t||[],[
           {key:'bssid',label:'BSSID'},{key:'ssid',label:'SSID'},
           {key:'chan_a',label:'Ch A'},{key:'chan_b',label:'Ch B'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
+          {key:'last',label:'Last',get:r=>_agoUp(r.last)}
         ]);
       }
       async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
@@ -7512,7 +7498,7 @@ R"HTML(
         detRenderTable('tof-pre',t||[],[
           {key:'node',label:'Node'},{key:'last_rtt_us',label:'Last RTT us'},
           {key:'best_rtt_us',label:'Best us'},{key:'avg_rtt_us',label:'Avg us'},
-          {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+          {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_agoUp(r.last)}
         ]);
       }
       async function tofPing(){
@@ -7627,7 +7613,7 @@ R"HTML(
       const DETECTOR_TOGGLE_KEYS = {
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
         'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
-        'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
+        'tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
         'blemal':'blemOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
@@ -7811,6 +7797,11 @@ R"HTML(
         if(s<3600)return Math.floor(s/60)+'m';
         return Math.floor(s/3600)+'h';
       }
+      let _nodeUp=null;
+      function _agoUp(ms){
+        if(!ms||!_nodeUp)return '-';
+        return _ago(Date.now()-((_nodeUp.ms+(Date.now()-_nodeUp.at))-ms));
+      }
       const DET_FEATURES_LOCAL=[
         ['pmkid','PMKID Harvest'],['eviltwin','Evil Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
@@ -7934,7 +7925,7 @@ R"HTML(
         recon:    ['pmkid','probe_flood','hshk'],
         physical: ['frag','tsf','jam','jam_baseline'],
         mesh:     ['mesh_guard'],
-        lora:     ['meshradio'],
+        devices:  ['pwna','meshradio'],
         ble:      ['ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
@@ -7983,6 +7974,7 @@ R"HTML(
         if(!tab||!tab.classList.contains('active'))return;
         const h=await _jj('/api/detect/health');
         if(!h)return;
+        if(typeof h.uptime_ms==='number')_nodeUp={ms:h.uptime_ms,at:Date.now()};
         document.getElementById('d-heap').textContent=Math.round(h.heap_free/1024)+'K (min '+Math.round(h.heap_min/1024)+'K)';
         document.getElementById('d-drops').textContent='wifi:'+h.drops.wifi+' ble:'+h.drops.ble;
         document.getElementById('d-mgated').textContent=h.drops.mesh_gated;
@@ -8023,7 +8015,7 @@ R"HTML(
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();pgTick();hsTick();
-        ahTick();kmTick();tsfTick();tofTick();pwnaTick();mrdTick();verboseTick();arTick();detHealthTick();
+        ahTick();kmTick();tsfTick();tofTick();devTick();verboseTick();arTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();apClientsTick();meshCmdTick();
       }
       async function _jsonl(path){

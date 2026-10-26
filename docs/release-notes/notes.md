@@ -44,7 +44,7 @@ This applies to all three channels.
 - Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System tab → **Settings** → **Access point** → **Web login**, or with `webPass` in the flasher config. Turn the login off in the same place, or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. You can't change either over mesh. The login does not affect scheduled scans.
 - Theme: Paper dark is the new default. Blue dark and Light remain under **Settings** → **Appearance**. In Paper dark, the default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners. A chosen accent scheme overrides them.
 - Sentinel tab: **Incidents** shows Sentinel Analysis and the session incidents at full width. **Mesh & thresholds** lays out the mesh alert switches and the thresholds in grids.
-- Sentinel tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a Pwnagotchi card, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
+- Sentinel tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a **Devices Nearby** card for Pwnagotchis and LoRa mesh radios, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
 - Scan tab: the split device scan moved here from the Fleet card. It is **Split across nodes** under Schedule when you select Device Discovery.
 - Scan tab, Target card: Targets and Allow list sit above the scan options. Trend badges read Steady and Measuring. A Movement toggle sits in the Forever/Triangulate row.
 - Baseline: the button is now **Compare from now**. It appears only after the node builds the baseline and starts monitoring.
@@ -64,7 +64,7 @@ This applies to all three channels.
 - PCAP files carry the radiotap MCS field for HT frames.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 - Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
-- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:lora:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
+- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:devices:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
 - Full and Headless: Wi-Fi interference has a baseline mode, `jam_baseline`, off by default. It alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned, or when a busy channel goes quiet. The alert is `JAMMING_BASELINE:<ch>:<rule>:<value>`.
 - Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
 - Malformed BLE alerts record the advert bytes.
@@ -126,6 +126,8 @@ This applies to all three channels.
 - `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
 - The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
 - Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
+- Sentinel tab: some **Last** and age columns showed hundreds of thousands of hours. They compared the node's uptime to the browser clock.
+- Full and Headless log these alerts from other nodes to the incident log: `AUTH_FLOOD`, `BEACON_FLOOD`, `DEAUTH_FORGE`, `JAMMING`, `OWE_ABUSE`, `PROBE_FLOOD_AP`, and `SSID_CONFUSION`. Before, the node left them out.
 - Headless: attack response ignored `attack_resp_mask` 32, which stops a scheduled scan to make room.
 - Headless: a stopped or failed triangulation setup left the node marked as triangulating. It now resets and tells the other nodes to stop.
 - Headless: baseline swapped the device queue without its lock, and the live triangulation results read node data without their lock.

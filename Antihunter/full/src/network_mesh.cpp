@@ -2102,8 +2102,8 @@ static const char *groupMembers(const String &name)
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam,jam_baseline";
   if (name == "mesh")                        return "mesh_guard";
-  if (name == "lora")                        return "meshradio";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,jam_baseline,mesh_guard,meshradio";
+  if (name == "devices")                     return "pwna,meshradio";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,jam_baseline,mesh_guard,pwna,meshradio";
   return nullptr;
 }
 

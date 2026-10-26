@@ -650,7 +650,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">SENTINEL_ON</span></td><td>Starts Sentinel. <span class="mono">SENTINEL_OFF</span> stops it.</td></tr>
     <tr><td><span class="mono">SENTINEL_MODE:scan</span></td><td><span class="mono">scan</span> hops the configured channels. <span class="mono">defend</span> stays on the node's own access point channel. Headless has no access point, so use <span class="mono">scan</span>.</td></tr>
     <tr><td><span class="mono">SENTINEL_BOOT:1</span></td><td>1 starts Sentinel at power-on, 0 does not.</td></tr>
-    <tr><td><span class="mono">GROUP:dos:on</span></td><td>Turns a detector group on or off: <span class="mono">dos</span>, <span class="mono">rogue</span>, <span class="mono">recon</span>, <span class="mono">physical</span>, <span class="mono">mesh</span>, <span class="mono">lora</span> or <span class="mono">all</span>.</td></tr>
+    <tr><td><span class="mono">GROUP:dos:on</span></td><td>Turns a detector group on or off: <span class="mono">dos</span>, <span class="mono">rogue</span>, <span class="mono">recon</span>, <span class="mono">physical</span>, <span class="mono">mesh</span>, <span class="mono">devices</span> or <span class="mono">all</span>.</td></tr>
     <tr><td><span class="mono">SENTINEL_STATUS</span></td><td>Reports <span class="mono">en=</span> (you enabled it) and <span class="mono">run=</span> (it is running now).</td></tr>
     <tr><td><span class="mono">INCIDENTS:50</span></td><td>Prints the newest 50 incidents (1 to 200, default 20) as JSON on USB serial. The mesh reply is only the length. <span class="mono">INCIDENTS_CLEAR</span> deletes the log.</td></tr>
   </table>
@@ -659,7 +659,7 @@ python3 scripts/meshtastic_config.py</pre>
     <p>Karma bait is the only Sentinel detector that transmits Wi-Fi: a probe request every 8 seconds to bait a karma access point into answering. It is off by default. Turn it on with <span class="mono">GROUP:rogue:on</span> or the <b>Karma</b> switch on the Sentinel tab, and only where transmitting is lawful.</p>
   </div>
   <h4>LoRa mesh radios</h4>
-  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on in the <b>LoRa Mesh Radios</b> card or with <span class="mono">GROUP:lora:on</span>. It also finds your own nodes' radios. Add their MACs to the allowlist.</p>
+  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on with the <b>Meshtastic / MeshCore</b> switch on the <b>Devices Nearby</b> card or with <span class="mono">DETECT_CFG:{"meshradio":true}</span>. It also finds your own nodes' radios. Add their MACs to the allowlist.</p>
   <h4>Interference baseline</h4>
   <p>This mode learns each channel's noise floor for 60 seconds. It then alerts when the noise floor rises 8 dB, or when a busy channel goes quiet. It is off by default. Turn it on with the <b>Interference Baseline</b> switch or <span class="mono">DETECT_CFG:{"jam_baseline":true}</span>. Turn it off and on after you move the node.</p>
 

@@ -305,7 +305,7 @@ A `GROUP` name selects these detectors:
 | `recon` | PMKID harvest, probe flood, forced handshake |
 | `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference, interference baseline |
 | `mesh` | Mesh disruption |
-| `lora` | LoRa mesh radios (Meshtastic and MeshCore) |
+| `devices` | Pwnagotchi, LoRa mesh radios (Meshtastic and MeshCore) |
 | `all` | All of the above |
 
 `DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`.
