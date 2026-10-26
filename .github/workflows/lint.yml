@@ -19,7 +19,7 @@ jobs:
     - name: Install cppcheck 2.20
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential libpcre3-dev
+        sudo apt-get install -y cmake build-essential
         curl -sL -o cppcheck-2.20.0.tar.gz https://github.com/danmar/cppcheck/archive/refs/tags/2.20.0.tar.gz
         echo "7be7992439339017edb551d8e7d2315f9bb57c402da50c2cee9cd0e2724600a1  cppcheck-2.20.0.tar.gz" | sha256sum -c -
         tar xzf cppcheck-2.20.0.tar.gz
