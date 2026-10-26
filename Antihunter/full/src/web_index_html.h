@@ -1859,7 +1859,7 @@ R"HTML(
             <span class="collapse-icon open" id="detOverviewCardIcon">▶</span>
           </div>
           <div class="card-body" id="detOverviewCardBody">
-            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(96px,12vw,128px),1fr));gap:8px;margin-bottom:10px;">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;">
               <div class="stat" data-cfg="always"><div class="stat-label">Deauth Flood</div><div class="stat-value" id="d-dauth">0</div></div>
               <div class="stat" data-cfg="pmkid"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
               <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil Twin</div><div class="stat-value" id="d-et">0</div></div>
