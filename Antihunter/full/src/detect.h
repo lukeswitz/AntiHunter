@@ -1,11 +1,4 @@
 #pragma once
-// AntiHunter detection-engineering module
-// Phase 1: WiFi/BLE attack-signature detectors (PMKID, evil-twin, SSID confusion,
-//          SAE DoS, OWE abuse, FragAttacks A-MSDU PN reuse, BLE malformed adv)
-// Phase 2: Mesh coordination (RID spoof validate, Bloom gossip, Byzantine quorum,
-//          GPS-PPS time discipline, coordinated channel partition)
-// Phase 3: BLE perimeter (tracker persistence/watchlist, BLE ODID, OUI category,
-//          CYT recon score, StateFi chipset fingerprint)
 
 #ifndef AH_SENTINEL
 #define AH_SENTINEL 1
@@ -30,10 +23,6 @@ template <typename T>
 using PsramVec = std::vector<T, PsramAllocator<T>>;
 template <typename T>
 using PsramDeque = std::deque<T, PsramAllocator<T>>;
-
-// =============================================================================
-// Phase 1 — Attack-signature event types
-// =============================================================================
 
 struct PmkidHarvestEvent {
     uint8_t srcMac[6];
@@ -104,7 +93,6 @@ struct BleMalformedEvent {
     uint32_t ts;
 };
 
-// Raw frame-fragment events from sniffer_cb (ISR-safe)
 struct DetectFrameEvent {
     enum Kind : uint8_t {
         EAPOL = 1,        // EAPOL-Key M1 candidate
@@ -125,10 +113,6 @@ struct DetectFrameEvent {
     uint32_t rxMicrosLo;  // low 32b of disciplined micros (full via lookup if needed)
     uint8_t payload[256]; // truncated; enough for headers + first IE block
 };
-
-// =============================================================================
-// Phase 2 — Mesh coordination
-// =============================================================================
 
 struct AlertCandidate {
     String type;     // "PMKID", "EVILTWIN", "DEAUTH", "RECON"
@@ -163,7 +147,6 @@ struct RidClaim {
     uint32_t lastMeshTx = 0;
 };
 
-// Bloom filter — 2KB, k=3 hashes
 class BloomFilter {
 public:
     static constexpr size_t BITS = 16384;
@@ -179,10 +162,6 @@ private:
     static inline uint32_t h2(uint32_t x);
     static inline uint32_t h3(uint32_t x);
 };
-
-// =============================================================================
-// Phase 3 — BLE perimeter / OUI / recon
-// =============================================================================
 
 struct ReconAlert {
     char identityId[10];
@@ -201,25 +180,15 @@ enum OuiCategory : uint8_t {
     OUI_SKIMMER        = 5,
 };
 
-// =============================================================================
-// Public API
-// =============================================================================
-
 extern std::atomic<bool> detectEnabled;
 
-// Lifecycle
 void initializeDetect();
 void detectTask(void *pv);
 
-// Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe).
-// IRAM_ATTR lives on the definition only (on both decl+def, GCC assigns conflicting .iram1 sections).
 void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
 
-// PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
-// (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
 void detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor, uint8_t channel);
 
-// Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
 void mesh_observeInbound(const String &sender, const String &body);
 
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged = false);
@@ -244,51 +213,34 @@ void sentinel_resumeAfterScan();
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
 bool detect_isSelfApMac(const uint8_t *mac);
 
-// BLE hook — called from BLE scan onResult
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name);
 void detect_onMeshRadioAdv(const uint8_t *addr, uint8_t addrType, int8_t rssi,
                            const uint8_t *payload, uint16_t payloadLen);
 
-// Mesh
 void detect_processMesh(const String &fromNode, const String &msg);
 void detect_periodicMeshGossip();
 
-// Unified incidents log — all detector mesh msgs from local TX + peer RX.
-// Persisted to /incidents.jsonl on SD + small in-RAM ring (200 entries).
-// raw = mesh line WITHOUT leading nodeId; src = "local" or peer node id.
 void detect_logIncident(const String &raw, const char *src, const String &ev = String());
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();
 size_t detect_incidentCount();
 
-// Quorum
 void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi);
 void quorum_setRequired(const String &type, uint8_t n);
 
-// RID claim validator (called by drone_detector when ODID location received)
 void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi);
 String detect_getRidClaimsJson();
 
-// Bloom gossip
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash);
 String detect_getBloomStatsJson();
 
-// OUI category
-
-// Recon score
 String detect_getReconJson();
 void detect_clearRecon();
 void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, const char *reason);
 
-// =============================================================================
-// Feature 12: Inter-node mesh ping (PPS-disciplined link-quality)
-// =============================================================================
-// NOTE: transport is mesh-Serial1 (Meshtastic), not direct ESP-NOW. RTT is
-// dominated by transport latency, not RF time-of-flight. est_dist_m is NOT
-// a real distance; kept as -1 sentinel. Use for link health + jitter only.
 struct TofPeer {
     char nodeId[16];
     uint64_t lastRttUs;
@@ -307,14 +259,6 @@ String tof_getPeersJson();
 void   tof_clear();
 size_t tof_peerCount();
 
-// =============================================================================
-// Feature 10/11: TSF clock-skew physical-layer AP fingerprint
-// =============================================================================
-// Every AP's beacon TSF advances at crystal-PPM-offset rate. Track per-BSSID
-// skew: expected_delta = beacon_interval * 1024 us; actual_delta = tsf - prev.
-// PPM = (actual - expected) / expected * 1e6. Running average = hw fingerprint.
-// Spoofed evil-twin has different PPM than legit AP even if all IEs/SSID match.
-
 struct TsfSkewEntry {
     uint8_t bssid[6];
     char ssid[33];
@@ -328,13 +272,6 @@ struct TsfSkewEntry {
 String tsf_getSkewJson();
 void   tsf_clear();
 size_t tsf_count();
-
-// =============================================================================
-// Feature 9: Reactive KARMA probe-bait
-// =============================================================================
-// Track APs emitting probe-responses for >N distinct SSIDs in a window (KARMA
-// candidate). Then emit honey probe-requests with deterministic markers; any
-// probe-response echoing the marker confirms KARMA + identifies the rogue AP.
 
 struct KarmaCandidate {
     uint8_t bssid[6];
@@ -356,9 +293,6 @@ void   karma_clear();
 size_t karma_candidateCount();
 size_t karma_confirmedCount();
 
-// =============================================================================
-// Feature 7: Pwnagotchi swarm detection (verified addr2 = DE:AD:BE:EF:DE:AD)
-// =============================================================================
 struct PwnagotchiSighting {
     uint8_t bssid[6];
     int8_t lastRssi;
@@ -394,26 +328,11 @@ int    knownradio_add(const String &mac, const String &type, const String &name)
 int    knownradio_del(const String &mac);
 int    knownradio_clear();
 
-// =============================================================================
-// Feature 6: Attacker reverse-trilateration
-// =============================================================================
-// On confirmed attack signature (PMKID burst, SAE DoS, deauth flood, KRACK)
-// auto-kick existing triangulation infra against the offender's MAC.
-// Cooldown per source MAC. Mesh-broadcast hunt request so all nodes participate.
-
 void attacker_kick(const uint8_t *mac, const char *attackType);
 String attacker_getActiveHuntsJson();
 void   attacker_clearHunts();
 size_t attacker_huntCount();
 void   attacker_setCooldown(uint32_t ms);
-
-// =============================================================================
-// Feature 5: Distributed 4-way handshake reconstruction + KRACK detect
-// =============================================================================
-// Each node captures M1/M2/M3/M4 from EAPOL-Key frames. Mesh broadcasts each
-// (BSSID, STA, msg_num, replay_counter, rssi, node). Coordinator stitches into
-// per-(BSSID,STA) reconstruction. Repeated M3 with same replay-counter from one
-// BSSID/STA pair = KRACK CVE-2017-13077 PTK reinstallation signature.
 
 struct HandshakeFragment {
     uint8_t bssid[6];
@@ -439,14 +358,6 @@ String hshk_getReconJson();
 void   hshk_clear();
 size_t hshk_count();
 uint32_t hshk_krackEvents();
-
-// =============================================================================
-// Feature 2: Probe-graph identity correlator (mesh-wide)
-// =============================================================================
-// Each node already de-randomizes via IE fingerprint + IE order + chan-sequence
-// (randomization.cpp). New: broadcast a deterministic hash of those over mesh.
-// Other nodes that derive the SAME hash for any of their tracked identities
-// link the two — same device seen by N nodes => meta-identity with motion path.
 
 struct ProbeGraphIdentity {
     uint32_t hash{};
@@ -488,18 +399,15 @@ void    attack_responseCancel();
 void    attack_responsePump();
 uint8_t attack_responsePending();
 
-// PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
 uint64_t getDisciplinedMicros();   // sub-µs epoch if PPS locked; else esp_timer_get_time + boot offset
 bool ppsLocked();
 uint32_t ppsLastEdgeMicros();
 
-// Channel partition (coordinator-side)
 void detect_assignChannelPartition();
 String detect_getChannelAssignmentJson();
 String detect_getMyChannelsCsv();
 
-// API JSON getters for /api/* endpoints
 String detect_getPmkidJsonl();
 String detect_getEvilTwinJsonl();
 String detect_getSsidConfusionJsonl();
@@ -512,10 +420,8 @@ void   detect_clearAll();
 void   detect_clearSession();
 String detect_getSessionJson();
 
-// External queues (filled from ISR)
 extern QueueHandle_t detectFrameQueue;
 
-// Per-feature mesh broadcast flags (for use in scanner.cpp / other TUs)
 namespace ah_detect {
 extern std::atomic<bool> g_meshDeauth;
 extern std::atomic<bool> g_meshBeacon;
@@ -535,7 +441,6 @@ extern std::atomic<bool> g_meshGuard;
 extern std::atomic<uint16_t> g_deauthTargetedThresh;
 } // namespace ah_detect
 
-// Tunables (config-exposed)
 extern std::atomic<uint16_t> pmkid_burst_window_ms;
 extern std::atomic<uint8_t>  pmkid_burst_min_bssids;
 extern std::atomic<uint16_t> sae_window_ms;

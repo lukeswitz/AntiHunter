@@ -32,7 +32,6 @@ extern "C"
 
 extern bool parseMac6(const String &in, uint8_t out[6]);
 
-// Probe-hit cooldown map type (probe-only)
 using StringU32MapPsram = std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>>;
 
@@ -64,7 +63,6 @@ void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse)
     }
 }
 
-// Extract SSID from IE tags. ieStart=24 for probe requests, 36 for probe responses/beacons.
 bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize)
 {
     if (frameLen < ieStart + 2) return false;
@@ -185,7 +183,6 @@ void probeDetectionTask(void *pv)
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
     scanSetCountdown(duration, forever);
 
-    // Load known device database from SD
     loadProbeDB();
     Serial.printf("[PROBE] Probe DB loaded: %u known devices\n", getProbeDBSize());
 
@@ -237,16 +234,11 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        // Drain aggressively each loop — queue is 256 deep, ISR fills fast.
-        // Higher cap = lower latency from probe RX → UI update.
         while (probeRequestQueue && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
             totalDrained++;
             processedCount++;
 
-            // --- Probe Response (stype 5) ---
-            // Maps the responding AP's SSID to the device that sent the probe request
             if (event.isProbeResponse) {
-                // addr1 = device that probed, extract SSID from probe response IEs (offset 36)
                 char devMacStr[18];
                 snprintf(devMacStr, sizeof(devMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
                          event.addr1[0], event.addr1[1], event.addr1[2],
@@ -284,7 +276,6 @@ void probeDetectionTask(void *pv)
                      event.mac[0], event.mac[1], event.mac[2],
                      event.mac[3], event.mac[4], event.mac[5]);
 
-            // dst events are unfiltered unicast from ISR — verify target here
             if (event.dstMatch) {
                 if (!matchesMac(event.mac)) continue;
             }
@@ -359,7 +350,6 @@ void probeDetectionTask(void *pv)
                     dev.respondingAP[0] = '\0';
                     dev.respondingSSID[0] = '\0';
 
-                    // Annotate with SD database history
                     ProbeDBEntry hist;
                     if (lookupProbeHistory(macStr, hist)) {
                         dev.histKnown = true;
@@ -474,7 +464,6 @@ void probeDetectionTask(void *pv)
             lastBLEScan = millis();
         }
 
-        // Periodic DB save every 60s (for forever mode resilience)
         if ((millis() - lastDBSave) >= 60000) {
             {
                 std::lock_guard<std::mutex> lock(probeMutex);
@@ -496,7 +485,6 @@ void probeDetectionTask(void *pv)
         radioStopSTA();
     }
 
-    // Merge all devices into SD database and save
     {
         std::lock_guard<std::mutex> lock(probeMutex);
         for (const auto &p : probeDevices) {
@@ -506,7 +494,6 @@ void probeDetectionTask(void *pv)
     saveProbeDB();
     Serial.printf("[PROBE] Merged %u devices into probe database\n", probeDevices.size());
 
-    // Log probe events to /probes.jsonl on SD
     {
         File logFile = SafeSD::open("/probes.jsonl", FILE_APPEND);
         if (logFile) {
@@ -539,7 +526,6 @@ void probeDetectionTask(void *pv)
             }
             logFile.close();
 
-            // Rotate if over 1MB
             File check = SafeSD::open("/probes.jsonl", FILE_READ);
             if (check && check.size() > 1048576) {
                 check.close();
@@ -600,7 +586,6 @@ String getProbeResults()
         [](std::pair<const String, ProbeDevice> &p) -> std::pair<String, ProbeDevice*> {
             return {p.first, &p.second};
         });
-    // Sort: known devices first, then by signal strength
     std::sort(sorted.begin(), sorted.end(),
         [](const std::pair<String, ProbeDevice*> &a, const std::pair<String, ProbeDevice*> &b) {
         if (a.second->histKnown != b.second->histKnown) return a.second->histKnown;
@@ -652,12 +637,10 @@ String getProbeResults()
             }
         }
 
-        // Probe count this session
         if (dev.probeCount > 1) {
             results += " x" + String(dev.probeCount);
         }
 
-        // Historical intelligence from SD database
         if (dev.histKnown) {
             results += " [KNOWN:seen=" + String(dev.histTotalSeen) +
                        " sessions=" + String(dev.histSessionCount) +
@@ -667,11 +650,9 @@ String getProbeResults()
         results += "\n";
     }
 
-    // SSID summary with device mapping
     if (uniqueSsids.size() > 0) {
         results += "\nSSIDs seen (" + String(uniqueSsids.size()) + "):\n";
 
-        // Build SSID→devices map
         std::map<String, std::vector<String>> ssidToDevices;
         for (const auto &p : probeDevices) {
             for (uint8_t i = 0; i < p.second.ssidCount; i++) {
@@ -679,7 +660,6 @@ String getProbeResults()
             }
         }
 
-        // Sort by device count descending
         std::vector<std::pair<String, std::vector<String>>> ssidSorted(ssidToDevices.begin(), ssidToDevices.end());
         std::sort(ssidSorted.begin(), ssidSorted.end(),
             [](const std::pair<String, std::vector<String>> &a,
@@ -689,7 +669,6 @@ String getProbeResults()
             bool ghost = respondedSsids.find(s.first) == respondedSsids.end();
             results += "  " + String(ghost ? "~" : "") + "\"" + s.first + "\" (" + String(s.second.size()) +
                        (s.second.size() == 1 ? " device" : " devices") + ")";
-            // Show the first 3 MAC addresses probing for this SSID
             if (s.second.size() <= 3) {
                 results += " [";
                 for (size_t i = 0; i < s.second.size(); i++) {
@@ -708,9 +687,6 @@ String getProbeResults()
     return results;
 }
 
-// --- SD Probe Device Database ---
-// Stores known devices as JSONL on SD: /probedb.jsonl
-// Each line: {"m":"AA:BB:CC:DD:EE:FF","t":1234,"f":100,"l":200,"s":3,"r":-42,"v":"Apple","rd":0,"ss":["Net1","Net2"]}
 
 static std::map<String, ProbeDBEntry> probeDB;
 static std::mutex probeDBMutex;

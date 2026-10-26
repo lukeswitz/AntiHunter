@@ -1,7 +1,4 @@
 #pragma once
-// Shared internals for the ah_detect translation units (detect.cpp + detect_*.cpp).
-// Small MAC helpers are inline here; stateful helpers are declared and defined once
-// in detect.cpp.
 #include "detect.h"
 
 namespace ah_detect {
@@ -21,10 +18,8 @@ static inline String macStr(const uint8_t *m) {
     return String(buf);
 }
 
-// Defined once in detect.cpp; shared across detect_*.cpp.
 bool meshRateGate(const String &type, uint32_t minIntervalMs);
 
-// ---- Types shared across the ah_detect TUs ----
 struct ApBaseline {
     uint64_t lastTSF;
     uint32_t lastTSFSampleMs;
@@ -61,7 +56,6 @@ struct AttackerHunt {
     uint32_t lastKick;
 };
 
-// ---- Core globals defined in detect.cpp ----
 extern std::recursive_mutex g_mtx;
 extern PsramMap<uint64_t, ApBaseline> g_apBaseline;
 extern std::atomic<bool> g_karmaEnabled;
@@ -73,7 +67,6 @@ extern std::atomic<bool> g_meshAttackerHunt;
 extern std::atomic<bool> g_meshTracker;
 extern PsramMap<String, ReconAlert> g_recon;
 
-// ---- Feature globals defined in detect_features.cpp ----
 extern std::atomic<uint32_t> g_huntCooldown;
 extern std::atomic<uint8_t> g_attackRespMask;
 void attack_responseArm(const uint8_t *mac, const char *attackType);
@@ -97,7 +90,6 @@ extern PsramMap<uint64_t, MeshRadioSighting> g_meshRadio;
 extern PsramMap<String, TofPeer> g_tofPeers;
 extern PsramVec<TofPendingPing> g_tofPending;
 
-// Internal feature helpers also called from detect.cpp.
 void karmaEmitBait(const uint8_t *targetBssid);
 uint8_t classifyEapolMsg(uint16_t keyInfo);
 void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
@@ -108,7 +100,6 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
 void persistSnapshot();
 void loadSnapshot();
 
-// ---- Feature functions defined in detect_features.cpp ----
 void tof_ping(const char *targetNode);
 void tof_broadcastPing();
 void tof_processPing(const String &fromNode, uint32_t seq, uint64_t theirTxUs);

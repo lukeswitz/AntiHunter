@@ -16,7 +16,6 @@
 #include <NimBLEScan.h>
 #include <Preferences.h>
 
-// External deps
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern Preferences prefs;
@@ -39,7 +38,6 @@ extern void radioStartListScan();
 extern void radioStopSTA();
 extern bool isAllowlisted(const uint8_t *mac);
 
-// Pack a 6-byte MAC into a uint64 key (avoids per-device internal-heap String buffers)
 static inline uint64_t blKey(const uint8_t *m) {
     uint64_t v = 0;
     for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
@@ -156,17 +154,14 @@ static void baselineReportWatch() {
     }
 }
 
-// RAM SD Cache
 PsramMap<uint64_t, bool> sdLookupCache;
 std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
 PsramMap<uint64_t, uint32_t> sdDeviceIndex;
 
-// Scan intervals from scanner
 extern uint32_t WIFI_SCAN_INTERVAL;
 extern uint32_t BLE_SCAN_INTERVAL;
 
-// Baseline detection state variables
 std::mutex baselineMutex;
 static std::recursive_mutex baselineSDMutex;
 BaselineStats baselineStats;
@@ -225,9 +220,6 @@ static bool isMyMeshSlot() {
 }
 
 
-// ============ Baseline Detection Implementation ============
-
-// Baseline Scanner 
 int8_t getBaselineRssiThreshold() {
     return baselineRssiThreshold;
 }
@@ -263,7 +255,6 @@ void resetBaselineDetection() {
         baselineStats.bleHits = 0;
     }
 
-    // Clear SD storage
       if (SafeSD::isAvailable()) {
         if (SafeSD::exists("/baseline_data.bin")) {
             SafeSD::remove("/baseline_data.bin");
@@ -282,16 +273,12 @@ void resetBaselineDetection() {
 }
 
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
-    // Discard implausible RSSI (NimBLE glitch values like -8 dBm)
     if (rssi > -10) {
         return;
     }
     uint64_t macKey = blKey(mac);
     uint32_t now = millis();
 
-    // Phase 2.2: feed device into local Bloom filter for mesh baseline gossip.
-    // ieHash defaults to 0 here; randomization.cpp feeds the proper IE-hash
-    // via its own detect_addLocalBaseline call when it has the IE set.
     detect_addLocalBaseline(mac, 0);
 
     BaselineDevice evictDevice;
@@ -631,7 +618,6 @@ void baselineDetectionTask(void *pv) {
     
     stopRequested = false;
     baselineDetectionEnabled = true;
-    // Always re-enter Phase 1 on a new run — keep the cache but clear transient state
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         baselineEstablished = false;
@@ -698,7 +684,6 @@ void baselineDetectionTask(void *pv) {
     
     if (pBLEScan && !pBLEScan->isScanning()) {
         pBLEScan->setActiveScan(true);
-        // 30% BLE duty (was ~99%) leaves the shared radio airtime for the AP
         pBLEScan->setInterval(160);
         pBLEScan->setWindow(48);
         pBLEScan->setDuplicateFilter(false);
@@ -723,7 +708,6 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n",
                   phaseStart, phaseStart + baselineDuration);
 
-    // Write initial results immediately so web UI shows scan is active
     {
         String initialResults = getBaselineResults();
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -743,7 +727,6 @@ void baselineDetectionTask(void *pv) {
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             nextResultsUpdate += 2000;
-            // Always update during Phase 1 — UI needs to show establishment progress
             String phase1Results = getBaselineResults();
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1033,7 +1016,6 @@ void baselineDetectionTask(void *pv) {
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
             lastMeshUpdate = millis();
 
-            // Mesh TX during monitoring carries anomalies only (not the full baseline)
             std::vector<AnomalyHit> anomalySnapshot;
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
@@ -1161,7 +1143,6 @@ void baselineDetectionTask(void *pv) {
 void cleanupBaselineMemory() {
     uint32_t now = millis();
     
-    // Mark disappeared devices
     for (auto& entry : deviceHistory) {
         DeviceHistory &hist = entry.second;
         
@@ -1247,7 +1228,6 @@ void cleanupBaselineMemory() {
                  cacheSizeSnapshot, deviceHistory.size(), anomalySizeSnapshot, ESP.getFreeHeap());
 }
 
-// Baseline SD 
 uint8_t calculateDeviceChecksum(BaselineDevice& device) {
     device.checksum = 0;
     uint8_t sum = 0;
@@ -1410,7 +1390,6 @@ bool flushBaselineCacheToSD() {
     }
     std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
 
-    // Separate dirty entries into updates (existing on SD) and appends (new)
     std::vector<std::pair<uint64_t, BaselineDevice>> updates;
     std::vector<uint32_t> updatePositions;
     std::vector<std::pair<uint64_t, BaselineDevice>> appends;
@@ -1445,7 +1424,6 @@ bool flushBaselineCacheToSD() {
     std::vector<uint64_t> cleanedKeys;
     cleanedKeys.reserve(total);
 
-    // Batch updates: single file open in r+ mode, seek to each position
     if (!updates.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (dataFile) {
@@ -1467,7 +1445,6 @@ bool flushBaselineCacheToSD() {
         }
     }
 
-    // Batch appends: single file open in append mode
     if (!appends.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
@@ -1499,7 +1476,6 @@ bool flushBaselineCacheToSD() {
                 totalSnapshot = totalDevicesOnSD;
             }
 
-            // Update header device count once
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 SdWriter headerFile_w(headerFile);
@@ -1729,7 +1705,6 @@ void setSignificantRssiChange(int8_t dBm) {
     }
 }
 
-// RAM SD Caching 
 
 void addToSDCache(uint64_t mac, bool found) {
     if (sdLookupCache.size() >= SD_LOOKUP_CACHE_SIZE) {
@@ -1783,8 +1758,6 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     if (rssi < baselineRssiThreshold) {
         return;
     }
-    // Discard implausible RSSI values (BLE/WiFi glitches)
-    // -10 dBm is stronger than physically possible at any realistic distance
     if (rssi > -10) {
         return;
     }

@@ -32,7 +32,6 @@ extern "C"
 #include "esp_heap_caps.h"
 }
 
-// RF handlers
 void radioStartSTA();
 void radioStopSTA();
 void radioStartBLE();
@@ -53,8 +52,6 @@ static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
 QueueHandle_t apInfoQueue = nullptr;
-// When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
-// Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
 std::atomic<bool> g_dronePinChannel{false};
@@ -146,15 +143,12 @@ const size_t MAX_AP_CACHE = 200;
 const size_t MAX_BLE_CACHE = 200;
 const size_t MAX_UNIQUE_MACS = 5000;
 
-// BLE 
 NimBLEScan *pBLEScan;
 void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
-// Scan intervals
 uint32_t WIFI_SCAN_INTERVAL = 3000;
 uint32_t BLE_SCAN_INTERVAL = 4000;
 
-// Scanner status variables
 std::atomic<bool> scanning(false);
 std::atomic<bool> meshTxDraining(false);
 std::atomic<uint32_t> meshDrainSent(0);
@@ -178,7 +172,6 @@ int8_t significantRssiChange = 20;
 std::vector<Allowlist> allowlist;
 static std::mutex allowlistMutex;
 
-// Scan config
 RFScanConfig rfConfig = {
     .wifiChannelTime = 160,
     .wifiScanInterval = 3000,
@@ -354,7 +347,6 @@ void loadRFConfigFromPrefs() {
     Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, Env: %d\n", rfConfig.preset, rfConfig.globalRssiThreshold, env);
 }
 
-// Detection system variables
 std::vector<DeauthHit> deauthLog;
 std::mutex deauthLogMutex;
 std::atomic<uint32_t> deauthCount(0);
@@ -362,16 +354,13 @@ std::atomic<uint32_t> disassocCount(0);
 std::atomic<bool> deauthDetectionEnabled{false};
 QueueHandle_t deauthQueue = nullptr;
 
-// Deauth Detection
 
-// Triangulation
 TriangulationAccumulator triAccum = {0};
 std::atomic<uint8_t> triTargetChannel(0);
 std::atomic<uint8_t> triTargetRadio(0);
 std::mutex triAccumMutex;
 static const uint32_t TRI_SEND_INTERVAL = 2000;
 
-// External declarations
 extern Preferences prefs;
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
@@ -387,7 +376,6 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern bool isZeroOrBroadcast(const uint8_t *mac);
 
-// Helper functions 
 inline uint16_t u16(const uint8_t *p)
 {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -421,7 +409,6 @@ const char* lookupOuiVendor(const uint8_t *mac)
 static bool parseMacLike(const String &ln, Target &out)
 {
     if (ln.startsWith("T-") && ln.length() >= 6 && ln.length() <= 9) {
-        // T-#### format
         bool validId = true;
         for (size_t i = 2; i < ln.length(); i++) {
             if (!isxdigit(ln[i])) {
@@ -441,7 +428,6 @@ static bool parseMacLike(const String &ln, Target &out)
         }
     }
     
-    // MAC
     String t;
     for (size_t i = 0; i < ln.length(); ++i)
     {
@@ -836,15 +822,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
     hit.companyId  = 0;
     hit.toolHint   = 0;
-    // tool: FC C0 00 + reason 0x02 + seqCtrl 0xFFF0 (raw bytes 0xF0 0xFF LE).
-    // seqCtrl=0xFFF0 is FIXED non-incrementing — legit STA/AP frames increment seq.
-    // Combined with reason=2 = high-confidence tool fingerprint.
     if (hit.reasonCode == 0x0002 && hit.seqCtrl == 0xFFF0) hit.toolHint |= 0x01;
-    // bit1 was "tool target reason in {1,4,6,7,8}" — REMOVED: these reasons are
-    // commonly used by real APs (router reboot, channel switch, etc.) so flagging
-    // them alone produces unacceptable false positives. The rate-based detector
-    // (≥20 deauths/10s in flood logic below) catches tool floods regardless.
-    // tool deauth flood: broadcast dst — informational only, not standalone alert.
     if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;
@@ -855,7 +833,6 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
 static std::atomic<bool> g_sentinelBle{false};
 static std::recursive_mutex g_bleLifeMtx;
 
-// Main NimBLE callback
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     // cppcheck-suppress unusedFunction // NimBLEScanCallbacks override, invoked by NimBLE per advertisement
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
@@ -966,7 +943,6 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     }
 };
 
-// Probe-system globals shared with scanner_probe.cpp (decls in scanner_internal.h)
 ProbeDevicesMap probeDevices;
 std::mutex probeMutex;
 StringSetPsram uniqueSsids;
@@ -1098,8 +1074,6 @@ void snifferScanTask(void *pv)
     unsigned long lastTotalPrint = 0;
     size_t lastTotalAp = SIZE_MAX, lastTotalBle = SIZE_MAX, lastTotalUniq = SIZE_MAX;
     int lastTotalHits = -1;
-    // Fire first in-progress results write on first loop iteration so the UI
-    // moves off the "Scan starting..." placeholder within ~1 tick.
     unsigned long nextResultsUpdate = millis();
     size_t lastWrittenHitCount = SIZE_MAX;
 
@@ -1457,14 +1431,12 @@ void snifferScanTask(void *pv)
             if (!meshBatchMacs.empty() && millis() - meshBatchStart >= MESH_BATCH_HOLD_MS) flushMeshBatch();
         }
 
-        // Drain probeRequestQueue when captureProbes is enabled during device scan
         if (probeDetectionEnabled && probeRequestQueue) {
             ProbeRequestEvent pEvt;
             int pCount = 0;
             while (xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE && pCount < 30) {
                 pCount++;
 
-                // Handle probe responses — map responding AP to device
                 if (pEvt.isProbeResponse) {
                     char devMac[18];
                     snprintf(devMac, sizeof(devMac), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1590,7 +1562,6 @@ void snifferScanTask(void *pv)
                 results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
             }
 
-            // Append probe intelligence if captureProbes enabled
             if (probeDetectionEnabled) {
                 std::lock_guard<std::mutex> plock(probeMutex);
                 if (!probeDevices.empty()) {
@@ -1665,7 +1636,6 @@ void snifferScanTask(void *pv)
         bleScan->clearResults();
     }
 
-    // Save probe data to SD if captureProbes was enabled
     bool hadProbes = probeDetectionEnabled.load();
     if (hadProbes) {
         std::lock_guard<std::mutex> plock(probeMutex);
@@ -1684,7 +1654,6 @@ void snifferScanTask(void *pv)
     radioStopSTA();
     delay(500);
 
-    // Write final results immediately so UI shows them while mesh TX runs
     {
         HitsVecPsram sortedHits = hitsLog;
         std::sort(sortedHits.begin(), sortedHits.end(),
@@ -1722,7 +1691,6 @@ void snifferScanTask(void *pv)
                 results += "\"";
             }
 
-            // Add probe intelligence for target hits (what they're probing for)
             if (hadProbes) {
                 char hitMacStr[18];
                 snprintf(hitMacStr, sizeof(hitMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1754,7 +1722,6 @@ void snifferScanTask(void *pv)
             results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
         }
 
-        // Append probe intelligence summary if captureProbes was enabled
         if (hadProbes) {
             std::lock_guard<std::mutex> plock(probeMutex);
             if (!probeDevices.empty()) {
@@ -1963,7 +1930,6 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
         statsMap[dstMac].lastRssi = h.rssi;
     }
 
-    // Tool-fingerprint tallies — surface known attacker frameworks
     uint32_t forgeHits = 0, bcastHits = 0;
     for (const auto &h : deauthEntries) {
         if (h.toolHint & 0x01) forgeHits++;
@@ -1981,9 +1947,6 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
     if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
 
-    // EAPOL-capture-bait correlation: lone targeted deauth (src sent exactly 1
-    // unicast deauth, no follow-up) is the classic "knock-the-client-off and
-    // wait for re-auth" PMKID/handshake capture pattern. Count such srcs.
     {
         std::map<String, int> srcUnicastCount;
         for (const auto &h : deauthEntries) {
@@ -2122,7 +2085,6 @@ void blueTeamTask(void *pv) {
         int processed = 0;
 
         while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
-            // our own SoftAP dropping clients (channel hop / idle) is not an attack
             if (detect_isSelfApMac(hit.srcMac)) continue;
             uint32_t now = millis();
             String dstMac = macFmt6(hit.destMac);
@@ -2134,7 +2096,6 @@ void blueTeamTask(void *pv) {
                     [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
                 times.end());
 
-            // Reason-code arm dropped (1/2/6/7 are legit deauth causes; Sentinel does attribution).
             bool isAttack = hit.isBroadcast
                 || (times.size() >= ah_detect::g_deauthTargetedThresh.load());
 
@@ -2153,12 +2114,8 @@ void blueTeamTask(void *pv) {
                 }
             }
 
-            // Feed detect.cpp for EAPOL-capture-bait correlation. Broadcast included:
-            // Marauder's active-EAPOL deauth keeps the template's broadcast addr1.
             detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
 
-            // High-confidence flood detector: ≥20 deauths from same src in 10s.
-            // (Cisco WLC default ~30; research recommends 20.)
             {
                 uint64_t k = 0;
                 for (int i = 0; i < 6; ++i) k = (k << 8) | hit.srcMac[i];
@@ -2178,7 +2135,6 @@ void blueTeamTask(void *pv) {
                                     String(it->second.second) + ":" + String(hit.rssi));
                     }
                 }
-                // Bound map size — evict oldest if >64 srcs tracked.
                 if (floodWin.size() > 64) {
                     uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
                     for (const auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
@@ -2329,7 +2285,6 @@ void blueTeamTask(void *pv) {
 
     lastScanEnd = millis();
 
-    // Log deauth events to SD
     if (SafeSD::isAvailable() && !deauthSnapshot.empty()) {
         uint32_t now = getEventTimestamp();
         for (const auto& deauthHit : deauthSnapshot) {
@@ -2411,11 +2366,9 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
 
         if (offset + 2 + len > ieLen) break;
 
-        // Tag 3 = DS Parameter Set (2.4 GHz only) — 1 byte primary channel
         if (tag == 3 && len == 1) {
             dsChan = ie[offset + 2];
         }
-        // Tag 61 = HT Operation IE (2.4/5 GHz) — byte 0 = primary channel
         else if (tag == 61 && len >= 1) {
             htChan = ie[offset + 2];
         }
@@ -2479,8 +2432,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
 
-    // Jamming PHY-stat: feed EVERY packet (incl. CRC-fail / short error frames)
-    // before any length/rssi gate, so PDR-vs-error accounting sees the failures.
     detect_onPhyStat(ppkt->rx_ctrl.rx_state, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.noise_floor, ppkt->rx_ctrl.channel);
 
     if (ppkt->rx_ctrl.sig_len < 24) {
@@ -2542,8 +2493,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
         if (ftype == 0 && (stype == 4 || stype == 8)) {
             const uint8_t *sa = payload + 10;
-            // Beacons (stype 8) have 12-byte fixed body before IEs;
-            // Probe requests (stype 4) have IEs right after MAC header
             uint16_t ieOffset = (stype == 8) ? 36 : 24;
             uint8_t actualChannel = extractChannelFromIE(payload, ppkt->rx_ctrl.sig_len, ieOffset);
             if (actualChannel == 0) {
@@ -2556,7 +2505,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             }
 
             if (probeDetectionEnabled && probeRequestQueue && stype == 4) {
-                // Only queue actual probe requests, not beacons
                 ProbeRequestEvent probeEvt = {};
                 memcpy(probeEvt.mac, sa, 6);
                 probeEvt.rssi = ppkt->rx_ctrl.rssi;
@@ -2573,11 +2521,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             }
         }
 
-        // Probe Response (stype 5): addr1=DA (client), addr2=SA (AP), addr3=BSSID
-        // Captures which APs are responding to which devices and what SSID they serve
-        // Rate-limited: only queue if queue <50% full to preserve capacity for probe requests
         else if (ftype == 0 && stype == 5 && probeDetectionEnabled && probeRequestQueue) {
-            // Skip probe responses when queue is getting full — probe requests have priority
             UBaseType_t qFree = uxQueueSpacesAvailable(probeRequestQueue);
             if (qFree > 128) {
                 const uint8_t *da = payload + 4;
@@ -2621,9 +2565,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             }
         }
 
-        // Queue dst events only for subtypes NOT already captured above
-        // Skip stype 4 (probe req), 5 (probe resp), 8 (beacon) — already handled
-        // Only queue dst events when queue has plenty of room for probe requests
         if (probeDetectionEnabled && ftype == 0 && probeRequestQueue &&
             stype != 4 && stype != 5 && stype != 8) {
             UBaseType_t qFree2 = uxQueueSpacesAvailable(probeRequestQueue);
@@ -2647,9 +2588,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     detectDeauthFrame(ppkt);
 
-    // Phase 1: attack-signature detectors (PMKID, evil-twin, SSID confusion,
-    // SAE DoS, OWE abuse, FragAttacks PN reuse). Enqueues to detect task,
-    // ISR-safe (xQueueSendFromISR inside).
     detect_onWifiFrame(ppkt->payload, ppkt->rx_ctrl.sig_len,
                        ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
 
@@ -2928,7 +2866,6 @@ bool radioStartBLEChecked()
 }
 
 
-// Mutex for macQueue access - prevents race conditions during cleanup
 static SemaphoreHandle_t macQueueMutex = nullptr;
 
 void initMacQueueMutex() {
@@ -2937,7 +2874,6 @@ void initMacQueueMutex() {
     }
 }
 
-// Safe queue send with mutex protection
 bool safeMacQueueSend(const Hit* hit, TickType_t timeout) {
     if (macQueueMutex == nullptr || macQueue == nullptr) return false;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
@@ -2949,7 +2885,6 @@ bool safeMacQueueSend(const Hit* hit, TickType_t timeout) {
     return result;
 }
 
-// Safe queue receive with mutex protection
 bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
     if (macQueueMutex == nullptr || macQueue == nullptr) return false;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
@@ -2961,7 +2896,6 @@ bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
     return result;
 }
 
-// Safe queue delete with mutex protection
 void safeMacQueueDelete() {
     if (macQueueMutex == nullptr) return;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
@@ -2973,7 +2907,6 @@ void safeMacQueueDelete() {
     }
 }
 
-// Safe queue create with mutex protection
 bool safeMacQueueCreate(size_t queueSize) {
     initMacQueueMutex();
     if (macQueueMutex == nullptr) return false;
@@ -2993,12 +2926,10 @@ bool safeMacQueueCreate(size_t queueSize) {
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
 
-    // Stop promiscuous mode first (if active)
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Stop channel hopping timer
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -3019,15 +2950,12 @@ void radioStopSTA() {
     Serial.println("[RADIO] STA mode stopped");
 }
 
-// Start promiscuous/sniffer mode (for snifferScanTask)
 void radioStartSTA() {
     Serial.println("[RADIO] Starting STA mode (promiscuous)");
 
-    // Use AP_STA mode
     WiFi.mode(WIFI_AP_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Configure STA for scanning while keeping AP alive
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
@@ -3037,7 +2965,6 @@ void radioStartSTA() {
         radioStartBLE();
     }
 
-    // Start promiscuous on STA interface
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
     esp_wifi_set_promiscuous_filter(&filter);
@@ -3051,7 +2978,6 @@ void radioStartSTA() {
         esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
     }
 
-    // Setup channel hopping
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         esp_timer_delete(hopTimer);
@@ -3068,28 +2994,22 @@ void radioStartSTA() {
     esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
 }
 
-// Start list scan mode - NO promiscuous mode, uses WiFi.scanNetworks()
-// This avoids IPC task stack overflow by not running promiscuous + scanNetworks together
 void radioStartListScan() {
     Serial.println("[RADIO] Starting list scan mode (non-promiscuous)");
 
-    // Ensure promiscuous mode is OFF - critical to avoid IPC stack overflow
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
     vTaskDelay(pdMS_TO_TICKS(50));
 
-    // Stop any existing channel hopping
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         esp_timer_delete(hopTimer);
         hopTimer = nullptr;
     }
 
-    // Use AP_STA mode
     WiFi.mode(WIFI_AP_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Configure country for scanning
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
@@ -3098,11 +3018,9 @@ void radioStartListScan() {
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");
 }
 
-// Stop list scan mode
 void radioStopListScan() {
     Serial.println("[RADIO] Stopping list scan mode");
 
-    // Clean up any pending scan
     esp_wifi_scan_stop();
     WiFi.scanDelete();
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -3249,7 +3167,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
         return;
     }
 
-    // Fix for dual-radio devices showing as two types
     if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
         String macStr = macFmt6(triAccum.targetMac);
         Serial.printf("[TRI-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
@@ -3356,7 +3273,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
     }
 }
 
-// Scan tasks
 static String triModeStr(const String& selected) {
     if (triangulationActive.load()) {
         uint8_t r = triTargetRadio.load();
@@ -3438,7 +3354,6 @@ void listScanTask(void *pv) {
 
     stopRequested = false;
 
-    // Use safe queue creation with mutex protection
     if (!safeMacQueueCreate(512)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
         scanning = false;
@@ -3457,14 +3372,11 @@ void listScanTask(void *pv) {
     bleFramesSeen = 0;
     scanning = true;
     sentinel_yieldAndWait(1500);
-    // Note: lastResults already set to "Target scan starting..." above (line ~2197)
-    // Do NOT clear it here — that creates a race where tick() sees "None yet."
     lastScanStart = millis();
     lastScanSecs = secs;
     lastScanForever = forever;
     scanSetCountdown(secs, forever);
 
-    // Register initiator at scan start
     if (triangulationInitiator) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
@@ -3506,7 +3418,6 @@ void listScanTask(void *pv) {
 
     vTaskDelay(pdMS_TO_TICKS(200));
 
-    // Use list scan mode (non-promiscuous) to avoid IPC stack overflow
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         if (currentScanMode == SCAN_BOTH) {
             radioStartBLE();
@@ -3565,7 +3476,6 @@ void listScanTask(void *pv) {
                     bssid.toUpperCase();
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
-                    // Skip RSSI threshold during triangulation - we want ALL measurements
                     if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                         continue;
                     }
@@ -3639,7 +3549,6 @@ void listScanTask(void *pv) {
                 String name = device->haveName() ? String(device->getName().c_str()) : "";
                 int8_t rssi = device->getRSSI();
                 if (rssi > -10) continue;
-                // Skip RSSI threshold during triangulation - we want ALL measurements
                 if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                     continue;
                 }
@@ -3927,7 +3836,6 @@ void listScanTask(void *pv) {
             }
         }
 
-        // Dynamic update to results (only while running, stop when stopRequested is set)
         if (triangulationActive && !stopRequested && ((int32_t)(millis() - nextTriResultsUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount)) {
             Serial.println("[SCAN] Updating IN PROGRESS triangulation results");
             {
@@ -4010,7 +3918,6 @@ void listScanTask(void *pv) {
             pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
             pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
 
-            // Dedupe hitsLog by MAC, keeping best RSSI per device
             std::map<std::string, Hit> bestByMac;
             for (const auto& sh : hitsLog) {
                 char mb[18];
@@ -4057,8 +3964,6 @@ void listScanTask(void *pv) {
 
         vTaskDelay(pdMS_TO_TICKS(150));
     }
-    // Build final results BEFORE setting scanning=false to prevent race
-    // where tick() sees scanning=false but final results aren't written yet
     std::string results =
         "List scan - Mode: " + std::string(modeStr.c_str()) +
         " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(secs) + "s\n")) +
@@ -4138,7 +4043,6 @@ void listScanTask(void *pv) {
         if (!bestForDb.empty()) saveDeviceDB();
     }
 
-    // Write final results while still scanning so tick() picks them up
     if (!triangulationActive) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
@@ -4160,7 +4064,6 @@ void listScanTask(void *pv) {
         Serial.println("[SCAN] Skipping list results - triangulation active (stopTriangulation() owns final results)");
     }
 
-    // NOW set scanning=false after results are written
     if (triangulationActive) {
         if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
@@ -4244,7 +4147,6 @@ void listScanTask(void *pv) {
     vTaskDelete(nullptr);
 }
 
-// Allowlist
 
 static bool parseAllowlistEntry(const String &ln, Allowlist &out)
 {

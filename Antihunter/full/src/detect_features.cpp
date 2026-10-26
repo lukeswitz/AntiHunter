@@ -1,5 +1,3 @@
-// detect_features.cpp - feature detectors (ToF/TSF/KARMA/Pwnagotchi/trilat/handshake/AirTag/BLE-rotation/probe-graph/persistence/incidents)
-// extracted from detect.cpp; part of namespace ah_detect.
 #include "detect.h"
 #include "hardware.h"
 #include "network.h"
@@ -33,10 +31,6 @@ extern ScanMode currentScanMode;
 
 namespace ah_detect {
 
-// =============================================================================
-// Feature 12: Inter-node ToF / link-quality via mesh ping
-// =============================================================================
-// struct TofPendingPing now in detect_internal.h
 PsramMap<String, TofPeer> g_tofPeers;
 PsramVec<TofPendingPing> g_tofPending;
 static std::atomic<uint32_t> g_tofSeq{1};
@@ -154,13 +148,6 @@ size_t tof_peerCount() {
     return g_tofPeers.size();
 }
 
-// =============================================================================
-// Feature 10/11: TSF clock-skew fingerprint
-// =============================================================================
-// Evil-twin via channel multiplicity: same BSSID on >=2 channels (scan mode) =
-// two radios. Tracked inline in g_apBaseline (chanA/chanB). Replaced the
-// unreliable, attacker-spoofable clock-skew approach. JSON reports per-BSSID
-// channel observations.
 String tsf_getSkewJson() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
@@ -197,13 +184,9 @@ size_t tsf_count() {
         [](const auto &kv) { return kv.second.chanA != 0; });
 }
 
-// =============================================================================
-// Feature 9: Reactive KARMA probe-bait
-// =============================================================================
 PsramMap<uint64_t, KarmaCandidate> g_karma;
 PsramMap<uint64_t, PsramSet<String>> g_karmaSsids;
 PsramVec<String> g_baitSsids;
-// g_karmaEnabled declared earlier
 static constexpr uint8_t  KARMA_DISTINCT_THRESHOLD = 2;
 static constexpr uint32_t KARMA_WINDOW_MS = 60000;
 static constexpr size_t   MAX_KARMA = 64;
@@ -392,9 +375,6 @@ size_t karma_confirmedCount() {
         [](const auto &kv) { return kv.second.confirmed; });
 }
 
-// =============================================================================
-// Feature 7: Pwnagotchi swarm detect
-// =============================================================================
 static const uint8_t PWNAGOTCHI_ADDR2[6] = {0xDE,0xAD,0xBE,0xEF,0xDE,0xAD};
 PsramMap<uint64_t, PwnagotchiSighting> g_pwna;
 static constexpr size_t MAX_PWNA = 32;
@@ -498,10 +478,6 @@ size_t pwnagotchi_count() {
     return g_pwna.size();
 }
 
-// =============================================================================
-// Feature 6: Attacker reverse-trilateration
-// =============================================================================
-// struct AttackerHunt now in detect_internal.h
 PsramMap<uint64_t, AttackerHunt> g_hunts;
 std::atomic<uint32_t> g_huntCooldown{60000};
 static constexpr size_t MAX_HUNTS = 32;
@@ -667,9 +643,6 @@ size_t attacker_huntCount() {
 }
 void attacker_setCooldown(uint32_t ms) { g_huntCooldown.store(ms); }
 
-// =============================================================================
-// Feature 5: Distributed 4-way handshake reconstruction
-// =============================================================================
 PsramMap<uint64_t, HandshakeReconstruction> g_hshk;
 std::atomic<uint32_t> g_krackEvents{0};
 static constexpr size_t MAX_HSHK = 48;
@@ -774,9 +747,6 @@ size_t hshk_count() {
 }
 uint32_t hshk_krackEvents() { return g_krackEvents.load(); }
 
-// =============================================================================
-// Feature 2: Probe-graph identity correlator
-// =============================================================================
 PsramMap<uint32_t, ProbeGraphIdentity> g_pgGraph;
 
 uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBytes,
@@ -856,9 +826,6 @@ String pg_getGraphJson() {
     return out;
 }
 
-// =============================================================================
-// Persistence (SD snapshot of mid-term state across reboot)
-// =============================================================================
 static constexpr const char *SNAP_PATH = "/detect_state.bin";
 static constexpr uint32_t SNAP_MAGIC = 0xA111EDD1;
 static constexpr uint16_t SNAP_VER   = 4;
@@ -952,10 +919,6 @@ void loadSnapshot() {
     f.close();
 }
 
-// =============================================================================
-// Unified incidents log — captures every detector mesh line (local TX + peer RX)
-// to /incidents.jsonl on SD + small in-RAM ring for fast UI render.
-// =============================================================================
 static PsramDeque<String> g_incidentRing;
 static std::recursive_mutex g_incidentMtx;
 static constexpr size_t MAX_INCIDENT_RING = 200;

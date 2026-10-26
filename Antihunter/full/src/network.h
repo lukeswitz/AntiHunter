@@ -5,8 +5,6 @@
 #include <Preferences.h>
 #include "scanner.h"
 
-// T114 v2 rate limiter for Serial Module
-// ~400 B/s sustained, 1 KB burst. Consumer task owns inter-frame pacing via vTaskDelayUntil.
 class SerialRateLimiter {
 private:
     static const uint32_t MAX_TOKENS = 1000;
@@ -26,8 +24,6 @@ public:
     static constexpr uint32_t capacity() { return MAX_TOKENS; }
 };
 
-// Mesh TX priority classes (Phase 2).
-// CONTROL preempts EVENT preempts BULK at drain time, and CONTROL/EVENT may evict back-of-BULK on enqueue-full.
 enum MeshPriority : uint8_t {
     PRIO_CONTROL = 0,  // triangulation T_F/T_C/T_D, *_ACK, TRI_*, TRIANGULATE_*
     PRIO_EVENT   = 1,  // ATTACK, DEAUTH, DETECT, EAPOL, HSHK, KARMA, VIBRATION, GPS, RTC_SYNC, STARTUP, Target
@@ -76,13 +72,11 @@ extern volatile uint32_t apScanSuppressUntilMs;
 #define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11}
 #endif
 
-// Network and Web Server functions
 void initializeNetwork();
 void initializeMesh();
 void startWebServer();
 void webAuthApply();
 
-// Mesh communication
 void sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);

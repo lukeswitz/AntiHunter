@@ -16,9 +16,6 @@ const size_t MAX_DETECTED_DRONES = 50;
 const uint32_t DRONE_STALE_TIME = 120000;
 
 std::map<String, DroneDetection> detectedDrones;
-// Audit fix C1: detectedDrones is mutated by droneDetectorTask and read/cleared by web handlers.
-// A portMUX spinlock (old droneMux) was applied at only one site and is wrong for the long
-// map-iterate/string-build sites; a std::mutex guards every access consistently.
 std::mutex detectedDronesMutex;
 std::vector<String> droneEventLog;
 std::atomic<uint32_t> droneDetectionCount(0);
@@ -268,7 +265,6 @@ static const char *descTypeStr(uint8_t t) {
 }
 
 static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) {
-    // Drones broadcast up to 2 Basic IDs (Serial + CAA). Prefer the Serial Number.
     int idSlot = -1;
     for (int i = 0; i < ODID_BASIC_ID_MAX_MESSAGES; i++) {
         if (!uasData->BasicIDValid[i]) continue;
@@ -300,8 +296,6 @@ static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) 
         drone->locTimestamp = uasData->Location.TimeStamp;
         drone->hasLocation = true;
 
-        // Phase 2.1: Feed Remote ID claim into mesh-cooperative spoof validator.
-        // Uses our own GPS + RSSI vs claimed coords for geometric consistency.
         if (drone->uavId[0] != 0) {
             detect_recordRidClaim(drone->uavId, drone->latitude, drone->longitude,
                                   drone->altitudeMsl, drone->rssi);
@@ -578,15 +572,6 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
                          const uint8_t *odid, int odidLen) {
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
 
-    // {
-    //     int n = odidLen < 96 ? odidLen : 96;
-    //     String hx; hx.reserve(n * 2);
-    //     for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
-    //     uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
-    //     Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
-    //                   macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
-    // }
-
     if (rssi < rfConfig.globalRssiThreshold) return;
 
     DroneDetection drone{};
@@ -599,7 +584,6 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     ODID_UAS_Data uasData;
     odid_initUasData(&uasData);
 
-    // BLE svc-data after 0xFFFA UUID: [appcode 0x0D][msg counter][ODID msg|pack]. Skip 2 to reach msg.
     const int skip = 2;
     if (odidLen - skip < 1) return;
     uint8_t *msg = const_cast<uint8_t*>(odid + skip);
@@ -681,7 +665,6 @@ String getDroneDetectionResults() {
     static unsigned long lastCacheTime = 0;
     std::lock_guard<std::mutex> lock(detectedDronesMutex);
 
-    // Cache for 3 seconds to reduce performance impact
     if (millis() - lastCacheTime < 3000 && cachedResults.length() > 0) {
         return cachedResults;
     }
@@ -699,7 +682,6 @@ String getDroneDetectionResults() {
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
         results += "  Via: " + String(d.viaWifi && d.viaBle ? "WiFi+BLE" : d.viaBle ? "BLE" : "WiFi") + "\n";
 
-        // Always emit the full field skeleton (zero-coordinate RIDs included) for a consistent card.
         results += "  Location: " + ((d.latitude != 0 || d.longitude != 0)
                     ? (String(d.latitude, 6) + ", " + String(d.longitude, 6))
                     : String("n/a")) + "\n";
@@ -827,7 +809,6 @@ void droneDetectorTask(void *pv)
     
     uint32_t localFramesSeen = 0;
 
-    // BLE-only skips promiscuous + channel hopping; radioStartSTA covers WiFi and WiFi+BLE
     if (currentScanMode == SCAN_BLE) radioStartBLE();
     else radioStartSTA();
     g_dronePinChannel.store(true);

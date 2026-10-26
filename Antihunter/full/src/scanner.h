@@ -11,8 +11,6 @@
 #include "freertos/idf_additions.h"
 #include "randomization.h"
 
-// Resident tasks only: the PSRAM stack needs vTaskDeleteWithCaps, so never use this for a
-// task that self-deletes with vTaskDelete.
 static inline BaseType_t ahCreateResidentTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                               void *arg, UBaseType_t prio, TaskHandle_t *handle,
                                               BaseType_t core) {
@@ -95,18 +93,15 @@ struct ProbeDevice {
     char vendor[24];
     char name[32];
     char hitReason[10];
-    // Historical intelligence (from SD probe database)
     uint32_t histTotalSeen;       // lifetime probe count across all sessions
     uint32_t histFirstEpoch;      // first-ever epoch (seconds since boot of first session, or RTC)
     uint32_t histLastEpoch;       // last-seen epoch
     uint16_t histSessionCount;    // how many scan sessions this device appeared in
     bool histKnown;               // true if device was in SD database before this scan
-    // Probe response intelligence (addr3 = BSSID of responding AP)
     char respondingAP[18];        // BSSID of AP that responded to this device's probe
     char respondingSSID[33];      // SSID from probe response
 };
 
-// SD-backed probe device database entry (one per known device)
 struct ProbeDBEntry {
     char mac[18];
     uint32_t totalSeen;
@@ -189,7 +184,6 @@ struct RFScanConfig {
     int8_t globalRssiThreshold{};
 };
 
-// Granular settings
 extern RFScanConfig rfConfig;
 void memMark(const char *what);
 void setRFPreset(uint8_t preset);
@@ -238,7 +232,6 @@ extern const uint32_t MESH_DEDUP_TTL_MIN_S;
 extern const uint32_t MESH_DEDUP_TTL_MAX_S;
 extern const uint32_t MESH_DEDUP_TTL_DEFAULT_S;
 
-// Allowlist
 extern std::vector<Allowlist> allowlist;
 
 extern std::vector<String> ssidTargets;
@@ -249,7 +242,6 @@ const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);
 String getProbeResults();
 
-// SD probe database
 void loadProbeDB();
 void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
@@ -259,7 +251,6 @@ PsramJsonString getProbeDBJson();
 PsramJsonString getProbeEventsJsonl();
 void clearProbeDB();
 
-// SD device database (every device seen by any scan)
 void loadDeviceDB();
 void saveDeviceDB();
 void mergeHitToDeviceDB(const Hit &h);
@@ -267,13 +258,11 @@ uint32_t getDeviceDBSize();
 PsramJsonString getDeviceDBJson();
 void clearDeviceDB();
 
-// Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
 const uint32_t MAX_LOG_SIZE = 1000;                // Max RAM log entries
 const uint32_t MAX_MAP_SIZE = 500;                 // Max map entries in RAM
 const uint32_t MAX_TIMING_SIZE = 100;              // Max RAM timing entries per device
 
-// Blue team scans
 static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
 
@@ -289,7 +278,6 @@ extern std::atomic<uint32_t> disassocCount;
 extern std::atomic<bool> deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 
-// Baseline scan
 extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
@@ -302,7 +290,6 @@ extern std::atomic<bool> triangulationActive;
 extern std::atomic<uint8_t> triTargetChannel;
 extern std::atomic<uint8_t> triTargetRadio;
 
-// Triangulation
 extern TriangulationAccumulator triAccum;
 extern std::mutex triAccumMutex;
 extern std::atomic<bool> droneDetectionEnabled;
@@ -320,7 +307,6 @@ extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
 extern portMUX_TYPE uniqueMacsMux;
 
-// Functions
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
 void rebuildIdentityMacSnapshot();
@@ -332,7 +318,6 @@ void listScanTask(void *pv);
 void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
 
-// Radio control functions
 void radioStartSTA();       // Promiscuous mode for sniffer
 void radioStopSTA();
 void radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
@@ -340,7 +325,6 @@ void radioStopListScan();
 void radioStartBLE();
 bool radioStartBLEChecked();
 
-// Safe queue functions (mutex protected)
 void initMacQueueMutex();
 bool safeMacQueueSend(const Hit* hit, TickType_t timeout);
 bool safeMacQueueReceive(Hit* hit, TickType_t timeout);

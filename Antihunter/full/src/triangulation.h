@@ -77,12 +77,6 @@ struct RFEnvironmentPreset {
     float sigma_db;
 };
 
-// RF Environment Presets calibrated for 6 dBi RX antenna (empirically verified 2026-02)
-// { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
-// WiFi: ESP32 ~20dBm TX, 6dBi RX gain, ~40dB FSPL @ 1m
-// BLE: Most phones/wearables TX at 0 to -8dBm (not +4dBm), giving -62 to -69dBm @ 1m
-// BLE n typically 2.0-4.0 indoors, measurements suggest 2.5-3.0 more common
-// Calibration based on XIAO ESP32S3 measurements with antenna gain extrapolation
 static const RFEnvironmentPreset RF_PRESETS[] = {
     { 2.0f, 2.0f, -23.0f, -60.0f, 4.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
     { 2.7f, 2.5f, -24.0f, -62.0f, 5.5f },   // RF_ENV_SUBURBAN: light foliage, some buildings
@@ -110,13 +104,11 @@ extern DistanceTuning distanceTuning;
 void setRFEnvironment(RFEnvironment env);
 
 struct AdaptivePathLoss {
-    // Current estimates
     float rssi0_wifi{};
     float rssi0_ble{};
     float n_wifi{};
     float n_ble{};
 
-    // Estimation confidence
     bool wifi_calibrated{};
     bool ble_calibrated{};
     uint32_t lastUpdate{};
@@ -157,7 +149,6 @@ const float ANCHOR_OUTLIER_FLOOR_M = 50.0f;
 const uint8_t GPS_REJECT_RESET_COUNT = 12;
 const float TRI_UNC_MAX_M = 100.0f;
 
-// Triangulation functions
 void initNodeKalmanFilter(TriangulationNode &node);
 float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
 float haversineDistance(float lat1, float lon1, float lat2, float lon2);
@@ -191,7 +182,6 @@ String calibrationJson();
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 
-// peer spacing pulls it down on a fast one.
 static const uint32_t TRI_SKIP_UNCALIBRATED_MS = 4000;
 static const uint32_t TRI_SKIP_MIN_MS = 1500;
 static const uint32_t TRI_SKIP_MAX_MS = 8000;
@@ -218,7 +208,6 @@ struct DynamicReportingSchedule {
         return reportSeq;
     }
 
-    // flight and lap back to ourselves - so it is measured, never a fixed constant.
     uint32_t skipTimeoutMs() const {
         uint32_t t = peerIntervalMs ? peerIntervalMs + (peerIntervalMs >> 1)
                                     : TRI_SKIP_UNCALIBRATED_MS;
@@ -227,8 +216,6 @@ struct DynamicReportingSchedule {
         return t;
     }
 
-    // get a turn. Without this a delayed frame re-opens the send gate and one node
-    // bursts three or four times while the rest of the ring waits.
     uint32_t selfGapMs() {
         std::lock_guard<std::mutex> lock(nodeMutex);
         if (nodes.size() <= 1) return slotDurationMs ? slotDurationMs : 3000u;
@@ -260,7 +247,6 @@ struct DynamicReportingSchedule {
         return h % 2000;
     }
 
-    // phase, so two nodes could both believe they held the turn and transmit together.
     bool isMyTurn(const String& nid, uint32_t now, String& waitingOn) {
         std::lock_guard<std::mutex> lock(nodeMutex);
         if (nodes.empty() || nodes.find(nid) == nodes.end()) return false;
@@ -316,7 +302,6 @@ struct DynamicReportingSchedule {
 
         uint8_t numNodes = nodes.size();
 
-        // Each T_D message ~100-150 chars, need 2-3s spacing between nodes
         if (numNodes <= 2) {
             slotDurationMs = 3000;   // 2 nodes = 6s cycle (safe for mesh)
         } else if (numNodes <= 3) {

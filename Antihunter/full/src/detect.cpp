@@ -130,26 +130,19 @@ void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
 void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi);
 bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi);
 
-// =============================================================================
-// State
-// =============================================================================
 
 std::atomic<bool> g_detectEnabled{true};
 
-// Tunables
 std::atomic<uint16_t> g_pmkidWindow{10000};
 std::atomic<uint8_t>  g_pmkidMinBssids{3};
 std::atomic<uint16_t> g_saeWindow{5000};
 std::atomic<uint8_t>  g_saeUnmatchedThresh{10};
 std::atomic<uint16_t> g_beaconDriftPermil{50};
 
-// Frame queue (from sniffer_cb)
 QueueHandle_t g_detectFrameQueue = nullptr;
 
-// Mutex
 std::recursive_mutex g_mtx;
 
-// PMKID burst tracking — per src MAC, list of (bssid, ts)
 struct PmkidBurst {
     PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
     PsramMap<uint64_t, uint64_t> hshkKeys;
@@ -188,13 +181,11 @@ static const char *hshkUsablePair(const HandshakeReconstruction &r, bool &author
 }
 PsramVec<PmkidHarvestEvent> g_pmkidLog;
 
-// Evil-twin baseline (per BSSID) — struct ApBaseline now in detect_internal.h
 PsramMap<uint64_t, ApBaseline> g_apBaseline;
 PsramVec<EvilTwinEvent> g_evilTwinLog;
 PsramVec<SsidConfusionEvent> g_ssidConfusionLog;
 PsramVec<OweAbuseEvent> g_oweAbuseLog;
 
-// SAE tracking
 static constexpr uint8_t SAE_EV_SRCS = 4;
 struct SaeCounter {
     uint16_t commits;
@@ -208,9 +199,6 @@ struct SaeCounter {
 PsramMap<uint64_t, SaeCounter> g_saeCounters;
 PsramVec<SaeDosEvent> g_saeDosLog;
 
-// Auth-frame flood (mdk4 mode a / Auth-DoS): open-system Auth (algo=0) flooded
-// to one BSSID from many spoofed src MACs, none completing association.
-// docs/detector-verification.md section 1. Always-on (like deauth), no toggle.
 struct AuthFloodWindow {
     uint32_t windowStartMs{};
     uint16_t frames{};
@@ -225,9 +213,6 @@ static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
 static constexpr uint16_t AUTH_FLOOD_FRAMES  = 60;        // raw rate floor in window
 
-// In-progress fragmented-MSDU tracking for real FragAttacks signatures
-// (CVE-2020-26146 non-consecutive PN, CVE-2020-26147 mixed enc/plaintext) —
-// key = (srcMac<<4 | tid). Passive: reads FC MoreFrag + seq-ctrl frag# + CCMP PN.
 struct FragMsdu {
     uint16_t seqNum;
     uint8_t  lastFrag;
@@ -240,7 +225,6 @@ PsramMap<uint64_t, FragMsdu> g_fragMsdu;
 PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 
-// WiFi-LAYER interference detection (Xu MobiHoc'05 PDR-vs-RSSI consistency).
 std::atomic<bool>     g_jamEnabled{true};
 static std::atomic<uint32_t> g_chanRx[15];
 static std::atomic<uint32_t> g_jamValid[14];
@@ -265,11 +249,6 @@ static uint32_t g_jamBaseLastReport = 0;
 static uint32_t g_jamBaseLiveSince = 0;
 static bool g_jamBaseScanMode = false;
 
-// Mesh-channel disruption guard (text-layer, AntiHunter's own Meshtastic channel).
-// Detects self-ID spoof + channel flood, and records command provenance (which
-// radio id issued which command) as an audit trail. Injection cannot be told from
-// legit ops on a shared channel, so we log the source instead of alerting (0 FP).
-// Alerts log LOCALLY only (never re-broadcast — would amplify a flood).
 std::atomic<bool> g_meshGuardEnabled{false};
 static uint32_t g_meshInbWinMs = 0;
 static uint32_t g_meshInbCount = 0;
@@ -281,7 +260,6 @@ static MeshSenderTally g_meshInbSenders[EV_MAX_SRCS];
 static uint8_t g_meshInbSenderN = 0;
 static uint16_t g_meshInbOtherSenders = 0;
 
-// Per-feature enable (local detection on/off)
 std::atomic<bool> g_karmaEnabled{false};
 std::atomic<bool> g_pmkidEnabled{true};
 std::atomic<bool> g_eviltwinEnabled{true};
@@ -305,7 +283,6 @@ std::atomic<uint16_t> g_arSecsDevice{60};
 std::atomic<uint16_t> g_arSecsProbe{60};
 std::atomic<uint16_t> g_arSecsDrone{60};
 
-// Per-feature mesh broadcast — 15 flags for 19 canonical events
 std::atomic<bool> g_meshDeauth{true};      // DEAUTH_FORGE, DEAUTH_FLOOD, DEAUTH_AP_TARGETED
 std::atomic<bool> g_meshBeacon{true};      // BEACON_FLOOD
 std::atomic<bool> g_meshAuth{true};        // AUTH_FLOOD
@@ -321,7 +298,6 @@ std::atomic<bool> g_meshFrag{true};        // FRAG
 std::atomic<bool> g_meshTsf{true};         // TSF (EVILTWIN w/ TSF reason)
 std::atomic<bool> g_meshJam{true};         // JAM
 std::atomic<bool> g_meshGuard{true};       // MESH_SPOOF_SELF, MESH_FLOOD (+ cmd provenance audit)
-// Legacy atomics kept to avoid linker break — not in UI
 std::atomic<bool> g_meshSsidConf{true};
 std::atomic<bool> g_meshBleMalformed{false};
 std::atomic<bool> g_meshKrack{true};
@@ -332,43 +308,34 @@ std::atomic<bool> g_meshRecon{true};
 std::atomic<bool> g_meshAttackerHunt{true};
 std::atomic<bool> g_meshEapolBait{true};
 
-// BLE malformed
 PsramVec<BleMalformedEvent> g_bleMalformedLog;
 
-// Recon
 PsramMap<String, ReconAlert> g_recon;
 
-// RID claims (mesh-cooperative validation)
 PsramMap<String, RidClaim> g_ridClaims;  // key = uavId
 static constexpr size_t MAX_RID_CLAIMS = 64;
 
-// Quorum
 PsramMap<String, AlertCandidate> g_alerts;  // key = type+":"+key
 PsramMap<String, uint8_t> g_quorumRequired;
 
-// Bloom — local + neighbor union
 BloomFilter g_localBloom;
 BloomFilter g_neighborBloom;
 uint32_t g_lastBloomGossip = 0;
 
-// PPS
 volatile uint64_t g_ppsAnchorMicros = 0;
 volatile uint32_t g_ppsAnchorEpoch = 0;
 volatile uint32_t g_ppsLastEdge = 0;
 std::atomic<bool> g_ppsLocked{false};
 
-// Channel partition (per-node assigned set; coordinator drives via mesh)
 std::vector<uint8_t> g_myChannels;
 PsramMap<String, std::vector<uint8_t>> g_chanAssignments;
 
-// OUI category table
 struct OuiTableEntry {
     uint8_t oui[3];
     uint8_t cat;
 } __attribute__((packed));
 PsramVec<OuiTableEntry> g_ouiTable;
 
-// Log caps
 static constexpr size_t MAX_PMKID_LOG = 100;
 static constexpr size_t MAX_ET_LOG = 100;
 static constexpr size_t MAX_SC_LOG = 100;
@@ -377,9 +344,6 @@ static constexpr size_t MAX_OWE_LOG = 50;
 static constexpr size_t MAX_FRAG_LOG = 100;
 static constexpr size_t MAX_BLEM_LOG = 100;
 
-// =============================================================================
-// Helpers
-// =============================================================================
 
 static PsramMap<String, uint32_t> g_meshRateMap;
 static std::atomic<uint32_t> g_droppedWifi{0};
@@ -402,15 +366,12 @@ bool meshRateGate(const String &type, uint32_t minIntervalMs) {
     return true;
 }
 
-// FNV-1a 32-bit
 static uint32_t fnv1a(const uint8_t *data, size_t len) {
     uint32_t h = 0x811C9DC5;
     for (size_t i = 0; i < len; ++i) { h ^= data[i]; h *= 16777619u; }
     return h;
 }
 
-// IE hash — concatenate (tag, len) pairs (skip value where length variable like SSID/TIM)
-// Captures IE order + presence; tolerates value churn that doesn't indicate spoof.
 static uint32_t hashIeSet(const uint8_t *ie, uint16_t ieLen) {
     uint32_t h = 0x811C9DC5;
     uint16_t off = 0;
@@ -419,7 +380,6 @@ static uint32_t hashIeSet(const uint8_t *ie, uint16_t ieLen) {
         uint8_t len = ie[off+1];
         if (off + 2 + len > ieLen) break;
         h ^= tag; h *= 16777619u;
-        // For stable IEs (RSN, HT cap, VHT cap, Ext cap, Vendor) include value too
         if (tag == 48 || tag == 45 || tag == 191 || tag == 127 || tag == 221) {
             for (uint8_t i = 0; i < len; ++i) { h ^= ie[off+2+i]; h *= 16777619u; }
         }
@@ -450,7 +410,6 @@ static bool extractSSID(const uint8_t *ie, uint16_t ieLen, char *out, size_t out
 }
 
 static bool hasOpenAuth(const uint8_t *ie, uint16_t ieLen) {
-    // Open if no RSN (48) and no WPA vendor IE (221 with WPA OUI 00:50:F2 type 1)
     uint16_t off = 0;
     while (off + 2 <= ieLen) {
         uint8_t tag = ie[off];
@@ -466,7 +425,6 @@ static bool hasOpenAuth(const uint8_t *ie, uint16_t ieLen) {
     return true;
 }
 
-// OWE Transition Mode element: vendor IE OUI 50:6F:9A type 0x1C
 static bool extractOweTransition(const uint8_t *ie, uint16_t ieLen, uint8_t *outBssid) {
     uint16_t off = 0;
     while (off + 2 <= ieLen) {
@@ -486,16 +444,12 @@ static bool extractOweTransition(const uint8_t *ie, uint16_t ieLen, uint8_t *out
 
 // BloomFilter impl moved outside ah_detect namespace (defined below namespace block)
 
-// =============================================================================
-// PPS — GPS pulse-per-second time discipline
-// =============================================================================
 static int g_ppsGpio = -1;
 
 static void IRAM_ATTR pps_isr(void *) {
     uint64_t now = esp_timer_get_time();  // µs since boot
     g_ppsAnchorMicros = now;
     g_ppsLastEdge = (uint32_t)now;
-    // Epoch update happens in detectTask polling getRTCEpoch (avoid I2C from ISR)
 }
 
 void initGpsPps(int gpio) {
@@ -508,8 +462,6 @@ void initGpsPps(int gpio) {
     cfg.pull_down_en = GPIO_PULLDOWN_ENABLE;
     cfg.intr_type = GPIO_INTR_POSEDGE;
     gpio_config(&cfg);
-    // ISR service is installed earlier by the SD SPI driver and/or Arduino attachInterrupt.
-    // Try adding the handler directly; only install if not yet installed (ESP_ERR_INVALID_STATE).
     esp_err_t err = gpio_isr_handler_add((gpio_num_t)gpio, pps_isr, nullptr);
     if (err == ESP_ERR_INVALID_STATE) {
         if (gpio_install_isr_service(0) == ESP_OK) {
@@ -539,13 +491,6 @@ uint64_t getDisciplinedMicros() {
     return ((uint64_t)epoch * 1000000ULL) + (bootMicros - anchor);
 }
 
-// =============================================================================
-// EAPOL capture-bait witness store
-// =============================================================================
-// Tracks recent unicast deauths (src, dst, ts). When EAPOL traffic from dst
-// appears within EAPOL_BAIT_WINDOW_MS, the src is flagged as a capture-bait
-// attacker. tool capture_handshake() emits one targeted deauth to force a
-// re-association so it can sniff EAPOL.
 struct DeauthWitness {
     uint8_t src[6];
     uint8_t dst[6];
@@ -568,7 +513,6 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
     if (!src || !dst) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    // Age out + look for existing entry from same src
     for (auto it = g_deauthWitness.begin(); it != g_deauthWitness.end(); ) {
         if (now - it->ts > EAPOL_BAIT_WINDOW_MS) { it = g_deauthWitness.erase(it); continue; }
         if (memcmp(it->src, src, 6) == 0 && memcmp(it->dst, dst, 6) == 0) {
@@ -580,7 +524,6 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
         ++it;
     }
     if (g_deauthWitness.size() >= MAX_DEAUTH_WITNESS) {
-        // evict oldest
         size_t oldestIdx = 0; uint32_t oldestTs = UINT32_MAX;
         for (size_t i = 0; i < g_deauthWitness.size(); ++i) {
             if (g_deauthWitness[i].ts < oldestTs) { oldestTs = g_deauthWitness[i].ts; oldestIdx = i; }
@@ -609,8 +552,6 @@ void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_
         bool wDstBcast = (w.dst[0] & w.dst[1] & w.dst[2] & w.dst[3] & w.dst[4] & w.dst[5]) == 0xFF;
         bool bcastBait = wDstBcast && apBssid && memcmp(w.src, apBssid, 6) == 0;
         if (!dstMatch && !bcastBait) continue;
-        // Bait pattern: 1-3 deauths total from src X to STA Y, then EAPOL from Y.
-        // >3 deauths = ongoing DoS attack, not bait sniff.
         if (w.deauthCount > 3) continue;
         if (w.alerted) continue;
         uint32_t latencyMs = now - w.ts;
@@ -648,8 +589,6 @@ void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_
                           ":" + confidence, true);
         }
         quorum_addReport("EAPOL_BAIT", srcS, getNodeId(), rssi);
-        // Only fire attacker-trilateration on HIGH confidence to avoid kicking
-        // legit gear that did a normal deauth+reconnect.
         if (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) attacker_kick(w.src, "EAPOL_BAIT");
         return;
     }
@@ -698,13 +637,6 @@ static bool deauthBurstForPeer(uint64_t k, uint32_t now, uint32_t win) {
            (now - it->second.lastBurstMs) < win;
 }
 
-// PMKID detection
-// =============================================================================
-// EAPOL-Key in 802.11: data frame ftype=2, LLC/SNAP DSAP=0xAA SSAP=0xAA ctrl=0x03,
-// OUI 00:00:00, Ethertype 0x88 0x8E. Key descriptor starts after.
-// PMKID-request M1 has: key_info: pairwise=1, ack=1, install=0, mic=0; key_data has
-// PMKID KDE (00:0F:AC, type 4) or is broadcast-induced.
-// We detect: EAPOL-Key from src targeting >=N distinct BSSIDs within window.
 
 static void handleEAPOL(const DetectFrameEvent &e) {
     if (!g_hshkEnabled.load() && !g_pmkidEnabled.load()) return;
@@ -731,14 +663,8 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                       (unsigned)msgNum, keyInfo, (unsigned)e.len, vkde ? 1 : 0, (unsigned)e.channel);
     }
 
-    // EAPOL capture-bait correlation: if an EAPOL handshake frame is observed
-    // from a STA that was recently (≤30s) the unicast target of a deauth from
-    // some src X, and X has stayed silent (no follow-up frames), that's the
-    // classic "knock-the-client-off and sniff re-association" pattern tool
-    // uses in its handshake/PMKID capture mode.
     {
         const uint8_t *sta = e.payload + 10;  // tentative — refined below by FC
-        // Re-compute correct STA addr from FC ToDS/FromDS (matches earlier logic).
         uint16_t fcCheck = (uint16_t)e.payload[0] | ((uint16_t)e.payload[1] << 8);
         uint8_t toDsX   = (fcCheck >> 8) & 1;
         uint8_t fromDsX = (fcCheck >> 9) & 1;
@@ -746,17 +672,12 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         const uint8_t *a2X = e.payload + 10;
         if (toDsX == 1 && fromDsX == 0) sta = a2X;       // STA → AP: STA is src
         else if (toDsX == 0 && fromDsX == 1) sta = a1X;  // AP → STA: STA is dst
-        // else use default a2X
         const uint8_t *baitBssid = (toDsX == 1 && fromDsX == 0) ? a1X
                                  : (toDsX == 0 && fromDsX == 1) ? a2X
                                                                 : (e.payload + 16);
         detect_correlateEapolBait(sta, baitBssid, e.rssi, e.channel);
     }
 
-    // tool EAPOL bad-msg1 / forged PMKID — WiFiScan.cpp lines 7889-7939.
-    // Body uses a FIXED 16-byte PMKID: 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF 11
-    // preceded by PMKID KDE: DD 14 00 0F AC 04. Combined with Key Info 0x00CA (WPA2)
-    // or 0x00CB (WPA3), this is unambiguous.
     if (g_pmkidEnabled.load() && (keyInfo == 0x00CA || keyInfo == 0x00CB)) {
         static const uint8_t FORGE_PMKID_TEMPLATE[16] = {
             0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
@@ -766,7 +687,6 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         const uint8_t *body = e.payload + eapolOff;
         int bodyLen = (int)e.len - eapolOff;
         bool sigHit = false;
-        // Scan for `DD 14 00 0F AC 04` + 16 bytes matching FORGE_PMKID_TEMPLATE
         for (int i = 0; i + (int)sizeof(PMKID_KDE_HDR) + 16 <= bodyLen; ++i) {
             if (memcmp(body + i, PMKID_KDE_HDR, sizeof(PMKID_KDE_HDR)) != 0) continue;
             if (memcmp(body + i + sizeof(PMKID_KDE_HDR), FORGE_PMKID_TEMPLATE, 16) == 0) {
@@ -803,7 +723,6 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         }
     }
 
-    // injected M1 w/ zeroed ANonce (not hcxdumptool, it randomizes ANonce)
     if (g_pmkidEnabled.load() && msgNum == 1 && eapolOff + 49 <= (int)e.len) {
         bool zeroNonce = true;
         for (int n = eapolOff + 17; n < eapolOff + 49; ++n) { if (e.payload[n] != 0) { zeroNonce = false; break; } }
@@ -903,7 +822,6 @@ static void handleEAPOL(const DetectFrameEvent &e) {
 
     if (msgNum != 1 || !g_pmkidEnabled.load()) return;
 
-    // hcxdumptool M1 replay counter (hcxdumptool.c:5237)
     if (replayCtr >= 0xF000ULL && replayCtr <= 0xFFFEULL) {
         const uint8_t *ap = e.payload + 10;
         static PsramMap<uint64_t, uint32_t> s_hcxM1;
@@ -1025,22 +943,11 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     }
 }
 
-// =============================================================================
-// Beacon / Evil-Twin / SSID Confusion / OWE
-// =============================================================================
-// tool + tool static beacon-spam template fingerprint at TSF bytes 24-31.
-// Both tools ship with this exact constant burned into their beacon template.
 static const uint8_t BEACON_FORGERY_TSF[8] = {0x83, 0x51, 0xF7, 0x8F, 0x0F, 0x00, 0x00, 0x00};
-// Bruce karma_attack.cpp:1285 sendBeaconFrameHelper — hardcoded rogue BSSID
 static const uint8_t KARMA_BRUCE_BSSID[6] = {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC};
 static PsramMap<uint64_t, uint32_t> g_beaconForgeFired;  // bssid -> reason mask seen
 static constexpr size_t MAX_BEACON_FORGE_MAP = 64;
 
-// Beacon-flood detector: counts DISTINCT BSSIDs seen in a rolling window.
-// Real environments have a handful of APs; spam tools spew dozens of new
-// BSSIDs/sec. This catches ALL beacon-flood tools (template-independent) and,
-// while active, suppresses evil-twin/SSID-collision emits (those collisions are
-// spam artifacts, not a real twin) -> fixes beacon-spam-as-EVILTWIN misclassify.
 static PsramSet<uint64_t> g_beaconFloodBssids;
 static String g_beaconFloodEv;
 static uint32_t g_beaconFloodWinStart = 0;
@@ -1050,14 +957,8 @@ static constexpr uint32_t BEACON_FLOOD_WIN_MS    = 10000;
 static constexpr size_t   BEACON_FLOOD_DISTINCT  = 40;     // distinct NEAR BSSIDs/10s
 static constexpr size_t   BEACON_FLOOD_MAP_CAP   = 256;
 static constexpr uint32_t BEACON_FLOOD_COOLDOWN  = 10000;
-// Only count beacons stronger than this. A beacon-spam attacker is in the room
-// (-10..-40 dBm in tests); ambient/neighbor APs at -70..-90 are NOT spam. Without
-// this gate a dense RF area trivially shows 25+ distinct BSSIDs -> false positive
-// (observed firing at rssi=-82/-86). Gating to near beacons kills that FP.
 static constexpr int8_t   BEACON_FLOOD_RSSI_MIN  = -65;
 
-// Common Espressif OUI prefixes — found in nearly every tool/tool build
-// because they run on ESP32-S3/C3. Used as confidence bump for Evil-Portal.
 static const uint8_t ESP_OUIS[][3] = {
     {0x24,0x0A,0xC4}, {0x24,0x6F,0x28}, {0x30,0xAE,0xA4}, {0x3C,0x71,0xBF},
     {0x7C,0x9E,0xBD}, {0x84,0xF3,0xEB}, {0xAC,0x67,0xB2}, {0x84,0xCC,0xA8},
@@ -1077,8 +978,6 @@ static bool isEspOui(const uint8_t *mac) {
     return false;
 }
 
-// Captive-portal lure SSID substrings (lowercase).
-// Hit any of these on an open AP and there is a strong chance of Evil-Portal.
 static const char *LURE_SSIDS[] = {
     "free wifi", "free_wifi", "freewifi", "free internet",
     "guest", "public wifi", "public_wifi",
@@ -1128,8 +1027,6 @@ static const char *classifyBeaconForgery(const uint8_t *p, uint16_t len) {
             uint8_t tag = p[off];
             uint8_t l   = p[off + 1];
             if ((size_t)off + 2 + l > (size_t)len) break;
-            // CSA IE value = {switch_mode, new_channel, switch_count}; the count is
-            // the tell (Marauder WiFiScan.cpp:8523 post_csa = 25 03 01 00 ff).
             if (tag == 0x25 && l >= 3 && p[off + 4] == 0xFF) return "FORGE_CSA_FF";
             off += 2 + l;
         }
@@ -1162,11 +1059,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     const uint8_t *bssid_early = e.payload + 16;
     bool isLaaBssid = (bssid_early[0] & 0x02) != 0;
 
-    // --- Beacon-flood detection (distinct-BSSID churn). Runs before per-detector
-    // gates so it catches spam regardless of which detectors are on.
-    // CRITICAL: once a flood is active, do NOT keep logging/processing each spam
-    // beacon — that per-frame String/SD/map work is what exhausts heap and crashes.
-    // Detect once, alert (rate-gated), then bail out of the whole handler. ---
     {
         uint64_t bk = packMac(bssid_early);
         uint32_t tnow = millis();
@@ -1177,7 +1069,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
             g_beaconFloodActive = false;
         }
         if (!g_beaconFloodActive) {
-            // Only count NEAR beacons. Ambient/neighbor APs (weak RSSI) are not spam.
             if (e.rssi >= BEACON_FLOOD_RSSI_MIN) {
                 g_beaconFloodBssids.insert(bk);
                 if (g_beaconFloodBssids.size() >= BEACON_FLOOD_DISTINCT) {
@@ -1190,7 +1081,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
             }
         }
         if (g_beaconFloodActive) {
-            // Rate-gated alert; everything else about this beacon is skipped.
             if (g_beaconFloodLastEmit == 0 || (tnow - g_beaconFloodLastEmit) > BEACON_FLOOD_COOLDOWN) {
                 g_beaconFloodLastEmit = tnow;
                 const char *floodTool = classifyBeaconForgery(e.payload, e.len);
@@ -1215,8 +1105,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
                     sendToSerial1(String(mb), true);
                 }
             }
-            // Flood suppression must not hide a channel-switch / quiet DoS: those are
-            // two integer reads and the emit below is rate-gated per BSSID.
             if (!beaconHasCsaOrQuiet(e.payload, e.len)) return;
         }
     }
@@ -1282,7 +1170,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
         }
     }
 
-    // Evil-twin-of-us: any non-self BSSID beaconing OUR SSID is a clone of our AP.
     if (wantEvil) {
         char ssidSelf[33] = {0};
         extractSSID(ie, ieLen, ssidSelf, sizeof(ssidSelf));
@@ -1323,13 +1210,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
             emitBeaconForgery(bssid, ssidLocal, beaconInt, ieH, e.rssi, e.channel, forgeReason);
         }
 
-        // Evil-Portal heuristic — STRICT to avoid FP on legit captive portals
-        // (hotels, airports, Starbucks). Require ALL THREE:
-        //   1. open auth (no Privacy bit)
-        //   2. lure-style SSID (Free WiFi, captive, portal, etc.)
-        //   3. Espressif OUI source MAC
-        // ESP32 doesn't run consumer/enterprise APs. ESP32 + open + lure SSID =
-        // high-confidence Evil-Portal. Generic open+lure (no ESP) is too FP-heavy.
         {
             uint8_t capInfo0 = p[34];
             bool privacy = (capInfo0 & 0x10) != 0;
@@ -1344,12 +1224,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
             }
         }
 
-        // Behavioral fallback: per-src-MAC SSID rotation. Real APs broadcast ONE
-        // SSID per BSSID. >=3 distinct SSIDs from same src MAC in 30s = bait,
-        // catches tool/tool even if they evolve their template.
-        //
-        // Skip if Multi-BSSID IE (tag 71) is present — 802.11v/ax feature lets
-        // one AP advertise multiple SSIDs from one BSSID legitimately.
         static PsramMap<uint64_t, std::pair<uint32_t, PsramSet<String>>> g_beaconSsidRotate;
         static constexpr size_t MAX_BEACON_ROTATE_MAP = 64;
         static constexpr uint32_t BEACON_ROTATE_WIN_MS = 5000;
@@ -1456,7 +1330,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
 
     ApBaseline &b = it->second;
 
-    // Evil-twin: same BSSID advertising two DS/HT channels that keep alternating (both radios live); a legit CSA move stamps only the new channel.
     bool twinMultich = false;
     if (wantTsf) {
         uint8_t ch = beaconAdvertisedChannel(ie, ieLen);
@@ -1486,11 +1359,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
         }
     }
 
-    // Freshness gate: if baseline sample is stale (>30s old) we cannot trust
-    // a TSF compare — channel-hop gap, AP rekey, or buffer-reorder dominates.
     bool baselineStale = (b.lastTSFSampleMs == 0) || ((now - b.lastTSFSampleMs) > 30000UL);
 
-    // TSF_RESTART: TSF jumped back to ~0 (cloned-AP reboot / re-init).
     bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
     bool tsfNonMono = twinMultich;
 
@@ -1517,9 +1387,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint32_t bssidOui = ((uint32_t)bssid[0] << 16) | ((uint32_t)bssid[1] << 8) | (uint32_t)bssid[2];
     String twinEv;
 
-    // KARMA/MANA also advertise the harvested SSIDs by BEACON, not only by probe
-    // response (Bruce karma_attack.cpp:1400 sendBeaconFrames, hostapd-mana likewise).
-    // Same signature either way: one BSSID carrying multiple distinct SSIDs.
     if (g_karmaEnabled.load() && ssid[0] != 0 && !isSelfSsid(ssid)) {
         karma_observeProbeResp(bssid, ssid, e.rssi);
     }
@@ -1591,9 +1458,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint32_t cooldownMs = (tsfNonMono || tsfRestart || ssidCollision) ? 300000UL : 60000UL;
     bool cooldownOk = (b.lastEvilEmitMs == 0) || ((now - b.lastEvilEmitMs) >= cooldownMs);
 
-    // Suppress evil-twin emit during an active beacon flood: SSID collisions and
-    // TSF anomalies under flood are spam artifacts (random BSSIDs reusing SSIDs),
-    // not a real twin. BEACON_FLOOD already reported the attack.
     bool anySignal = tsfNonMono || tsfRestart || ssidCollision;
     bool meshWorthy = tsfNonMono || ssidCollision;
     if (anySignal && cooldownOk && !g_beaconFloodActive) {
@@ -1652,8 +1516,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
         b.tsfViolWindowMs = 0;
     }
 
-    // OWE transition abuse: open beacon on SSID that matches an OWE-tagged BSSID without
-    // being its declared transition partner.
     if (isOpen && !hasOweTrans) {
         for (const auto &kv : g_apBaseline) {
             const ApBaseline &other = kv.second;
@@ -1691,7 +1553,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
         }
     }
 
-    // Update baseline state
     b.lastTSF = tsf;
     b.lastTSFSampleMs = now;
     b.beaconInterval = beaconInt;
@@ -1705,7 +1566,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     b.lastSeen = now;
 }
 
-// Beacon-forgery emitter — fires once per (BSSID, reason) per session to avoid spam.
 static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t bi,
                               uint32_t ieHash, int8_t rssi, uint8_t channel,
                               const char *reason, const String &extraEv) {
@@ -1723,10 +1583,6 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
     else if (strcmp(reason, "FORGE_KARMA_BRUCE") == 0) { reasonBit = 0x100; reasonIdx = 8; }
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
 
-    // GLOBAL per-reason rate gate. Beacon spam randomizes BSSID every frame, so the
-    // per-BSSID dedup below never triggers -> without this, a flood causes one
-    // SD-write + String-alloc PER beacon (hundreds/sec) -> heap exhaustion -> crash.
-    // Collapse a flood to one emit per cooldown while still flagging the attack.
     static uint32_t s_lastEmitMs[9] = {0};
     uint32_t nowMs = millis();
     if (s_lastEmitMs[reasonIdx] != 0 && (nowMs - s_lastEmitMs[reasonIdx]) < 5000) return;
@@ -1734,7 +1590,6 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
     auto it = g_beaconForgeFired.find(k);
     if (it != g_beaconForgeFired.end() && (it->second & reasonBit)) return;  // already reported
     if (g_beaconForgeFired.size() >= MAX_BEACON_FORGE_MAP) {
-        // Evict an arbitrary entry; this set is bounded for memory safety only.
         g_beaconForgeFired.erase(g_beaconForgeFired.begin());
     }
     g_beaconForgeFired[k] |= reasonBit;
@@ -1774,14 +1629,6 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
     quorum_addReport("BEACON_FORGE", bsStr, getNodeId(), rssi);
 }
 
-// =============================================================================
-// Assoc-Sleep / tool assoc attack — sends assoc-request frames with the
-// PM (power-management) bit set in frame-control byte 1, from random STA MACs
-// to a target AP, every 200ms (WiFiScan.cpp:7987-8112). Distinguishes from
-// legit clients because real STAs negotiate sleep AFTER association.
-// Detection: per-BSSID, count distinct src MACs sending assoc-req with PM bit
-// in a 5s window. >=4 distinct = alert.
-// =============================================================================
 struct AssocSleepWindow {
     uint32_t windowStartMs{};
     PsramSet<uint64_t> distinctSrc;
@@ -1801,7 +1648,6 @@ struct DeauthRateEntry {
     uint32_t winStartMs;
     uint16_t count;
     bool alerted;
-    // Per-tool behavioral trackers (see docs/detector-verification.md §1)
     uint16_t lastSeqNum;     // last sequence number (seqCtrl>>4)
     uint8_t  sawtoothHits;   // consecutive 0..63 incrementing seqs (bettercap)
     uint8_t  lastSubtype;    // 0x0C deauth / 0x0A disassoc
@@ -1825,15 +1671,9 @@ static constexpr uint32_t DEAUTH_ALERT_COOLDOWN_MS = 60000;
 static std::atomic<uint32_t> g_deauthRetryDrops{0};
 static std::atomic<uint32_t> g_chanEpoch{0};          // bumped when the RX channel changes
 
-// Classify a deauth/disassoc frame against verified per-tool source fingerprints.
-// Returns a static tool tag or nullptr. Single-frame static checks only.
-//   reason: frame reason code   seqCtrl: raw seq-control field
-//   durLE: duration field (bytes 2-3, little-endian)   subtype: 0x0C or 0x0A
 static const char *classifyDeauthTool(uint16_t reason, uint16_t seqCtrl, uint16_t durLE) {
-    // ESP32Marauder WiFiScan.h:491 — reason=2, seqCtrl=0xFFF0 (fixed)
     if (reason == 0x0002 && seqCtrl == 0xFFF0) return "MARAUDER";
     if (reason == 0x000E) return "MICHAEL_TKIP";
-    // reason=7+dur=0x013A is aireplay; bettercap is reason=6+dur=0 — both behavioral.
     return nullptr;
 }
 
@@ -1931,14 +1771,12 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         }
         r.lastFrameMs = now;
         r.lastEpoch = epoch;
-        // bettercap: seq walks 0..63 then resets (wifi_deauth.go:14). Count monotonic increments.
         if (seqNum == (uint16_t)(r.lastSeqNum + 1) && seqNum <= 0x003F) {
             if (r.sawtoothHits < 255) r.sawtoothHits++;
         } else if (seqNum != r.lastSeqNum) {
             r.sawtoothHits = 0;
         }
         r.lastSeqNum = seqNum;
-        // mdk4 mode d: alternating deauth(0x0C) <-> disassoc(0x0A) pairs (deauth.c:443-466).
         if ((subtype == 0x0C || subtype == 0x0A) && subtype != r.lastSubtype) {
             if (r.altHits < 255) r.altHits++;
         }
@@ -1951,7 +1789,6 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         if (!r.toolAlerted && !(selfSrc && sentinelHop)) {
             const char *behavTool = nullptr;
             if (r.altHits >= 6) {
-                // mdk4 varies reason per subtype; ESP deauthers reuse one reason
                 bool bothSeen = r.deauthReason != 0xFFFF && r.disassocReason != 0xFFFF;
                 behavTool = (bothSeen && r.deauthReason != r.disassocReason)
                                 ? "MDK4" : "ESP_DEAUTHER";
@@ -2055,7 +1892,6 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             ::detect_logIncident(String("DEAUTH_FORGE:") + srcS + ":" + toolTag, nullptr, fsev);
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
-            // Mesh forwarding is separate/additional.
             if (meshEnabled && (sentinel_isRunning() || deauthDetectionEnabled.load()) && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
                 char meshBuf[96];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
@@ -2093,7 +1929,6 @@ static void handleAssocReq(const DetectFrameEvent &e) {
     w.distinctSrc.insert(srcK);
     if (w.frames < 65535) w.frames++;
     if (e.rssi > w.bestRssi) w.bestRssi = e.rssi;
-    // Fire on PM-bit assoc-req RATE (1-MAC flood) OR distinct-src fan-out (multi-client).
     if (w.alerted || (w.frames < ASSOC_SLEEP_FRAMES && w.distinctSrc.size() < ASSOC_SLEEP_THRESH)) return;
     w.alerted = true;
     char bsBuf[18];
@@ -2119,15 +1954,6 @@ static void handleAssocReq(const DetectFrameEvent &e) {
     quorum_addReport("ASSOC_SLEEP", bs, getNodeId(), w.bestRssi);
 }
 
-// =============================================================================
-// Probe-flood / tool probe attack fingerprint
-// tool probe-attack template (esp32_tool/WiFiScan.cpp:7763-7823):
-//   - Seq ctrl = 0x01 0x00 (raw byte 22=0x01, byte 23=0x00) FIXED, never increments
-//   - Post-SSID IE: HT Capabilities (tag 0x2D, len 0x1A) — unusual in probe-req
-//   - 165 frames per tick from rotating random src MACs
-// tool probe-flood does not use this signature (lower rate, varies).
-// Detection here: per-BSSID running rate of seq=0x0001 probe-reqs containing 0x2D.
-// =============================================================================
 struct ProbeFloodWindow {
     uint32_t windowStartMs;
     uint16_t hits;         // probe-req frames matching tool fingerprint
@@ -2145,13 +1971,10 @@ static constexpr uint16_t PROBE_FLOOD_WIN_MS = 5000;
 static constexpr uint16_t PROBE_FLOOD_THRESH = 10;
 static std::atomic<bool> g_probeFloodEnabled{true};
 static std::atomic<uint16_t> g_probeSingleMacThresh{60};   // 1 src >= N probes/5s
-// Deauth Detector targeted-alert threshold: N unicast deauths to one dst / window. NVS "deauTgt".
 std::atomic<uint16_t> g_deauthTargetedThresh{DEAUTH_TARGETED_THRESHOLD};
 static std::atomic<uint16_t> g_probeRandTotalThresh{80};   // randomized flood total/5s
 static std::atomic<uint16_t> g_probeRandDistinctThresh{60};// randomized flood distinct MAC/5s
 
-// Behavioral fallback: distinct src MACs probing identical SSID in 5s window.
-// Catches probe-flood variants that don't use the fixed seq=0x0001 fingerprint.
 struct ProbeBehaveWindow {
     uint32_t windowStartMs{};
     PsramSet<uint64_t> distinctSrc;
@@ -2163,8 +1986,6 @@ struct ProbeBehaveWindow {
 static PsramMap<uint64_t, ProbeBehaveWindow> g_probeBehave;
 static constexpr size_t MAX_PROBE_BEHAVE_MAP = 64;
 static constexpr uint16_t PROBE_BEHAVE_WIN_MS = 5000;
-// Threshold from academic IDS research: >40 distinct MACs probing same SSID in 5s
-// is the suspicious-scanner-sweep range. Below that = busy-venue normal.
 static constexpr uint8_t  PROBE_BEHAVE_THRESH = 40;
 
 static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
@@ -2208,7 +2029,6 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
     quorum_addReport("PROBE_FLOOD", String(w.ssid), getNodeId(), w.bestRssi);
 }
 
-// Global probe-rate flood: RANDOMIZED (mdk4 unique-MAC) or SINGLE_MAC (Marauder)
 struct ProbeSsidTally {
     char ssid[33];
     uint16_t n;
@@ -2349,12 +2169,9 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     if (!ssidRandom) probeGlobalCheck(p + 10, ssidB, e.rssi, e.channel, millis());
     if (ssidOk) probeBehaveCheck(p + 10, ssidB, e.rssi, e.channel, millis());
 
-    // tool template: seq ctrl bytes 22-23 = 0x01 0x00 (= seqCtrl LE 0x0001).
     uint16_t seqCtrl = (uint16_t)p[22] | ((uint16_t)p[23] << 8);
     if (seqCtrl != 0x0001) return;
 
-    // Single-frame emit: src MAC is re-randomized every frame (WiFiScan.cpp:5919), so
-    // per-source cooldown is useless — gate globally.
     {
         static uint32_t s_probeForgeEmit = 0;
         uint32_t tnow = millis();
@@ -2391,8 +2208,6 @@ static void handleProbeReq(const DetectFrameEvent &e) {
         }
     }
 
-    // Probe-request IE start = 24. seqCtrl=0x0001 alone is the Marauder fingerprint;
-    // HT-IE is not always present (don't require it — verified vs current template).
     const uint8_t *ie = p + 24;
     uint16_t ieLen = e.len - 24;
 
@@ -2463,9 +2278,6 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     quorum_addReport("PROBE_FLOOD", String(w.ssid), getNodeId(), w.bestRssi);
 }
 
-// =============================================================================
-// SSID Confusion (CVE-2023-52424)
-// =============================================================================
 static void handleProbeResp(const DetectFrameEvent &e) {
     if (!g_ssidConfusionEnabled.load() && !g_karmaEnabled.load()) return;
     if (e.len < 36) return;
@@ -2507,7 +2319,6 @@ static void handleProbeResp(const DetectFrameEvent &e) {
         strncpy(b.respSsid, ssid, sizeof(b.respSsid) - 1);
         return;
     }
-    // Mismatch: probe-response SSID differs from beacon SSID for same BSSID
     SsidConfusionEvent ev{};
     memcpy(ev.bssid, bssid, 6);
     strncpy(ev.beaconSsid, b.ssid, sizeof(ev.beaconSsid) - 1);
@@ -2544,11 +2355,7 @@ static void handleProbeResp(const DetectFrameEvent &e) {
     strncpy(b.respSsid, ssid, sizeof(b.respSsid) - 1);
 }
 
-// =============================================================================
-// SAE / Dragonblood DoS
-// =============================================================================
 static void handleAuthSae(const DetectFrameEvent &e) {
-    // 802.11 auth: fixed body at +24 = algo(2) seq(2) status(2)
     if (e.len < 30) return;
     const uint8_t *p = e.payload;
     uint16_t algo = (uint16_t)p[24] | ((uint16_t)p[25] << 8);
@@ -2689,9 +2496,6 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     }
 }
 
-// =============================================================================
-// FragAttacks A-MSDU + PN reuse
-// =============================================================================
 static void handleQosData(const DetectFrameEvent &e) {
     if (e.len < 26) return;
     const uint8_t *p = e.payload;
@@ -2761,8 +2565,6 @@ static void handleQosData(const DetectFrameEvent &e) {
         }
     };
 
-    // --- Real FragAttacks: fragmented-MSDU PN-gap (CVE-2020-26146) + mixed
-    //     encrypted/plaintext fragments (CVE-2020-26147). Passive, header-only.
     bool isFragment = moreFrag || fragNum > 0;
     if (isFragment) {
         uint16_t seqNum = seqctrl >> 4;
@@ -2800,7 +2602,6 @@ static void handleQosData(const DetectFrameEvent &e) {
 
 }
 
-// BLE malformed PDU
 static bool validateBleAdvStructure(const uint8_t *p, uint16_t len, const char **reason) {
     if (len > 254) { *reason = "PAYLOAD_OVERLEN"; return false; }
     uint16_t off = 0;
@@ -2818,9 +2619,6 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     if (!g_detectEnabled.load()) return;
     uint32_t now = millis();
 
-    // Phase 3.2 BLE ODID Remote ID — Service Data 16-bit UUID 0xFFFA
-    // (AD type 0x16, UUID bytes FA FF little-endian). Done here in task
-    // context, not in nimble_host callback.
     if (len >= 8 && payload) {
         size_t off = 0;
         while (off + 2 <= len) {
@@ -2865,9 +2663,6 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     }
 }
 
-// =============================================================================
-// RID claim validation
-// =============================================================================
 static float haversineMeters(double lat1, double lon1, double lat2, double lon2) {
     const double R = 6371000.0;
     double dLat = (lat2 - lat1) * 0.0174532925;
@@ -2878,7 +2673,6 @@ static float haversineMeters(double lat1, double lon1, double lat2, double lon2)
     return (float)(R * c);
 }
 
-// RSSI → distance via free-space + path-loss model (n=2.5 default outdoor)
 static float rssiToMeters(int8_t rssi) {
     const float rssi0 = -45.0f;  // RSSI at 1m
     const float n = 2.5f;
@@ -3233,9 +3027,6 @@ void BloomFilter::add(uint32_t hash) {
     bits[b >> 3] |= (1 << (b & 7));
     bits[c >> 3] |= (1 << (c & 7));
 }
-// =============================================================================
-// Public C++ API (out of namespace, matches detect.h declarations)
-// =============================================================================
 using namespace ah_detect;
 
 std::atomic<bool> detectEnabled{true};
@@ -3247,10 +3038,6 @@ std::atomic<uint8_t>  sae_unmatched_threshold{10};
 std::atomic<uint16_t> beacon_int_drift_permil{50};
 
 void initializeDetect() {
-    // 24 deep (was 64). Each entry is sizeof(DetectFrameEvent) (~266B with the
-    // 256B payload), so 64 cost ~17KB internal SRAM on a board that idles ~33KB
-    // free. 24 (~6.4KB) frees ~10KB headroom; the consumer task drains fast and
-    // backpressure drops cleanly under flood (detect-once logic already gates).
     detectFrameQueue = xQueueCreateWithCaps(24, sizeof(DetectFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     g_detectFrameQueue = detectFrameQueue;
     g_quorumRequired["PMKID"] = 2;
@@ -3258,7 +3045,6 @@ void initializeDetect() {
     g_quorumRequired["SSIDCONF"] = 2;
     g_quorumRequired["SAE_DOS"] = 1;
     g_quorumRequired["RECON"] = 2;
-    // loadOuiTable() removed — unused, triggered vfs_api error on missing file
     {
         Preferences p;
         if (p.begin("ahdetect", false)) {
@@ -3421,8 +3207,6 @@ static void sentinelAlwaysOnTask(void *pv) {
     uint32_t s_appliedMask = 0;
     while (g_sentinelUserEnabled.load() && !scanning.load()) {
         sentinelBleTick(g_meshRadioEnabled.load());
-        // Mask re-evaluated every pass: toggling jam/hshk/pmkid/frag at runtime must
-        // re-apply the filter, or FCSFAIL/DATA never arrive until the task restarts.
         bool wantData = g_pmkidEnabled.load() || g_hshkEnabled.load() || g_fragEnabled.load();
         bool wantFcs  = g_jamEnabled.load();
         uint32_t wantMask = WIFI_PROMIS_FILTER_MASK_MGMT;
@@ -3443,7 +3227,6 @@ static void sentinelAlwaysOnTask(void *pv) {
                           wantData ? "+DATA" : "", wantFcs ? "+FCSFAIL" : "",
                           (int)r1, (int)r2, (int)r3);
         }
-        // Proactive KARMA bait: fake-SSID probe; any AP that answers = karma.
         static uint32_t s_lastBait = 0;
         if (g_karmaEnabled.load() && (millis() - s_lastBait > 8000)) {
             s_lastBait = millis();
@@ -3468,8 +3251,6 @@ static void sentinelAlwaysOnTask(void *pv) {
             Serial.printf("%s drop=%u\n", rb, (unsigned)g_droppedWifi.load());
         }
         if (!g_sentinelScanMode.load()) {
-            // PIN: stay on the AP channel. esp_wifi.h:774 forbids set_channel while a STA
-            // is associated, so only retune when the radio has actually drifted off.
             uint8_t curCh = 0;
             wifi_second_chan_t curSec = WIFI_SECOND_CHAN_NONE;
             if (esp_wifi_get_channel(&curCh, &curSec) != ESP_OK || curCh != apChan) {
@@ -3482,7 +3263,6 @@ static void sentinelAlwaysOnTask(void *pv) {
                 waited += 20;
             }
         } else {
-            // SCAN: hop the configured channel list (AP channel weighted).
             std::vector<uint8_t> chans;
             {
                 std::lock_guard<std::recursive_mutex> lk(g_mtx);
@@ -3708,13 +3488,8 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     else if (ftype == 0 && (stype == 10 || stype == 12)) kind = DetectFrameEvent::DEAUTH;
     else if (ftype == 0 && stype == 11)  kind = DetectFrameEvent::AUTH_SAE;
     else if (eapolHit)                   kind = DetectFrameEvent::EAPOL;   // PMKID/handshake — keep
-    // QoS data only when frag detection is on; otherwise normal data traffic
-    // floods the queue. All other data frames are dropped here at the ISR — the
-    // old catch-all (enqueue every data frame as EAPOL) is what hung DATA capture.
     else if (ftype == 2 && stype == 8 && g_fragEnabled.load()) kind = DetectFrameEvent::QOS_DATA;
     else return;
-    // Backpressure: drop if queue full rather than spinning the ISR.
-    // Note: uxQueueSpacesAvailable is also safe-from-ISR on ESP-IDF FreeRTOS port.
     if (uxQueueSpacesAvailable(detectFrameQueue) < 2) { g_droppedWifi.fetch_add(1); return; }
     DetectFrameEvent ev;
     ev.kind = kind;
@@ -3729,8 +3504,6 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     if (woken) portYIELD_FROM_ISR();
 }
 
-// BLE callback runs on nimble_host task — must not do heavy work here.
-// Defer to detectTask via queue. Drop on backpressure.
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name) {
@@ -3742,7 +3515,6 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
     ev.channel = 0;
     ev.rssi = rssi;
     ev.rxMicrosLo = 0;
-    // Layout: [0..5]=BLE addr, [6..]=adv payload. BLE adv max 31, fits.
     memcpy(ev.payload, addr, 6);
     uint16_t cap = (payloadLen < (sizeof(ev.payload) - 6))
                    ? payloadLen : (uint16_t)(sizeof(ev.payload) - 6);
@@ -3811,9 +3583,6 @@ void detect_onMeshRadioAdv(const uint8_t *addr, uint8_t addrType, int8_t rssi,
     xQueueSend(detectFrameQueue, &ev, 0);
 }
 
-// PHY-stat hook for jamming detection — called from sniffer_cb for EVERY packet
-// (incl. CRC-fail). ISR-context: cheap atomic increments only. rxState!=0 = PHY/
-// CRC error frame (ESP-IDF sniffer dumps these when FCSFAIL filter set).
 void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor, uint8_t channel) {
     if (!sentinel_isUserEnabled() || !g_jamEnabled.load(std::memory_order_relaxed)) return;
     if (channel < 1 || channel > 13) return;
@@ -3826,7 +3595,6 @@ void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor,
     }
 }
 
-// Per-channel jamming eval — self-gated to 1s, called each detectTask iteration.
 static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, int32_t nfs, uint32_t now, bool silenceOn) {
     JamBase &b = g_jamBase[ch];
     uint32_t tot = v + e;
@@ -3923,8 +3691,6 @@ static void jammingEval(uint32_t now) {
     }
 }
 
-// Mesh-channel disruption observer — called from uartForwardTask for EVERY inbound
-// mesh line (sender + body), before prefix dispatch. Local-only alerts.
 void mesh_observeInbound(const String &sender, const String &body) {
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
@@ -3973,7 +3739,6 @@ void mesh_observeInbound(const String &sender, const String &body) {
             sendToSerial1(getNodeId() + ": " + line, true);
     };
 
-    // 1. self-ID spoof: receiving our OWN node id inbound = impersonation (~0 FP)
     String self = getNodeId();
     if (sender.length() && sender == self) {
         if (g_meshLastSpoofMs == 0 || (now - g_meshLastSpoofMs) >= 30000UL) {
@@ -3985,7 +3750,6 @@ void mesh_observeInbound(const String &sender, const String &body) {
         return;
     }
 
-    // 2. channel flood (inbound rate DoS)
     if (g_meshInbCount >= 40) {
         if (g_meshLastFloodMs == 0 || (now - g_meshLastFloodMs) >= 60000UL) {
             g_meshLastFloodMs = now;
@@ -4027,7 +3791,6 @@ void detectTask(void *pv) {
                 case DetectFrameEvent::ASSOC_REQ:   handleAssocReq(ev); break;
                 case DetectFrameEvent::QOS_DATA:    handleQosData(ev); break;
                 case DetectFrameEvent::BLE_ADV: {
-                    // [0..5]=addr, [6..]=payload
                     if (ev.len >= 6) {
                         onBleAdv(ev.payload, ev.rssi, ev.payload + 6,
                                  (uint16_t)(ev.len - 6), nullptr);
@@ -4046,7 +3809,6 @@ void detectTask(void *pv) {
             }
         }
         uint32_t now = millis();
-        // PPS epoch slow-update (avoid I2C in ISR)
         if (now - lastPpsEpochUpdate > 1000) {
             lastPpsEpochUpdate = now;
             if (g_ppsAnchorMicros != 0 && rtcAvailable) {
@@ -4055,7 +3817,6 @@ void detectTask(void *pv) {
                 if (gpsValid) g_ppsLocked.store(true);
             }
         }
-        // Periodic mesh gossip — Bloom filter
         if (meshEnabled && g_bloomGossipEnabled.load() && now - lastGossip > 300000) {
             lastGossip = now;
             detect_periodicMeshGossip();
@@ -4119,9 +3880,6 @@ void detectTask(void *pv) {
     }
 }
 
-// =============================================================================
-// Quorum
-// =============================================================================
 void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi) {
     String k = type + ":" + key;
@@ -4148,7 +3906,6 @@ void quorum_addReport(const String &type, const String &key,
     }
     uint8_t need = g_quorumRequired.count(type) ? g_quorumRequired[type] : 2;
     if (!c.fired && c.reports.size() >= need) {
-        // Krum-lite: drop most-divergent when N>=5
         std::vector<int> rssis;
         rssis.reserve(c.reports.size());
         std::transform(c.reports.begin(), c.reports.end(), std::back_inserter(rssis),
@@ -4183,10 +3940,6 @@ void quorum_setRequired(const String &type, uint8_t n) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_quorumRequired[type] = n;
 }
-// =============================================================================
-// Mesh handling for new prefixes
-// =============================================================================
-// Global wrappers for unified incident log
 void detect_logIncident(const String &raw, const char *src, const String &ev) {
     ah_detect::detect_logIncident(raw, src, ev);
 }
@@ -4342,9 +4095,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
     _detect_recordMeshPeer(fromNode);
     ah_detect::detect_logIncident(msg, fromNode.c_str());
 
-    // === New tool-fingerprint quorum aggregators ===
     if (msg.startsWith("BEACON_FORGE:")) {
-        // BEACON_FORGE:<bssid>:<reason>:<rssi>
         int p1 = msg.indexOf(':', 13);
         int p2 = msg.indexOf(':', p1 + 1);
         if (p1 < 0 || p2 < 0) return;
@@ -4354,7 +4105,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         return;
     }
     if (msg.startsWith("PMKID_FORGE:")) {
-        // PMKID_FORGE:<src>:<sta>:<rssi>
         int p1 = msg.indexOf(':', 12);
         int p2 = msg.indexOf(':', p1 + 1);
         if (p1 < 0 || p2 < 0) return;
@@ -4364,7 +4114,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         return;
     }
     if (msg.startsWith("EAPOL_BAIT:")) {
-        // EAPOL_BAIT:<src>:<sta>:<count>:<rssi>[:<confidence>]
         int p1 = msg.indexOf(':', 11);
         int p2 = msg.indexOf(':', p1 + 1);
         int p3 = msg.indexOf(':', p2 + 1);
@@ -4375,7 +4124,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         return;
     }
     if (msg.startsWith("PROBE_FLOOD:") || msg.startsWith("PROBE_FLOOD_BEHAVE:")) {
-        // PROBE_FLOOD[_BEHAVE]:<ssid>:<count>:<rssi> — key on SSID
         size_t prefixLen = msg.startsWith("PROBE_FLOOD_BEHAVE:") ? 19 : 12;
         int p1 = msg.indexOf(':', prefixLen);
         int p2 = msg.indexOf(':', p1 + 1);
@@ -4386,7 +4134,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         return;
     }
     if (msg.startsWith("ASSOC_SLEEP:")) {
-        // ASSOC_SLEEP:<bssid>:<distinct_src>:<rssi>
         int p1 = msg.indexOf(':', 12);
         int p2 = msg.indexOf(':', p1 + 1);
         if (p1 < 0 || p2 < 0) return;
@@ -4396,7 +4143,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         return;
     }
     if (msg.startsWith("DEAUTH_FLOOD:")) {
-        // DEAUTH_FLOOD:<src>:<count>:<rssi>
         int p1 = msg.indexOf(':', 13);
         int p2 = msg.indexOf(':', p1 + 1);
         if (p1 < 0 || p2 < 0) return;
@@ -4405,7 +4151,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         quorum_addReport("DEAUTH_FLOOD", src, fromNode, (int8_t)rssi);
         return;
     }
-    // === Existing handlers ===
     if (msg.startsWith("PMKID_HARVEST:")) {
         int p1 = msg.indexOf(':', 14);
         int p2 = msg.indexOf(':', p1 + 1);
@@ -4427,7 +4172,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String bssid = msg.substring(8, p1);
         quorum_addReport("SAE_DOS", bssid, fromNode, -50);
     } else if (msg.startsWith("RID_CLAIM:")) {
-        // uavId:lat:lon:alt
         String rest = msg.substring(10);
         int p1 = rest.indexOf(':');
         int p2 = rest.indexOf(':', p1 + 1);
@@ -4445,7 +4189,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         c.lon = lon;
         c.ts = millis();
     } else if (msg.startsWith("RID_RX:")) {
-        // uavId:rssi:lat:lon:gpsValid
         String rest = msg.substring(7);
         int p1 = rest.indexOf(':');
         int p2 = rest.indexOf(':', p1 + 1);
@@ -4583,9 +4326,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
             id.nodes.push_back(ns);
         }
     } else if (msg.startsWith("BLOOM:")) {
-        // Two formats supported:
-        //   Dense: BLOOM:<idx>:<256-hex-chars>           (full 128-byte chunk)
-        //   Sparse: BLOOM:<idx>:S:<off>=<val>,<off>=<val>... (only non-zero bytes, off/val hex)
         int p1 = msg.indexOf(':', 6);
         if (p1 < 0) return;
         int idx = msg.substring(6, p1).toInt();
@@ -4623,7 +4363,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
             }
         }
     } else if (msg.startsWith("CHAN_ASSIGN:")) {
-        // CHAN_ASSIGN:nodeId:1,2,3
         int p1 = msg.indexOf(':', 12);
         if (p1 < 0) return;
         String tgt = msg.substring(12, p1);
@@ -4702,8 +4441,6 @@ void detect_periodicMeshGossip() {
         if (nonzero == 0) continue;
         if (chunkHash == g_lastBloomTxHash[idx]) continue;
         g_lastBloomTxHash[idx] = chunkHash;
-        // Sparse fmt break-even ~50 nonzero bytes (50*5=250 vs 256 dense).
-        // Use sparse when noticeably smaller — most chunks are heavily sparse.
         String body;
         if (nonzero <= 48) {
             body = "S:";
@@ -4730,9 +4467,6 @@ void detect_periodicMeshGossip() {
     }
 }
 
-// =============================================================================
-// Bloom API
-// =============================================================================
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash) {
     uint8_t buf[10]; memcpy(buf, mac, 6); memcpy(buf + 6, &ieHash, 4);
     uint32_t h = fnv1a(buf, 10);
@@ -4753,9 +4487,6 @@ String detect_getBloomStatsJson() {
            ",\"capacity_bits\":" + String((unsigned)BloomFilter::BITS) + "}";
 }
 
-// =============================================================================
-// RID public + JSON
-// =============================================================================
 void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi) {
     recordRidClaim(uavId, lat, lon, alt, rssi);
 }
@@ -4788,9 +4519,6 @@ String detect_getRidClaimsJson() {
     return out;
 }
 
-// =============================================================================
-// Recon scoring
-// =============================================================================
 void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, const char *reason) {
     if (!identityId || identityId[0] == 0) return;
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
@@ -4842,21 +4570,12 @@ void detect_clearRecon() {
     g_recon.clear();
 }
 
-// =============================================================================
-// PPS
-// =============================================================================
 void initializeGpsPps(int gpio) { initGpsPps(gpio); }
 bool ppsLocked() { return g_ppsLocked.load(); }
 uint32_t ppsLastEdgeMicros() { return g_ppsLastEdge; }
 uint64_t getDisciplinedMicros() { return ah_detect::getDisciplinedMicros(); }
 
-// =============================================================================
-// Channel partition
-// =============================================================================
 void detect_assignChannelPartition() {
-    // Coordinator: split 1..14 (2.4 GHz) across confirmed mesh nodes inc. self.
-    // Discovery of mesh peers piggybacks on triangulateAcks/heartbeat; we use a
-    // simple fallback: any nodeId we've seen recently via quorum.
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     std::set<String> peers;
     peers.insert(getNodeId());
@@ -4911,9 +4630,6 @@ String detect_getMyChannelsCsv() {
     }
     return csv;
 }
-// =============================================================================
-// JSON getters
-// =============================================================================
 template<class V, class Fmt>
 static String jsonlOf(const PsramVec<V> &v, Fmt fmt) {
     String out;
@@ -5047,7 +4763,6 @@ String detect_getConfigJson() {
     j += _bjson("mesh_frag", g_meshFrag.load());
     j += _bjson("mesh_tsf", g_meshTsf.load());
     j += _bjson("mesh_jam", g_meshJam.load());
-    // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
     j += _ijson("pmkid_window", g_pmkidWindow.load());
@@ -5279,12 +4994,9 @@ void detect_clearAll() {
     g_localBloom.clear();
     g_neighborBloom.clear();
     g_meshRateMap.clear();
-    // DoS-group RAM windows (were not cleared before -> stale counts persisted)
     g_deauthRate.clear();
     g_assocSleep.clear();
     g_authFlood.clear();
-    // Truncate persisted detection logs so Overview line-counts reset too.
-    // (Overview reads counts from these SD files; clearing RAM alone left stale totals.)
     for (size_t i = 0; i < kDetectLogCount; ++i) {
         if (SafeSD::exists(kDetectLogs[i])) SafeSD::remove(kDetectLogs[i]);  // skip absent files (no error spam)
     }

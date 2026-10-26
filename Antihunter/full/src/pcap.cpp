@@ -383,8 +383,6 @@ static bool pcapDrain(fs::File &f) {
     g_bytes.fetch_add((uint32_t)wrote);
 
     if (wrote != len) {
-        // FatFs latches the error on the file object and only f_open clears it, so the handle is
-        // dead from here. Reopen it in append mode and replay this buffer before giving up.
         const uint32_t pos = (uint32_t)f.size();
         f.close();
         f = SafeSD::open(getPcapFilePath().c_str(), FILE_APPEND);

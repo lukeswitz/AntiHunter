@@ -25,7 +25,6 @@ extern std::atomic<bool> gpsValid;
 extern TriangulationAccumulator triAccum;
 extern bool triangulationOrchestratorAssigned;
 
-// Triang
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
 static std::atomic<bool> triSetupAbort{false};
@@ -93,7 +92,6 @@ const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000;
 
 RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
 
-// Path loss defaults calibrated for 6 dBi RX antenna, indoor
 PathLossCalibration pathLoss = {
     -28.0,   // rssi0_wifi (dBm @ 1m, measured avg: -28.3)
     -47.0,   // rssi0_ble (dBm @ 1m, measured avg: -47.2)
@@ -147,7 +145,6 @@ void setRFEnvironment(RFEnvironment env) {
                   env, preset.n_wifi, preset.n_ble);
 }
 
-// Helpers
 
 float estimateRangeM(int8_t rssi, bool isWiFi) {
     if (rssi <= RSSI_SENSITIVITY_FLOOR || rssi >= 0) return -1.0f;
@@ -333,7 +330,6 @@ float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement) {
 
 float calculateSignalQuality(const TriangulationNode &node) {
     if (node.rssiHistory.size() < 3) {
-        // Even with few samples, factor in hit count for initial quality estimate
         float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
         return 0.3f + (hitFactor * 0.2f);  // Range 0.3-0.5 based on hits
     }
@@ -352,12 +348,8 @@ float calculateSignalQuality(const TriangulationNode &node) {
     float strength = (node.filteredRssi + 100.0) / 100.0;
     strength = constrain(strength, 0.0, 1.0);
 
-    // Hit count factor: more detections = higher confidence in this node's data
-    // Saturates at ~15 hits (typical good detection count during scan)
     float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
 
-    // Weight: 40% stability, 30% signal strength, 30% hit count
-    // Node with strongest signal AND most hits gets highest weight
     return (stability * 0.4f + strength * 0.3f + hitFactor * 0.3f);
 }
 
@@ -637,10 +629,7 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
     return (totalCount == 0) || (syncedCount >= (totalCount * 2 / 3));
 }
 
-// Traingulation actions
 
-// Unwind initiator/session state when setup is aborted before the scan worker runs.
-// Setup already broadcast TRIANGULATE_START, so tell child nodes to stop too.
 static void triAbortCleanup(const char *reason) {
     if (triangulationInitiator && !triStopCameFromMesh) {
         sendMeshCommand("@ALL TRIANGULATE_STOP");
@@ -673,11 +662,9 @@ static void triAbortCleanup(const char *reason) {
     Serial.printf("[TRIANGULATE] %s\n", reason);
 }
 
-// Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
 void coordinatorSetupTask(const void *parameter) {
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(parameter));
 
-    // Wait for child nodes to ACK - give mesh time to relay responses
     triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
     {
@@ -702,7 +689,6 @@ void coordinatorSetupTask(const void *parameter) {
     }
     if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
-    // Count total nodes: coordinator + ACK'd children
     int ackedChildren;
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);
@@ -713,7 +699,6 @@ void coordinatorSetupTask(const void *parameter) {
     Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
                   ackedChildren, totalNodes);
 
-    // Additional buffer before next broadcast
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     {
@@ -721,12 +706,9 @@ void coordinatorSetupTask(const void *parameter) {
         antihunter::lastResults = ("TRIANGULATING: " + String(totalNodes) + " nodes ready, starting scan...").c_str();
     }
 
-    // Broadcast synchronized cycle start time + node list for slot coordination
     int64_t cycleStartUs = getCorrectedMicroseconds();
     uint32_t cycleStartMs = (uint32_t)(cycleStartUs / 1000LL);
 
-    // Build comma-separated list of node IDs (sorted for consistent slot assignment)
-    // Include coordinator itself
     std::vector<String> nodeList;
     String coordinatorId = getNodeId();
     if (coordinatorId.length() > 0) {
@@ -740,7 +722,6 @@ void coordinatorSetupTask(const void *parameter) {
     }
     std::sort(nodeList.begin(), nodeList.end());
 
-    // Rebuild coordinator's own reporting schedule with all nodes
     reportingSchedule.reset();
     for (const auto& node : nodeList) {
         reportingSchedule.addNode(node);
@@ -770,7 +751,6 @@ void coordinatorSetupTask(const void *parameter) {
         }
     }
 
-    // Set active flag AFTER task is created to prevent UI race condition
     triangulationActive = true;
     triTargetChannel.store(0);
     triTargetRadio.store(0);
@@ -778,13 +758,11 @@ void coordinatorSetupTask(const void *parameter) {
 
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 
-    // Clean up - task deletes itself
     coordinatorSetupTaskHandle = nullptr;
     vTaskDelete(NULL);
 }
 
 bool startTriangulation(const String &targetMac, int duration, String *err) {
-    // Debounce check: prevent rapid restarts
     uint32_t timeSinceLastStop = millis() - lastTriangulationStopTime;
     if (lastTriangulationStopTime > 0 && timeSinceLastStop < TRIANGULATION_DEBOUNCE_MS) {
         uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceLastStop) / 1000;
@@ -832,21 +810,6 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
 
-    // // Force stop any existing triangulation first
-    // if (triangulationActive) {
-    //     Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
-    //     stopTriangulation();
-    //     vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
-
-    //     // After stop, re-check debounce since stop updates the timestamp
-    //     uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
-    //     if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
-    //         uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
-    //         Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
-    //         return;
-    //     }
-    // }
-
     if (workerTaskHandle) {
         Serial.println("[TRIANGULATE] WARNING: Worker task still exists, stopping...");
         stopRequested = true;
@@ -885,7 +848,6 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
     triangulationInitiator = true;
     reportingSchedule.reset();
 
-    // Clear wait tracking for new session
     triangulateReportedNodes.clear();
     waitingForFinalReports = false;
     stopSentTimestamp = 0;
@@ -905,7 +867,6 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
 
     Serial.printf("[TRIANGULATE] Broadcast sent to mesh nodes (initiator: %s)\n", myNodeId.c_str());
 
-    // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
         if (ahCreateTask(reinterpret_cast<TaskFunction_t>(coordinatorSetupTask), "triCoordSetup", 4096,
                 reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 2, &coordinatorSetupTaskHandle, 1) != pdPASS) {
@@ -920,10 +881,8 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
 }
 
 uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
-    // Calculate adaptive timeout based on node count and measured mesh latency
     uint32_t timeout = baseTimeoutMs;
 
-    // Factor in number of nodes (more nodes = more potential for delays)
     uint32_t nodeCount;
     uint32_t maxPropDelay = 0;
     uint32_t delayCount = 0;
@@ -974,7 +933,6 @@ static void triStopTask(void *pv) {
     vTaskDelete(NULL);
 }
 
-// stopTriangulation() blocks 10s+ collecting reports - never run it on async_tcp or the mesh RX task
 void requestTriangulationStop() {
     triOperatorStop.store(true);
     if (!triangulationActive && coordinatorSetupTaskHandle == nullptr) {
@@ -1094,7 +1052,6 @@ void stopTriangulation() {
                         [](const TriangulateAckInfo &ack) { return ack.reportReceived; });
                 }
 
-                // Reports still arriving means the mesh is slow, not finished - keep listening.
                 if (reportedCount > lastProgress) {
                     lastProgress = reportedCount;
                     uint32_t extended = millis() + REPORT_PROGRESS_GRACE_MS;
@@ -1105,7 +1062,6 @@ void stopTriangulation() {
                     }
                 }
 
-                // Check if new nodes were discovered (late T_D from nodes whose ACK was lost)
                 if (totalAcked > lastNodeCount) {
                     Serial.printf("[TRIANGULATE] New node discovered! Now have %d nodes (was %d)\n",
                                  totalAcked, lastNodeCount);
@@ -1120,7 +1076,6 @@ void stopTriangulation() {
                     lastReportLog = millis();
                 }
 
-                // Update UI with collection progress (every ~1s to avoid excessive updates)
                 if (millis() - lastUIUpdate > 1000) {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                     antihunter::lastResults = ("TRIANGULATING: Collecting reports... " +
@@ -1128,8 +1083,6 @@ void stopTriangulation() {
                     lastUIUpdate = millis();
                 }
 
-                // All nodes reported - but wait a bit longer if we recently discovered new nodes
-                // This gives time for more late T_Ds to arrive
                 if (reportedCount >= totalAcked) {
                     uint32_t timeSinceNewNode = millis() - lastNewNodeTime;
                     if (timeSinceNewNode < 3000) {
@@ -1142,17 +1095,14 @@ void stopTriangulation() {
                     break;
                 }
 
-                // Check if we're making progress
                 uint32_t elapsed = millis() - waitStart;
                 if (elapsed > 2000 && reportedCount == 0) {
                     Serial.println("[TRIANGULATE] INFO: No reports yet after 2s");
                 }
 
-                // Yield more aggressively to prevent watchdog issues
                 vTaskDelay(pdMS_TO_TICKS(CHECK_INTERVAL));
             }
 
-            // Final status
             int finalReported = 0;
             std::vector<TriangulateAckInfo> acksCopy;
             {
@@ -1170,7 +1120,6 @@ void stopTriangulation() {
             Serial.printf("[TRIANGULATE] Wait complete: %d/%d nodes reported\n",
                          finalReported, acksCopy.size());
 
-            // Grace period to process any final in-flight T_D messages (e.g., BLE after WiFi)
             Serial.println("[TRIANGULATE] Grace period for final T_D messages...");
             vTaskDelay(pdMS_TO_TICKS(2000));
         } else {
@@ -1285,9 +1234,6 @@ void stopTriangulation() {
     if (workerTaskHandle != nullptr) {
         uint32_t taskStopWait = millis();
 
-        // Wait for task to set workerTaskHandle = nullptr before deleting itself
-        // Do NOT call eTaskGetState() - the handle becomes invalid after vTaskDelete
-        // and calling it on a deleted task is undefined behavior (crash risk)
         while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
@@ -1574,7 +1520,6 @@ String calculateTriangulation() {
     results += "Elapsed: " + String(elapsed) + "s\n";
     results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n";
 
-    // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
 
@@ -1591,7 +1536,6 @@ String calculateTriangulation() {
         results += "  Max node offset: " + String(maxOffsetMs, 1) + " ms\n";
     }
 
-    // Add quick maps link at top if we have a final position
     if (apFinalResult.hasResult) {
         String quickMapsUrl = "https://www.google.com/maps?q=" +
                             String(apFinalResult.latitude, 6) + "," +
@@ -1600,7 +1544,6 @@ String calculateTriangulation() {
     }
     results += "\n";
 
-    // Display AP/Coordinator Final Result prominently if available
     if (apFinalResult.hasResult) {
         uint32_t age = (millis() - apFinalResult.timestamp) / 1000;
         results += "╔════════════════════════════════════════════════╗\n";
@@ -1621,14 +1564,12 @@ String calculateTriangulation() {
         results += "════════════════════════════════════════════════\n\n";
     }
     
-    // NO NODES RESPONDING :(
     if (triangulationNodes.empty()) {
         results += "--- No Mesh Nodes Responding ---\n\n";
         results += "\n=== End Triangulation ===\n";
         return results;
     }
 
-    // Always show Node Reports section - regardless of GPS status
     results += "--- Node Reports ---\n";
     std::vector<TriangulationNode> gpsNodes;
     int gpsNodeCount = 0;
@@ -1661,7 +1602,6 @@ String calculateTriangulation() {
     }
     results += "\n";
 
-    // Check GPS node status and show warnings if needed
     if (gpsNodeCount == 0) {
         results += "--- TRIANGULATION IMPOSSIBLE ---\n\n";
         results += String(triangulationNodes.size()) + " node(s) reporting, but none have GPS\n\n";
@@ -1671,7 +1611,6 @@ String calculateTriangulation() {
         return results;
     }
 
-    // Show status message when we don't have enough GPS nodes, but continue processing
     if (gpsNodeCount < 3) {
         results += "--- Insufficient GPS Nodes ---\n\n";
         results += "GPS nodes: " + String(gpsNodeCount) + "/3 required\n";
@@ -1701,14 +1640,12 @@ String calculateTriangulation() {
             });
         results += "\n";
 
-        // If we have < 2 GPS nodes, can't even do GPS-RSSI validation, so return here
         if (gpsNodeCount < 2) {
             results += "\n=== End Triangulation ===\n";
             return results;
         }
     }
 
-    // GPS RSSI validation - show even with 2 GPS nodes
     if (gpsNodes.size() >= 2) {
         results += "--- GPS-RSSI Distance Validation ---\n";
         
@@ -1761,14 +1698,12 @@ String calculateTriangulation() {
         results += "\n";
     }
 
-    // If we only have 2 GPS nodes, we can show GPS-RSSI validation but can't triangulate
     if (gpsNodeCount < 3) {
         results += "Need 1 more GPS node for full triangulation.\n\n";
         results += "\n=== End Triangulation ===\n";
         return results;
     }
 
-    // WE HAVE 3+ GPS NODES - DO TRIANGULATION!
     results += "--- Weighted GPS Trilateration ---\n";
     results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
     
@@ -1926,7 +1861,6 @@ void disciplineRTCFromGPS() {
     time_t gpsEpoch = gpsUtcTime.unixtime();
     DateTime gpsTime(gpsEpoch);
 
-    // GPS time with centisecond precision (10ms)
     int64_t gpsEpochMicros = ((int64_t)gpsEpoch * 1000000LL) + (centisecond * 10000);
 
     int32_t offset = (int32_t)(gpsEpoch - rtcEpoch);
@@ -1936,7 +1870,6 @@ void disciplineRTCFromGPS() {
             rtc.adjust(gpsTime);
             xSemaphoreGive(rtcMutex);
 
-            // Recalibrate boot-to-epoch offset with centisecond precision
             int64_t bootMicros = esp_timer_get_time();
             clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
             clockDiscipline.offsetCalibrated = true;
@@ -1946,13 +1879,11 @@ void disciplineRTCFromGPS() {
             Serial.printf("[DISCIPLINE] Large correction: %ds, offset calibrated (cs=%d)\n", offset, centisecond);
         }
     } else if (!clockDiscipline.offsetCalibrated) {
-        // Calibrate offset on first GPS sync with centisecond precision
         int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
         clockDiscipline.offsetCalibrated = true;
         Serial.printf("[DISCIPLINE] Boot-to-epoch offset calibrated (cs=%d)\n", centisecond);
     } else if (abs(offset) <= 1) {
-        // Small drift - update offset without adjusting RTC
         int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
 
@@ -1975,9 +1906,7 @@ void disciplineRTCFromGPS() {
 }
 
 int64_t getCorrectedMicroseconds() {
-    // Get Unix timestamp with microsecond precision for timing synchronization
     if (!rtcAvailable || rtcMutex == nullptr || !clockDiscipline.offsetCalibrated) {
-        // Fallback to boot-relative microseconds if no RTC or not calibrated
         int64_t currentMicros = esp_timer_get_time();
         if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
@@ -1987,11 +1916,9 @@ int64_t getCorrectedMicroseconds() {
         return (int64_t)currentMicros;
     }
 
-    // Use calibrated boot-to-epoch offset to convert micros() to Unix timestamp
     int64_t bootMicros = esp_timer_get_time();
     int64_t unixTimestampMicros = (int64_t)bootMicros + clockDiscipline.bootToEpochOffsetMicros;
 
-    // Apply drift correction if converged
     if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
         uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
         int64_t correction = (int64_t)(clockDiscipline.driftRate * elapsedMs * 1000.0);
@@ -2205,7 +2132,6 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 }
 
 
-// Adaptive path loss calibrated for 6 dBi RX antenna, indoor environment default
 AdaptivePathLoss adaptivePathLoss = {
     -27.0,                             // rssi0_wifi (dBm @ 1m, 6dBi antenna)
     -67.0,                             // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)

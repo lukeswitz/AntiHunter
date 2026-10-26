@@ -40,7 +40,6 @@ extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern void disciplineRTCFromGPS();
 
-// Preferences::getString() log_e()s on a missing key; gate it so optional keys stay quiet
 String prefsGetString(const char *key, const String &defaultValue) {
     if (!prefs.isKey(key)) return defaultValue;
     return prefs.getString(key, defaultValue);
@@ -51,7 +50,6 @@ float prefsGetFloat(const char *key, float defaultValue) {
     return prefs.getFloat(key, defaultValue);
 }
 
-// GPS
 TinyGPSPlus gps;
 HardwareSerial GPS(2);
 bool sdAvailable = false;
@@ -63,7 +61,6 @@ SemaphoreHandle_t gpsMutex = nullptr;
 extern bool hbEnabled;
 extern uint32_t hbInterval;
 
-// RTC
 RTC_DS3231 rtc;
 bool rtcAvailable = false;
 bool rtcSynced = false;
@@ -71,7 +68,6 @@ time_t lastRTCSync = 0;
 SemaphoreHandle_t rtcMutex = nullptr;
 String rtcTimeString = "RTC not initialized";
 
-// Vibration Sensor
 volatile bool vibrationDetected = false;
 volatile uint32_t vibrationPulses = 0;
 unsigned long lastVibrationTime = 0;
@@ -86,7 +82,6 @@ volatile bool vibAutoScanPending = false;
 bool vibAutoScanPreempt = false;
 unsigned long lastVibAutoScanFire = 0;
 
-// Diagnostics & Config
 extern std::atomic<bool> scanning;
 extern std::atomic<int> totalHits;
 extern std::atomic<uint32_t> framesSeen;
@@ -106,7 +101,6 @@ bool SafeSD::lastCheckResult = false;
 unsigned long lastSaveTime = 0;
 const unsigned long SAVE_DEBOUNCE_MS = 2000;
 
-// Tamper Detection Erase
 uint32_t setupDelay = 120000;  // 2 minutes default
 uint32_t setupStartTime = 0;
 bool inSetupMode = false;
@@ -123,12 +117,10 @@ uint32_t detectionWindow = 20000;
 String eraseStatus = "INACTIVE";
 bool eraseInProgress = false;
 
-// Battery Saver Mode
 bool batterySaverEnabled = false;
 uint32_t batterySaverHeartbeatInterval = 300000;  // 5 minutes default
 uint32_t lastBatterySaverHeartbeat = 0;
 
-// SD & HW Init
 
 uint32_t SafeSD::sdMountFailures = 0;
 uint32_t SafeSD::sdWriteRetries = 0;
@@ -276,7 +268,6 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     if (written == len) return written;
     const int firstErr = errno;
 
-    // ff.c f_write checks fp->err first and ABORT latches it, so only a reopen clears the handle.
     delay(30);
     errno = 0;
     const size_t more = file.write(data + written, len - written);
@@ -352,7 +343,6 @@ String jsonEscape(const String &in) {
     return out;
 }
 
-// Node ID = 2-5 alphanumeric (A-Z, 0-9), same rule as /node-id and CONFIG_NODEID.
 String sanitizeNodeId(String nodeId) {
     nodeId.toUpperCase();
 
@@ -398,7 +388,6 @@ void initializeHardware()
         }
         
         if (err != ESP_OK) {
-            // halt with diagnostics
             Serial.printf("[NVS] FATAL: Cannot initialize NVS: 0x%x (%s)\n", err, esp_err_to_name(err));
             Serial.println("[NVS] Device requires factory reset via esptool");
             while(1) { delay(5000); Serial.printf("[NVS] HALTED: Error 0x%x\n", err); }
@@ -406,7 +395,6 @@ void initializeHardware()
     }
     
     if (!prefs.begin("antihunter", false)) {
-        // Single recovery try, then halt
         Serial.println("[NVS] Cannot open namespace - attempting recovery");
         prefs.end();
         delay(100);
@@ -417,7 +405,6 @@ void initializeHardware()
         }
         
         if (!prefs.begin("antihunter", false)) {
-            // HALT - avoid restart loop
             Serial.println("[NVS] FATAL: Cannot open namespace after recovery");
             while(1) { delay(5000); Serial.println("[NVS] HALTED: Namespace failure"); }
         }
@@ -503,7 +490,6 @@ void initializeHardware()
 }
 
 void syncSettingsToNVS() {
-    // Use a static buffer to avoid heap fragmentation
     static char channelsBuf[128];
     channelsBuf[0] = '\0';
 
@@ -548,9 +534,6 @@ void syncSettingsToNVS() {
     Serial.println("[NVS] Settings synced to flash");
 }
 
-// FNV-1a hash over every value saveConfiguration persists. Lets saveConfiguration
-// skip the NVS+SD write (and its serial log) when nothing actually changed —
-// callers can invoke it freely without churning flash or spamming the console.
 static uint32_t configSignature() {
     uint32_t h = 2166136261u;
     auto mix = [&](const void *p, size_t n) {
@@ -636,8 +619,6 @@ void saveConfiguration() {
         return;
     }
 
-    // Only persist when the config actually changed — avoids constant NVS/SD
-    // rewrites (flash wear + log spam) from periodic/no-op callers.
     static uint32_t lastCfgSig = 0;
     static bool haveCfgSig = false;
     uint32_t sig = configSignature();
@@ -787,7 +768,6 @@ void loadConfiguration() {
     config.replace(",\n}", "\n}");
     config.replace(",}", "}");
 
-    // Try to fix common corruption issues
     config.trim();
     if (config.endsWith(",")) {
         config = config.substring(0, config.length() - 1);
@@ -999,7 +979,6 @@ void loadConfiguration() {
     
     if (doc.containsKey("baselineDuration")) {
         uint32_t duration = doc["baselineDuration"].as<uint32_t>() * 1000;
-        // Minimum 60 seconds to prevent rapid cycling and message flooding
         if (duration < 60000) {
             Serial.println("[CONFIG] Warning: baselineDuration too short, using 60s minimum");
             duration = 60000;
@@ -1111,7 +1090,6 @@ bool waitForInitialConfig() {
         return false;
     }
     
-    // Check if config exists
     bool configExists = SD.exists(CONFIG_FILE);
 
     if (configExists) {
@@ -1439,7 +1417,6 @@ String getDiagnostics() {
         if (rtcSynced) {
             s += "Synced";
         } else {
-            // RTC has valid time from battery backup even without GPS sync
             time_t ep = getRTCEpoch();
             if (ep > 946684800) {
                 s += "Synced";
@@ -1495,9 +1472,6 @@ String getDiagnostics() {
     return s;
 }
 
-// FatFS has no power-fail protection (ESP-IDF file-system considerations), so a reset
-// during a write can leave the card unmountable. Try a plain mount, then a bus re-init,
-// then let the library rebuild the filesystem if it reports there isn't one.
 bool sdMountOrRepair() {
     uint32_t hz = SD_SPI_HZ;
     if (SD.begin(SD_CS_PIN, SPI, hz)) { sdMountedHz = hz; return true; }
@@ -1595,7 +1569,6 @@ void initializeGPS() {
         Serial.println("[GPS] First fix can take 5–15 minutes outdoors");
     }
 
-    // Send startup GPS status to server
     sendStartupStatus();
 
     Serial.printf("[GPS] UART on RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
@@ -1609,9 +1582,6 @@ void sendStartupStatus() {
     startupMsg += " GPS:";
     startupMsg += (gpsValid ? "LOCKED " : "SEARCHING ");
     startupMsg += "TEMP: " + String(temp_c, 1) + "C / " + String(temp_f, 1) + "F\n";
-    // startupMsg += " SD:";
-    // startupMsg += (sdAvailable ? "OK" : "FAIL");
-    // startupMsg += " Status:ONLINE";
 
     Serial.printf("[STARTUP] %s\n", startupMsg.c_str());
     sendToSerial1(startupMsg, false);
@@ -1723,7 +1693,6 @@ void logToSD(const String &data) {
         }
     }
 
-    // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
     if (timestamp.length() == 19 && timestamp[4] == '-') {
         timestamp += " " + nodeTZAbbrev(nodeLocalToEpoch(timestamp.substring(0, 4).toInt(), timestamp.substring(5, 7).toInt(),
@@ -1744,7 +1713,6 @@ void logToSD(const String &data) {
         SafeSD::write(logFile, lineBytes, line.length());
     }
 
-    // Batch flush every 10 writes
     if (++totalWrites % 10 == 0) {
         logFile.flush();
     }
@@ -1759,7 +1727,6 @@ void logToSD(const String &data) {
     }
 }
 
-// Survives panic/WDT/SW resets (lost on power cycle, which is itself the diagnosis).
 RTC_DATA_ATTR static uint32_t rtcBootMagic = 0;
 RTC_DATA_ATTR static uint32_t rtcLastUptimeSec = 0;
 static const uint32_t BOOT_MAGIC = 0xA471B007;
@@ -1889,10 +1856,6 @@ void logVibrationEvent(int sensorValue) {
 void logEventToSD(const char* path, const String& jsonLine) {
     if (!SafeSD::isAvailable()) return;
 
-    // Heap-floor guard: under an attack flood, per-event SD writes (File buffers +
-    // rotation reads) can drain heap to an abort. Below the floor, drop the write
-    // rather than crash — the detector still counted/alerted in RAM. Protects
-    // EVERY detector log path in one place.
     if (ESP.getFreeHeap() < 20000) {
         static uint32_t s_lastHeapWarnMs = 0;
         uint32_t nowMs = millis();
@@ -1942,7 +1905,6 @@ String getGPSData()
     return lastGPSData;
 }
 
-// Vibration Sensor
 void IRAM_ATTR vibrationISR() {
     vibrationDetected = true;
     vibrationPulses = vibrationPulses + 1;
@@ -1960,14 +1922,12 @@ void initializeVibrationSensor() {
 }
 
 void updateSetupModeStatus() {
-    // Check if setup mode should be automatically completed
     if (inSetupMode && autoEraseEnabled) {
         uint32_t elapsed = millis() - setupStartTime;
         if (elapsed >= setupDelay) {
             inSetupMode = false;
             Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
 
-            // Use stack buffer to avoid heap fragmentation
             char setupMsg[128];
             snprintf(setupMsg, sizeof(setupMsg), "%s: SETUP_COMPLETE: Auto-erase activated",
                      getNodeId().c_str());
@@ -1986,7 +1946,6 @@ void checkAndSendVibrationAlert() {
                 inSetupMode = false;
                 Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
 
-                // Use stack buffer to avoid heap fragmentation
                 char setupMsg[128];
                 snprintf(setupMsg, sizeof(setupMsg), "%s: SETUP_COMPLETE: Auto-erase activated",
                          getNodeId().c_str());
@@ -1995,7 +1954,6 @@ void checkAndSendVibrationAlert() {
                 uint32_t remaining = (setupDelay - elapsed) / 1000;
                 Serial.printf("[SETUP] Setup mode - auto-erase activates in %us\n", remaining);
 
-                // Use stack buffer to avoid heap fragmentation
                 char vibrationMsg[256];
                 int offset = snprintf(vibrationMsg, sizeof(vibrationMsg),
                                      "%s: VIBRATION: Movement in setup mode (active in %us)",
@@ -2045,7 +2003,6 @@ void checkAndSendVibrationAlert() {
             vibrationPulses = 0;
             lastVibrationAlert = millis();
 
-            // Use stack buffers to avoid heap fragmentation
             char timestamp[32];
             strncpy(timestamp, getFormattedTimestamp().c_str(), sizeof(timestamp) - 1);
             timestamp[sizeof(timestamp) - 1] = '\0';
@@ -2079,7 +2036,6 @@ void checkAndSendVibrationAlert() {
             Serial.printf("[VIBRATION] evidence {\"pulses\":%u,\"level\":%d,\"since_last_alert_ms\":%u}\n",
                           (unsigned)vibPulses, sensorValue, (unsigned)vibSinceLast);
 
-            // Structured vibration event log
             {
                 DynamicJsonDocument doc(256);
                 doc["t"] = getEventTimestamp();
@@ -2102,7 +2058,6 @@ void checkAndSendVibrationAlert() {
     }
 }
 
-// RTC functions
 void initializeRTC() {
     Serial.println("Initializing RTC...");
     Serial.printf("[RTC] Using GPIO SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
@@ -2388,7 +2343,6 @@ void updateRTCTime() {
 
     DateTime now = rtc.now();
 
-    // Sanity check: if year is 0 or wildly out of range, I2C read failed
     if (now.year() < 2020 || now.year() > 2099) {
         xSemaphoreGive(rtcMutex);
         static uint8_t rtcFailCount = 0;
@@ -2471,7 +2425,6 @@ uint32_t getEventTimestamp() {
     return millis() / 1000;
 }
 
-// SD Erase
 
 String generateEraseToken() {
     uint32_t token1 = esp_random();
@@ -2758,7 +2711,6 @@ bool executeSecureErase(const String &reason) {
 bool performSecureWipe() {
     Serial.println("[WIPE] Starting secure wipe");
     
-    // Close and erase NVS
     prefs.end();
     delay(100);
     
@@ -2776,7 +2728,6 @@ bool performSecureWipe() {
     
     Serial.println("[WIPE] NVS cleared");
     
-    // Clear SD card
     deleteAllFiles("/");
     
     File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
@@ -2863,17 +2814,14 @@ void deleteAllFiles(const String &dirname) {
         String fullPath = dirname + "/" + fileName;
         
         if (file.isDirectory()) {
-            // Recursively delete subdirectory
             deleteAllFiles(fullPath);
             
-            // Remove the directory itself
             if (SafeSD::rmdir(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed directory: " + fullPath);
             } else {
                 Serial.println("[WIPE] Failed to remove directory: " + fullPath);
             }
         } else {
-            // Remove the file
             if (SafeSD::remove(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed file: " + fullPath);
             } else {
@@ -2888,7 +2836,6 @@ void deleteAllFiles(const String &dirname) {
     root.close();
 }
 
-// Battery Saver Mode Implementation
 
 void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     if (batterySaverEnabled) {
@@ -2898,28 +2845,22 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     Serial.println("[BATTERY_SAVER] Entering battery saver mode...");
 
-    // Validate and set heartbeat interval (minimum 60 seconds, maximum 30 minutes)
     if (heartbeatIntervalMs < 60000) heartbeatIntervalMs = 60000;
     if (heartbeatIntervalMs > 1800000) heartbeatIntervalMs = 1800000;
     batterySaverHeartbeatInterval = heartbeatIntervalMs;
 
-    // Stop any active scanning tasks
     stopAllScans(false);
 
-    // Wait for tasks to stop
     uint32_t waitStart = millis();
     while ((workerTaskHandle || blueTeamTaskHandle) && (millis() - waitStart < 5000)) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    // Disable WiFi promiscuous mode
     esp_wifi_set_promiscuous(false);
 
-    // Disable BLE controller
     esp_bt_controller_disable();
     Serial.println("[BATTERY_SAVER] BLE disabled");
 
-    // Reduce CPU frequency to 80MHz for power saving
     if (setCpuFrequencyMhz(80)) {
         Serial.printf("[BATTERY_SAVER] CPU frequency reduced to %luMHz\n", (unsigned long)getCpuFrequencyMhz());
     } else {
@@ -2929,7 +2870,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     batterySaverEnabled = true;
     lastBatterySaverHeartbeat = 0;  // Send heartbeat immediately
 
-    // Send notification to mesh
     String msg = getNodeId() + ": BATTERY_SAVER: ENABLED Interval:" + String(heartbeatIntervalMs / 60000) + "min";
     sendToSerial1(msg, true);
 
@@ -2945,20 +2885,17 @@ void exitBatterySaver() {
 
     Serial.println("[BATTERY_SAVER] Exiting battery saver mode...");
 
-    // Restore CPU frequency to 240MHz
     if (setCpuFrequencyMhz(240)) {
         Serial.printf("[BATTERY_SAVER] CPU frequency restored to %luMHz\n", (unsigned long)getCpuFrequencyMhz());
     } else {
         Serial.println("[BATTERY_SAVER] Failed to set CPU frequency");
     }
 
-    // Re-enable BLE controller
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     Serial.println("[BATTERY_SAVER] BLE re-enabled");
 
     batterySaverEnabled = false;
 
-    // Send notification to mesh
     String msg = getNodeId() + ": BATTERY_SAVER: DISABLED";
     sendToSerial1(msg, true);
 
@@ -2980,10 +2917,8 @@ void sendBatterySaverHeartbeat() {
 
     float temp_c = temperatureRead();
 
-    // Build heartbeat message
     String heartbeat = getNodeId() + ": HEARTBEAT: Temp:" + String((int)temp_c) + "C";
 
-    // Add GPS if available
     if (gpsValid) {
         heartbeat += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     } else {

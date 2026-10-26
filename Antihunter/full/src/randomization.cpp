@@ -24,7 +24,6 @@ extern "C" {
 
 extern NimBLEScan *pBLEScan;
 
-// Bluetooth SIG assigned company identifiers (subset)
 struct BleCompanyEntry { uint16_t cid; const char *name; };
 static const BleCompanyEntry kBleCompanies[] = {
     {0x0002, "Intel"}, {0x0006, "Microsoft"}, {0x0008, "Motorola"}, {0x000A, "Qualcomm"},
@@ -574,13 +573,13 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
 
 void linkSessionToTrackBehavioral(ProbeSession& session) {
     if (session.linkedToIdentity) return; // bail if already linked
-    
+
     // if (!isRandomizedMAC(session.mac)) return;
-    
+
     // if (session.probeCount < 1) return; // let all though, for speed
-    
+
     // std::lock_guard<std::mutex> lock(randMutex);
-    
+
     String macStr = macFmt6(session.mac);
     uint32_t now = millis();
     
@@ -1029,12 +1028,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
         session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
 
-        // Phase 3.4: CYT hostile-recon scoring — feed new identity into detect module.
-        // Score components:
-        //   - persistence: identity seen >=3 probe bursts (+30) — set on session-link later
-        //   - probe pattern: probed for SSID from PNL (+20) when probedSSID != "" and not allowlisted
-        //   - channel-sequence fingerprint match: +25 (handled inside detect from sig db)
-        //   - spatial correlation: +25 (handled by mesh quorum)
         {
             uint8_t add = 0;
             char reasonBuf[64] = {0};
@@ -1645,7 +1638,6 @@ void randomizationDetectionTask(void *pv) {
             }
         }
         
-        // Process all unlinked randomized sessions
         if (static_cast<int32_t>(millis() - nextStatus) >= 0) {
             uint32_t now = millis();
             std::vector<ProbeSession*> toProcess;
@@ -1832,7 +1824,6 @@ void randomizationDetectionTask(void *pv) {
     vTaskDelete(nullptr);
 }
 
-// Storage
 void saveDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
 

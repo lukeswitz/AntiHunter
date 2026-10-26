@@ -25,7 +25,6 @@ extern "C"
 #include "lwip/sockets.h"
 }
 
-// Network and LoRa
 AsyncWebServer *server = nullptr;
 static String customApSsid = "";
 static String customApPass = "";
@@ -33,8 +32,6 @@ const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 bool hbEnabled = false;
 uint32_t hbInterval = 600000;
-// Runtime gate for vibration mesh broadcasts (NVS key: "vibEnabled").
-// Detection and USB logging always run; this only controls Serial1 TX.
 bool vibrationEnabled = true;
 unsigned long meshSendInterval = 3000;
 std::atomic<bool> g_eraseWipeBusy{false};
@@ -42,12 +39,10 @@ volatile uint32_t apScanSuppressUntilMs = 0;
 bool triangulationOrchestratorAssigned = false;
 
 
-// Scanner vars
 extern std::atomic<bool> scanning;
 extern std::atomic<int> totalHits;
 extern UniqueMacsSet uniqueMacs;
 
-// Module refs
 extern Preferences prefs;
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
@@ -60,7 +55,6 @@ extern void parseChannelsCSV(const String &csv);
 extern void randomizeMacAddress();
 
 
-// T114 handling
 SerialRateLimiter rateLimiter;
 SemaphoreHandle_t serial1Mutex = nullptr;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
@@ -120,8 +114,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
-    // Phase 1 + review fix A: rate-limit check INSIDE mutex so canSend/consume are atomic.
-    // Two concurrent senders could otherwise both pass canSend then both consume, oversubscribing the bucket.
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         meshTxDroppedRateLimit.fetch_add(1);
         Serial.printf("[MESH] DROP rate-limit: barrel_free=%u/%u need=%u msg=\"%.32s\"\n",
@@ -177,7 +169,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
     s_radioLastTxMs = millis();
     s_radioBurstBytes += msgLen;
 
-    // Review fix A (completion): consume INSIDE mutex so canSend/consume are fully atomic.
     if (!isPriority) {
         rateLimiter.consume(msgLen);
     }
@@ -200,7 +191,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
     return true;
 }
 
-// ------------- Network ------------- 
 
 void restart_callback(void* arg) {
   ESP.restart();
@@ -248,8 +238,6 @@ void initializeNetwork()
                 apHidden ? "hidden" : "broadcast",
                 apOk ? "OK" : "FAIL");
   memMark("softap");
-  // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
-  // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
   {
     esp_err_t itErr = esp_wifi_set_inactive_time(WIFI_IF_AP, AP_INACTIVE_TIME_SEC);
     Serial.printf("[WIFI] AP inactive time %us: %s\n", (unsigned)AP_INACTIVE_TIME_SEC,
@@ -285,7 +273,6 @@ void initializeNetwork()
   memMark("web server");
 }
 
-// ------------- AP HTML -------------
 
 #include "web_index_html_gz.h"
 
@@ -330,7 +317,6 @@ static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *
 
 void registerRemainingRoutes();
 
-// Owns scanning/handle state so a failed create can never leave a phantom "scanning" node.
 static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack, int secs,
                             bool forever, TaskHandle_t *handle)
 {
@@ -404,7 +390,6 @@ void startWebServer()
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
              {
-        // ETag revalidation: 336KB page returns a tiny 304 on repeat loads, re-sent only on new fw
         static const char *ETAG = "\"" AH_GIT_SHA "\"";
         if (r->hasHeader("If-None-Match") && r->header("If-None-Match") == ETAG) { r->send(304); return; }
         AsyncWebServerResponse* res = r->beginResponse(200, "text/html", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
@@ -559,7 +544,6 @@ void startWebServer()
               req->send(400, "text/plain", triErr.length() ? triErr : String("Triangulation failed to start"));
               return;
           }
-          // requested scan mode here - it is what the user selected, not what was found.
           String response = "Triangulation starting for " + String(secs) + "s (env=" + String(rfEnv);
           if (distanceTuning.enabled) {
               response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 1) + "x, BLE=" + String(distanceTuning.ble_multiplier, 1) + "x";
@@ -1071,7 +1055,6 @@ void registerRemainingRoutes() {
 
   server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
              {
-    // Update setup mode status before sending response
     updateSetupModeStatus();
 
     String response = "{";
@@ -1093,7 +1076,6 @@ void registerRemainingRoutes() {
     Serial.println("\n==================== [AUTOERASE] POST HANDLER CALLED ====================");
     Serial.printf("[AUTOERASE] Total params: %d\n", req->params());
 
-    // Debug all parameters
     for(int i=0; i<req->params(); i++){
       const AsyncWebParameter* p = req->getParam(i);
       Serial.printf("[AUTOERASE] Param[%d]: name='%s' value='%s' isPost=%d\n", i, p->name().c_str(), p->name() == "confirm" ? "***" : p->value().c_str(), p->isPost());
@@ -1148,14 +1130,12 @@ void registerRemainingRoutes() {
 
     Serial.printf("[AUTOERASE] autoEraseEnabled set to: %s\n", autoEraseEnabled ? "TRUE" : "FALSE");
 
-    // Validate ranges
     autoEraseDelay = max(10000, min(300000, (int)autoEraseDelay));
     autoEraseCooldown = max(60000, min(3600000, (int)autoEraseCooldown));
     vibrationsRequired = max(2, min(10, (int)vibrationsRequired));
     detectionWindow = max(5000, min(120000, (int)detectionWindow));
     setupDelay = max(30000, min(600000, (int)setupDelay));  // 30s - 10min
 
-    // Start setup mode when auto-erase is enabled
     if (autoEraseEnabled) {
         inSetupMode = true;
         setupStartTime = millis();
@@ -1165,7 +1145,6 @@ void registerRemainingRoutes() {
         String setupMsg = getNodeId() + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
         sendToSerial1(setupMsg, false);
     } else {
-        // Clear setup mode and tamper state when disabled
         inSetupMode = false;
         setupStartTime = 0;
         tamperEraseActive = false;
@@ -1180,7 +1159,6 @@ void registerRemainingRoutes() {
 
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-        // Radio-busy guard: reject if any scan task is already running
         if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
             req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
             return;
@@ -1587,7 +1565,6 @@ void registerRemainingRoutes() {
       req->send(200, "text/plain", status);
   });
 
-  // Battery Saver endpoint
   server->on("/battery-saver", HTTP_GET, [](AsyncWebServerRequest *req) {
     String action = req->hasParam("action") ? req->getParam("action")->value() : "status";
 
@@ -1601,7 +1578,6 @@ void registerRemainingRoutes() {
       exitBatterySaver();
       req->send(200, "text/plain", "Battery saver disabled");
     } else {
-      // status
       String json = "{\"enabled\":" + String(batterySaverEnabled ? "true" : "false");
       json += ",\"interval\":" + String(batterySaverHeartbeatInterval / 60000);
       uint32_t nextHB = 0;
@@ -1617,7 +1593,6 @@ void registerRemainingRoutes() {
   });
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
-        // Radio-busy guard: reject if any scan task is already running
         if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
             req->send(409, "text/plain", "Radio busy. Stop the running scan first.");
             return;
@@ -2147,7 +2122,6 @@ void registerRemainingRoutes() {
       req->send(200, "text/plain", "Results cleared");
   });
 
-  // Probe database endpoints
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto body = std::make_shared<PsramJsonString>(getProbeDBJson());
       AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
@@ -2210,7 +2184,6 @@ void registerRemainingRoutes() {
       req->send(200, "text/plain", "Probe log cleared");
   });
 
-  // --- Data tab API endpoints ---
 
   server->on("/api/deauth.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
       sendSdLog(req, "/deauth.jsonl", "application/x-ndjson", 404, "No deauth log file");
@@ -2304,7 +2277,6 @@ void registerRemainingRoutes() {
       esp_timer_start_once(timer, 3000000);
   });
 
-  // Onboarding disclaimer — persisted in NVS
   server->on("/api/onboarding", HTTP_GET, [](AsyncWebServerRequest *r) {
       bool done = prefs.getBool("obDone", false);
       r->send(200, "application/json", done ? "{\"accepted\":true}" : "{\"accepted\":false}");
@@ -2315,9 +2287,7 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", "{\"accepted\":true}");
   });
 
-  // ====== Phase 1-3: /detect endpoints ======
 
-  // Phase 1: attack-signature jsonl getters (RAM log, recent events)
   server->on("/api/pmkid.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/x-ndjson", detect_getPmkidJsonl());
   });
@@ -2354,7 +2324,6 @@ void registerRemainingRoutes() {
       SafeSD::remove("/meshguard.jsonl"); r->send(200, "text/plain", "cleared");
   });
 
-  // === tool / tool tool-fingerprint logs (NEW) ===
   server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
@@ -2391,7 +2360,6 @@ void registerRemainingRoutes() {
       SafeSD::remove("/eapol_bait.jsonl"); r->send(200, "text/plain", "cleared");
   });
 
-  // === Unified incidents log (all detector events local+peer) ===
   server->on("/api/incidents.json", HTTP_GET, [](AsyncWebServerRequest *r) {
       size_t maxN = 200;
       if (r->hasParam("limit")) {
@@ -2480,7 +2448,6 @@ void registerRemainingRoutes() {
       SafeSD::remove("/eviltwin.jsonl"); r->send(200, "text/plain", "cleared");
   });
 
-  // Phase 2 mesh / quorum / bloom / channel
   server->on("/api/quorum", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getQuorumStatusJson());
   });
@@ -2511,7 +2478,6 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", j);
   });
 
-  // Phase 3 BLE perimeter / recon / OUI
   server->on("/api/recon", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getReconJson());
   });
@@ -2652,9 +2618,6 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", "{\"ok\":true}");
   });
 
-  // Minimal /detect UI page — single-page dashboard for all detectors.
-  // Full UI integration into existing HTML tabs follows the same pattern as
-  // /baseline/stats / /api/probes.jsonl polling already in the main HTML.
   server->on("/detect", HTTP_GET, [](AsyncWebServerRequest *r) {
       static const char HTML[] PROGMEM = R"HTML(<!doctype html><html><head>
 <meta charset=utf-8><title>AntiHunter - Detect</title>
