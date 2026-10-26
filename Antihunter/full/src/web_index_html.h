@@ -1877,7 +1877,6 @@ R"HTML(
               <div class="stat" data-cfg="tsf"><div class="stat-label">Two-Channel Twin</div><div class="stat-value" id="d-tsf">0</div></div>
               <div class="stat" data-cfg="jam"><div class="stat-label">Wi-Fi Interference</div><div class="stat-value" id="d-jam">0</div></div>
               <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Disruption</div><div class="stat-value" id="d-mgd">0</div></div>
-              <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
               <div class="stat" data-cfg="meshradio"><div class="stat-label">LoRa Radios</div><div class="stat-value" id="d-mrd">0</div></div>
               <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
             </div>
@@ -7270,8 +7269,8 @@ R"HTML(
         setc('d-karma',['KARMA_CAND','KARMA_CONFIRMED']);
         setc('d-authflood',['AUTH_FLOOD']);
         setc('d-beaconflood',['BEACON_FLOOD']);
-        setc('d-dauth',['DEAUTH_FLOOD','DEAUTH_FORGE','DEAUTH_AP_TARGETED']);
-        setc('d-pmkid',['PMKID_HARVEST','PMKID_FORGE']);
+        setc('d-dauth',['DEAUTH_FLOOD','DEAUTH_FORGE','DEAUTH_AP_TARGETED','PWNAGOTCHI']);
+        setc('d-pmkid',['PMKID_HARVEST','PMKID_FORGE','PWNAGOTCHI']);
         setc('d-et',['EVILTWIN']);
         setc('d-sc',['SSID_CONFUSION']);
         setc('d-sae',['SAE_DOS']);
@@ -7282,7 +7281,6 @@ R"HTML(
         setc('d-tsf',['TSF']);
         setc('d-jam',['JAMMING','JAMMING_BASELINE']);
         setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD']);
-        setc('d-pwna',['PWNAGOTCHI']);
         setc('d-mrd',['RADIO_DETECTED']);
         setc('d-rid-ov',['RID']);
         _overviewVisibility(cfg);
