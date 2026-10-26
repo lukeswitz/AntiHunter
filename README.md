@@ -305,7 +305,7 @@ Sentinel is the node's threat detection. It runs in the background and pauses wh
 | `@ALL SENTINEL_ON` / `SENTINEL_OFF` | Starts or stops Sentinel |
 | `@ALL SENTINEL_BOOT:1` | Starts Sentinel at every power-on. `0` turns this off |
 | `@ALL SENTINEL_MODE:scan` | Hops across channels. `defend` stays on the node's own access point channel. Headless has no access point, so use `scan` |
-| `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, `lora`, or `all` |
+| `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, `devices`, or `all` |
 | `@AH01 DETECT_CFG:{"meshradio":true}` | Turns on LoRa mesh radio detection. `jam_baseline` turns on the interference baseline |
 
 - After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **Attack response** → **On confirmed attack**.

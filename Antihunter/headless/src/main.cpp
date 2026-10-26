@@ -90,6 +90,18 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("ATTACKER_HUNT:") ||
                 toProcess.startsWith("PWNAGOTCHI:") ||
                 toProcess.startsWith("RADIO_DETECTED:") ||
+                toProcess.startsWith("JAMMING:") ||
+                toProcess.startsWith("BEACON_FLOOD:") ||
+                toProcess.startsWith("AUTH_FLOOD:") ||
+                toProcess.startsWith("DEAUTH_FORGE:") ||
+                toProcess.startsWith("DEAUTH_AP_TARGETED:") ||
+                toProcess.startsWith("OWE_ABUSE:") ||
+                toProcess.startsWith("PROBE_FLOOD_AP:") ||
+                toProcess.startsWith("SSID_CONFUSION:") ||
+                toProcess.startsWith("CSA_SPOOF:") ||
+                toProcess.startsWith("QUIET_ABUSE:") ||
+                toProcess.startsWith("MESH_FLOOD:") ||
+                toProcess.startsWith("MESH_SPOOF_SELF:") ||
                 toProcess.startsWith("JAMMING_BASELINE:") ||
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
