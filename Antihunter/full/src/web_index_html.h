@@ -4634,11 +4634,11 @@ R"HTML(
           if (anchorMac) html += '<span class="res-mac acc">' + anchorMac + '</span>' + identBadgeText(trackId);
           html += '<span class="res-badge ' + (isBLE ? 'ble' : 'wifi') + '">' + deviceType + '</span>';
           if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
-          if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
+          if (vendorMatch) html += '<span class="res-badge">' + esc(vendorMatch[1]) + '</span>';
           html += '</span>';
           html += '<div class="res-meta">';
-          if (nameMatch) html += '<span>Name: <strong class="res-ident name" data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
-          if (ssidMatch) html += '<span>SSID: <strong class="res-ident name" data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
+          if (nameMatch) html += '<span>Name: <strong class="res-ident name" data-name="' + esc(nameMatch[1].trim()) + '">' + esc(nameMatch[1].trim()) + '</strong></span>';
+          if (ssidMatch) html += '<span>SSID: <strong class="res-ident name" data-ssid="' + esc(ssidMatch[1].trim()) + '" style="color:var(--acc)">' + esc(ssidMatch[1].trim()) + '</strong></span>';
           html += '<span><strong>' + macCount + '</strong> MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div class="res-metrics">';
@@ -4660,7 +4660,7 @@ R"HTML(
           html += '</div>';
 
           if (seqTrackMatch) html += '<div class="res-note"><span class="res-note-lab">Sequence Tracking</span><span style="font-family:ui-monospace,monospace;">' + seqTrackMatch[1].trim() + '</span></div>';
-          if (vendorMatch || mfrDataMatch) { html += '<div class="res-note"><span class="res-note-lab">Manufacturer</span>'; if (vendorMatch) html += '<strong>' + vendorMatch[1].trim() + '</strong>'; if (mfrDataMatch) html += ' <span style="font-family:ui-monospace,monospace;color:var(--mut);">' + mfrDataMatch[1].trim() + '</span>'; html += '</div>'; }
+          if (vendorMatch || mfrDataMatch) { html += '<div class="res-note"><span class="res-note-lab">Manufacturer</span>'; if (vendorMatch) html += '<strong>' + esc(vendorMatch[1].trim()) + '</strong>'; if (mfrDataMatch) html += ' <span style="font-family:ui-monospace,monospace;color:var(--mut);">' + esc(mfrDataMatch[1].trim()) + '</span>'; html += '</div>'; }
           html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span class="res-ident" style="color:var(--acc);">' + trackId + '</span></div>';
 
           if (macsListMatch) {
@@ -4739,7 +4739,7 @@ R"HTML(
               if (counts[k[0]] !== undefined) counts[k[0]]++;
               const detail = k[0] === 'Moved' ? reason.replace(/^Significant RSSI change:\s*/, '') : (k[0] === 'Returned' ? reason.replace(/^Device returned after\s*/, 'after ') : '');
               rows += '<tr data-rssi="' + rssi + '"><td><span class="res-badge cls" style="--h:' + k[1] + '">' + k[0] + '</span></td>';
-              rows += '<td>' + mac + randBadge(mac) + (name ? ' <strong class="res-ident name">' + name + '</strong>' : '') + '</td>';
+              rows += '<td>' + mac + randBadge(mac) + (name ? ' <strong class="res-ident name">' + esc(name) + '</strong>' : '') + '</td>';
               rows += '<td><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>' + (channel ? ' CH ' + channel : '') + '</td>';
               rows += '<td>' + tagBadges(line) + (anomVendor ? ' ' + anomVendor : '') + '</td>';
               rows += '<td style="color:' + rssiColorFor(rssi) + '">' + rssi + '</td><td>' + detail + '</td></tr>';
@@ -4941,7 +4941,7 @@ R"HTML(
           html += '<div class="res-card ' + (isStale ? 'alert' : 'acc') + '">';
           html += '<div class="res-row-main"><span class="res-mac acc">' + macMatch[1] + randBadge(macMatch[1]) + '</span>';
           html += '<div class="res-meta">';
-          if (uavMatch) html += '<span>UAV ID: <strong class="res-ident" data-priv>' + uavMatch[1] + '</strong></span>';
+          if (uavMatch) html += '<span>UAV ID: <strong class="res-ident" data-priv>' + esc(uavMatch[1]) + '</strong></span>';
           if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
           if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
           if (isStale) html += '<span class="res-badge warn">Stale</span>';
@@ -4981,8 +4981,8 @@ R"HTML(
             const bits = [];
             if (opLocMatch) bits.push('<strong data-priv>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
             if (opTypeMatch) bits.push('type <strong>' + opTypeMatch[1] + '</strong>');
-            if (opIdMatch) bits.push('ID <strong class="res-ident" data-priv>' + opIdMatch[1] + '</strong>');
-            if (descMatch) bits.push('<span data-priv>“' + descMatch[1] + '”</span>');
+            if (opIdMatch) bits.push('ID <strong class="res-ident" data-priv>' + esc(opIdMatch[1]) + '</strong>');
+            if (descMatch) bits.push('<span data-priv>“' + esc(descMatch[1]) + '”</span>');
             if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
             html += bits.join(' &middot; ') + '</div>';
           }
@@ -5061,7 +5061,7 @@ R"HTML(
         if (d.ssids.length > 1) {
           const shown = d.ssids.slice(0, 9), rest = d.ssids.length - shown.length;
           h += '<div class="res-tags res-tags-2row"><span class="res-tags-lab">Also probing</span>';
-          h += shown.map(s => '<span class="res-tag res-tag-ssid' + (s.ghost ? ' away' : '') + '" data-ssid="' + s.name + '" title="' + s.name + '">' + s.name + '</span>').join('');
+          h += shown.map(s => '<span class="res-tag res-tag-ssid' + (s.ghost ? ' away' : '') + '" data-ssid="' + esc(s.name) + '" title="' + esc(s.name) + '">' + esc(s.name) + '</span>').join('');
           if (rest > 0) h += '<span class="res-tag res-tag-more">+' + rest + '</span>';
           h += '</div>';
         }
@@ -5077,7 +5077,7 @@ R"HTML(
           const away = !g.apResponded && !g.anyPresent;
           const n = g.devices.length;
           html += '<details class="res-section" data-dkey="probe:' + esc(g.name) + '" open><summary><span class="res-caret">&#9654;</span>';
-          html += '<span class="res-ident name" data-ssid="' + g.name + '">' + g.name + '</span>';
+          html += '<span class="res-ident name" data-ssid="' + esc(g.name) + '">' + esc(g.name) + '</span>';
           html += '<span class="res-badge ' + (away ? 'warn' : 'acc') + '">' + n + ' client' + (n === 1 ? '' : 's') + '</span>';
           if (g.apResponded) html += '<span class="res-badge ok">AP present</span>';
           else if (away) html += '<span class="res-badge warn">Away</span>';
