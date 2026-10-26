@@ -24,6 +24,7 @@
 
 extern std::atomic<bool> g_detectVerbose;
 extern String sanitizeAscii(const char *s, size_t maxLen);
+extern bool parseMac6(const String &in, uint8_t out[6]);
 
 namespace ah_detect {
 
@@ -2946,6 +2947,29 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
 PsramMap<uint64_t, MeshRadioSighting> g_meshRadio;
 static constexpr size_t MAX_MESH_RADIO = 64;
 static constexpr uint32_t MESH_RADIO_REALERT_MS = 600000;
+static constexpr uint32_t MESH_RADIO_NAME_WAIT_MS = 30000;
+
+struct KnownRadio {
+    uint8_t mac[6];
+    uint8_t kind;
+    char name[32];
+};
+static std::vector<KnownRadio> g_knownRadios;
+static constexpr size_t MAX_KNOWN_RADIOS = 32;
+
+static bool bleAddrRotates(const uint8_t *mac, uint8_t addrType) {
+    return addrType != 0 && (mac[0] & 0xC0) != 0xC0;
+}
+
+static bool knownRadioMatch(const uint8_t *mac, uint8_t addrType, uint8_t kind, const char *name) {
+    bool rotates = bleAddrRotates(mac, addrType);
+    for (const auto &k : g_knownRadios) {
+        if (k.kind != kind) continue;
+        if (memcmp(k.mac, mac, 6) == 0) return true;
+        if (rotates && name[0] && k.name[0] && strcmp(k.name, name) == 0) return true;
+    }
+    return false;
+}
 
 void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t rssi, const char *name) {
     if (isAllowlisted(mac)) return;
@@ -2979,6 +3003,9 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
             strncpy(s.name, name, sizeof(s.name) - 1);
             s.name[sizeof(s.name) - 1] = 0;
         }
+        s.known = knownRadioMatch(mac, addrType, kind, s.name);
+        if (s.known) return;
+        if (bleAddrRotates(mac, addrType) && !s.name[0] && (now - s.firstSeen) < MESH_RADIO_NAME_WAIT_MS) return;
         if (s.lastAlert != 0 && (now - s.lastAlert) < MESH_RADIO_REALERT_MS) return;
         s.lastAlert = now;
         snap = s;
@@ -2999,7 +3026,8 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
     ::detect_logIncident(String("RADIO_DETECTED:") + radio + ":" + ms + ":" + String((int)rssi), nullptr, ev);
     if (meshEnabled && sentinel_isRunning() && g_meshMeshRadio.load() &&
         meshRateGate("RADIO_" + ms, MESH_RADIO_REALERT_MS))
-        sendToSerial1(getNodeId() + ": RADIO_DETECTED:" + radio + ":" + ms + ":" + String((int)rssi), true);
+        sendToSerial1(getNodeId() + ": RADIO_DETECTED:" + radio + ":" + ms + ":" + String((int)rssi) + ":" +
+                      sanitizeAscii(snap.name, sizeof(snap.name) - 1), true);
 }
 
 String meshradio_getJson() {
@@ -3018,7 +3046,8 @@ String meshradio_getJson() {
                ",\"best_rssi\":" + String(kv.second.bestRssi) +
                ",\"first\":" + String(kv.second.firstSeen) +
                ",\"last\":" + String(kv.second.lastSeen) +
-               ",\"ago_ms\":" + String((unsigned)(now - kv.second.lastSeen)) + "}";
+               ",\"ago_ms\":" + String((unsigned)(now - kv.second.lastSeen)) +
+               ",\"known\":" + (kv.second.known ? "true" : "false") + "}";
     }
     out += "]";
     return out;
@@ -3030,6 +3059,106 @@ void meshradio_clear() {
 size_t meshradio_count() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return g_meshRadio.size();
+}
+
+static void knownRadioSave() {
+    String txt;
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        for (const auto &k : g_knownRadios)
+            txt += String((unsigned)k.kind) + "," + macStr(k.mac) + "," + k.name + "\n";
+    }
+    Preferences p;
+    if (p.begin("ahdetect", false)) { p.putString("knownRad", txt); p.end(); }
+}
+
+static bool knownRadioKind(const String &type, uint8_t &kind) {
+    if (type.equalsIgnoreCase("Meshtastic")) { kind = 1; return true; }
+    if (type.equalsIgnoreCase("MeshCore")) { kind = 2; return true; }
+    return false;
+}
+
+static void knownRadioRefresh() {
+    for (auto &kv : g_meshRadio)
+        kv.second.known = knownRadioMatch(kv.second.mac, kv.second.addrType, kv.second.kind, kv.second.name);
+}
+
+int knownradio_add(const String &mac, const String &type, const String &name) {
+    uint8_t m[6];
+    uint8_t kind = 0;
+    if (!parseMac6(mac, m) || !knownRadioKind(type, kind) || name.length() >= 32) return -1;
+    int n;
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto it = std::find_if(g_knownRadios.begin(), g_knownRadios.end(),
+                               [&](const KnownRadio &k) { return memcmp(k.mac, m, 6) == 0; });
+        if (it == g_knownRadios.end()) {
+            if (g_knownRadios.size() >= MAX_KNOWN_RADIOS) return -2;
+            KnownRadio nk{};
+            memcpy(nk.mac, m, 6);
+            g_knownRadios.push_back(nk);
+            it = g_knownRadios.end() - 1;
+        }
+        it->kind = kind;
+        String nm = name;
+        if (!nm.length()) {
+            auto sit = g_meshRadio.find(packMac(m));
+            if (sit != g_meshRadio.end()) nm = sit->second.name;
+        }
+        strncpy(it->name, nm.c_str(), sizeof(it->name) - 1);
+        it->name[sizeof(it->name) - 1] = 0;
+        knownRadioRefresh();
+        n = (int)g_knownRadios.size();
+    }
+    knownRadioSave();
+    return n;
+}
+
+int knownradio_del(const String &mac) {
+    uint8_t m[6];
+    if (!parseMac6(mac, m)) return -1;
+    int n;
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto it = std::find_if(g_knownRadios.begin(), g_knownRadios.end(),
+                               [&](const KnownRadio &k) { return memcmp(k.mac, m, 6) == 0; });
+        if (it == g_knownRadios.end()) return (int)g_knownRadios.size();
+        g_knownRadios.erase(it);
+        knownRadioRefresh();
+        n = (int)g_knownRadios.size();
+    }
+    knownRadioSave();
+    return n;
+}
+
+int knownradio_clear() {
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        g_knownRadios.clear();
+        knownRadioRefresh();
+    }
+    knownRadioSave();
+    return 0;
+}
+
+void knownradio_load(const String &txt) {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_knownRadios.clear();
+    int start = 0;
+    while (start < (int)txt.length() && g_knownRadios.size() < MAX_KNOWN_RADIOS) {
+        int nl = txt.indexOf('\n', start);
+        if (nl < 0) nl = txt.length();
+        String ln = txt.substring(start, nl);
+        start = nl + 1;
+        int c1 = ln.indexOf(',');
+        int c2 = c1 < 0 ? -1 : ln.indexOf(',', c1 + 1);
+        if (c2 < 0) continue;
+        KnownRadio k{};
+        k.kind = (uint8_t)ln.substring(0, c1).toInt();
+        if ((k.kind != 1 && k.kind != 2) || !parseMac6(ln.substring(c1 + 1, c2), k.mac)) continue;
+        strncpy(k.name, ln.substring(c2 + 1).c_str(), sizeof(k.name) - 1);
+        g_knownRadios.push_back(k);
+    }
 }
 
 } // namespace ah_detect
@@ -3059,6 +3188,9 @@ size_t pwnagotchi_count()                    { return ah_detect::pwnagotchi_coun
 String meshradio_getJson()                   { return ah_detect::meshradio_getJson(); }
 void meshradio_clear()                       { ah_detect::meshradio_clear(); }
 size_t meshradio_count()                     { return ah_detect::meshradio_count(); }
+int knownradio_add(const String &m, const String &t, const String &n) { return ah_detect::knownradio_add(m, t, n); }
+int knownradio_del(const String &m)          { return ah_detect::knownradio_del(m); }
+int knownradio_clear()                       { return ah_detect::knownradio_clear(); }
 void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick(mac, t); }
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel, forged); }
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
@@ -3188,6 +3320,7 @@ void initializeDetect() {
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
             ah_detect::g_meshRadioEnabled.store(p.getBool("mrdOn", false));
             ah_detect::g_meshMeshRadio.store(p.getBool("mMrd", true));
+            ah_detect::knownradio_load(p.getString("knownRad", ""));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));

@@ -659,7 +659,8 @@ python3 scripts/meshtastic_config.py</pre>
     <p>Karma bait is the only Sentinel detector that transmits Wi-Fi: a probe request every 8 seconds to bait a karma access point into answering. It is off by default. Turn it on with <span class="mono">GROUP:rogue:on</span> or the <b>Karma</b> switch on the Sentinel tab, and only where transmitting is lawful.</p>
   </div>
   <h4>LoRa mesh radios</h4>
-  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on with the <b>Meshtastic / MeshCore</b> switch on the <b>Devices Nearby</b> card or with <span class="mono">DETECT_CFG:{"meshradio":true}</span>. It also finds your own nodes' radios. Add their MACs to the allowlist.</p>
+  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on with the <b>Meshtastic / MeshCore</b> switch on the <b>Mesh Radios Nearby</b> card or with <span class="mono">DETECT_CFG:{"meshradio":true}</span>.</p>
+  <p>It also finds your own radios. Mark them as known and the node stops alerting on them. In the Command Center, open the <b>Nodes</b> page and click <b>Mark known</b> next to the radio. It sends the radio to every node. Over mesh, send <span class="mono">@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic</span>. The card shows a known radio as <b>(known)</b>. A radio that changes its Bluetooth address is matched by its name instead. The rules are in <span class="mono">docs/mesh-commands.md</span> in the repository.</p>
   <h4>Wi-Fi interference</h4>
   <p><b>Wi-Fi Interference</b> (on by default) alerts when a channel's noise floor jumps 8 dB. <b>Interference Baseline</b> (off by default) also alerts when a busy channel goes silent in <span class="mono">defend</span> mode. After you move the node, turn Wi-Fi Interference off and on.</p>
 
