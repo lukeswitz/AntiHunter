@@ -65,7 +65,7 @@ This applies to all three channels.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 - Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
 - Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:devices:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
-- Full and Headless: while Sentinel runs, Wi-Fi interference (`jam`, switch on by default) alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned. The alert is `JAMMING:<ch>:noise_rise:<db>`. The interference baseline (`jam_baseline`, switch off by default) also alerts when a busy channel goes quiet: `JAMMING_BASELINE:<ch>:silence:<fps>`.
+- Wi-Fi interference alerts when a channel's noise floor jumps: `JAMMING:<ch>:noise_rise:<db>`. New `jam_baseline` (off by default) alerts when a busy channel goes silent: `JAMMING_BASELINE:<ch>:silence:<fps>`.
 - Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
 - Malformed BLE alerts record the advert bytes.
 - The web flasher adds **LoRa Mesh Radios** and **Interference Baseline**.
