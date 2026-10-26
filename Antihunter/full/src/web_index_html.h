@@ -384,6 +384,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-metric-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut)}
       /* mini KV grid inside a card */
       .res-kvs{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:10px;margin-top:14px}
+      .res-kvs.g5{grid-template-columns:repeat(5,1fr)}
       .res-kv{background:var(--bg);border:1px solid var(--bord);border-radius:9px;padding:11px 13px}
       .res-kv.danger{border-color:var(--dang)}
       .res-kv-lab{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--mut);margin-bottom:6px;line-height:1.2}
@@ -482,7 +483,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
       .res-toolbar .btn svg{width:11px;height:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs,.res-kvs.g5{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
     </style>
     <style id="accentScheme"></style>
     <script>
@@ -4970,7 +4971,7 @@ R"HTML(
           if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
           if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? '. No Remote ID for 120 s' : '')]);
           if (kvs.length) {
-            html += '<div class="res-kvs">';
+            html += '<div class="res-kvs g5">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
             html += '</div>';
           }
