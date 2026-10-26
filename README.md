@@ -15,19 +15,19 @@
 </div>
 
 <div align="center">
-  <h4><a href="https://lectronz.com/stores/antihunter">Get one</a> • <a href="https://lukeswitz.github.io/AntiHunter/">Flash from your browser</a> • <a href="#quick-start">Quick start</a> • <a href="https://github.com/lukeswitz/AntiHunter/wiki">Wiki</a></h4>
-  <strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO">Command Center</a></strong>
 
-  [Website](https://rootdowndigital.com/antihunter) • [Privacy Policy](https://rootdowndigital.com/privacy)
+  <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
+
+  <p><a href="#quick-start">Quick start</a> • <a href="https://lectronz.com/stores/antihunter">Get one</a> • <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO">Command Center</a> • <a href="https://rootdowndigital.com/antihunter">Website</a> • <a href="https://rootdowndigital.com/privacy">Privacy policy</a></p>
 </div>
 
 ---
 
 ## What is AntiHunter?
 
-AntiHunter is a perimeter defense platform. You place small detection nodes around an area. Each node watches Wi-Fi, Bluetooth, and its own vibration sensor, reports what it finds over a LoRa radio mesh, and logs everything to an SD card. A node needs no internet and runs on battery.
+AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a bedroom, along a fence line, at an event, or in a cabin with no signal; it learns what belongs, then tells you when a new device shows up, when someone moves it, or when a Wi-Fi attack starts — naming the tool behind it. It runs on battery with no internet, no cloud, and no subscription, and your data stays on the device.
 
-You control a node three ways: from a web page it serves on its own Wi-Fi, by text commands sent over the mesh from any Meshtastic radio on your channel, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO), which draws a whole fleet of nodes on one map. One node works on its own. Several nodes work together to locate a device.
+It's open source and listens only; it never jams or attacks anything. One node works alone. Add more and they compare notes over long-range LoRa radio, confirm each other's alerts, and with GPS put a signal on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
@@ -36,16 +36,7 @@ You control a node three ways: from a web page it serves on its own Wi-Fi, by te
 <p align="center"><i>Featured in Seeed Studio's <a href="https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/">Best 20 XIAO Projects in 2025</a>.</i></p>
 
 > [!TIP]
-> New to AntiHunter? The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers setup order, every feature, and troubleshooting. Start with [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup).
-
----
-
-## Screenshots
-
-<p align="center">
-  <img width="800" alt="Device discovery results" src="docs/img/mesh-screenshot.jpg" />
-  <img width="800" alt="Sentinel attack detection" src="docs/img/sentinel.jpg" />
-</p>
+> Flash your first node with the [Quick start](#quick-start) below, then open the wiki's [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup) page to change the default password and keys. The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) has every feature and troubleshooting in depth.
 
 ---
 
@@ -53,30 +44,42 @@ You control a node three ways: from a web page it serves on its own Wi-Fi, by te
 
 Each feature has its own wiki page with settings, mesh commands, and troubleshooting.
 
-**Find devices**
-- [Target scan](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan) — alerts when it hears a MAC, vendor, or network name on your watchlist.
-- [Device discovery](https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery) — lists nearby Wi-Fi access points and Bluetooth devices.
-- [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) — labels each Bluetooth device by what it is, such as AirPods, a Tile tag, a drone, or a tire-pressure sensor, by reading its advertisement.
-- [Probe request scanner](https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests) — shows which network names each phone or laptop is looking for.
-- [Randomized MAC tracer](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer) — links a phone's changing MAC addresses back to one device, using methods from peer-reviewed research.
-- [Drone Remote ID](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID) — reads a drone's ID, position, flight data, and the operator's location.
-- [Triangulation](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation) — three or more nodes with GPS estimate where a device is.
+### Find devices
 
-**Watch an area**
-- [Baseline anomaly](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly) — learns which devices belong, then reports new, missing, returning, and moving ones.
-- [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) (Beta) — detects people moving nearby, even through walls, from changes in Wi-Fi signals.
-- [Vibration and tamper response](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper) — when the node is moved, it alerts you and can start a scan or packet capture on its own.
+| Feature | What it does |
+|---|---|
+| [Target scan](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan) | Alerts when it hears a MAC, vendor, or network name on your watchlist. |
+| [Device discovery](https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery) | Lists nearby Wi-Fi access points and Bluetooth devices. |
+| [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) | Labels each Bluetooth device by what it is, such as AirPods, a Tile tag, a drone, or a tire-pressure sensor, by reading its advertisement. |
+| [Probe request scanner](https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests) | Shows which network names each phone or laptop is looking for. |
+| [Randomized MAC tracer](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer) | Links a phone's changing MAC addresses back to one device, using methods from peer-reviewed research. |
+| [Drone Remote ID](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID) | Reads a drone's ID, position, flight data, and the operator's location. |
+| [Triangulation](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation) | Three or more nodes with GPS estimate where a device is. |
 
-**Detect attacks**
-- [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) — runs in the background and reports Wi-Fi attacks such as deauth floods, evil twins, and handshake capture. It names the tool when it recognizes one, such as Marauder, MDK4, or aireplay-ng.
-- [Connected client visibility](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) — lists the devices that join the node's own access point.
-- [Mesh radio detection](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) — finds other Meshtastic and MeshCore radios nearby, and audits the commands sent on your own mesh channel.
-- [Deauth detection](https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection) — logs every deauth frame and flags floods.
+### Watch an area
 
-**Capture and respond**
-- [Packet capture](https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture) — saves Wi-Fi or Bluetooth traffic to SD as a file Wireshark opens.
-- [Scheduled scans](https://github.com/lukeswitz/AntiHunter/wiki/Scheduled-scans) — runs a scan at a set time, once or every day.
-- [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe) — erases the node's data on command, or on its own if someone tampers with it.
+| Feature | What it does |
+|---|---|
+| [Baseline anomaly](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly) | Learns which devices belong, then reports new, missing, returning, and moving ones. |
+| [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) (Beta) | Detects people moving nearby, even through walls, from changes in Wi-Fi signals. |
+| [Vibration and tamper response](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper) | When the node is moved, it alerts you and can start a scan or packet capture on its own. |
+
+### Detect attacks
+
+| Feature | What it does |
+|---|---|
+| [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Runs in the background and reports Wi-Fi attacks such as deauth floods, evil twins, and handshake capture. It names the tool when it recognizes one, such as Marauder, MDK4, or aireplay-ng. |
+| [Connected client visibility](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Lists the devices that join the node's own access point. |
+| [Mesh radio detection](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Finds other Meshtastic and MeshCore radios nearby, and audits the commands sent on your own mesh channel. |
+| [Deauth detection](https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection) | Logs every deauth frame and flags floods. |
+
+### Capture and respond
+
+| Feature | What it does |
+|---|---|
+| [Packet capture](https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture) | Saves Wi-Fi or Bluetooth traffic to SD as a file Wireshark opens. |
+| [Scheduled scans](https://github.com/lukeswitz/AntiHunter/wiki/Scheduled-scans) | Runs a scan at a set time, once or every day. |
+| [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe) | Erases the node's data on command, or on its own if someone tampers with it. |
 
 ---
 
