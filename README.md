@@ -306,12 +306,12 @@ Sentinel is the node's threat detection. It runs in the background and pauses wh
 | `@ALL SENTINEL_BOOT:1` | Starts Sentinel at every power-on. `0` turns this off |
 | `@ALL SENTINEL_MODE:scan` | Hops across channels. `defend` stays on the node's own access point channel. Headless has no access point, so use `scan` |
 | `@ALL GROUP:dos:on` | Turns one detector group on or off. Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, `devices`, or `all` |
-| `@AH01 DETECT_CFG:{"meshradio":true}` | Turns on LoRa mesh radio detection. `jam_baseline` turns on the interference baseline |
+| `@AH01 DETECT_CFG:{"meshradio":true}` | Turns on LoRa mesh radio detection. `jam_baseline` adds the quiet-channel alert |
 
 - After a confirmed attack, Sentinel can triangulate, capture packets, or run a scan. These are off by default. Turn them on under Sentinel tab → **Attack response** → **On confirmed attack**.
 - Karma bait is the only detector that transmits Wi-Fi: one probe request every 8 s while on. It is off by default.
 - LoRa mesh radio detection finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. It also finds your own nodes' radios. Add their MACs to the allowlist.
-- The interference baseline learns each channel's noise floor for 60 seconds. It then alerts when the noise floor rises 8 dB, or when a busy channel goes quiet. It is off by default. Turn it off and on after you move the node.
+- Wi-Fi interference detection is on by default. It learns each channel's noise floor for 60 seconds, then alerts when the noise floor rises 8 dB. The interference baseline is off by default. It also alerts when a busy channel goes quiet in `defend` mode. Turn **Wi-Fi Interference** off and on after you move the node.
 - Detections go to serial, SD, and `/incidents.jsonl`, and to the mesh if that detector's broadcast is on.
 - Each detection records what triggered it in its `ev` field and on a `[DETECT] ... evidence` serial line. Mesh alerts carry only the alert line.
 

@@ -7479,7 +7479,7 @@ R"HTML(
         if(!detTabActive())return;
         const a=await _jsonl('/api/jamming.jsonl');
         document.getElementById('jam-n').textContent=a.length;
-        _renderJsonl('jam-pre',a,['ts','ch','pdr','err','valid','err_rssi']);
+        _renderJsonl('jam-pre',a,['ts','ch','reason','rule','nf','nf_base','frames']);
         if(a.length>0)detMarkActive('jamming');
       }
       async function jamClear(){await fetch('/api/jamming/clear',{method:'POST'});jammingTick();}
@@ -7831,7 +7831,7 @@ R"HTML(
         ['probe_single_thresh','Probe Flood: probes from one MAC per 5 s',10,500],
         ['probe_rand_total','Probe Flood: randomized probes per 5 s',10,1000],
         ['probe_rand_distinct','Probe Flood: randomized MACs per 5 s',5,500],
-        ['jam_nf_db','Interference Baseline: noise rise (dB)',3,30],
+        ['jam_nf_db','Wi-Fi Interference: noise rise (dB)',3,30],
         ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
       ];
       let _detCfg=null;

@@ -240,23 +240,10 @@ PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 
 // WiFi-LAYER interference detection (Xu MobiHoc'05 PDR-vs-RSSI consistency).
-// Per-channel 1s window: interference => collapsed PDR (CRC-fail frames) WHILE
-// error-frame RSSI stays strong AND channel was alive. Weak-signal loss (low
-// RSSI+low PDR) and idle channels are excluded. Needs FCSFAIL in the promiscuous
-// filter to see CRC fails.
-// SCOPE/LIMIT (honest): this only catches interference that still produces 802.11
-// energy the ESP32 PHY tries to decode (deceptive/flood jammers, heavy collisions).
-// It does NOT detect RF carrier jammers — nRF24/CC1101 CW or GFSK-flood (e.g. Bruce
-// fw) and constant-AWGN blackout emit NO 802.11 frames -> zero RX -> looks idle.
-// There is no CCA/energy-detect API on ESP32 WiFi. Detecting those needs a second
-// radio (nRF24 RPD channel sweep, WatchDog-2.4 method) — not present on this HW.
 std::atomic<bool>     g_jamEnabled{true};
 static std::atomic<uint32_t> g_chanRx[15];
 static std::atomic<uint32_t> g_jamValid[14];
 static std::atomic<uint32_t> g_jamErr[14];
-static std::atomic<int32_t>  g_jamErrRssi[14];
-static uint32_t g_jamEverValid[14] = {0};
-static uint32_t g_jamLastEmit[14]  = {0};
 static uint32_t g_jamLastEval = 0;
 std::atomic<bool>    g_jamBaseline{false};
 std::atomic<uint8_t> g_jamNfDb{8};
@@ -3676,12 +3663,11 @@ void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, int8_t noiseFloor,
         g_jamValid[channel].fetch_add(1, std::memory_order_relaxed);
     } else {
         g_jamErr[channel].fetch_add(1, std::memory_order_relaxed);
-        g_jamErrRssi[channel].fetch_add(rssi, std::memory_order_relaxed);
     }
 }
 
 // Per-channel jamming eval — self-gated to 1s, called each detectTask iteration.
-static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, int32_t nfs, uint32_t now) {
+static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, int32_t nfs, uint32_t now, bool silenceOn) {
     JamBase &b = g_jamBase[ch];
     uint32_t tot = v + e;
     float nfNow = nfc ? (float)nfs / (float)nfc : 0.0f;
@@ -3709,13 +3695,14 @@ static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, in
         if (b.seconds < UINT32_MAX) b.seconds++;
         return;
     }
-    const char *rule = (b.noiseStreak >= 3) ? "noise_rise" : (b.quietStreak >= 5 ? "silence" : nullptr);
+    const char *rule = (b.noiseStreak >= 3) ? "noise_rise" : (silenceOn && b.quietStreak >= 5 ? "silence" : nullptr);
     if (!rule) return;
     if (g_jamBaseLastEmit[ch] && (now - g_jamBaseLastEmit[ch]) < 60000UL) return;
     g_jamBaseLastEmit[ch] = now;
     bool noise = (rule[0] == 'n');
+    const char *label = noise ? "JAMMING" : "JAMMING_BASELINE";
     int value = noise ? (int)lroundf(nfNow - b.nf) : (int)lroundf(b.rate);
-    String ev = String("{\"reason\":\"JAMMING_BASELINE\",\"rule\":\"") + rule +
+    String ev = String("{\"reason\":\"") + label + "\",\"rule\":\"" + rule +
                 "\",\"ch\":" + String((unsigned)ch) +
                 ",\"mode\":\"" + (pin ? "pin" : "scan") + "\"" +
                 (nfc ? String(",\"nf\":") + String(nfNow, 1) : String()) +
@@ -3726,14 +3713,14 @@ static void jamBaselineEval(uint8_t ch, uint32_t v, uint32_t e, uint32_t nfc, in
                 ",\"noise_secs\":" + String((unsigned)b.noiseStreak) +
                 ",\"quiet_secs\":" + String((unsigned)b.quietStreak) +
                 ",\"learned_s\":" + String((unsigned)b.seconds) + "}";
-    Serial.printf("[DETECT] JAMMING_BASELINE ch=%u rule=%s value=%d\n", (unsigned)ch, rule, value);
-    Serial.println("[DETECT] JAMMING_BASELINE evidence " + ev);
+    Serial.printf("[DETECT] %s ch=%u rule=%s value=%d\n", label, (unsigned)ch, rule, value);
+    Serial.println(String("[DETECT] ") + label + " evidence " + ev);
     logEventToSD("/jamming.jsonl", evClose(ev, now));
     char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
-    ::detect_logIncident(String("JAMMING_BASELINE:") + bch + ":" + rule + ":" + String(value), nullptr, ev);
+    ::detect_logIncident(String(label) + ":" + bch + ":" + rule + ":" + String(value), nullptr, ev);
     quorum_addReport("JAMMING", String(bch), getNodeId(), (int8_t)(nfc ? lroundf(nfNow) : -128));
-    if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAMB_") + bch, 60000))
-        sendToSerial1(getNodeId() + ": JAMMING_BASELINE:" + bch + ":" + rule + ":" + String(value), true);
+    if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String(noise ? "JAMN_" : "JAMB_") + bch, 60000))
+        sendToSerial1(getNodeId() + ": " + label + ":" + bch + ":" + rule + ":" + String(value), true);
 }
 
 static void jamBaselineReport(uint32_t now) {
@@ -3748,60 +3735,31 @@ static void jamBaselineReport(uint32_t now) {
 }
 
 static void jammingEval(uint32_t now) {
-    if (!g_jamEnabled.load()) return;
+    static bool s_jamWasOn = false;
+    if (!g_jamEnabled.load()) { s_jamWasOn = false; return; }
     if (now - g_jamLastEval < 1000) return;
     g_jamLastEval = now;
     bool baseOn = g_jamBaseline.load();
     bool live = sentinel_isRunning() && !scanning.load();
     bool scanMode = g_sentinelScanMode.load();
     static bool s_baseWasOn = false;
-    if (scanMode != g_jamBaseScanMode || (baseOn && !s_baseWasOn)) {
+    if (scanMode != g_jamBaseScanMode || !s_jamWasOn || (baseOn && !s_baseWasOn)) {
         g_jamBaseScanMode = scanMode;
         for (JamBase &jb : g_jamBase) jb = JamBase{};
     }
+    s_jamWasOn = true;
     s_baseWasOn = baseOn;
     if (!live) g_jamBaseLiveSince = 0;
     else if (!g_jamBaseLiveSince) g_jamBaseLiveSince = now;
-    bool baseEval = baseOn && live && (now - g_jamBaseLiveSince) >= 5000UL;
-    if (baseEval) jamBaselineReport(now);
+    bool refEval = live && (now - g_jamBaseLiveSince) >= 5000UL;
+    if (refEval) jamBaselineReport(now);
     for (uint8_t ch = 1; ch <= 13; ch++) {
         uint32_t v = g_jamValid[ch].exchange(0);
         uint32_t e = g_jamErr[ch].exchange(0);
-        int32_t ersum = g_jamErrRssi[ch].exchange(0);
         uint32_t nfc = g_jamNfCnt[ch].exchange(0);
         int32_t nfs = g_jamNfSum[ch].exchange(0);
-        uint32_t tot = v + e;
-        if (v > 0) g_jamEverValid[ch] = now;
-        if (baseEval) jamBaselineEval(ch, v, e, nfc, nfs, now);
+        if (refEval) jamBaselineEval(ch, v, e, nfc, nfs, now, baseOn);
         else { g_jamBase[ch].noiseStreak = 0; g_jamBase[ch].quietStreak = 0; }
-        if (tot < 20) continue;                         // idle / low traffic -> no decision
-        float pdr = (float)v / (float)tot;
-        int8_t avgErrRssi = e ? (int8_t)(ersum / (int32_t)e) : -128;
-        bool aliveRecently = g_jamEverValid[ch] && (now - g_jamEverValid[ch] < 30000UL);
-        // Jammed = PDR collapsed WHILE error-frame energy strong AND channel alive.
-        bool jam = pdr < 0.3f && e >= 15 && avgErrRssi > -70 && aliveRecently;
-        bool cooldownOk = !g_jamLastEmit[ch] || (now - g_jamLastEmit[ch] >= 60000UL);
-        if (jam && cooldownOk) {
-            g_jamLastEmit[ch] = now;
-            uint8_t pdrPct = (uint8_t)(pdr * 100.0f);
-            char line[160];
-            snprintf(line, sizeof(line),
-                "{\"ch\":%u,\"pdr\":%u,\"err\":%u,\"valid\":%u,\"err_rssi\":%d,\"ts\":%u}",
-                (unsigned)ch, (unsigned)pdrPct, (unsigned)e, (unsigned)v, (int)avgErrRssi, (unsigned)now);
-            logEventToSD("/jamming.jsonl", String(line));
-            char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
-            ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), nullptr,
-                                 String("{\"reason\":\"JAMMING\",\"rule\":\"pdr_collapse\",") + String(line + 1));
-            quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
-            if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
-                char mb[80];
-                snprintf(mb, sizeof(mb), "%s: JAMMING:%u:%u:%u",
-                         getNodeId().c_str(), (unsigned)ch, (unsigned)pdrPct, (unsigned)e);
-                sendToSerial1(String(mb), true);
-            }
-            Serial.printf("[DETECT] JAMMING ch=%u pdr=%u%% err=%u err_rssi=%d\n",
-                          (unsigned)ch, (unsigned)pdrPct, (unsigned)e, (int)avgErrRssi);
-        }
     }
 }
 

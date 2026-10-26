@@ -328,7 +328,7 @@ A `GROUP` name selects these detectors:
 | `probe_rand_total` | Probe requests from randomized MACs in 5 seconds that raise a flood alert | count | 80 |
 | `probe_rand_distinct` | Distinct randomized MACs in 5 seconds that raise the same alert | count | 60 |
 | `deauth_targeted_thresh` | Deauth frames at one client that raise a targeted-deauth alert | count | 10 |
-| `jam_nf_db` | How far a channel's noise floor must rise above its learned level to raise an interference-baseline alert, from 3 to 30 | dB | 8 |
+| `jam_nf_db` | How far a channel's noise floor must rise above its learned level to raise a Wi-Fi interference alert, from 3 to 30 | dB | 8 |
 | `hunt_cooldown_ms` | Time before the same attacker can start another location hunt | ms | 60000 |
 | `attack_resp_mask` | Follow-up actions after a confirmed attack. Add the values: `2` packet capture, `4` device discovery, `8` probe scan, `16` drone Remote ID scan, `32` stop the running scan to make room. `0` is off, and cannot be set back to `0` with this command | sum | 0 |
 | `ar_secs_pcap` | Length of the follow-up capture | s | 120 |
@@ -454,8 +454,8 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `KARMA_CAND:<bssid>:<ssids>` and `KARMA_CONFIRMED:<bssid>:<rssi>` | |
 | `AUTH_FLOOD:<bssid>:<srcs>:<frames>` | |
 | `SAE_DOS:<bssid>:<commits>` | |
-| `JAMMING:<ch>:<pdr_pct>:<err_frames>` | |
-| `JAMMING_BASELINE:<ch>:<rule>:<value>` | `noise_rise` (value: dB above the learned noise floor) `silence` (value: the channel's usual frames per second) |
+| `JAMMING:<ch>:noise_rise:<db>` | `db`: how far the noise floor rose above its learned level |
+| `JAMMING_BASELINE:<ch>:silence:<fps>` | `fps`: the channel's usual frames per second |
 | `RADIO_DETECTED:<radio>:<mac>:<rssi>` | `Meshtastic` `MeshCore` |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
