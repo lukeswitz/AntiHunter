@@ -153,7 +153,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(max-width:440px){.page-tabs{gap:2px;justify-content:space-between}.page-tab-btn{padding:6px 8px;font-size:11px}}
       .page-tab{display:none}
       .page-tab.active{display:block}
-      #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
+      #page-results #r{max-height:calc(100vh - 300px);overflow-y:auto}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
       #data-table{width:100%;border-collapse:collapse;font-size:15px}
       #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:9px 12px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
