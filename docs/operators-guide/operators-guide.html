@@ -660,8 +660,8 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
   <h4>LoRa mesh radios</h4>
   <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on with the <b>Meshtastic / MeshCore</b> switch on the <b>Devices Nearby</b> card or with <span class="mono">DETECT_CFG:{"meshradio":true}</span>. It also finds your own nodes' radios. Add their MACs to the allowlist.</p>
-  <h4>Interference baseline</h4>
-  <p>This mode learns each channel's noise floor for 60 seconds. It then alerts when the noise floor rises 8 dB, or when a busy channel goes quiet. It is off by default. Turn it on with the <b>Interference Baseline</b> switch or <span class="mono">DETECT_CFG:{"jam_baseline":true}</span>. Turn it off and on after you move the node.</p>
+  <h4>Wi-Fi interference</h4>
+  <p>Wi-Fi interference detection is on by default. It learns each channel's noise floor for 60 seconds, then alerts when the noise floor rises 8 dB. The interference baseline is off by default. It also alerts when a busy channel goes quiet in <span class="mono">defend</span> mode. Turn it on with the <b>Interference Baseline</b> switch or <span class="mono">DETECT_CFG:{"jam_baseline":true}</span>. Turn <b>Wi-Fi Interference</b> off and on after you move the node.</p>
 
   <h4>Acting on a confirmed attack</h4>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: detector counters, associated clients, mesh command log and incident log.</figcaption></figure>

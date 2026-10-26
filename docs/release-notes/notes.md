@@ -65,7 +65,7 @@ This applies to all three channels.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 - Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
 - Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:devices:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
-- Full and Headless: Wi-Fi interference has a baseline mode, `jam_baseline`, off by default. It alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned, or when a busy channel goes quiet. The alert is `JAMMING_BASELINE:<ch>:<rule>:<value>`.
+- Full and Headless: Wi-Fi interference alerts when a channel's noise floor rises `jam_nf_db` (default 8 dB) above what it learned. It is on by default. The alert is `JAMMING:<ch>:noise_rise:<db>`. The interference baseline, `jam_baseline`, is off by default and also alerts when a busy channel goes quiet: `JAMMING_BASELINE:<ch>:silence:<fps>`.
 - Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
 - Malformed BLE alerts record the advert bytes.
 - The web flasher adds **LoRa Mesh Radios** and **Interference Baseline**.
@@ -126,6 +126,7 @@ This applies to all three channels.
 - `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
 - The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
 - Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
+- Wi-Fi interference never alerted. It needed frames with bad checksums, and the ESP32 Wi-Fi driver does not pass those to the node. It now alerts on a noise-floor rise.
 - Sentinel tab: some **Last** and age columns showed hundreds of thousands of hours. They compared the node's uptime to the browser clock.
 - Full and Headless log these alerts from other nodes to the incident log: `AUTH_FLOOD`, `BEACON_FLOOD`, `DEAUTH_FORGE`, `JAMMING`, `OWE_ABUSE`, `PROBE_FLOOD_AP`, and `SSID_CONFUSION`. Before, the node left them out.
 - Headless: attack response ignored `attack_resp_mask` 32, which stops a scheduled scan to make room.
