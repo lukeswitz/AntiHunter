@@ -309,6 +309,7 @@ void setup() {
         sentinel_setUserEnabled(true);
         Serial.println("[SENTINEL] Boot-enable ON (persisted) — starting sentinel");
     } else {
+        sentinel_setUserEnabled(false);
         Serial.println("[SENTINEL] OFF on boot (enable manually)");
     }
 
