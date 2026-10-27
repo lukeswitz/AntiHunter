@@ -691,7 +691,7 @@ void serviceDeferredSave() {
 
 void saveConfiguration() {
     uint32_t now = millis();
-    if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
+    if (g_sweepHopChannels || now - lastSaveTime < SAVE_DEBOUNCE_MS) {
         s_saveDeferred = true;
         return;
     }
