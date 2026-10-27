@@ -1320,25 +1320,6 @@ void randomizationDetectionTask(void *pv) {
 
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
 
-    for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
-        probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-    for (size_t depth = 32; !authFrameQueue && depth >= 8; depth /= 2)
-        authFrameQueue = xQueueCreateWithCaps(depth, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
-    if (!probeRequestQueue || !authFrameQueue) {
-        Serial.printf("[RAND] FATAL: queue alloc failed (probe=%p auth=%p internal=%u), aborting\n",
-                      probeRequestQueue, authFrameQueue,
-                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-        releaseProbeQueue();
-        releaseAuthFrameQueue();
-        scanning = false;
-        workerTaskHandle = nullptr;
-        vTaskDelete(nullptr);
-        return;
-    }
-    xQueueReset(probeRequestQueue);
-    xQueueReset(authFrameQueue);
-    if (bleAdvQueue) xQueueReset(bleAdvQueue);
-
     {
         uint32_t waitStart = millis();
         while (meshTxDraining.load() && (millis() - waitStart) < 8000) {
@@ -1350,6 +1331,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "Randomization detection failed - prior scan drain timeout\n";
             }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
@@ -1389,7 +1371,16 @@ void randomizationDetectionTask(void *pv) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
         if (currentScanMode == SCAN_BOTH && !pBLEScan) {
-            Serial.println("[RAND] BLE init NULL during radioStartSTA, continuing WiFi-only");
+            Serial.println("[RAND] Abort: BLE init failed in WiFi+BLE mode");
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "Randomization detection failed - BLE init error\n";
+            }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
+            scanning = false;
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
         }
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -1399,6 +1390,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "Randomization detection failed - BLE init error\n";
             }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
@@ -1406,6 +1398,32 @@ void randomizationDetectionTask(void *pv) {
         }
         vTaskDelay(pdMS_TO_TICKS(200));
     }
+
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
+            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+        for (size_t depth = 32; !authFrameQueue && depth >= 8; depth /= 2)
+            authFrameQueue = xQueueCreateWithCaps(depth, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
+        if (!probeRequestQueue || !authFrameQueue) {
+            Serial.printf("[RAND] FATAL: queue alloc failed (probe=%p auth=%p internal=%u), aborting\n",
+                          probeRequestQueue, authFrameQueue,
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+            releaseProbeQueue();
+            releaseAuthFrameQueue();
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "Randomization detection failed - out of memory\n";
+            }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
+            scanning = false;
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
+        }
+        xQueueReset(probeRequestQueue);
+        xQueueReset(authFrameQueue);
+    }
+    if (bleAdvQueue) xQueueReset(bleAdvQueue);
     
     
     Serial.println("[RAND] Enabling detection...");
