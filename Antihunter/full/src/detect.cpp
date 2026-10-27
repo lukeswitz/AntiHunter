@@ -3320,7 +3320,7 @@ void initializeDetect() {
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
             ah_detect::g_meshRadioEnabled.store(p.getBool("mrdOn", false));
             ah_detect::g_meshMeshRadio.store(p.getBool("mMrd", true));
-            ah_detect::knownradio_load(p.getString("knownRad", ""));
+            ah_detect::knownradio_load(p.isKey("knownRad") ? p.getString("knownRad", "") : String());
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
