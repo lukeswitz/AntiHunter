@@ -44,7 +44,7 @@ This applies to all three channels.
 - Full: the web UI asks for a login (HTTP Digest, user `admin`). The password is the AP password until you set a web password under System tab → **Settings** → **Access point** → **Web login**, or with `webPass` in the flasher config. Turn the login off in the same place, or with `"webAuth":false` in the flasher config. Changing either in the web UI needs the current web password. You can't change either over mesh. The login does not affect scheduled scans.
 - Theme: Paper dark is the new default. Blue dark and Light remain under **Settings** → **Appearance**. In Paper dark, the default accent colors are coral for STOP and the wipe buttons and lime for the Sentinel banners and movement hits. A chosen accent scheme overrides them.
 - Sentinel tab: **Incidents** shows Sentinel Analysis and the session incidents at full width. **Mesh & thresholds** lays out the mesh alert switches and the thresholds in grids.
-- Sentinel tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a **Mesh Radios Nearby** card for LoRa mesh radios, Pwnagotchi sightings in the **Recon / Harvest** card, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
+- Sentinel tab: **Clear Session** zeroes the shown counts and keeps the logs. New: a Privacy button, **Clear All Events** for the mesh command log, a **Mesh Radios Nearby** card for LoRa mesh radios, Pwnagotchi sightings in the **Recon / Harvest** card and in the **Deauth Flood** and **PMKID** counts, Karma bait on/off, hunt cooldown, and a link to the raw `/detect` logs.
 - Scan tab: the split device scan moved here from the Fleet card. It is **Split across nodes** under Schedule when you select Device Discovery.
 - Scan tab, Target card: Targets and Allow list sit above the scan options. Trend badges read Steady and Measuring. A Movement toggle sits in the Forever/Triangulate row.
 - Baseline: the button is now **Compare from now**. It appears only after the node builds the baseline and starts monitoring.
@@ -64,7 +64,7 @@ This applies to all three channels.
 - PCAP files carry the radiotap MCS field for HT frames.
 - The BLE classifier reads every manufacturer, service-data, and service-UUID block in an advertisement and its scan response, not only the first.
 - Full and Headless: each Sentinel incident records what triggered it in an `ev` field and on a `[DETECT] ... evidence` serial line. The incident tables show it in an **Evidence** column.
-- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:devices:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>`. Full lists the radios at `/api/meshradio`.
+- Full and Headless: Sentinel finds Meshtastic and MeshCore radios by Bluetooth. It is off by default. Turn it on with `DETECT_CFG:{"meshradio":true}` or `GROUP:devices:on`. The alert is `RADIO_DETECTED:<Meshtastic|MeshCore>:<mac>:<rssi>:<name>`. Full lists the radios at `/api/meshradio`. `RADIO_KNOWN_ADD:<mac>:<type>[:<name>]`, `RADIO_KNOWN_DEL:<mac>`, and `RADIO_KNOWN_CLEAR` keep a list of your own radios, which raise no alert. The list survives a reboot.
 - Wi-Fi interference alerts when a channel's noise floor jumps: `JAMMING:<ch>:noise_rise:<db>`. New `jam_baseline` (off by default) alerts when a busy channel goes silent: `JAMMING_BASELINE:<ch>:silence:<fps>`.
 - Vibration alerts record the pulse count, pin level, and time since the last alert. The Data tab shows the pulse count.
 - Malformed BLE alerts record the advert bytes.
@@ -84,7 +84,9 @@ This applies to all three channels.
 **Mesh commands**
 - A command runs only on a line addressed `@<NODE>` or `@ALL`. Before, an unaddressed line (`STATUS` on USB serial, or any Meshtastic text from a non-node sender) ran as a command.
 - A command runs only when its name matches exactly or has a `:` after it. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `BATTERY_SAVER_START` ran on any line that started with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
-- `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START`, and `PROBE_START` reply `<name>_ACK:INVALID` when the radio value is out of range or a field is missing. Before, the node sent no reply and the command looked lost.
+- `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START`, and `PROBE_START` reply `<name>_ACK:INVALID` when the radio value is out of range or a field is missing. Before, the node sent no reply and the command looked lost. A radio value that is not a number, such as `PROBE_START:x`, also replies `INVALID`. Before, the node read it as 0 and started a scan.
+- `SENTINEL_MODE` replies `SENTINEL_MODE_ACK:FAIL` for any value other than `scan` or `defend`. Before, any other value set defend.
+- `LIST_SCAN_DONE` and `BASELINE_DONE` report the real number of alerts sent in `TX`. Before, they always reported `TX=0` and counted every target or device as pending.
 - `CAMPAIGN_START` replies `CAMPAIGN_ACK:INVALID` when the name has characters outside `A-Z a-z 0-9 - _`. Before, it dropped the bad characters and started a campaign under the shortened name.
 - `CONFIG_TARGETS` over mesh splits entries on `|`, because mesh text has no newlines.
 - Stable no longer has the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, and `CIR`. They map to CSI commands, which only Beta and Experimental have.
@@ -124,7 +126,15 @@ This applies to all three channels.
 - Probe Flood: when more than 512 MACs sent probes within 5 seconds, the detector could free a MAC's probe count and then read it. It now copies the count before freeing.
 - The incident log skipped `JAMMING`, `MESH_FLOOD`, and `MESH_SPOOF_SELF`.
 - `CSA_SPOOF` and `QUIET_ABUSE` logged and counted each incident twice.
-- The Data tab now escapes over-the-air text such as network names. Before, it inserted that text as HTML.
+- The Data tab and the scan results now escape over-the-air text: device names, network names, vendor names, and Remote ID text. Before, they inserted that text as HTML.
+- The scan results list scrolls inside a pane that fits the screen. Before, a long list made the whole page scroll.
+- With Sentinel on, the node could reboot at the end of a scan with a crash in the BLE host task. The node now stops BLE before Sentinel resumes. Over 40 scan cycles on an S3 it did not crash, where the old order crashed 2 times in 28.
+- Battery saver turned off the Bluetooth controller while BLE was still running and left Sentinel capturing. BLE scans found nothing afterwards, and the next BLE stop could freeze the node. Battery saver now pauses Sentinel and stops BLE first, and resumes Sentinel on exit.
+- Battery saver read the GPS only once a minute. Each read decoded old data, sent false `GPS: LOST` and `GPS: LOCKED` alerts over mesh, and the heartbeat repeated a stale position. It now reads the GPS every half second.
+- Changes to the start-Sentinel-at-boot flag, detector settings, `GROUP`, and `SENTINEL_MODE` now also save to the SD card. Before, they saved only to built-in memory, and at boot the older SD copy replaced them, so Sentinel could start again after `SENTINEL_OFF` and a reboot. A setting changed within 2 seconds of the last save is no longer dropped.
+- Headless: with Sentinel on, every Wi-Fi scan failed until a reboot (`ESP_ERR_WIFI_NOT_INIT`), because Sentinel shut down Wi-Fi while a scan was taking over. Sentinel now leaves Wi-Fi running for the scan.
+- Experimental (C5): with **Band** set to 2.4 GHz, a scan swept the 5 GHz channels too, ran past its time limit, and failed, so device and target scans found no Wi-Fi devices. The node now limits the radio to 2.4 GHz in that mode.
+- Headless: Sentinel in pin mode stayed on whatever channel the last scan ended on. With no access point running, it now uses the node's access point channel, 6 by default.
 - Sentinel tab: the **Wi-Fi Interference** counter always showed 0. It looked for the type `JAM` instead of `JAMMING`.
 - Wi-Fi interference never alerted. It needed frames with bad checksums, and the ESP32 Wi-Fi driver does not pass those to the node. It now alerts on a noise-floor rise.
 - Sentinel tab: some **Last** and age columns showed hundreds of thousands of hours. They compared the node's uptime to the browser clock.
@@ -168,12 +178,12 @@ App image size compared with the v1.0.4 release bins. Full builds shrink because
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,386,592 B | -215,280 B | 77.8% -> 71.4% |
-| Beta full | 2,787,152 B | 2,444,224 B | -342,928 B | 83.4% -> 73.1% |
-| C5 full | 3,141,952 B | 2,805,200 B | -336,752 B | 74.9% -> 66.9% |
-| Stable headless | 1,897,584 B | 1,956,800 B | +59,216 B | 56.8% -> 58.5% |
-| Beta headless | 1,966,272 B | 2,011,424 B | +45,152 B | 58.8% -> 60.2% |
-| C5 headless | 2,321,776 B | 2,408,144 B | +86,368 B | 55.4% -> 57.4% |
+| Stable full | 2,601,872 B | 2,419,776 B | -182,096 B | 77.8% -> 72.4% |
+| Beta full | 2,787,152 B | 2,477,328 B | -309,824 B | 83.4% -> 74.1% |
+| C5 full | 3,141,952 B | 2,847,856 B | -294,096 B | 74.9% -> 67.9% |
+| Stable headless | 1,897,584 B | 2,041,440 B | +143,856 B | 56.8% -> 61.1% |
+| Beta headless | 1,966,272 B | 2,088,752 B | +122,480 B | 58.8% -> 62.5% |
+| C5 headless | 2,321,776 B | 2,466,000 B | +144,224 B | 55.4% -> 58.8% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 
