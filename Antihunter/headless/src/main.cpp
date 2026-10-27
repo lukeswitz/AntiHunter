@@ -326,12 +326,7 @@ void loop() {
         // Send periodic heartbeats
         sendBatterySaverHeartbeat();
 
-        // Reduced GPS polling - once per minute in battery saver mode
-        static unsigned long lastGPSPollBatterySaver = 0;
-        if (millis() - lastGPSPollBatterySaver > 60000) {
-            updateGPSLocation();
-            lastGPSPollBatterySaver = millis();
-        }
+        updateGPSLocation();
 
         // Check vibration alerts (security feature, keep active)
         checkAndSendVibrationAlert();
@@ -347,19 +342,19 @@ void loop() {
     }
 
     // Normal operation mode
-    static bool s_scanWasBusy = false;
-    bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
-    if (s_scanWasBusy && !scanBusyNow) {
-        sentinel_resumeAfterScan();
-    }
-    s_scanWasBusy = scanBusyNow;
-
     static bool s_bleUserWasBusy = false;
     bool bleUserNow = scanning.load() || workerTaskHandle || triangulationActive.load();
     if (s_bleUserWasBusy && !bleUserNow) {
         radioReleaseBLE();
     }
     s_bleUserWasBusy = bleUserNow;
+
+    static bool s_scanWasBusy = false;
+    bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
+    if (s_scanWasBusy && !scanBusyNow) {
+        sentinel_resumeAfterScan();
+    }
+    s_scanWasBusy = scanBusyNow;
 
     attack_responsePump();
 

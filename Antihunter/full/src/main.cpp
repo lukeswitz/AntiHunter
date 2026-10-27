@@ -374,11 +374,7 @@ void loop() {
 
         sendBatterySaverHeartbeat();
 
-        static unsigned long lastGPSPollBatterySaver = 0;
-        if (millis() - lastGPSPollBatterySaver > 60000) {
-            updateGPSLocation();
-            lastGPSPollBatterySaver = millis();
-        }
+        updateGPSLocation();
         
         checkAndSendVibrationAlert();
 
@@ -392,6 +388,13 @@ void loop() {
     }
 
     // Normal operation mode
+    static bool s_bleUserWasBusy = false;
+    bool bleUserNow = scanning.load() || workerTaskHandle || triangulationActive.load();
+    if (s_bleUserWasBusy && !bleUserNow) {
+        radioReleaseBLE();
+    }
+    s_bleUserWasBusy = bleUserNow;
+
     static bool s_scanWasBusy = false;
     bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
     if (s_scanWasBusy && !scanBusyNow) {
@@ -399,13 +402,6 @@ void loop() {
     }
     s_scanWasBusy = scanBusyNow;
     scheduleTick();
-
-    static bool s_bleUserWasBusy = false;
-    bool bleUserNow = scanning.load() || workerTaskHandle || triangulationActive.load();
-    if (s_bleUserWasBusy && !bleUserNow) {
-        radioReleaseBLE();
-    }
-    s_bleUserWasBusy = bleUserNow;
     attack_responsePump();
 
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {

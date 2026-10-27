@@ -257,7 +257,7 @@ To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in th
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
-| `BATTERY_SAVER_START` | `BSS` | Stops all scans, switches off the scanning radios, lowers the CPU speed, and sends a short heartbeat at a fixed interval | `BATTERY_SAVER_ACK:STARTED Interval:<n>min` | `@AH01 BATTERY_SAVER_START:10` |
+| `BATTERY_SAVER_START` | `BSS` | Stops all scans, switches off the scanning radios, lowers the CPU speed, and sends a short heartbeat at a fixed interval. Sentinel pauses and starts again when battery saver ends | `BATTERY_SAVER_ACK:STARTED Interval:<n>min` | `@AH01 BATTERY_SAVER_START:10` |
 | `BATTERY_SAVER_STOP` | `BSX` | Returns to normal operation | `BATTERY_SAVER_ACK:STOPPED` | `@AH01 BATTERY_SAVER_STOP` |
 | `BATTERY_SAVER_STATUS` | `BSQ` | Reports the state | `BATTERY_SAVER_STATUS: Enabled:<YES\|NO> [Interval:<n>min NextHB:<s>s] Temp:<n>C [GPS:<lat>,<lon>]` | `@AH01 BATTERY_SAVER_STATUS` |
 | `HB_ON` / `HB_OFF` | `HB1` / `HB0` | Turns the normal status heartbeat on or off | `HB_ACK:ENABLED` / `HB_ACK:DISABLED` | `@AH01 HB_ON` |
@@ -431,7 +431,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | Triangulation result | `NODE: T_F: ... GPS=<lat>,<lon> CONF=<pct> UNC=<m>`, then `NODE: T_C: MAC=<mac> Nodes=<n> [GPS=<lat>,<lon> CONF=<pct> URL=<link>]` |
 | Probe hit | `NODE: PROBE_HIT <mac> [Randomized\|<vendor>] RSSI=<n> CH=<n> [SSID="<x>" [GHOST]] [DST]` |
 | Packet capture | `NODE: PCAP_START: WIFI\|BLE D=<secs>`, then `PCAP_DONE: F=<frames> B=<bytes> D=<dropped> [R=WRITEFAIL\|SIZECAP]` |
-| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats>`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Also `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`, `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`, `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`, and `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<sent> PEND=<unsent>`. A probe scan sends no completion line |
+| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats>`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Baseline `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<anomaly alerts sent> PEND=<anomaly alerts unsent>`. Also `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`, `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`, `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`, and `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<sent> PEND=<unsent>`. A probe scan sends no completion line |
 | CSI motion (Beta, C5) | `NODE: CSI_MOTION: CH=<n> N=<transmitters> S=<score>` when movement starts, and `NODE: CSI_CLEAR: CH=<n> D=<s>s` when it ends, with the movement time in seconds. `GAP` limits how often `CSI_MOTION` is sent |
 | Movement | `NODE: VIBRATION: Movement detected at <time>`. During setup mode: `VIBRATION: Movement in setup mode (active in <s>s)` |
 | Tamper | `NODE: TAMPER_DETECTED: Auto-erase in <s>s [GPS:<lat>,<lon>]`, then `TAMPER_CANCELLED` if you cancel |

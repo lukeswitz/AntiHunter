@@ -3786,7 +3786,7 @@ void listScanTask(void *pv) {
 
             Serial.printf("[HIT] %s\n", logEntry.c_str());
             logToSD(logEntry);
-            sendMeshNotification(h);
+            if (sendMeshNotification(h)) transmittedDevices.insert(macStr);
 
             if (triangulationActive) {
                 String myNodeId = getNodeId();

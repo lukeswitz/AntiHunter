@@ -67,7 +67,7 @@ static uint32_t droneMeshLastSeen(const String &key, const DroneAnnounce &a, Str
 }
 
 extern String macFmt6(const uint8_t *m);
-extern void sendMeshNotification(const Hit &hit);
+extern bool sendMeshNotification(const Hit &hit);
 
 static String droneMeshLine(const String &mac, const DroneDetection &d) {
     String msg = getNodeId() + ": DRONE: " + mac + " ID:" + sanitizeAscii(d.uavId, sizeof(d.uavId));
