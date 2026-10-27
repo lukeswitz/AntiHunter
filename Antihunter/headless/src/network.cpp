@@ -107,7 +107,9 @@ bool sendToSerial1(const String &message, bool canDelay) {
                                   message.indexOf("TRIANGULATE_STOP") >= 0 ||
                                   message.indexOf(": T_F:") >= 0 ||
                                   message.indexOf(": T_C:") >= 0 ||
-                                  message.indexOf(": T_D:") >= 0;
+                                  message.indexOf(": T_D:") >= 0 ||
+                                  message.indexOf("TIME_SYNC_REQ:") >= 0 ||
+                                  message.indexOf("TIME_SYNC_RESP:") >= 0;
 
     if (triangulationActive && !isTriangulationMessage) {
         meshTxDroppedTriGate.fetch_add(1);
