@@ -457,6 +457,7 @@ size_t pg_size();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
+void   detect_persistTunablesNvs();
 void   detect_setAttackerTrilat(bool enabled);
 bool   detect_getAttackerTrilat();
 
