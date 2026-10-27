@@ -3488,7 +3488,7 @@ static void sentinelAlwaysOnTask(void *pv) {
         esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
         esp_wifi_set_promiscuous(false);
     }
-    if (sentinelStartedWifi) {
+    if (sentinelStartedWifi && !scanning.load()) {
         esp_wifi_stop();
         esp_wifi_deinit();
         Serial.println("[SENTINEL] Released STA WiFi");
