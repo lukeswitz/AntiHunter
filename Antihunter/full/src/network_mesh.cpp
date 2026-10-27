@@ -3203,13 +3203,10 @@ void processMeshMessage(const String &message) {
             if (secondColon > 0) {
                 int thirdColon = content.indexOf(':', secondColon + 1);
                 if (thirdColon > 0) {
-                    int fourthColon = content.indexOf(':', thirdColon + 1);
-                    if (fourthColon > 0) {
-                        time_t theirTime = strtoul(content.substring(15, firstColon).c_str(), nullptr, 10);
-                        uint32_t theirMicros = strtoul(content.substring(secondColon + 1, thirdColon).c_str(), nullptr, 10);
+                    time_t theirTime = strtoul(content.substring(15, firstColon).c_str(), nullptr, 10);
+                    uint32_t theirMicros = strtoul(content.substring(secondColon + 1, thirdColon).c_str(), nullptr, 10);
 
-                        handleTimeSyncResponse(sendingNode, theirTime, theirMicros);
-                    }
+                    handleTimeSyncResponse(sendingNode, theirTime, theirMicros);
                 }
             }
         }

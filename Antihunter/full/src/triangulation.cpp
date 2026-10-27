@@ -35,6 +35,8 @@ const size_t MAX_ACK_INFO = 20;
 
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
+static uint32_t g_syncReqMicros = 0;
+static bool g_syncReqValid = false;
 std::vector<TriangulationNode> triangulationNodes;
 std::mutex triangulationMutex;
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
@@ -532,6 +534,8 @@ void broadcastTimeSyncRequest() {
                      String((unsigned long)(correctedMicros & 0xFFFFFFFF));
     
     sendToSerial1(syncMsg, false);
+    g_syncReqMicros = micros();
+    g_syncReqValid = true;
     Serial.printf("[SYNC] Broadcast: %lu.%03u (drift-corrected)\n", currentTime, subsecond);
 }
 
@@ -569,28 +573,28 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
     time_t localTime = now.unixtime();
     xSemaphoreGive(rtcMutex);
     
-    int64_t localMicros = getCorrectedMicroseconds();
-    
+    (void)milliseconds;
     int32_t timeOffset = (int32_t)(localTime - timestamp);
 
-    int64_t effectiveMicrosOffset;
+    uint32_t oneWayUs = 0;
+    if (g_syncReqValid) {
+        oneWayUs = (micros() - g_syncReqMicros) / 2;
+        g_syncReqValid = false;
+    }
+    uint32_t offMs = (uint32_t)(abs(timeOffset)) * 1000u;
+
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);
 
-        uint32_t reportedPropDelay = 0;
-        if (nodePropagationDelays.count(nodeId) > 0) {
-            reportedPropDelay = nodePropagationDelays[nodeId];
-        }
-
-        effectiveMicrosOffset = (int64_t)localMicros - (int64_t)milliseconds - (int64_t)reportedPropDelay;
+        if (oneWayUs > 0) nodePropagationDelays[nodeId] = oneWayUs;
 
         auto syncIt = std::find_if(nodeSyncStatus.begin(), nodeSyncStatus.end(),
             [&](const auto& s) { return s.nodeId == nodeId; });
         const bool found = (syncIt != nodeSyncStatus.end());
         if (found) {
             syncIt->rtcTimestamp = timestamp;
-            syncIt->millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
-            syncIt->synced = (abs(timeOffset) == 0 && syncIt->millisOffset < 1);
+            syncIt->millisOffset = offMs;
+            syncIt->synced = (abs(timeOffset) == 0);
             syncIt->lastSyncCheck = millis();
         }
 
@@ -598,16 +602,16 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
             NodeSyncStatus newSync;
             newSync.nodeId = nodeId;
             newSync.rtcTimestamp = timestamp;
-            newSync.millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
-            newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 1);
+            newSync.millisOffset = offMs;
+            newSync.synced = (abs(timeOffset) == 0);
             newSync.lastSyncCheck = millis();
             nodeSyncStatus.push_back(newSync);
         }
     }
 
-    Serial.printf("[SYNC] Node %s: offset=%ldus synced=%d\n",
-                  nodeId.c_str(), (long)effectiveMicrosOffset, 
-                  (abs(timeOffset) == 0 && abs(effectiveMicrosOffset) < 1000));
+    Serial.printf("[SYNC] Node %s: offset=%lds rtt_oneway=%luus synced=%d\n",
+                  nodeId.c_str(), (long)timeOffset, (unsigned long)oneWayUs,
+                  (int)(abs(timeOffset) == 0));
 }
 
 bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
@@ -2084,49 +2088,26 @@ String calibrationJson() {
 }
 
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros) {
+    (void)rxMicros;
     int firstColon = message.indexOf(':', 14);
     if (firstColon < 0) return;
-    
-    int secondColon = message.indexOf(':', firstColon + 1);
-    if (secondColon < 0) return;
-    
-    int thirdColon = message.indexOf(':', secondColon + 1);
-    if (thirdColon < 0) return;
-    
+
     time_t senderTime = strtoul(message.substring(14, firstColon).c_str(), nullptr, 10);
-    uint32_t senderTxMicros = strtoul(message.substring(secondColon + 1, thirdColon).c_str(), nullptr, 10);
-    
+
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
     DateTime now = rtc.now();
     time_t myTime = now.unixtime();
     xSemaphoreGive(rtcMutex);
-    
+
     int64_t myMicros = getCorrectedMicroseconds();
     uint16_t mySubsec = (myMicros % 1000000) / 10000;
-    
-    uint32_t propagationDelay = rxMicros - senderTxMicros;
-    if (propagationDelay > 100000) {
-        propagationDelay = rxMicros + (0xFFFFFFFF - senderTxMicros);
-    }
 
-    {
-        std::lock_guard<std::mutex> lock(triangulationMutex);
-        nodePropagationDelays[senderId] = propagationDelay;
-        const size_t MAX_PROP_DELAY_ENTRIES = 100;
-        if (nodePropagationDelays.size() > MAX_PROP_DELAY_ENTRIES) {
-            auto oldest = nodePropagationDelays.begin();
-            nodePropagationDelays.erase(oldest);
-        }
-    }
+    Serial.printf("[SYNC] %s: req offset=%lds\n", senderId.c_str(), (long)(myTime - senderTime));
 
-    Serial.printf("[SYNC] %s: prop_delay=%luus offset=%dms\n",
-                  senderId.c_str(), propagationDelay, (int)(myTime - senderTime));
-    
     String response = getNodeId() + ": TIME_SYNC_RESP:" +
                     String((unsigned long)myTime) + ":" +
                     String(mySubsec) + ":" +
-                    String((unsigned long)(myMicros & 0xFFFFFFFF)) + ":" +
-                    String(propagationDelay);
+                    String((unsigned long)(myMicros & 0xFFFFFFFF));
 
     sendToSerial1(response, false);
 }
