@@ -1514,19 +1514,13 @@ String calculateTriangulation() {
 
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
-    results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
+    results += "Peer link: " + String(syncVerified ? "OK" : "degraded") + "\n";
 
-    auto maxSyncIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
-        [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
-            return a.millisOffset < b.millisOffset;
-        });
-    float maxOffsetMs = (maxSyncIt != nodeSyncStatus.end()) ? maxSyncIt->millisOffset : 0;
     if (clockDiscipline.offsetCalibrated) {
         results += "Clock Quality:\n";
         results += "  Drift: " + String(clockDiscipline.driftRate * 1e6, 2) + " ppm\n";
         results += "  Converged: " + String(clockDiscipline.converged ? "YES" : "NO") + "\n";
         results += "  Disciplines: " + String(clockDiscipline.disciplineCount) + "\n";
-        results += "  Max node offset: " + String(maxOffsetMs, 1) + " ms\n";
     }
 
     // Add quick maps link at top if we have a final position
@@ -1810,7 +1804,7 @@ String calculateTriangulation() {
         results += "  Uncertainty (95%): ±" + String(uncertainty, 1) + "m\n";
         results += "  Error budget: GPS=" + String(gpsPositionError, 1) + "m RSSI=" + 
                 String(rssiDistanceError, 1) + "m Geom=" + String(geometricError, 1) + "m\n";
-        results += "  Sync Status: " + String(syncVerified ? "Verified" : "Degraded") + "\n";
+        results += "  Peer link: " + String(syncVerified ? "OK" : "degraded") + "\n";
         results += "  GPS Quality: " + String(avgHDOP < 2.0 ? "Excellent" :
                                             (avgHDOP < 5.0 ? "Good" : 
                                             (avgHDOP < 10.0 ? "Moderate" : "Poor"))) + "\n\n";
