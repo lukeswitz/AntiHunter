@@ -227,26 +227,26 @@ void applyBandMode() {
     // esp_wifi.h:824/826 - changing country rewrites the soft-AP beacon IE and switches PHY
     // init data, which drops associated clients. Apply once; skip when the band is unchanged.
     static uint8_t appliedBand = 0xFF;
-    if (appliedBand == rfConfig.bandMode) return;
-    if (rfConfig.bandMode != 0) {
-        wifi_country_t c = {};
-        memcpy(c.cc, COUNTRY, 2);
-        c.cc[2] = 0;
-        c.schan = 1;
-        c.nchan = 11;
-        c.max_tx_power = 20;
-        c.policy = WIFI_COUNTRY_POLICY_MANUAL;
-        c.wifi_5g_channel_mask = WIFI_CHANNEL_36 | WIFI_CHANNEL_40 | WIFI_CHANNEL_44 |
-                                 WIFI_CHANNEL_48 | WIFI_CHANNEL_149 | WIFI_CHANNEL_153 |
-                                 WIFI_CHANNEL_157 | WIFI_CHANNEL_161 | WIFI_CHANNEL_165;
-        esp_wifi_set_country(&c);
-    } else {
-        esp_wifi_set_country_code(COUNTRY, true);
+    if (appliedBand != rfConfig.bandMode) {
+        if (rfConfig.bandMode != 0) {
+            wifi_country_t c = {};
+            memcpy(c.cc, COUNTRY, 2);
+            c.cc[2] = 0;
+            c.schan = 1;
+            c.nchan = 11;
+            c.max_tx_power = 20;
+            c.policy = WIFI_COUNTRY_POLICY_MANUAL;
+            c.wifi_5g_channel_mask = WIFI_CHANNEL_36 | WIFI_CHANNEL_40 | WIFI_CHANNEL_44 |
+                                     WIFI_CHANNEL_48 | WIFI_CHANNEL_149 | WIFI_CHANNEL_153 |
+                                     WIFI_CHANNEL_157 | WIFI_CHANNEL_161 | WIFI_CHANNEL_165;
+            esp_wifi_set_country(&c);
+        } else {
+            esp_wifi_set_country_code(COUNTRY, true);
+        }
+        appliedBand = rfConfig.bandMode;
+        Serial.printf("[RF] Band=%u (0=2.4GHz 1=5GHz 2=both) regdomain applied\n", rfConfig.bandMode);
     }
-    appliedBand = rfConfig.bandMode;
-    // Band follows esp_wifi_set_channel; esp_wifi_set_band_mode is not called because a band
-    // change through it re-homes the radio to ch1/ch36 (esp_wifi.h:1711) and drops AP clients.
-    Serial.printf("[RF] Band=%u (0=2.4GHz 1=5GHz 2=both) regdomain applied\n", rfConfig.bandMode);
+    esp_wifi_set_band_mode(rfConfig.bandMode == 0 ? WIFI_BAND_MODE_2G_ONLY : WIFI_BAND_MODE_AUTO);
 #endif
 }
 
