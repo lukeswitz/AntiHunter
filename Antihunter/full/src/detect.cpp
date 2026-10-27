@@ -3200,7 +3200,7 @@ static void sentinelAlwaysOnTask(void *pv) {
         }
     }
     uint8_t apChan = AP_CHANNEL;
-    { uint8_t prim = 0; wifi_second_chan_t sec; if (esp_wifi_get_channel(&prim, &sec) == ESP_OK && prim) apChan = prim; }
+    if (WiFi.getMode() & WIFI_MODE_AP) { uint8_t prim = 0; wifi_second_chan_t sec; if (esp_wifi_get_channel(&prim, &sec) == ESP_OK && prim) apChan = prim; }
     Serial.printf("[SENTINEL] task started ap_ch=%u mode=%s\n", (unsigned)apChan,
                   g_sentinelScanMode.load() ? "scan" : "pin");
     bool weOwn = false;
