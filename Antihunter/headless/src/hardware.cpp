@@ -1881,6 +1881,8 @@ const char *getResetReasonText() {
         case ESP_RST_DEEPSLEEP:return "DEEPSLEEP";
         case ESP_RST_BROWNOUT: return "BROWNOUT";
         case ESP_RST_SDIO:     return "SDIO";
+        case ESP_RST_USB:      return "USB";
+        case ESP_RST_JTAG:     return "JTAG";
         default:               return "UNKNOWN";
     }
 }
