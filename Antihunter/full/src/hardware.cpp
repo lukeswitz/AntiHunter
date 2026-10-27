@@ -613,11 +613,19 @@ static bool commitConfigFile() {
     return true;
 }
 
+static bool s_saveDeferred = false;
+
+void serviceDeferredSave() {
+    if (s_saveDeferred && millis() - lastSaveTime >= SAVE_DEBOUNCE_MS) saveConfiguration();
+}
+
 void saveConfiguration() {
     uint32_t now = millis();
     if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
+        s_saveDeferred = true;
         return;
     }
+    s_saveDeferred = false;
 
     static uint32_t lastCfgSig = 0;
     static bool haveCfgSig = false;
@@ -1077,7 +1085,7 @@ void loadConfiguration() {
         String dj;
         serializeJson(doc["detectors"], dj);
         detect_setConfigFromJson(dj);
-        detect_persistTunables();
+        detect_persistTunablesNvs();
         Serial.println("[CONFIG] Detector/sentinel config applied + persisted");
     }
 

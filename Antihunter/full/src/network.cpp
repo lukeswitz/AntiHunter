@@ -2418,6 +2418,7 @@ void registerRemainingRoutes() {
       if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
       Preferences p;
       if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+      saveConfiguration();
       Serial.printf("[SENTINEL] Boot auto-start set %s\n", on ? "ON" : "OFF");
       r->send(200, "application/json", String("{\"boot\":") + (on ? "true" : "false") + "}");
   });

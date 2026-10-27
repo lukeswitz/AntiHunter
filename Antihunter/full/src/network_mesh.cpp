@@ -2001,6 +2001,7 @@ static void handleSentinelBoot(const String &command)
   bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
   Preferences p;
   if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+  saveConfiguration();
   sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
 

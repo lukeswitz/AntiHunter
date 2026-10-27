@@ -155,6 +155,7 @@ String prefsGetString(const char *key, const String &defaultValue);
 float prefsGetFloat(const char *key, float defaultValue);
 extern unsigned long lastSaveTime;
 void saveConfiguration();
+void serviceDeferredSave();
 void loadConfiguration();
 void syncSettingsToNVS();
 void logToSD(const String &data);

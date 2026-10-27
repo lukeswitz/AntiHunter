@@ -3531,13 +3531,16 @@ void sentinel_setUserEnabled(bool on) {
     { Preferences p; if (p.begin("ahdetect", false)) { p.putBool("sentEn", on); p.end(); } }
     if (!on) {
         Preferences p;
+        bool bootCleared = false;
         if (p.begin("antihunter", false)) {
             if (p.getBool("sentBoot", false)) {
                 p.putBool("sentBoot", false);
+                bootCleared = true;
                 Serial.println("[SENTINEL] Boot auto-start cleared by explicit stop");
             }
             p.end();
         }
+        if (bootCleared) saveConfiguration();
     }
     if (!on && prev) {
         esp_wifi_set_promiscuous(false);
@@ -3581,7 +3584,7 @@ void sentinel_resumeAfterScan() {
     }
 }
 
-void detect_persistTunables() {
+void detect_persistTunablesNvs() {
     Preferences p;
     if (!p.begin("ahdetect", false)) return;
     p.putUShort("pmkidWin", ah_detect::g_pmkidWindow.load());
@@ -3641,6 +3644,11 @@ void detect_persistTunables() {
     p.putBool("detMig5", true);
     p.putBool("trlMig2", true);
     p.end();
+}
+
+void detect_persistTunables() {
+    detect_persistTunablesNvs();
+    saveConfiguration();
 }
 
 void detect_setAttackerTrilat(bool enabled) {

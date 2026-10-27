@@ -408,6 +408,7 @@ void loop() {
         saveConfiguration();
         lastSaveSend = millis();
     }
+    if (!triangulationActive) serviceDeferredSave();
 
     if (millis() - lastHbSend > hbInterval && !triangulationActive) {
         sendNodeIdUpdate();
