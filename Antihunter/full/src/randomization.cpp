@@ -1331,6 +1331,11 @@ void randomizationDetectionTask(void *pv) {
     if (!probeRequestQueue || !authFrameQueue) {
         Serial.printf("[RAND] FATAL: queues not allocated at boot (probe=%p auth=%p heap=%u), aborting\n",
                       probeRequestQueue, authFrameQueue, ESP.getFreeHeap());
+        {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = "Randomization detection failed - out of memory\n";
+        }
+        sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
         scanning = false;
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
@@ -1351,6 +1356,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "Randomization detection failed - prior scan drain timeout\n";
             }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
@@ -1390,7 +1396,16 @@ void randomizationDetectionTask(void *pv) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
         if (currentScanMode == SCAN_BOTH && !pBLEScan) {
-            Serial.println("[RAND] BLE init NULL during radioStartSTA, continuing WiFi-only");
+            Serial.println("[RAND] Abort: BLE init failed in WiFi+BLE mode");
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "Randomization detection failed - BLE init error\n";
+            }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
+            scanning = false;
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
         }
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -1400,6 +1415,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "Randomization detection failed - BLE init error\n";
             }
+            sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:FAILED", true);
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
