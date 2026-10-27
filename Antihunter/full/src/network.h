@@ -87,7 +87,7 @@ void startWebServer();
 void webAuthApply();
 
 // Mesh communication
-void sendMeshNotification(const Hit &hit);
+bool sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void meshSplitSender(const String &line, String &sender, String &payload);

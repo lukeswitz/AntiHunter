@@ -667,7 +667,6 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    std::set<String> transmittedDevices;
     std::set<String> transmittedAnomalies;
     
     framesSeen = 0;
@@ -1131,8 +1130,8 @@ void baselineDetectionTask(void *pv) {
             snapBleDevices = baselineStats.bleDevices;
         }
 
-        uint32_t finalTransmitted = transmittedDevices.size();
-        uint32_t finalRemaining = snapDeviceCount - finalTransmitted;
+        uint32_t finalTransmitted = transmittedAnomalies.size();
+        uint32_t finalRemaining = snapAnomalyCount > finalTransmitted ? snapAnomalyCount - finalTransmitted : 0;
 
         String summary = getNodeId() + ": BASELINE_DONE: Devices=" + String(snapDeviceCount) +
                         " Anomalies=" + String(snapAnomalyCount) +
@@ -1152,7 +1151,6 @@ void baselineDetectionTask(void *pv) {
 
     sdLookupCache.clear();
     sdLookupLRU.clear();
-    transmittedDevices.clear();
     transmittedAnomalies.clear();
 
     scanning = false;
