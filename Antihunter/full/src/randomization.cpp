@@ -1347,8 +1347,10 @@ void randomizationDetectionTask(void *pv) {
         }
         if (meshTxDraining.load()) {
             Serial.println("[RAND] Abort: prior mesh drain >8s");
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = "Randomization detection failed - prior scan drain timeout\n";
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "Randomization detection failed - prior scan drain timeout\n";
+            }
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
@@ -1394,8 +1396,10 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
         if (!radioStartBLEChecked()) {
             Serial.println("[RAND] Abort: BLE init failed in BLE-only mode");
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = "Randomization detection failed - BLE init error\n";
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "Randomization detection failed - BLE init error\n";
+            }
             scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
