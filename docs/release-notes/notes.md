@@ -153,6 +153,9 @@ This applies to all three channels.
 - A node with no campaign or schedule saved no longer logs an error line at boot.
 - A failed vibration auto-scan save showed as INFO and disappeared after 4 seconds. It now shows as an error.
 - Every BLE start leaked about 20 bytes of internal RAM and fragmented the heap. The node created a new scan callback object at each start, and nothing freed it. It now reuses one object. On a C5 over 10 start/stop cycles, free internal RAM after each stop held within 12 bytes, where it had fallen about 21 bytes per cycle.
+- With the start-Sentinel-at-boot flag off, Sentinel still started at the end of the first scan after a reboot if it had been on before the reboot. `SENTINEL_STATUS` showed `en=0` until then. A boot with the flag off now leaves Sentinel off until you start it.
+- The randomized MAC tracer could hang the node when it stopped early: BLE failed to start in BLE-only mode, or the previous scan was still sending results over mesh after 8 seconds. The node then stopped answering commands until a reboot. The tracer now releases the results lock before it stops.
+- `FACTORY_RESET:CONFIG` and the web reset **Settings only, keep captured data** erased the built-in memory but left the settings file on the SD card, so the next boot loaded the old settings again. The reset now also removes that file. Captured data stays on the card.
 
 **Build and release**
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
