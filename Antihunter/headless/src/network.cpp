@@ -1291,13 +1291,14 @@ static void handleStatus(const String &command)
   uint32_t uptime_hours = uptime_mins / 60;
   char status_msg[MAX_MESH_SIZE];
   int written = snprintf(status_msg, sizeof(status_msg),
-                      "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
+                      "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d Rst:%s",
                       nodeId.c_str(),
                       modeStr.c_str(),
                       scanning.load() ? "ACTIVE" : "IDLE",
                       totalHits.load(),
                       esp_temp,
-                      (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+                      (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60),
+                      getResetReasonText());
   if (campaignName()[0] && written > 0 && written < (int)sizeof(status_msg) - 1)
   {
     int n = snprintf(status_msg + written, sizeof(status_msg) - written, " Camp:%s", campaignName());
