@@ -64,6 +64,7 @@ void uartForwardTask(void *parameter) {
           meshSplitSender(meshBuffer, senderId, toProcess);
 
           mesh_observeInbound(senderId, toProcess);
+          detect_fleetObserve(senderId, meshBuffer);
 
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
@@ -106,7 +107,9 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
                 toProcess.startsWith("TOF_PING:") ||
-                toProcess.startsWith("TOF_PONG:")) {
+                toProcess.startsWith("TOF_PONG:") ||
+                toProcess.startsWith("FLEET_AP:") ||
+                toProcess.startsWith("FLEET_RADIO:")) {
               detect_processMesh(senderId, toProcess);
             } else {
               processMeshMessage(meshBuffer);
