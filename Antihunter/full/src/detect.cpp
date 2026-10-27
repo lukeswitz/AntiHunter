@@ -55,6 +55,211 @@ void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) {
 
 bool detect_isSelfApMac(const uint8_t *mac) { return isSelfMac(mac); }
 
+static constexpr uint32_t FLEET_REPEAT_MS = 600000;
+static constexpr uint32_t FLEET_AP_GRACE_MS = 60000;
+static constexpr size_t MAX_FLEET = 16;
+static constexpr size_t FLEET_PREFIX_MAX = 12;
+
+struct FleetRadio {
+    char prefix[FLEET_PREFIX_MAX + 1];
+    char id[8];
+    uint32_t announced;
+    uint32_t logged;
+};
+struct FleetAp {
+    char id[8];
+    uint8_t mac[6];
+    uint32_t logged;
+};
+
+static std::mutex g_fleetMtx;
+static std::vector<FleetRadio> g_fleetRadios;
+static std::vector<FleetAp> g_fleetAps;
+static char g_selfRadioPrefix[FLEET_PREFIX_MAX + 1] = {0};
+static uint32_t g_selfRadioLogged = 0;
+static bool g_fleetDirty = false;
+
+static bool fleetPrefixOk(const String &s) {
+    if (s.length() == 0 || s.length() > FLEET_PREFIX_MAX) return false;
+    for (size_t i = 0; i < s.length(); i++) if (s[i] < 33 || s[i] > 126) return false;
+    return true;
+}
+
+static bool fleetDue(uint32_t last, uint32_t now) {
+    return last == 0 || (now - last) >= FLEET_REPEAT_MS;
+}
+
+static bool fleetNameHasPrefix(const char *name, const char *prefix) {
+    size_t n = strlen(prefix);
+    return n > 0 && strncasecmp(name, prefix, n) == 0 && name[n] == '_';
+}
+
+static FleetRadio &fleetRadioUpsert(const char *prefix, const char *id) {
+    for (auto it = g_fleetRadios.begin(); it != g_fleetRadios.end(); ) {
+        if (strcmp(it->id, id) == 0 && strcmp(it->prefix, prefix) != 0) it = g_fleetRadios.erase(it);
+        else ++it;
+    }
+    for (auto &r : g_fleetRadios) {
+        if (strcmp(r.prefix, prefix) != 0) continue;
+        if (strcmp(r.id, id) != 0) {
+            snprintf(r.id, sizeof(r.id), "%s", id);
+            r.announced = 0;
+            r.logged = 0;
+            g_fleetDirty = true;
+        }
+        return r;
+    }
+    if (g_fleetRadios.size() >= MAX_FLEET) g_fleetRadios.erase(g_fleetRadios.begin());
+    FleetRadio r{};
+    snprintf(r.prefix, sizeof(r.prefix), "%s", prefix);
+    snprintf(r.id, sizeof(r.id), "%s", id);
+    g_fleetRadios.push_back(r);
+    g_fleetDirty = true;
+    return g_fleetRadios.back();
+}
+
+static void fleetSaveIfDirty() {
+    String txt;
+    {
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        if (!g_fleetDirty) return;
+        g_fleetDirty = false;
+        txt = String(g_selfRadioPrefix) + "\n";
+        for (const auto &r : g_fleetRadios) txt += String(r.prefix) + "," + r.id + "\n";
+    }
+    Preferences p;
+    if (p.begin("ahdetect", false)) { p.putString("fleetRad", txt); p.end(); }
+}
+
+void fleet_load(const String &txt) {
+    std::lock_guard<std::mutex> lk(g_fleetMtx);
+    int s = 0;
+    bool first = true;
+    while (s < (int)txt.length()) {
+        int e = txt.indexOf('\n', s);
+        if (e < 0) e = txt.length();
+        String line = txt.substring(s, e);
+        s = e + 1;
+        if (first) {
+            first = false;
+            if (fleetPrefixOk(line)) snprintf(g_selfRadioPrefix, sizeof(g_selfRadioPrefix), "%s", line.c_str());
+            continue;
+        }
+        int c = line.indexOf(',');
+        if (c <= 0) continue;
+        String pre = line.substring(0, c);
+        String id = line.substring(c + 1);
+        if (fleetPrefixOk(pre) && id.length() > 0 && id.length() < 8) fleetRadioUpsert(pre.c_str(), id.c_str());
+    }
+    g_fleetDirty = false;
+}
+
+void detect_fleetObserve(const String &senderId, const String &line) {
+    if (senderId.length() == 0 || senderId == getNodeId() || line.startsWith("[")) return;
+    int p = line.indexOf(": ");
+    if (p <= 0) return;
+    String pre = line.substring(0, p);
+    if (pre == senderId || !fleetPrefixOk(pre)) return;
+    bool announce = false;
+    {
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        const FleetRadio &r = fleetRadioUpsert(pre.c_str(), senderId.c_str());
+        announce = meshEnabled && fleetDue(r.announced, millis());
+    }
+    fleetSaveIfDirty();
+    if (!announce || !sendToSerial1(getNodeId() + ": FLEET_RADIO:" + senderId + ":" + pre, true)) return;
+    std::lock_guard<std::mutex> lk(g_fleetMtx);
+    for (auto &r : g_fleetRadios) if (strcmp(r.prefix, pre.c_str()) == 0) r.announced = millis() | 1;
+}
+
+static void fleetProcessMsg(const String &fromNode, const String &msg) {
+    if (msg.startsWith("FLEET_RADIO:")) {
+        int c = msg.indexOf(':', 12);
+        if (c <= 12) return;
+        String id = msg.substring(12, c);
+        String pre = msg.substring(c + 1);
+        if (id.length() > 7 || !fleetPrefixOk(pre)) return;
+        {
+            std::lock_guard<std::mutex> lk(g_fleetMtx);
+            if (id == getNodeId()) {
+                if (strcmp(g_selfRadioPrefix, pre.c_str()) != 0) {
+                    snprintf(g_selfRadioPrefix, sizeof(g_selfRadioPrefix), "%s", pre.c_str());
+                    g_fleetDirty = true;
+                    Serial.printf("[DETECT] Own radio is %s (from %s)\n", g_selfRadioPrefix, fromNode.c_str());
+                }
+            } else {
+                fleetRadioUpsert(pre.c_str(), id.c_str()).announced = millis() | 1;
+            }
+        }
+        fleetSaveIfDirty();
+    } else if (msg.startsWith("FLEET_AP:")) {
+        uint8_t mac[6];
+        if (fromNode.length() == 0 || fromNode.length() > 7 || fromNode == getNodeId() ||
+            !parseMac6(msg.substring(9), mac)) return;
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        for (auto &a : g_fleetAps) {
+            if (strcmp(a.id, fromNode.c_str()) != 0) continue;
+            memcpy(a.mac, mac, 6);
+            return;
+        }
+        if (g_fleetAps.size() >= MAX_FLEET) g_fleetAps.erase(g_fleetAps.begin());
+        FleetAp a{};
+        snprintf(a.id, sizeof(a.id), "%s", fromNode.c_str());
+        memcpy(a.mac, mac, 6);
+        g_fleetAps.push_back(a);
+    }
+}
+
+static bool fleetApSkip(const uint8_t *bssid) {
+    char who[8] = {0};
+    bool log = false;
+    {
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        for (auto &a : g_fleetAps) {
+            if (memcmp(a.mac, bssid, 6) != 0) continue;
+            snprintf(who, sizeof(who), "%s", a.id);
+            uint32_t now = millis();
+            log = fleetDue(a.logged, now);
+            if (log) a.logged = now | 1;
+            break;
+        }
+    }
+    if (!who[0]) return false;
+    if (log) Serial.printf("[DETECT] EVILTWIN fleet peer %s AP %s - skipped\n", who, macStr(bssid).c_str());
+    return true;
+}
+
+static bool fleetRadioSkip(const char *name) {
+    if (!name[0]) return false;
+    char who[8] = {0};
+    bool log = false;
+    {
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        uint32_t now = millis();
+        if (fleetNameHasPrefix(name, g_selfRadioPrefix)) {
+            snprintf(who, sizeof(who), "self");
+            log = fleetDue(g_selfRadioLogged, now);
+            if (log) g_selfRadioLogged = now | 1;
+        } else {
+            for (auto &r : g_fleetRadios) {
+                if (!fleetNameHasPrefix(name, r.prefix)) continue;
+                snprintf(who, sizeof(who), "%s", r.id);
+                log = fleetDue(r.logged, now);
+                if (log) r.logged = now | 1;
+                break;
+            }
+        }
+    }
+    if (!who[0]) return false;
+    if (log) Serial.printf("[DETECT] RADIO fleet %s %s - skipped\n", who, name);
+    return true;
+}
+
+static bool fleetSendAp() {
+    if (!g_selfApMacValid) return false;
+    return sendToSerial1(getNodeId() + ": FLEET_AP:" + macStr(g_selfApMac), true);
+}
+
 template <typename M, typename F> static void evictOldestBy(M &m, F key) {
     if (m.empty()) return;
     auto oldest = m.begin();
@@ -1286,12 +1491,19 @@ static void handleBeacon(const DetectFrameEvent &e) {
     if (wantEvil) {
         char ssidSelf[33] = {0};
         extractSSID(ie, ieLen, ssidSelf, sizeof(ssidSelf));
-        if (ssidSelf[0] && isSelfSsid(ssidSelf) && !isSelfMac(bssid) && !isSelfMac(p + 10)) {
+        if (ssidSelf[0] && isSelfSsid(ssidSelf) && !isSelfMac(bssid) && !isSelfMac(p + 10) && !fleetApSkip(bssid)) {
             static PsramMap<uint64_t, uint32_t> s_selfCloneSeen;
+            static PsramMap<uint64_t, uint32_t> s_selfCloneFirst;
             uint64_t ck = packMac(bssid);
             uint32_t nowc = millis();
+            auto fit = s_selfCloneFirst.find(ck);
+            if (fit == s_selfCloneFirst.end()) {
+                if (s_selfCloneFirst.size() >= 32) evictOldestTs(s_selfCloneFirst);
+                fit = s_selfCloneFirst.emplace(ck, nowc).first;
+            }
+            bool graceOver = (nowc - fit->second) >= FLEET_AP_GRACE_MS;
             auto sit = s_selfCloneSeen.find(ck);
-            if (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000) {
+            if (graceOver && (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000)) {
                 if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
                 s_selfCloneSeen[ck] = nowc;
                 const char *rsn = hasOpenAuth(ie, ieLen) ? "SELF_CLONE_OPEN" : "SELF_CLONE";
@@ -3005,6 +3217,7 @@ void meshRadioObserve(const uint8_t *mac, uint8_t addrType, uint8_t kind, int8_t
         }
         s.known = knownRadioMatch(mac, addrType, kind, s.name);
         if (s.known) return;
+        if (fleetRadioSkip(s.name)) return;
         if (bleAddrRotates(mac, addrType) && !s.name[0] && (now - s.firstSeen) < MESH_RADIO_NAME_WAIT_MS) return;
         if (s.lastAlert != 0 && (now - s.lastAlert) < MESH_RADIO_REALERT_MS) return;
         s.lastAlert = now;
@@ -3195,6 +3408,7 @@ void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel, forged); }
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
 bool detect_isSelfApMac(const uint8_t *mac)  { return ah_detect::detect_isSelfApMac(mac); }
+void detect_fleetObserve(const String &senderId, const String &line) { ah_detect::detect_fleetObserve(senderId, line); }
 String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
 void attacker_clearHunts()                   { ah_detect::attacker_clearHunts(); }
 void attack_responseArm(const uint8_t *m, const char *t) { ah_detect::attack_responseArm(m, t); }
@@ -3321,6 +3535,7 @@ void initializeDetect() {
             ah_detect::g_meshRadioEnabled.store(p.getBool("mrdOn", false));
             ah_detect::g_meshMeshRadio.store(p.getBool("mMrd", true));
             ah_detect::knownradio_load(p.isKey("knownRad") ? p.getString("knownRad", "") : String());
+            ah_detect::fleet_load(p.isKey("fleetRad") ? p.getString("fleetRad", "") : String());
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
@@ -4004,6 +4219,7 @@ void detectTask(void *pv) {
     loadSnapshot();
     DetectFrameEvent ev;
     uint32_t lastGossip = millis();
+    uint32_t fleetApDue = millis() + 10000;
     uint32_t lastPpsEpochUpdate = 0;
     uint32_t lastAgeSweep = millis();
     uint32_t lastPersist = millis();
@@ -4053,6 +4269,9 @@ void detectTask(void *pv) {
         if (meshEnabled && g_bloomGossipEnabled.load() && now - lastGossip > 300000) {
             lastGossip = now;
             detect_periodicMeshGossip();
+        }
+        if (meshEnabled && (int32_t)(now - fleetApDue) >= 0) {
+            fleetApDue = now + (fleetSendAp() ? FLEET_REPEAT_MS : 15000);
         }
         if (now - lastPersist > 300000) {
             lastPersist = now;
@@ -4334,6 +4553,10 @@ void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi) {
 extern void _detect_recordMeshPeer(const String &fromNode);
 void detect_processMesh(const String &fromNode, const String &msg) {
     _detect_recordMeshPeer(fromNode);
+    if (msg.startsWith("FLEET_")) {
+        ah_detect::fleetProcessMsg(fromNode, msg);
+        return;
+    }
     ah_detect::detect_logIncident(msg, fromNode.c_str());
 
     // === New tool-fingerprint quorum aggregators ===
