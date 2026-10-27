@@ -37,8 +37,6 @@ const size_t MAX_ACK_INFO = 20;
 
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
-static uint32_t g_syncReqMicros = 0;
-static bool g_syncReqValid = false;
 std::vector<TriangulationNode> triangulationNodes;
 std::mutex triangulationMutex;
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
@@ -539,8 +537,6 @@ void broadcastTimeSyncRequest() {
                      String(static_cast<unsigned long>(correctedMicros & 0xFFFFFFFF));
     
     sendToSerial1(syncMsg, false);
-    g_syncReqMicros = micros();
-    g_syncReqValid = true;
     Serial.printf("[SYNC] Broadcast: %lu.%03u (drift-corrected)\n", currentTime, subsecond);
 }
 
@@ -578,14 +574,9 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
     time_t localTime = now.unixtime();
     xSemaphoreGive(rtcMutex);
     
-    (void)milliseconds;
-    int32_t timeOffset = static_cast<int32_t>(localTime - timestamp);
-
-    uint32_t oneWayUs = 0;
-    if (g_syncReqValid) {
-        oneWayUs = (micros() - g_syncReqMicros) / 2;
-        g_syncReqValid = false;
-    }
+    uint32_t rttUs = static_cast<uint32_t>(getCorrectedMicroseconds() & 0xFFFFFFFF) - milliseconds;
+    uint32_t oneWayUs = (rttUs < 120000000u) ? rttUs / 2 : 0;
+    int32_t timeOffset = static_cast<int32_t>(localTime - timestamp) - static_cast<int32_t>((oneWayUs + 500000u) / 1000000u);
     uint32_t offMs = static_cast<uint32_t>(abs(timeOffset)) * 1000u;
 
     {
@@ -2103,8 +2094,11 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     (void)rxMicros;
     int firstColon = message.indexOf(':', 14);
     if (firstColon < 0) return;
+    int secondColon = message.indexOf(':', firstColon + 1);
+    if (secondColon < 0) return;
 
     time_t senderTime = strtoul(message.substring(14, firstColon).c_str(), nullptr, 10);
+    uint32_t senderStamp = strtoul(message.substring(secondColon + 1).c_str(), nullptr, 10);
 
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
     DateTime now = rtc.now();
@@ -2119,7 +2113,7 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     String response = getNodeId() + ": TIME_SYNC_RESP:" +
                     String(static_cast<unsigned long>(myTime)) + ":" +
                     String(mySubsec) + ":" +
-                    String(static_cast<unsigned long>(myMicros & 0xFFFFFFFF));
+                    String(static_cast<unsigned long>(senderStamp));
 
     sendToSerial1(response, false);
 }
