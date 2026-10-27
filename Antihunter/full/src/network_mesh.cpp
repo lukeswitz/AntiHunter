@@ -49,9 +49,9 @@ static std::map<uint64_t, MeshTargetState> meshTargetStates;
 const int RSSI_CHANGE_THRESHOLD = 5;  // dBm
 const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
 const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
-void sendMeshNotification(const Hit &hit) {
-    if (triangulationActive) return;
-    if (!meshEnabled) return;
+bool sendMeshNotification(const Hit &hit) {
+    if (triangulationActive) return false;
+    if (!meshEnabled) return false;
     uint64_t macKey = 0;
     for (int i = 0; i < 6; i++) {
         macKey = (macKey << 8) | hit.mac[i];
@@ -83,10 +83,10 @@ void sendMeshNotification(const Hit &hit) {
         }
     }
     if (!shouldSend) {
-      return;
+      return false;
     }
     if (now - lastMeshSend < meshSendInterval) {
-        return;
+        return false;
     }
     lastMeshSend = now;
     MeshTargetState newState;
@@ -146,7 +146,9 @@ void sendMeshNotification(const Hit &hit) {
     if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
         Serial.printf("[MESH] %s\n", mesh_msg);
         meshEnqueuePrio(String(mesh_msg), PRIO_EVENT);
+        return true;
     }
+    return false;
 }
 
 struct MeshTxItem {
@@ -499,6 +501,17 @@ static bool meshStartScanTask(TaskFunction_t fn, const char *name, uint32_t stac
   return true;
 }
 
+static int parseRadioMode(const String &s)
+{
+  String t = s;
+  t.trim();
+  if (t.length() == 0) return -1;
+  for (size_t i = 0; i < t.length(); i++) {
+    if (!isDigit(t[i])) return -1;
+  }
+  return t.toInt();
+}
+
 static void handleScanStart(const String &command)
 {
   String params = command.substring(11);
@@ -508,7 +521,7 @@ static void handleScanStart(const String &command)
 
   if (modeDelim > 0 && secsDelim > 0)
   {
-    int mode = params.substring(0, modeDelim).toInt();
+    int mode = parseRadioMode(params.substring(0, modeDelim));
     int secs = params.substring(modeDelim + 1, secsDelim).toInt();
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
@@ -745,9 +758,8 @@ static void handleDeviceScanStart(const String &command)
     } else if (tok.startsWith("CH") && tok.length() > 2) {
       chans = tok.substring(2);
     } else if (tok.length()) {
-      int v = tok.toInt();
-      if (field == 0) mode = v;
-      else if (field == 1) secs = v;
+      if (field == 0) mode = parseRadioMode(tok);
+      else if (field == 1) secs = tok.toInt();
     }
     field++;
     if (delim < 0) break;
@@ -872,7 +884,7 @@ static void handleRandomizationStart(const String &command)
 {
   String params = command.substring(20);
   int modeDelim = params.indexOf(':');
-  int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+  int mode = parseRadioMode(params.substring(0, modeDelim > 0 ? modeDelim : params.length()));
   int secs = 60;
   bool forever = false;
 
@@ -911,7 +923,7 @@ static void handleRandomizationStart(const String &command)
 static void handleProbeStart(const String &command)
 {
   int fieldIdx = 0;
-  int mode = 0;
+  int mode = -1;
   int secs = 60;
   bool forever = false;
   bool broadcastAll = false;
@@ -922,7 +934,7 @@ static void handleProbeStart(const String &command)
     field.trim();
 
     if (fieldIdx == 0) {
-      mode = field.toInt();
+      mode = parseRadioMode(field);
     } else if (fieldIdx == 1) {
       secs = field.toInt();
     } else {
@@ -1973,6 +1985,10 @@ static void handleSentinelMode(const String &command)
   String v = command.substring(strlen("SENTINEL_MODE:"));
   v.trim();
   bool scan = v.equalsIgnoreCase("scan");
+  if (!scan && !v.equalsIgnoreCase("defend")) {
+    sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:FAIL", true);
+    return;
+  }
   bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
   if (ok) detect_persistTunables();
   sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);

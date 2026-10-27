@@ -1034,9 +1034,9 @@ void loadConfiguration() {
             prefs.putFloat("calWifi", doc["calWifiRssi"].isNull() ? NAN : doc["calWifiRssi"].as<float>());
             prefs.putFloat("calBle", doc["calBleRssi"].isNull() ? NAN : doc["calBleRssi"].as<float>());
         } else {
-            prefs.remove("calDist");
-            prefs.remove("calWifi");
-            prefs.remove("calBle");
+            for (const char *k : {"calDist", "calWifi", "calBle"}) {
+                if (prefs.isKey(k)) prefs.remove(k);
+            }
         }
     }
 
@@ -2856,10 +2856,12 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
+    sentinel_yieldAndWait(3000);
+
     esp_wifi_set_promiscuous(false);
 
-    esp_bt_controller_disable();
-    Serial.println("[BATTERY_SAVER] BLE disabled");
+    radioReleaseBLE();
+    Serial.println("[BATTERY_SAVER] BLE released");
 
     if (setCpuFrequencyMhz(80)) {
         Serial.printf("[BATTERY_SAVER] CPU frequency reduced to %luMHz\n", (unsigned long)getCpuFrequencyMhz());
@@ -2891,10 +2893,8 @@ void exitBatterySaver() {
         Serial.println("[BATTERY_SAVER] Failed to set CPU frequency");
     }
 
-    esp_bt_controller_enable(ESP_BT_MODE_BLE);
-    Serial.println("[BATTERY_SAVER] BLE re-enabled");
-
     batterySaverEnabled = false;
+    sentinel_resumeAfterScan();
 
     String msg = getNodeId() + ": BATTERY_SAVER: DISABLED";
     sendToSerial1(msg, true);

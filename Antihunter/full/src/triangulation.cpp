@@ -2055,9 +2055,9 @@ void calibrationReset() {
     s_calDist = 0.0f;
     s_calWifiRssi = NAN;
     s_calBleRssi = NAN;
-    prefs.remove("calDist");
-    prefs.remove("calWifi");
-    prefs.remove("calBle");
+    for (const char *k : {"calDist", "calWifi", "calBle"}) {
+        if (prefs.isKey(k)) prefs.remove(k);
+    }
     setRFEnvironment(currentRFEnvironment);
     saveConfiguration();
 }
