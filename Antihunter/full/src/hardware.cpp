@@ -2776,6 +2776,12 @@ bool performConfigReset() {
         return false;
     }
 
+    if (SafeSD::isAvailable()) {
+        for (const char *p : {CONFIG_FILE, CONFIG_BAK_FILE, CONFIG_TMP_FILE})
+            if (SafeSD::exists(p)) SafeSD::remove(p);
+        Serial.println("[RESET] SD config removed");
+    }
+
     Serial.println("[RESET] NVS cleared - SD data preserved");
     return true;
 }
