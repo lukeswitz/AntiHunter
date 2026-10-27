@@ -663,7 +663,11 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 return memcmp(m.bytes.data(), session.mac, 6) == 0;
             });
         if (alreadyLinked) continue;
-        
+
+        if (isGlobalMAC(session.mac) &&
+            std::any_of(identity.macs.begin(), identity.macs.end(),
+                [](const MacAddress& m) { return isGlobalMAC(m.bytes.data()); })) continue;
+
         bool inRotationGap = detectMACRotationGap(identity, now);
         
         int16_t identityRssiSum = 0;
@@ -696,23 +700,30 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         float fingerprintScore = 0.0f;
         uint8_t fpMatches = 0;
         bool fpMatch = false;
-        
+        const uint16_t *cmpFp = identity.signature.ieFingerprint;
+
         if(sessionIsMinimal && identity.signature.hasMinimalSignature) {
-            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprintMinimal, fpMatches);
+            cmpFp = identity.signature.ieFingerprintMinimal;
+            fpMatch = matchFingerprints(session.fingerprint, cmpFp, fpMatches);
         } else if(!sessionIsMinimal && identity.signature.hasFullSignature) {
-            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches);
+            fpMatch = matchFingerprints(session.fingerprint, cmpFp, fpMatches);
         } else if(identity.signature.hasFullSignature && identity.signature.hasMinimalSignature) {
             uint8_t fullMatches = 0, minMatches = 0;
             bool fullMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fullMatches);
             bool minMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprintMinimal, minMatches);
             fpMatch = fullMatch || minMatch;
+            if (minMatches > fullMatches) cmpFp = identity.signature.ieFingerprintMinimal;
             fpMatches = max(fullMatches, minMatches);
         } else {
-            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches);
+            fpMatch = matchFingerprints(session.fingerprint, cmpFp, fpMatches);
         }
-        
+
         if (fpMatch) {
-            fingerprintScore = static_cast<float>(fpMatches) / 5.0f;
+            uint8_t fpFields = 0;
+            for (int i = 0; i < 5; i++) {
+                if (session.fingerprint[i] != 0 || cmpFp[i] != 0) fpFields++;
+            }
+            fingerprintScore = static_cast<float>(fpMatches) / static_cast<float>(fpFields ? fpFields : 1);
         }
         fingerprintScore *= 0.145f;
 
@@ -792,7 +803,9 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                          identity.signature.hasFullSignature ? "F" : "-",
                          identity.signature.hasMinimalSignature ? "M" : "-");
         }
-        
+
+        if (!fpMatch && seqNumScore <= 0.0f && macPrefixScore <= 0.0f && globalMacScore <= 0.0f) continue;
+
         if (score > bestScore) {
             bestScore = score;
             bestIdentityKey = identityEntry.first;
@@ -800,13 +813,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
     }
     
-    float confidenceThreshold = CONFIDENCE_THRESHOLD_ESTABLISHED;
-    
-    if (deviceIdentities.empty() || session.probeCount < 8) {
-        confidenceThreshold = CONFIDENCE_THRESHOLD_NEW_SESSION;
-    }
-    
-    if (bestScore >= confidenceThreshold && !bestIdentityKey.isEmpty()) {
+    if (bestScore >= CONFIDENCE_THRESHOLD_ESTABLISHED && !bestIdentityKey.isEmpty()) {
         DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
         
         if (identity.macs.size() >= MAX_LINKED_MACS_PER_IDENTITY) return;
