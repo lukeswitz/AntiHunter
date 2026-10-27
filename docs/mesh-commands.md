@@ -463,6 +463,8 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `JAMMING:<ch>:noise_rise:<db>` | `db`: how far the noise floor rose above its learned level |
 | `JAMMING_BASELINE:<ch>:silence:<fps>` | `fps`: the channel's usual frames per second |
 | `RADIO_DETECTED:<radio>:<mac>:<rssi>:<name>` | `Meshtastic` `MeshCore`. `name` is empty if the radio has not sent one yet |
+| `FLEET_AP:<mac>` | A Full node sends the MAC address of its own access point about 10 seconds after boot and every 10 minutes. Receiving nodes do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
+| `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 10 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
