@@ -160,7 +160,6 @@ const uint32_t MAC_ROTATION_GAP_MIN = 600000;        // 10 minutes WiFi
 const uint32_t MAC_ROTATION_GAP_MAX = 1209600000;    // 14 days iOS 18
 const uint32_t MAC_ROTATION_GAP_MIN_BLE = 60000;     // 1 minute BLE
 const uint32_t MAC_ROTATION_GAP_MAX_BLE = 900000;    // 15 minutes BLE
-const float CONFIDENCE_THRESHOLD_NEW_SESSION = 0.18f;
 const float CONFIDENCE_THRESHOLD_ESTABLISHED = 0.35f;
 const uint8_t MAC_PREFIX_SIMILARITY_BYTES = 4;
 
