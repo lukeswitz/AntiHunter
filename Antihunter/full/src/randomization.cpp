@@ -910,7 +910,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                      sessionIsMinimal ? "MIN" : "FULL");
         
      } else {
-        if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
+        if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < 32768 || heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 2048) {
             Serial.printf("[RAND] Heap-gate: skip new identity (internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
@@ -1825,7 +1825,7 @@ void randomizationDetectionTask(void *pv) {
         uint32_t linked = 0, skipped = 0;
         for (auto* session : toLink) {
             if (stopRequested) break;
-            if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
+            if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < 32768 || heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 2048) {
                 Serial.printf("[RAND] End-of-scan heap-gate hit (internal:%u), skipping %u remaining\n",
                               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                               (unsigned)(toLink.size() - linked - skipped));
