@@ -1187,7 +1187,16 @@ static void handleAttackerTrilat(const String &command)
 {
   String a = command.substring(16);
   a.trim();
-  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
+  bool digits = a.length() > 0;
+  for (size_t i = 0; i < a.length(); i++) {
+    if (!isDigit(a[i])) { digits = false; break; }
+  }
+  bool en = (digits && a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
+  bool off = (digits && a.toInt() == 0) || a.equalsIgnoreCase("off") || a.equalsIgnoreCase("false");
+  if (!en && !off) {
+    sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:INVALID", true);
+    return;
+  }
   detect_setAttackerTrilat(en);
   sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
 }
