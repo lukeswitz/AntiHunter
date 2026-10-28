@@ -1380,6 +1380,7 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(200));
         if (currentScanMode == SCAN_BOTH && !pBLEScan) {
             Serial.println("[RAND] Abort: BLE init failed in WiFi+BLE mode");
+            radioStopSTA();
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "Randomization detection failed - BLE init error\n";
