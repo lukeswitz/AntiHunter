@@ -3235,7 +3235,15 @@ void processUSBToMesh() {
 #endif
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
-                if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
+                usbBuffer.trim();
+                if (usbBuffer.startsWith("SETTIME:")) {
+                    time_t epoch = usbBuffer.substring(8).toInt();
+                    if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
+                        Serial.println("OK: RTC set");
+                    }
+                } else if (usbBuffer == "FLEET") {
+                    Serial.println(meshFleetJson());
+                } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(usbBuffer).c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
