@@ -309,20 +309,7 @@ void loop() {
 
     markUptimeAlive();
 
-    // Handle serial time setting (always process, even in battery saver)
-    if (Serial.available()) {
-        String cmd = Serial.readStringUntil('\n');
-        cmd.trim();
-        if (cmd.startsWith("SETTIME:")) {
-            time_t epoch = cmd.substring(8).toInt();
-            if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
-                Serial.println("OK: RTC set");
-            }
-        } else if (cmd.length() > 0 && cmd.length() <= MAX_MESH_SIZE) {
-            if (!cmd.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(cmd).c_str());
-            processMeshMessage(cmd);
-        }
-    }
+    processUSBToMesh();
 
     // Battery saver mode - minimal operations
     if (batterySaverEnabled) {
@@ -386,7 +373,6 @@ void loop() {
         checkTamperTimeout();
     }
 
-    processUSBToMesh();
     checkAndSendVibrationAlert();
     serviceVibrationAutoScan();
     scheduleTick();
