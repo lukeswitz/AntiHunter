@@ -86,6 +86,7 @@ This applies to all three channels.
 - A command runs only when its name matches exactly or has a `:` after it. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `BATTERY_SAVER_START` ran on any line that started with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
 - `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START`, and `PROBE_START` reply `<name>_ACK:INVALID` when the radio value is out of range or a field is missing. Before, the node sent no reply and the command looked lost. A radio value that is not a number, such as `PROBE_START:x`, also replies `INVALID`. Before, the node read it as 0 and started a scan.
 - `SENTINEL_MODE` replies `SENTINEL_MODE_ACK:FAIL` for any value other than `scan` or `defend`. Before, any other value set defend.
+- `ATTACKER_TRILAT` replies `ATTACKER_TRILAT_ACK:INVALID` for a value other than `0`, `1`, `on`, or `off`, and leaves the setting unchanged. Before, any other value turned locating off.
 - `LIST_SCAN_DONE` and `BASELINE_DONE` report the real number of alerts sent in `TX`. Before, they always reported `TX=0` and counted every target or device as pending.
 - `CAMPAIGN_START` replies `CAMPAIGN_ACK:INVALID` when the name has characters outside `A-Z a-z 0-9 - _`. Before, it dropped the bad characters and started a campaign under the shortened name.
 - `CONFIG_TARGETS` over mesh splits entries on `|`, because mesh text has no newlines.
@@ -93,6 +94,7 @@ This applies to all three channels.
 - `DETECT_CFG_GET` no longer lists `mesh_guard` twice. `CONFIG_NODEID` no longer prints debug lines.
 - Commands from USB, mesh, and the scheduler run one at a time.
 - One task reads USB serial input. Before, a list scan also read it and could corrupt memory.
+- Full and Headless: a command sent over USB serial could be lost, or run later with part of an earlier command in front of it. The node now reads USB input in one place.
 - Headless replies `<name>_ACK:FAILED` and stops when it cannot create a scan task. Before, it reported `STARTED` while nothing ran.
 - Headless `SUMMARY` reports `Dev:<count>` from the device database, matching Full.
 - Headless `VIBSCAN_SET` reads the interrupt field, and an interrupted scheduled scan resumes.
@@ -102,6 +104,7 @@ This applies to all three channels.
 - Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe. It replies `ERASE_ACK:COMPLETE` or `FAILED` when done, and `BUSY` if a wipe is running.
 - A channel range such as `1..2147483647` (mesh or web) hung the node. Ranges are now limited to 1-255.
 - A Device Scan started with no channel list sweeps this node's share from Reassign or `CHAN_ASSIGN`. Before, the assignment had no effect.
+- Full: after `CONFIG_CHANNELS`, or after a reboot that loads the channel list from the SD card, System tab → **Settings** → **Scanning** → **Wi-Fi channels** showed the old list. It now shows the list the node scans.
 - The node caps the Remote ID claim and channel assignment tables that the mesh fills.
 
 **Detectors, results, and storage**
