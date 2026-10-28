@@ -3123,6 +3123,18 @@ String meshFleetJson() {
     return "{\"node\":\"" + getNodeId() + "\",\"peers\":[" + peers + "],\"radios\":[" + radios + "]}";
 }
 
+std::vector<String> meshFleetAliveNodes() {
+    std::vector<String> out;
+    uint32_t now = millis();
+    if (meshFleetMutex && xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        for (const auto &kv : meshFleet) {
+            if (kv.second.isNode && (now - kv.second.lastHeard) < MESH_FLEET_ALIVE_MS) out.push_back(kv.second.label);
+        }
+        xSemaphoreGive(meshFleetMutex);
+    }
+    return out;
+}
+
 void meshFleetClear() {
     if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
     meshFleet.clear();

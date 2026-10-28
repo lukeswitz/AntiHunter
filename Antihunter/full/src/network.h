@@ -91,6 +91,7 @@ String meshRedactSecrets(const String &line);
 bool spawnSecureErase(const String &reason);
 void meshFleetObserve(const String &sender, const String &payload);
 String meshFleetJson();
+std::vector<String> meshFleetAliveNodes();
 void meshFleetClear();
 void processUSBToMesh();
 void serviceVibrationAutoScan();

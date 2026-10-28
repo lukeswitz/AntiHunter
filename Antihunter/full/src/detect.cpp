@@ -5074,9 +5074,11 @@ void detect_assignChannelPartition() {
     // Coordinator: split 1..14 (2.4 GHz) across confirmed mesh nodes inc. self.
     // Discovery of mesh peers piggybacks on triangulateAcks/heartbeat; we use a
     // simple fallback: any nodeId we've seen recently via quorum.
+    std::vector<String> fleet = meshFleetAliveNodes();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     std::set<String> peers;
     peers.insert(getNodeId());
+    for (auto &n : fleet) peers.insert(n);
     for (auto &kv : g_alerts) for (auto &r : kv.second.reports) peers.insert(r.nodeId);
     if (peers.empty()) return;
     std::vector<String> peerList(peers.begin(), peers.end());
