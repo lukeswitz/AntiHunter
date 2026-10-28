@@ -862,6 +862,7 @@ void loadConfiguration() {
         if (channels.length() > 0) {
             parseChannelsCSV(channels);
             prefs.putString("channels", channels);
+            rfConfig.wifiChannels = channels;
             Serial.println("Loaded channels from SD: " + channels);
         }
     }

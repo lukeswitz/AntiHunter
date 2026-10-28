@@ -359,6 +359,7 @@ static void handleConfigChannels(const String &command)
 {
   String channels = command.substring(16);
   prefs.putString("channels", channels);
+  rfConfig.wifiChannels = channels;
   if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
       parseChannelsCSV(channels);
   }
