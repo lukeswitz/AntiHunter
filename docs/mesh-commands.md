@@ -287,7 +287,7 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `RADIO_KNOWN_ADD` | `RKA` | Marks a Meshtastic or MeshCore radio as known. The node stops alerting on it | `RADIO_KNOWN_ACK:OK:<count>`, `:INVALID`, or `:FAILED:FULL` | `@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic` |
 | `RADIO_KNOWN_DEL` | `RKD` | Removes a radio from the known list | `RADIO_KNOWN_ACK:OK:<count>` or `:INVALID` | `@ALL RADIO_KNOWN_DEL:AA:BB:CC:DD:EE:FF` |
 | `RADIO_KNOWN_CLEAR` | `RKX` | Empties the known list | `RADIO_KNOWN_ACK:OK:0` | `@AH01 RADIO_KNOWN_CLEAR` |
-| `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON` or `:OFF` | `@ALL ATTACKER_TRILAT:1` |
+| `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON`, `:OFF`, or `:INVALID` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | `ATQ` | Reports that setting | `ATTACKER_TRILAT_STATUS: ON` or `OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> meshradio=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |
 
@@ -297,7 +297,7 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `SENTINEL_BOOT` | `0`, `1`, or `on` | `1` or `on` starts Sentinel at power-on | | |
 | `GROUP` | `name:on\|off` | `on`, `1`, or `true` enables. `off`, `0`, or `false` disables. Names are in the table below | | |
 | `INCIDENTS` | `n` | Number of incidents to print. Other values give 20 | 1-200 | 20 |
-| `ATTACKER_TRILAT` | `0`, `1`, `on`, or `off` | Turns locating on or off | | |
+| `ATTACKER_TRILAT` | `0`, `1`, `on`, or `off` | Turns locating on or off. Any other value replies `INVALID` and leaves the setting unchanged | | |
 | `RADIO_KNOWN_ADD` | `mac:type[:name]` | `type` is `Meshtastic` or `MeshCore`. `name` is the radio's Bluetooth name. If you leave it out, the node uses the name it last saw for that MAC | 32 radios, name up to 31 characters | |
 
 A known radio matches by MAC. A radio that changes its Bluetooth address also matches by type and name. A radio with a fixed address that uses a known name still raises an alert. The list survives a reboot. The node waits up to 30 seconds for the name of a radio that changes its address before it alerts.
