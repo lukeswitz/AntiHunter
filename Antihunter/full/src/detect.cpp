@@ -4807,9 +4807,11 @@ uint32_t ppsLastEdgeMicros() { return g_ppsLastEdge; }
 uint64_t getDisciplinedMicros() { return ah_detect::getDisciplinedMicros(); }
 
 void detect_assignChannelPartition() {
+    std::vector<String> fleet = meshFleetAliveNodes();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     std::set<String> peers;
     peers.insert(getNodeId());
+    for (auto &n : fleet) peers.insert(n);
     for (auto &kv : g_alerts) for (auto &r : kv.second.reports) peers.insert(r.nodeId);
     if (peers.empty()) return;
     std::vector<String> peerList(peers.begin(), peers.end());
