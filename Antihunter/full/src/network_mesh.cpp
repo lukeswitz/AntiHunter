@@ -1183,7 +1183,7 @@ static void handleRandomizationStart(const String &command)
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
-      if (!meshStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle)) {
+      if (!meshStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle, true)) {
         sendToSerial1(nodeId + ": RANDOMIZATION_ACK:FAILED", true);
         return;
       }

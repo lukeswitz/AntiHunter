@@ -1706,7 +1706,7 @@ void registerRemainingRoutes() {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                     antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
                 }
-                if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
                     scanning = false;
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
