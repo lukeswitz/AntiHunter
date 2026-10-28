@@ -1376,6 +1376,7 @@ void randomizationDetectionTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        if (currentScanMode == SCAN_WIFI) radioReleaseBLE();
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
         if (currentScanMode == SCAN_BOTH && !pBLEScan) {
