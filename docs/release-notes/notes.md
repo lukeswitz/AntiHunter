@@ -86,6 +86,7 @@ This applies to all three channels.
 - A command runs only when its name matches exactly or has a `:` after it. Before, `INCIDENTS_CLEAR`, `INCIDENTS`, `SD_REPAIR`, `PCAP_LIMITS`, `DETECT_CFG_GET`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `BATTERY_SAVER_START` ran on any line that started with the name (`BATTERY_SAVER_STARTX` started battery saver), and any `CAMPAIGN_` line got a campaign status reply.
 - `SCAN_START`, `DEVICE_SCAN_START`, `RANDOMIZATION_START`, and `PROBE_START` reply `<name>_ACK:INVALID` when the radio value is out of range or a field is missing. Before, the node sent no reply and the command looked lost. A radio value that is not a number, such as `PROBE_START:x`, also replies `INVALID`. Before, the node read it as 0 and started a scan.
 - `SENTINEL_MODE` replies `SENTINEL_MODE_ACK:FAIL` for any value other than `scan` or `defend`. Before, any other value set defend.
+- `SENTINEL_STATUS` reports `en=1`, and `/api/sentinel/status` reports `"enabled":true`, while a scan has paused Sentinel. Before, both reported Sentinel as off during every scan, although it restarted when the scan ended.
 - `ATTACKER_TRILAT` replies `ATTACKER_TRILAT_ACK:INVALID` for a value other than `0`, `1`, `on`, or `off`, and leaves the setting unchanged. Before, any other value turned locating off.
 - `LIST_SCAN_DONE` and `BASELINE_DONE` report the real number of alerts sent in `TX`. Before, they always reported `TX=0` and counted every target or device as pending.
 - `CAMPAIGN_START` replies `CAMPAIGN_ACK:INVALID` when the name has characters outside `A-Z a-z 0-9 - _`. Before, it dropped the bad characters and started a campaign under the shortened name.
@@ -101,6 +102,7 @@ This applies to all three channels.
 - `VIBSCAN_SET` mode 8 (pcap) with a duration of 0 never captured. The node now refuses it.
 - STOP (web and mesh) cancels a pending attack response. Before, a response armed while a scan ran started its capture after STOP, up to 15 minutes later.
 - `TRIANGULATE_STOP` sent while the initiator waits for node ACKs cancels the run and stops the child nodes. Before, the node acknowledged the stop, then sent the cycle start and scanned for the full duration. It refused a new `TRIANGULATE_START` until it finished.
+- A node that had been a child node in one triangulation run, and then coordinated the next run, did not send `TRIANGULATE_STOP` when its run ended. Its child nodes waited 30 seconds for the stop before they left the run. The coordinating node now always sends the stop.
 - Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe. It replies `ERASE_ACK:COMPLETE` or `FAILED` when done, and `BUSY` if a wipe is running.
 - A channel range such as `1..2147483647` (mesh or web) hung the node. Ranges are now limited to 1-255.
 - A Device Scan started with no channel list sweeps this node's share from Reassign or `CHAN_ASSIGN`. Before, the assignment had no effect.
