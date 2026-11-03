@@ -3591,13 +3591,17 @@ bool sentinel_yieldAndWait(uint32_t timeoutMs) {
     return wasRunning;
 }
 
-void sentinel_loadUserPref() {
+bool sentinel_isUserChoiceOn() {
     bool on = false;
 #if AH_SENTINEL
     Preferences p;
     if (p.begin("ahdetect", true)) { on = p.getBool("sentEn", false); p.end(); }
 #endif
-    g_sentinelUserEnabled.store(on);
+    return on;
+}
+
+void sentinel_loadUserPref() {
+    g_sentinelUserEnabled.store(sentinel_isUserChoiceOn());
 }
 
 void sentinel_resumeAfterScan() {
