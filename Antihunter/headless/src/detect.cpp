@@ -4941,6 +4941,17 @@ static void _setu8(const String &b, const char *k, std::atomic<uint8_t> &a) {
     int v = b.substring(colon + 1, colon + 8).toInt();
     if (v > 0 && v <= 255) a.store((uint8_t)v);
 }
+static void _setmask(const String &b, const char *k, std::atomic<uint8_t> &a) {
+    int p = b.indexOf(String("\"") + k + "\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    String s = b.substring(colon + 1, colon + 8);
+    s.trim();
+    if (s.length() == 0 || !isDigit(s[0])) return;
+    int v = s.toInt();
+    if (v >= 0 && v <= 255) a.store((uint8_t)v);
+}
 static void _setu32(const String &b, const char *k, std::atomic<uint32_t> &a) {
     int p = b.indexOf(String("\"") + k + "\"");
     if (p < 0) return;
@@ -4997,7 +5008,7 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu8(b, "jam_nf_db", g_jamNfDb);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
-    _setu8(b, "attack_resp_mask", g_attackRespMask);
+    _setmask(b, "attack_resp_mask", g_attackRespMask);
     _seti(b, "ar_secs_trilat", g_arSecsTrilat);
     _seti(b, "ar_secs_pcap", g_arSecsPcap);
     _seti(b, "ar_secs_device", g_arSecsDevice);

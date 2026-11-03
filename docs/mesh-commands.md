@@ -314,7 +314,7 @@ A `GROUP` name selects these detectors:
 | `devices` | LoRa mesh radios (Meshtastic and MeshCore) |
 | `all` | All of the above |
 
-`DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`.
+`DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`, except for `attack_resp_mask`.
 
 | Keys | Value | Sets |
 |---|---|---|
@@ -336,7 +336,7 @@ A `GROUP` name selects these detectors:
 | `deauth_targeted_thresh` | Deauth frames at one client that raise a targeted-deauth alert | count | 10 |
 | `jam_nf_db` | How far a channel's noise floor must rise above its learned level to raise a Wi-Fi interference alert, from 3 to 30 | dB | 8 |
 | `hunt_cooldown_ms` | Time before the same attacker can start another location hunt | ms | 60000 |
-| `attack_resp_mask` | Follow-up actions after a confirmed attack. Add the values: `2` packet capture, `4` device discovery, `8` probe scan, `16` drone Remote ID scan, `32` stop the running scan to make room. `0` is off, and cannot be set back to `0` with this command | sum | 0 |
+| `attack_resp_mask` | Follow-up actions after a confirmed attack. Add the values: `2` packet capture, `4` device discovery, `8` probe scan, `16` drone Remote ID scan, `32` stop the running scan to make room. `0` turns every follow-up off | sum | 0 |
 | `ar_secs_pcap` | Length of the follow-up capture | s | 120 |
 | `ar_secs_device` `ar_secs_probe` `ar_secs_drone` `ar_secs_trilat` | Length of each other follow-up | s | 60 |
 
