@@ -864,6 +864,7 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     triangulationInitiator = true;
+    triStopCameFromMesh = false;
     reportingSchedule.reset();
 
     // Clear report tracking for new session
