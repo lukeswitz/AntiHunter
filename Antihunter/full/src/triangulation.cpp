@@ -878,6 +878,7 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
     stopRequested = false;
     triOperatorStop.store(false);
     triangulationInitiator = true;
+    triStopCameFromMesh = false;
     reportingSchedule.reset();
 
     // Clear wait tracking for new session
