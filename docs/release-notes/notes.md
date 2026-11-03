@@ -92,6 +92,7 @@ This applies to all three channels.
 - `CAMPAIGN_START` replies `CAMPAIGN_ACK:INVALID` when the name has characters outside `A-Z a-z 0-9 - _`. Before, it dropped the bad characters and started a campaign under the shortened name.
 - `CONFIG_TARGETS` over mesh splits entries on `|`, because mesh text has no newlines.
 - Stable no longer has the mesh aliases `CIM`, `CIE`, `CIC`, `CIQ`, `CIJ`, and `CIR`. They map to CSI commands, which only Beta and Experimental have.
+- `DETECT_CFG` with `"attack_resp_mask":0`, and saving the web UI attack response settings with every follow-up unchecked, turn attack response off. Before, the node ignored a `0`, so attack response stayed on until a factory reset.
 - `DETECT_CFG_GET` no longer lists `mesh_guard` twice. `CONFIG_NODEID` no longer prints debug lines.
 - Commands from USB, mesh, and the scheduler run one at a time.
 - One task reads USB serial input. Before, a list scan also read it and could corrupt memory.
