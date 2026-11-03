@@ -2561,7 +2561,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/sentinel/status", HTTP_GET, [](AsyncWebServerRequest *r) {
-      String j = String("{\"enabled\":") + (sentinel_isUserEnabled() ? "true" : "false") +
+      String j = String("{\"enabled\":") + (sentinel_isUserChoiceOn() ? "true" : "false") +
                  ",\"running\":" + (sentinel_isRunning() ? "true" : "false") +
                  ",\"scanning\":" + (scanning.load() ? "true" : "false") + "}";
       r->send(200, "application/json", j);

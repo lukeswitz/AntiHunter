@@ -233,6 +233,7 @@ void sentinel_startAlwaysOn();
 void sentinel_kill();
 void sentinel_setUserEnabled(bool on);
 bool sentinel_isUserEnabled();
+bool sentinel_isUserChoiceOn();
 bool sentinel_isRunning();
 bool sentinel_yieldAndWait(uint32_t timeoutMs);
 void sentinel_loadUserPref();

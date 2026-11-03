@@ -2297,7 +2297,7 @@ static void handleSentinelOff(const String &command)
 static void handleSentinelStatus(const String &command)
 {
   (void)command;
-  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
+  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserChoiceOn() ? 1 : 0) +
                 " run=" + String(sentinel_isRunning() ? 1 : 0), true);
 }
 
