@@ -15,6 +15,8 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_cpu.h"
+#include "soc/soc_caps.h"
 #include "esp_mac.h"
 #include "esp_random.h"
 #include "bootloader_random.h"
@@ -254,7 +256,241 @@ void randomizeMacAddress() {
 #define AH_HEAP_TRACE 0
 #endif
 #if AH_HEAP_TRACE
+struct HeapScanCtx {
+    uintptr_t prevPtr, prevSize, hStart, hEnd, blk, size, dumpAt, dataAt;
+    uint32_t w0, w1;
+    int kind;
+    uint8_t dump[256];
+    uint8_t data[32];
+};
+
+static void heapScanCopy(uint8_t *dst, size_t n, uintptr_t at, uintptr_t lo, uintptr_t hi) {
+    for (size_t i = 0; i < n; i++) {
+        uintptr_t a = at + i;
+        dst[i] = (a >= lo && a < hi) ? *(volatile uint8_t *)a : 0;
+    }
+}
+
+static bool heapScanWalker(walker_heap_into_t hi, walker_block_info_t bi, void *u) {
+    HeapScanCtx *c = (HeapScanCtx *)u;
+    const uintptr_t lo = (uintptr_t)hi.start, top = (uintptr_t)hi.end, p = (uintptr_t)bi.ptr;
+    int kind = 0;
+    uint32_t w0 = 0, w1 = 0;
+    uintptr_t failAt = p;
+    if (p < lo || p >= top || bi.size > (size_t)(top - p)) {
+        kind = 1;
+    } else if (bi.used && bi.size >= 12) {
+        memcpy(&w0, (const void *)p, 4);
+        memcpy(&w1, (const void *)(p + 4), 4);
+        if (w0 != 0xABBA1234u) {
+            kind = 2;
+        } else if (w1 > bi.size - 12) {
+            kind = 3;
+        } else {
+            uint32_t t;
+            failAt = p + 8 + w1;
+            memcpy(&t, (const void *)failAt, 4);
+            if (t != 0xBAAD5678u) kind = 4;
+        }
+    }
+    if (!kind) {
+        c->prevPtr = p;
+        c->prevSize = bi.size;
+        return true;
+    }
+    c->kind = kind;
+    c->blk = p;
+    c->size = bi.size;
+    c->w0 = w0;
+    c->w1 = w1;
+    c->hStart = lo;
+    c->hEnd = top;
+    c->dumpAt = failAt - 128;
+    c->dataAt = p + 8;
+    heapScanCopy(c->dump, sizeof(c->dump), c->dumpAt, lo, top);
+    heapScanCopy(c->data, sizeof(c->data), c->dataAt, lo, top);
+    return false;
+}
+
+static void heapScanHex(const char *label, uintptr_t at, const uint8_t *b, size_t n) {
+    for (size_t off = 0; off < n; off += 16) {
+        Serial.printf("[HEAPSCAN] %s %08x:", label, (unsigned)(at + off));
+        for (size_t i = 0; i < 16 && off + i < n; i++) Serial.printf(" %02x", b[off + i]);
+        Serial.print("  |");
+        for (size_t i = 0; i < 16 && off + i < n; i++) Serial.print(isprint(b[off + i]) ? (char)b[off + i] : '.');
+        Serial.println("|");
+    }
+}
+
+void allocDump();
+
+void heapScan(const char *tag) {
+    static bool reported = false;
+    if (reported) return;
+    static HeapScanCtx c;
+    memset(&c, 0, sizeof(c));
+    heap_caps_walk(MALLOC_CAP_INTERNAL, heapScanWalker, &c);
+    if (!c.kind) return;
+    reported = true;
+    static const char *const kKind[] = {"", "block-size-out-of-heap", "bad-head-canary", "bad-alloc-size", "bad-tail-canary"};
+    Serial.printf("\n[HEAPSCAN] CORRUPT at=%s ms=%lu kind=%s blk=%08x size=%u head=%08x alloc=%u heap=%08x-%08x prev=%08x prevsize=%u\n",
+                  tag, (unsigned long)millis(), kKind[c.kind], (unsigned)c.blk, (unsigned)c.size,
+                  (unsigned)c.w0, (unsigned)c.w1, (unsigned)c.hStart, (unsigned)c.hEnd,
+                  (unsigned)c.prevPtr, (unsigned)c.prevSize);
+    heapScanHex("fail", c.dumpAt, c.dump, sizeof(c.dump));
+    heapScanHex("data", c.dataAt, c.data, sizeof(c.data));
+    allocDump();
+    Serial.flush();
+}
+
+struct AllocRec {
+    uintptr_t ra, ptr;
+    uint32_t size, caps;
+};
+static AllocRec g_allocRec[32];
+static volatile uint32_t g_allocRecN = 0;
+
+static void *volatile g_wpPtr[SOC_CPU_WATCHPOINTS_NUM];
+static volatile uint32_t g_wpN = 0;
+static volatile uint32_t g_wpSet = 0;
+static volatile uint32_t g_wpCleared = 0;
+
+void wpSelfTest() {
+#ifdef AH_WP_TEST
+    for (int i = SOC_CPU_WATCHPOINTS_NUM - 1; i >= 0; i--) {
+        if (!g_wpPtr[i]) continue;
+        volatile uint32_t *t = (volatile uint32_t *)(((uintptr_t)g_wpPtr[i] + 796) & ~(uintptr_t)3);
+        Serial.printf("[WPTEST] storing to tail %08x\n", (unsigned)(uintptr_t)t);
+        Serial.flush();
+        *t = 0xBAAD5678u;
+        Serial.println("[WPTEST] store returned, watchpoint did not fire");
+        return;
+    }
+    Serial.println("[WPTEST] no watched block");
+#endif
+}
+
+void allocDump() {
+    const uint32_t nrec = g_allocRecN < 32 ? g_allocRecN : 32;
+    Serial.printf("[ALLOCREC] n=%u wpset=%u wpcleared=%u\n", (unsigned)nrec, (unsigned)g_wpSet, (unsigned)g_wpCleared);
+    for (uint32_t i = 0; i < nrec; i++)
+        Serial.printf("[ALLOCREC] ra=%08x ptr=%08x size=%u caps=%08x\n", (unsigned)g_allocRec[i].ra,
+                      (unsigned)g_allocRec[i].ptr, (unsigned)g_allocRec[i].size, (unsigned)g_allocRec[i].caps);
+}
+
+static void allocNote(void *p, size_t size, uint32_t caps, void *ra) {
+    if (size != 796 && (size < 2200 || size > 2232)) return;
+    uint32_t i = __atomic_fetch_add(&g_allocRecN, 1, __ATOMIC_RELAXED);
+    if (i < 32) g_allocRec[i] = {(uintptr_t)ra, (uintptr_t)p, (uint32_t)size, caps};
+    if (size == 796 && p) {
+        uint32_t slot = g_wpN++ % SOC_CPU_WATCHPOINTS_NUM;
+        g_wpPtr[slot] = p;
+        const uintptr_t tail = ((uintptr_t)p + size) & ~(uintptr_t)3;
+        if (esp_cpu_set_watchpoint(slot, (const void *)tail, 4, ESP_CPU_WATCHPOINT_STORE) == ESP_OK) g_wpSet = g_wpSet + 1;
+    }
+}
+
+extern "C" {
+void *__real_heap_caps_malloc(size_t size, uint32_t caps);
+void *__real_heap_caps_calloc(size_t n, size_t size, uint32_t caps);
+void *__real_heap_caps_malloc_prefer(size_t size, size_t num, ...);
+void *__real_heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t caps);
+void *__real_heap_caps_malloc_default(size_t size);
+void __real_heap_caps_free(void *p);
+
+void *__wrap_heap_caps_malloc_default(size_t size) {
+    void *p = __real_heap_caps_malloc_default(size);
+    allocNote(p, size, 0, __builtin_return_address(0));
+    return p;
+}
+void __wrap_heap_caps_free(void *p) {
+    if (p) {
+        for (int i = 0; i < SOC_CPU_WATCHPOINTS_NUM; i++) {
+            if (g_wpPtr[i] == p) {
+                esp_cpu_clear_watchpoint(i);
+                g_wpPtr[i] = nullptr;
+                g_wpCleared = g_wpCleared + 1;
+            }
+        }
+    }
+    __real_heap_caps_free(p);
+}
+
+void *IRAM_ATTR __wrap_heap_caps_malloc(size_t size, uint32_t caps) {
+    void *p = __real_heap_caps_malloc(size, caps);
+    allocNote(p, size, caps, __builtin_return_address(0));
+    return p;
+}
+void *IRAM_ATTR __wrap_heap_caps_calloc(size_t n, size_t size, uint32_t caps) {
+    void *p = __real_heap_caps_calloc(n, size, caps);
+    allocNote(p, n * size, caps, __builtin_return_address(0));
+    return p;
+}
+void *IRAM_ATTR __wrap_heap_caps_malloc_prefer(size_t size, size_t num, uint32_t c1, uint32_t c2, uint32_t c3) {
+    void *p = __real_heap_caps_malloc_prefer(size, num, c1, c2, c3);
+    allocNote(p, size, c1, __builtin_return_address(0));
+    return p;
+}
+void *IRAM_ATTR __wrap_heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t caps) {
+    void *p = __real_heap_caps_aligned_alloc(alignment, size, caps);
+    allocNote(p, size, caps, __builtin_return_address(0));
+    return p;
+}
+}
+
+struct HeapMapEntry {
+    uint32_t off, size, w0, w1, w2, w3;
+    uintptr_t region;
+    bool used;
+};
+struct HeapMapCtx {
+    HeapMapEntry e[96];
+    int n;
+    uint32_t lo, hi;
+};
+
+static bool heapMapWalker(walker_heap_into_t hi, walker_block_info_t bi, void *u) {
+    HeapMapCtx *c = (HeapMapCtx *)u;
+    const uintptr_t p = (uintptr_t)bi.ptr;
+    if (p < (uintptr_t)hi.start || p >= (uintptr_t)hi.end || bi.size > (size_t)(hi.end - p)) return false;
+    const uint32_t off = (uint32_t)(p - (uintptr_t)hi.start);
+    if (off < c->lo || off > c->hi || c->n >= 96) return true;
+    HeapMapEntry &e = c->e[c->n++];
+    e.off = off;
+    e.size = bi.size;
+    e.used = bi.used;
+    e.region = (uintptr_t)hi.start;
+    uint32_t w[4] = {0, 0, 0, 0};
+    memcpy(w, (const void *)p, bi.size >= 16 ? 16 : (bi.size & ~3u));
+    e.w0 = w[0]; e.w1 = w[1]; e.w2 = w[2]; e.w3 = w[3];
+    return true;
+}
+
+static void heapMapDump(const char *tag) {
+    static HeapMapCtx c;
+    memset(&c, 0, sizeof(c));
+    c.lo = 40 * 1024;
+    c.hi = 80 * 1024;
+    heap_caps_walk(MALLOC_CAP_INTERNAL, heapMapWalker, &c);
+    Serial.printf("[HEAPMAP] %s blocks=%d (offset 40-80 KB)\n", tag, c.n);
+    const uint32_t nrec = g_allocRecN < 32 ? g_allocRecN : 32;
+    for (uint32_t i = 0; i < nrec; i++)
+        Serial.printf("[ALLOCREC] %s ra=%08x ptr=%08x off=%d size=%u caps=%08x\n", tag, (unsigned)g_allocRec[i].ra,
+                      (unsigned)g_allocRec[i].ptr,
+                      c.n ? (int)(g_allocRec[i].ptr - c.e[0].region) : -1, (unsigned)g_allocRec[i].size,
+                      (unsigned)g_allocRec[i].caps);
+    for (int i = 0; i < c.n; i++) {
+        const HeapMapEntry &e = c.e[i];
+        Serial.printf("[HEAPMAP] %s reg=%08x off=%6u size=%5u %s %08x %08x %08x %08x\n", tag, (unsigned)e.region,
+                      (unsigned)e.off, (unsigned)e.size, e.used ? "U" : "F", (unsigned)e.w0, (unsigned)e.w1,
+                      (unsigned)e.w2, (unsigned)e.w3);
+    }
+    Serial.flush();
+}
+
 static void heapMark(const char *tag) {
+    heapScan(tag);
+    if (strcmp(tag, "after network+AP+web") == 0 || strcmp(tag, "after DetectTask") == 0) heapMapDump(tag);
     Serial.printf("[HEAPTRACE] %-22s internal=%6u largest=%6u psram=%u\n", tag,
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -424,6 +660,22 @@ void loop() {
     static unsigned long lastHeapCheck = 0;
 
     markUptimeAlive();
+
+#if AH_HEAP_TRACE
+    {
+        static unsigned long lastScan = 0;
+        static bool mapped = false;
+        if (!mapped) {
+            mapped = true;
+            heapScan("loop-first");
+            heapMapDump("loop-first");
+        }
+        if (millis() - lastScan >= (millis() < 90000 ? 100UL : 1000UL)) {
+            heapScan("loop");
+            lastScan = millis();
+        }
+    }
+#endif
 
     if (g_channelsAmended.exchange(false)) saveConfiguration();
 

@@ -220,18 +220,30 @@ void initializeNetwork()
 
   Serial.println("Starting AP...");
 
+#if AH_HEAP_TRACE
+  extern void heapScan(const char *tag);
+#define AH_WIFI_CHK(tag) do { heapScan(tag); Serial.printf("[HEAPCHK] %s ms=%lu\n", tag, (unsigned long)millis()); Serial.flush(); } while (0)
+#else
+#define AH_WIFI_CHK(tag) do {} while (0)
+#endif
+  AH_WIFI_CHK("pre-wifi");
   WiFi.mode(WIFI_AP_STA);
+  AH_WIFI_CHK("after WiFi.mode");
   delay(100);
+  AH_WIFI_CHK("after delay100");
   {
     const esp_err_t stopErr = esp_wifi_stop();
+    AH_WIFI_CHK("after esp_wifi_stop");
     randomizeMacAddress();
     const esp_err_t rateErr = esp_wifi_config_11b_rate(WIFI_IF_AP, true);
     const esp_err_t startErr = esp_wifi_start();
+    AH_WIFI_CHK("after esp_wifi_start");
     Serial.printf("[WIFI] AP 11b rates disabled (OFDM beacons): stop=%s cfg=%s start=%s\n",
                   esp_err_to_name(stopErr), esp_err_to_name(rateErr), esp_err_to_name(startErr));
   }
 
   applyBandMode();
+  AH_WIFI_CHK("after applyBandMode");
 
   customApSsid = prefsGetString("apSsid", AP_SSID);
   customApPass = prefsGetString("apPass", AP_PASS);
@@ -246,6 +258,13 @@ void initializeNetwork()
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, apHidden ? 1 : 0, 4, false,
                           apAuth);
+  AH_WIFI_CHK("after softAP");
+#if AH_HEAP_TRACE
+  extern void allocDump();
+  extern void wpSelfTest();
+  allocDump();
+  wpSelfTest();
+#endif
   {
     wifi_config_t apCfg = {};
     if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK) {
