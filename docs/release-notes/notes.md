@@ -176,6 +176,7 @@ This applies to all three channels.
 - The boot banner and web footer show v1.0.5.
 - The Experimental (C5) boot banner reads `v1.0.5-c5exp1`.
 - Experimental (C5): builds on Arduino core 3.3.12 (ESP-IDF 5.5.5) and NimBLE-Arduino 2.5.1. With core 3.3.8, the C5 BLE controller wrote 4 bytes past the end of a heap block during BLE init (arduino-esp32 issue #12821). Building it needs PlatformIO Core 6.2.0 or later.
+- Experimental (C5): the firmware now resets the Wi-Fi hardware at the start of each boot. Without this, after a reset over USB the Wi-Fi hardware stayed active and kept the memory addresses from the previous run. ESP-IDF issue #19223 reports that this state corrupts memory on the ESP32-C6.
 
 **Flashers**
 - The web flasher and `flashAntihunter.sh` took erase delay, erase cooldown, detection window, setup delay, and vibration scan cooldown in seconds but sent them as milliseconds. A node set up with either tool got timings 1000 times too short, so auto-erase could arm and wipe within a second of a trigger. Both now convert seconds to milliseconds. `flashAntihunter.sh -c` sent these values even with auto-erase off. If you used either tool's settings, flash again with them, or set the values under System → Settings → **Danger zone**.
@@ -192,10 +193,10 @@ App image size compared with the v1.0.4 release bins. Full builds shrink because
 |---|---|---|---|---|
 | Stable full | 2,601,872 B | 2,429,504 B | -172,368 B | 77.8% -> 72.7% |
 | Beta full | 2,787,152 B | 2,487,728 B | -299,424 B | 83.4% -> 74.4% |
-| C5 full | 3,141,952 B | 2,856,656 B | -285,296 B | 74.9% -> 68.1% |
+| C5 full | 3,141,952 B | 2,856,704 B | -285,248 B | 74.9% -> 68.1% |
 | Stable headless | 1,897,584 B | 2,051,312 B | +153,728 B | 56.8% -> 61.4% |
 | Beta headless | 1,966,272 B | 2,098,640 B | +132,368 B | 58.8% -> 62.8% |
-| C5 headless | 2,321,776 B | 2,474,272 B | +152,496 B | 55.4% -> 59.0% |
+| C5 headless | 2,321,776 B | 2,474,320 B | +152,544 B | 55.4% -> 59.0% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 
