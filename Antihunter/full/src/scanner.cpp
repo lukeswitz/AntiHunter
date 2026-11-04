@@ -2375,7 +2375,7 @@ void blueTeamTask(void *pv) {
                         " Deauth=" + String(deauthCount) +
                         " Disassoc=" + String(disassocCount) +
                         " TX=" + String(transmittedAttacks.size());
-        meshEnqueue(summary);
+        meshEnqueuePrio(summary, PRIO_BULK);
         Serial.printf("[BLUE] Detection complete: enqueued %u (total %u attacks)\n",
                      enqueued, totalAttacks);
     }
