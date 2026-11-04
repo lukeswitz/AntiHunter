@@ -1706,8 +1706,10 @@ static void handleBeacon(const DetectFrameEvent &e) {
     // a TSF compare — channel-hop gap, AP rekey, or buffer-reorder dominates.
     bool baselineStale = (b.lastTSFSampleMs == 0) || ((now - b.lastTSFSampleMs) > 30000UL);
 
-    // TSF_RESTART: TSF jumped back to ~0 (cloned-AP reboot / re-init).
-    bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
+    // TSF_RESTART: two backward TSF jumps within 30 s. One jump is an AP reboot.
+    bool tsfJump = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
+    bool tsfRestart = tsfJump && (b.lastTsfJumpMs != 0) && ((now - b.lastTsfJumpMs) < 30000UL);
+    if (tsfJump) b.lastTsfJumpMs = now;
     bool tsfNonMono = twinMultich;
 
     struct SsidWatch {

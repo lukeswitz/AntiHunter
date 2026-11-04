@@ -447,7 +447,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `DEAUTH_AP_TARGETED:<client>:<reason>:<count>` | |
 | `BEACON_FORGE:<bssid>:<reason>:<rssi>` | `FORGE_TSF_STATIC` `FORGE_BI_1000` `FORGE_SRC_MCAST` `FORGE_CSA_FF` `FORGE_QUIET_ELEM` `FORGE_SSID_ROTATE` `FORGE_EVIL_PORTAL` `FORGE_EVIL_PORTAL_ESP` `FORGE_KARMA_BRUCE` |
 | `BEACON_FLOOD:<rssi>` | |
-| `EVILTWIN:<bssid>:<reason>:<rssi>:<ssid>` | `SELF_CLONE` `SELF_CLONE_OPEN` `SSID_COLLISION` `TWIN_MULTICH` `TSF_RESTART` |
+| `EVILTWIN:<bssid>:<reason>:<rssi>:<ssid>` | `SELF_CLONE` `SELF_CLONE_OPEN` `SSID_COLLISION` `TWIN_MULTICH` |
 | `PROBE_FLOOD:<kind>:<what>:<rssi>` | `RANDOMIZED` `SINGLE_MAC` `MARAUDER` |
 | `PROBE_FLOOD_BEHAVE:<ssid>:src=<n>:<rssi>` and `PROBE_FLOOD_AP:...` | |
 | `FRAG:<src>:<reason>` | `PN_GAP` `MIXED_PLAIN` |
