@@ -824,6 +824,7 @@ void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_
         if (w.alerted) continue;
         uint32_t latencyMs = now - w.ts;
         if (!w.forged && latencyMs > EAPOL_BAIT_FAST_MS) continue;
+        if (!w.forged && w.deauthCount < 2) continue;
         w.alerted = true;
         const char *confidence = (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) ? "high" : "medium";
         char srcBuf[18], dstBuf[18];
@@ -1507,7 +1508,14 @@ static void handleBeacon(const DetectFrameEvent &e) {
             }
             bool graceOver = (nowc - fit->second) >= FLEET_AP_GRACE_MS;
             auto sit = s_selfCloneSeen.find(ck);
-            if (graceOver && (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000)) {
+            bool defaultSsidAp = !hasOpenAuth(ie, ieLen) && strcmp(ssidSelf, AP_SSID) == 0;
+            if (defaultSsidAp) {
+                if (sit == s_selfCloneSeen.end() || (nowc - sit->second) >= FLEET_REPEAT_MS) {
+                    if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
+                    s_selfCloneSeen[ck] = nowc;
+                    Serial.printf("[DETECT] EVILTWIN %s uses the default SSID with encryption - skipped\n", macStr(bssid).c_str());
+                }
+            } else if (graceOver && (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000)) {
                 if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
                 s_selfCloneSeen[ck] = nowc;
                 const char *rsn = hasOpenAuth(ie, ieLen) ? "SELF_CLONE_OPEN" : "SELF_CLONE";
