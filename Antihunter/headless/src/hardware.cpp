@@ -155,12 +155,13 @@ bool SafeSD::checkAvailability() {
     static std::mutex sdCheckMutex;
     std::lock_guard<std::mutex> lock(sdCheckMutex);
     uint32_t now = millis();
-    if (now - lastCheckTime < CHECK_INTERVAL_MS) {
+    const uint32_t retryMs = CHECK_INTERVAL_MS << (sdMountFailures < 5 ? sdMountFailures : 5);
+    if (lastCheckTime != 0 && now - lastCheckTime < retryMs) {
         return lastCheckResult;
     }
-    lastCheckTime = now;
     const bool was = lastCheckResult;
     lastCheckResult = SD.begin(SD_CS_PIN, SPI, sdMountedHz);
+    lastCheckTime = millis();
     sdAvailable = lastCheckResult;
     if (!lastCheckResult) {
         sdMountFailures++;
