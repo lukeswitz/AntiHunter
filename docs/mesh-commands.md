@@ -467,6 +467,8 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 10 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
+A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 10 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
+
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
 
 </details>

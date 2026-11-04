@@ -815,6 +815,7 @@ void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_
         if (w.alerted) continue;
         uint32_t latencyMs = now - w.ts;
         if (!w.forged && latencyMs > EAPOL_BAIT_FAST_MS) continue;
+        if (!w.forged && w.deauthCount < 2) continue;
         w.alerted = true;
         const char *confidence = (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) ? "high" : "medium";
         char srcBuf[18], dstBuf[18];
