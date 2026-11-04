@@ -1577,7 +1577,9 @@ static void handleBeacon(const DetectFrameEvent &e) {
 
     bool baselineStale = (b.lastTSFSampleMs == 0) || ((now - b.lastTSFSampleMs) > 30000UL);
 
-    bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
+    bool tsfJump = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
+    bool tsfRestart = tsfJump && (b.lastTsfJumpMs != 0) && ((now - b.lastTsfJumpMs) < 30000UL);
+    if (tsfJump) b.lastTsfJumpMs = now;
     bool tsfNonMono = twinMultich;
 
     struct SsidWatch {

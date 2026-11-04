@@ -41,6 +41,7 @@ struct ApBaseline {
     uint32_t chanAMs;
     uint32_t chanBMs;
     uint32_t lastMultichEmitMs;
+    uint32_t lastTsfJumpMs;
 };
 
 struct TofPendingPing {
