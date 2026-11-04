@@ -632,7 +632,7 @@ static void handleScanStart(const String &command)
         stopRequested = false;
         scanning = true;
         listScanTriMode = false;
-        if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
             scanning = false;
             workerTaskHandle = nullptr;
             scanSetCountdown(0, false);
@@ -941,7 +941,7 @@ static void handleDroneStart(const String &command)
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     scanning = true;
-    if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+    if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
         scanning = false;
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
@@ -1160,7 +1160,7 @@ static void handleDeauthStart(const String &command)
   } else {
     stopRequested = false;
     scanning = true;
-    if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1) != pdPASS) {
+    if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1, true) != pdPASS) {
         scanning = false;
         blueTeamTaskHandle = nullptr;
         scanSetCountdown(0, false);
@@ -1203,7 +1203,7 @@ static void handleRandomizationStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
       scanning = true;
-      if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+      if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
           scanning = false;
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);
@@ -1266,7 +1266,7 @@ static void handleProbeStart(const String &command)
     stopRequested = false;
     scanning = true;
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
-    if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+    if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
         scanning = false;
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
@@ -1672,7 +1672,7 @@ static void triStartParticipantScan()
   Serial.printf("[TRIANGULATE] Starting participant scan task (duration=%us)\n", triangulationDuration);
   listScanTriMode = true;
   if (ahCreateTask(listScanTask, "triangulate", 8192,
-                   reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+                   reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1, true) != pdPASS) {
     scanning = false;
     workerTaskHandle = nullptr;
     scanSetCountdown(0, false);

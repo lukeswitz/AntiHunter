@@ -746,7 +746,7 @@ void coordinatorSetupTask(const void *parameter) {
     if (!workerTaskHandle) {
         listScanTriMode = true;
         if (ahCreateTask(listScanTask, "triangulate", 8192,
-                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1, true) != pdPASS) {
             workerTaskHandle = nullptr;
             triAbortCleanup("scan task create failed - aborting setup");
             vTaskDelete(NULL);

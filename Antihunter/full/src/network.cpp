@@ -595,7 +595,7 @@ void startWebServer()
       
       if (!workerTaskHandle) {
           scanning = true;
-          if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+          if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
               scanning = false;
               workerTaskHandle = nullptr;
               scanSetCountdown(0, false);
@@ -1231,7 +1231,7 @@ void registerRemainingRoutes() {
         
         if (!workerTaskHandle) {
             scanning = true;
-            if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+            if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
                 scanning = false;
                 workerTaskHandle = nullptr;
                 scanSetCountdown(0, false);
@@ -1674,7 +1674,7 @@ void registerRemainingRoutes() {
             
             if (!blueTeamTaskHandle) {
                 scanning = true;
-                if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1) != pdPASS) {
+                if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1, true) != pdPASS) {
                     scanning = false;
                     blueTeamTaskHandle = nullptr;
                     scanSetCountdown(0, false);
@@ -1807,7 +1807,7 @@ void registerRemainingRoutes() {
                 currentScanMode = (ScanMode)scanMode;
                 scanning = true;
                 probeBroadcastAll.store(broadcastAll);
-                if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
                     scanning = false;
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
@@ -1834,7 +1834,7 @@ void registerRemainingRoutes() {
             if (!workerTaskHandle) {
                 currentScanMode = dMode;
                 scanning = true;
-                if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {
                     scanning = false;
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);

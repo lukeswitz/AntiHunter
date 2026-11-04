@@ -629,7 +629,7 @@ static void handleScanStart(const String &command)
         currentScanMode = (ScanMode)mode;
         parseChannelsCSV(channels);
         stopRequested = false;
-        if (!meshStartScanTask(listScanTask, "scan", 8192, secs, forever, &workerTaskHandle)) {
+        if (!meshStartScanTask(listScanTask, "scan", 8192, secs, forever, &workerTaskHandle, true)) {
           sendToSerial1(nodeId + ": SCAN_ACK:FAILED", true);
           return;
         }
@@ -929,7 +929,7 @@ static void handleDroneStart(const String &command)
   } else {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
-    if (!meshStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle)) {
+    if (!meshStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle, true)) {
       sendToSerial1(nodeId + ": DRONE_ACK:FAILED", true);
       return;
     }
@@ -962,7 +962,7 @@ static void handleDeauthStart(const String &command)
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
     stopRequested = false;
-    if (!meshStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle)) {
+    if (!meshStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle, true)) {
       sendToSerial1(nodeId + ": DEAUTH_ACK:FAILED", true);
       return;
     }
@@ -1241,7 +1241,7 @@ static void handleProbeStart(const String &command)
     currentScanMode = static_cast<ScanMode>(mode);
     stopRequested = false;
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
-    if (!meshStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle)) {
+    if (!meshStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle, true)) {
       sendToSerial1(nodeId + ": PROBE_ACK:FAILED", true);
       return;
     }
@@ -1497,7 +1497,7 @@ static void triStartParticipantScan()
   scanning = true;
   Serial.printf("[TRIANGULATE] Starting participant scan task (duration=%us)\n", triangulationDuration);
   if (ahCreateTask(listScanTask, "triangulate", 8192,
-                   reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+                   reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1, true) != pdPASS) {
     scanning = false;
     workerTaskHandle = nullptr;
     scanSetCountdown(0, false);
