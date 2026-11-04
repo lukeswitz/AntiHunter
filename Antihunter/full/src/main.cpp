@@ -21,6 +21,49 @@
 #include "esp_random.h"
 #include "bootloader_random.h"
 
+#ifdef ARDUINO_XIAO_ESP32C5
+#include "esp_private/startup_internal.h"
+#endif
+#if defined(ARDUINO_XIAO_ESP32C5) && !defined(AH_NO_MAC_BOOT_RESET)
+#include "hal/modem_syscon_ll.h"
+
+ESP_SYSTEM_INIT_FN(ah_mac_boot_reset, CORE, BIT(0), 2)
+{
+    modem_syscon_ll_reset_wifimac(&MODEM_SYSCON);
+    return ESP_OK;
+}
+#endif
+#if defined(ARDUINO_XIAO_ESP32C5) && AH_HEAP_TRACE
+static uint32_t g_macBeforeHeap[5], g_macAfterHeap[5];
+
+static void macRegsRead(uint32_t *out) {
+    for (int i = 0; i < 5; i++) out[i] = *(volatile uint32_t *)(0x600A4080u + 4u * i);
+}
+
+ESP_SYSTEM_INIT_FN(ah_mac_before_heap, CORE, BIT(0), 99)
+{
+    macRegsRead(g_macBeforeHeap);
+    return ESP_OK;
+}
+
+ESP_SYSTEM_INIT_FN(ah_mac_after_heap, CORE, BIT(0), 104)
+{
+    macRegsRead(g_macAfterHeap);
+    return ESP_OK;
+}
+
+void macRegsPrint(const char *tag) {
+    uint32_t now[5];
+    macRegsRead(now);
+    Serial.printf("[MACREG] %s rst=%d before_heap: %08x %08x %08x %08x %08x after_heap: %08x %08x %08x %08x %08x now: %08x %08x %08x %08x %08x\n",
+                  tag, (int)esp_reset_reason(),
+                  (unsigned)g_macBeforeHeap[0], (unsigned)g_macBeforeHeap[1], (unsigned)g_macBeforeHeap[2], (unsigned)g_macBeforeHeap[3], (unsigned)g_macBeforeHeap[4],
+                  (unsigned)g_macAfterHeap[0], (unsigned)g_macAfterHeap[1], (unsigned)g_macAfterHeap[2], (unsigned)g_macAfterHeap[3], (unsigned)g_macAfterHeap[4],
+                  (unsigned)now[0], (unsigned)now[1], (unsigned)now[2], (unsigned)now[3], (unsigned)now[4]);
+    Serial.flush();
+}
+#endif
+
 #ifndef AH_EXTMEM_THRESHOLD
 #define AH_EXTMEM_THRESHOLD 16
 #endif

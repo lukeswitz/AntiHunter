@@ -18,6 +18,17 @@
 #include "esp_random.h"
 #include "bootloader_random.h"
 
+#ifdef ARDUINO_XIAO_ESP32C5
+#include "esp_private/startup_internal.h"
+#include "hal/modem_syscon_ll.h"
+
+ESP_SYSTEM_INIT_FN(ah_mac_boot_reset, CORE, BIT(0), 2)
+{
+    modem_syscon_ll_reset_wifimac(&MODEM_SYSCON);
+    return ESP_OK;
+}
+#endif
+
 #ifndef AH_EXTMEM_THRESHOLD
 #define AH_EXTMEM_THRESHOLD 16
 #endif

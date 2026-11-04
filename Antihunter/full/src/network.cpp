@@ -226,6 +226,10 @@ void initializeNetwork()
 #else
 #define AH_WIFI_CHK(tag) do {} while (0)
 #endif
+#if AH_HEAP_TRACE
+  extern void macRegsPrint(const char *tag);
+  macRegsPrint("pre-wifi");
+#endif
   AH_WIFI_CHK("pre-wifi");
   WiFi.mode(WIFI_AP_STA);
   AH_WIFI_CHK("after WiFi.mode");
@@ -262,6 +266,7 @@ void initializeNetwork()
 #if AH_HEAP_TRACE
   extern void allocDump();
   extern void wpSelfTest();
+  macRegsPrint("after-softAP");
   allocDump();
   wpSelfTest();
 #endif
