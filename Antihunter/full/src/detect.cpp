@@ -57,6 +57,7 @@ bool detect_isSelfApMac(const uint8_t *mac) { return isSelfMac(mac); }
 
 static constexpr uint32_t FLEET_REPEAT_MS = 600000;
 static constexpr uint32_t FLEET_AP_GRACE_MS = 60000;
+static constexpr uint32_t FLEET_AP_ANSWER_MS = 30000;
 static constexpr size_t MAX_FLEET = 16;
 static constexpr size_t FLEET_PREFIX_MAX = 12;
 
@@ -78,6 +79,7 @@ static std::vector<FleetAp> g_fleetAps;
 static char g_selfRadioPrefix[FLEET_PREFIX_MAX + 1] = {0};
 static uint32_t g_selfRadioLogged = 0;
 static bool g_fleetDirty = false;
+static std::atomic<bool> g_fleetApAnswer{false};
 
 static bool fleetPrefixOk(const String &s) {
     if (s.length() == 0 || s.length() > FLEET_PREFIX_MAX) return false;
@@ -199,6 +201,7 @@ static void fleetProcessMsg(const String &fromNode, const String &msg) {
         std::lock_guard<std::mutex> lk(g_fleetMtx);
         for (auto &a : g_fleetAps) {
             if (strcmp(a.id, fromNode.c_str()) != 0) continue;
+            if (memcmp(a.mac, mac, 6) != 0) g_fleetApAnswer.store(true);
             memcpy(a.mac, mac, 6);
             return;
         }
@@ -207,6 +210,7 @@ static void fleetProcessMsg(const String &fromNode, const String &msg) {
         snprintf(a.id, sizeof(a.id), "%s", fromNode.c_str());
         memcpy(a.mac, mac, 6);
         g_fleetAps.push_back(a);
+        g_fleetApAnswer.store(true);
     }
 }
 
@@ -4002,6 +4006,7 @@ void detectTask(void *pv) {
     DetectFrameEvent ev;
     uint32_t lastGossip = millis();
     uint32_t fleetApDue = millis() + 10000;
+    uint32_t fleetApSent = millis();
     uint32_t lastPpsEpochUpdate = 0;
     uint32_t lastAgeSweep = millis();
     uint32_t lastPersist = millis();
@@ -4049,8 +4054,10 @@ void detectTask(void *pv) {
             lastGossip = now;
             detect_periodicMeshGossip();
         }
+        if (meshEnabled && now - fleetApSent >= FLEET_AP_ANSWER_MS && g_fleetApAnswer.exchange(false)) fleetApDue = now;
         if (meshEnabled && (int32_t)(now - fleetApDue) >= 0) {
             fleetApDue = now + (fleetSendAp() ? FLEET_REPEAT_MS : 15000);
+            fleetApSent = now;
         }
         if (now - lastPersist > 300000) {
             lastPersist = now;
