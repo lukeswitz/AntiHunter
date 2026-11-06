@@ -214,6 +214,8 @@ void sentinel_resumeAfterScan();
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
 bool detect_isSelfApMac(const uint8_t *mac);
 void detect_fleetObserve(const String &senderId, const String &line);
+bool detect_setSelfRadio(const String &prefix);
+String detect_getSelfRadio();
 
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,

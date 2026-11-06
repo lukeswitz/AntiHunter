@@ -2183,7 +2183,7 @@ static bool meshIsResponse(const String &payload)
     "DETECT_JSON_ACK", "DETECT_JSON_LEN:", "DETECT_CLEAR_ACK", "DETECT_COUNTS: ",
     "DETECT_VERBOSE_ACK", "TOF_PING_ACK", "KARMA_ACK", "HUNT_COOLDOWN_ACK", "QUORUM_ACK",
     "ATTACK_RESPONSE_ACK", "PCAP_AUTO_ACK", "PCAP_DELETE_ACK", "CALIBRATE_ACK", "CALIBRATE_DONE:",
-    "RADIO_KNOWN_ACK"
+    "RADIO_KNOWN_ACK", "SELF_RADIO_ACK"
   };
   for (const char *p : kResponses) {
     if (payload.startsWith(p)) return true;
@@ -2292,6 +2292,7 @@ static const char *const kCmdAliases[][2] = {
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
   {"CAL", "CALIBRATE"},           {"CALX", "CALIBRATE_RESET"},
   {"RKA", "RADIO_KNOWN_ADD"},     {"RKD", "RADIO_KNOWN_DEL"},        {"RKX", "RADIO_KNOWN_CLEAR"},
+  {"SRS", "SELF_RADIO_SET"},      {"SRC", "SELF_RADIO_CLEAR"},      {"SRG", "SELF_RADIO_GET"},
 };
 
 static String meshExpandCommand(const String &cmd)
@@ -2451,6 +2452,9 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("RADIO_KNOWN_ADD:"))      handleRadioKnownAdd(command);
   else if (command.startsWith("RADIO_KNOWN_DEL:"))      handleRadioKnownDel(command);
   else if (command == "RADIO_KNOWN_CLEAR")              sendKnownRadioAck(knownradio_clear());
+  else if (command.startsWith("SELF_RADIO_SET:"))       sendToSerial1(nodeId + ": SELF_RADIO_ACK:" + (detect_setSelfRadio(command.substring(strlen("SELF_RADIO_SET:"))) ? "OK" : "INVALID"), true);
+  else if (command == "SELF_RADIO_CLEAR")               { detect_setSelfRadio(""); sendToSerial1(nodeId + ": SELF_RADIO_ACK:CLEARED", true); }
+  else if (command == "SELF_RADIO_GET")                 { String p = detect_getSelfRadio(); sendToSerial1(nodeId + ": SELF_RADIO_ACK:" + (p.length() ? p : String("NONE")), true); }
   else if (cmdIs(command, "INCIDENTS"))                 handleIncidents(command);
   else if (command == "DETECT_COUNTS")                  handleDetectCounts(command);
 #endif
