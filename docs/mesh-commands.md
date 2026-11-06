@@ -287,6 +287,9 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `RADIO_KNOWN_ADD` | `RKA` | Marks a Meshtastic or MeshCore radio as known. The node stops alerting on it | `RADIO_KNOWN_ACK:OK:<count>`, `:INVALID`, or `:FAILED:FULL` | `@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic` |
 | `RADIO_KNOWN_DEL` | `RKD` | Removes a radio from the known list | `RADIO_KNOWN_ACK:OK:<count>` or `:INVALID` | `@ALL RADIO_KNOWN_DEL:AA:BB:CC:DD:EE:FF` |
 | `RADIO_KNOWN_CLEAR` | `RKX` | Empties the known list | `RADIO_KNOWN_ACK:OK:0` | `@AH01 RADIO_KNOWN_CLEAR` |
+| `SELF_RADIO_SET` | `SRS` | Sets the Bluetooth name prefix of the node's own radio. The node stops alerting on a radio whose name starts with that prefix. Use it when no other node is nearby to identify the radio | `SELF_RADIO_ACK:OK` or `:INVALID` | `@AH01 SELF_RADIO_SET:Meshtastic` |
+| `SELF_RADIO_CLEAR` | `SRC` | Forgets the prefix set by `SELF_RADIO_SET` | `SELF_RADIO_ACK:CLEARED` | `@AH01 SELF_RADIO_CLEAR` |
+| `SELF_RADIO_GET` | `SRG` | Reports the current self radio prefix | `SELF_RADIO_ACK:<prefix>` or `:NONE` | `@AH01 SELF_RADIO_GET` |
 | `ATTACKER_TRILAT` | `AT` | Turns on locating the source of a confirmed attack by triangulation | `ATTACKER_TRILAT_ACK:ON`, `:OFF`, or `:INVALID` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | `ATQ` | Reports that setting | `ATTACKER_TRILAT_STATUS: ON` or `OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `DETECT_COUNTS` | `DCN` | Reports internal detector counters | `DETECT_COUNTS: karmaCand=<n> karmaConf=<n> pwna=<n> meshradio=<n> tsf=<n> pg=<n> tof=<n> hunts=<n> hshk=<n> peers=<n> arPending=<n>` | `@AH01 DETECT_COUNTS` |
@@ -299,8 +302,11 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `INCIDENTS` | `n` | Number of incidents to print. Other values give 20 | 1-200 | 20 |
 | `ATTACKER_TRILAT` | `0`, `1`, `on`, or `off` | Turns locating on or off. Any other value replies `INVALID` and leaves the setting unchanged | | |
 | `RADIO_KNOWN_ADD` | `mac:type[:name]` | `type` is `Meshtastic` or `MeshCore`. `name` is the radio's Bluetooth name. If you leave it out, the node uses the name it last saw for that MAC | 32 radios, name up to 31 characters | |
+| `SELF_RADIO_SET` | `prefix` | The first characters of the node's own radio's Bluetooth name | 1 to 12 characters | |
 
 A known radio matches by MAC. A radio that changes its Bluetooth address also matches by type and name. A radio with a fixed address that uses a known name still raises an alert. The list survives a reboot. The node waits up to 30 seconds for the name of a radio that changes its address before it alerts.
+
+A node that has another node nearby learns the name of its own radio from that node and stops alerting on it. A node on its own takes that name prefix from `SELF_RADIO_SET`. The prefix survives a reboot.
 
 A `GROUP` name selects these detectors:
 

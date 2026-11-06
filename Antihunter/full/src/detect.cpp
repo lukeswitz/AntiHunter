@@ -156,6 +156,24 @@ void fleet_load(const String &txt) {
     g_fleetDirty = false;
 }
 
+bool detect_setSelfRadio(const String &prefix) {
+    bool ok;
+    {
+        std::lock_guard<std::mutex> lk(g_fleetMtx);
+        if (prefix.length() == 0) { g_selfRadioPrefix[0] = 0; ok = true; }
+        else if (fleetPrefixOk(prefix)) { snprintf(g_selfRadioPrefix, sizeof(g_selfRadioPrefix), "%s", prefix.c_str()); ok = true; }
+        else ok = false;
+        if (ok) g_fleetDirty = true;
+    }
+    if (ok) fleetSaveIfDirty();
+    return ok;
+}
+
+String detect_getSelfRadio() {
+    std::lock_guard<std::mutex> lk(g_fleetMtx);
+    return String(g_selfRadioPrefix);
+}
+
 void detect_fleetObserve(const String &senderId, const String &line) {
     if (senderId.length() == 0 || senderId == getNodeId() || line.startsWith("[")) return;
     int p = line.indexOf(": ");
@@ -3431,6 +3449,8 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
 bool detect_isSelfApMac(const uint8_t *mac)  { return ah_detect::detect_isSelfApMac(mac); }
 void detect_fleetObserve(const String &senderId, const String &line) { ah_detect::detect_fleetObserve(senderId, line); }
+bool detect_setSelfRadio(const String &prefix) { return ah_detect::detect_setSelfRadio(prefix); }
+String detect_getSelfRadio() { return ah_detect::detect_getSelfRadio(); }
 String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
 void attacker_clearHunts()                   { ah_detect::attacker_clearHunts(); }
 void attack_responseArm(const uint8_t *m, const char *t) { ah_detect::attack_responseArm(m, t); }

@@ -2074,6 +2074,7 @@ void blueTeamTask(void *pv) {
     const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
 
+    ScanMode prevScanMode = currentScanMode;
     currentScanMode = SCAN_WIFI;
     radioStartSTA();
     vTaskDelay(pdMS_TO_TICKS(200));
@@ -2337,6 +2338,7 @@ void blueTeamTask(void *pv) {
     Serial.println("[BLUE] Deauth detection stopped cleanly");
 
     radioStopSTA();
+    currentScanMode = prevScanMode;
     vTaskDelay(pdMS_TO_TICKS(200));
 
     floodWin.clear();
