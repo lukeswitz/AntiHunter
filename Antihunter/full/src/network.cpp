@@ -1,4 +1,5 @@
 #include "network.h"
+#include "meshcore_link.h"
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -176,7 +177,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
     if (millis() - s_radioLastTxMs >= MESH_RADIO_READ_IDLE_MS) s_radioBurstBytes = 0;
 
-    Serial1.println(message);
+    if (g_meshcoreTransport) meshcoreWriteText(message);
+    else Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
 
     Serial1.flush();

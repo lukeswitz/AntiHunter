@@ -1,5 +1,6 @@
 // network_mesh.cpp - mesh subsystem extracted from network.cpp
 #include "network.h"
+#include "meshcore_link.h"
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -2811,6 +2812,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("BLE_CLASSIFY:"))         handleBleClassify(command);
   else if (command == "HB_ON")                          handleHbOn(command);
   else if (command == "HB_OFF")                         handleHbOff(command);
+  else if (command == "MESHCORE_ON")                    { meshcoreSetTransport(true);  sendToSerial1(nodeId + ": MESHCORE_ACK:ON", true); }
+  else if (command == "MESHCORE_OFF")                   { meshcoreSetTransport(false); sendToSerial1(nodeId + ": MESHCORE_ACK:OFF", true); }
   else if (command.startsWith("HB_INTERVAL:"))          handleHbInterval(command);
   else if (command.startsWith("CALIBRATE:"))            handleCalibrate(command);
   else if (command == "CALIBRATE_RESET")                handleCalibrateReset(command);

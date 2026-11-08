@@ -1,4 +1,5 @@
 #include "network.h"
+#include "meshcore_link.h"
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -174,7 +175,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
     if (millis() - s_radioLastTxMs >= MESH_RADIO_READ_IDLE_MS) s_radioBurstBytes = 0;
 
-    Serial1.println(message);
+    if (g_meshcoreTransport) meshcoreWriteText(message);
+    else Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
 
     Serial1.flush();
@@ -2932,6 +2934,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("BLE_CLASSIFY:"))       handleBleClassify(command);
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
+  else if (command == "MESHCORE_ON")                  { meshcoreSetTransport(true);  sendToSerial1(nodeId + ": MESHCORE_ACK:ON", true); }
+  else if (command == "MESHCORE_OFF")                 { meshcoreSetTransport(false); sendToSerial1(nodeId + ": MESHCORE_ACK:OFF", true); }
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
   else if (command.startsWith("CALIBRATE:"))          handleCalibrate(command);
   else if (command == "CALIBRATE_RESET")              handleCalibrateReset(command);
