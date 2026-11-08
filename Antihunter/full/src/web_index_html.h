@@ -4530,7 +4530,7 @@ R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
+          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + esc(text) + '</pre></div>';
         }
 
         return html;
@@ -5307,7 +5307,7 @@ R"HTML(
       }
       function parseCsiResults(text) {
         const d = window._csiJson;
-        if (!d) return '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
+        if (!d) return '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + esc(text) + '</pre></div>';
 
         const cal = /Calibrating still-state|Calibrating baseline/.test(text);
         const raw = d.links || [];
@@ -5381,7 +5381,7 @@ R"HTML(
         h += '<details class="csi-det" id="csiDet"' + (csiDetOpen ? ' open' : '') +
              ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
              '<div class="csi-tech">' + links.length + ' transmitter' + (links.length > 1 ? 's' : '') +
-             ' on ch' + d.channel + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec</div>' +
+             ' on ch' + esc(String(d.channel)) + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec</div>' +
              '<div class="res-list">';
         links.slice().sort((a, b) => csiRatio(b) - csiRatio(a)).forEach(l => {
           const k = l.mac;
@@ -5389,7 +5389,7 @@ R"HTML(
           if (csiHist[k].length > 60) csiHist[k].shift();
           h += '<div class="res-card ' + (l.motion ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
             '<span class="res-id"><span class="res-mac"' +
-            (l.motion ? ' style="color:var(--csi-hit)"' : '') + '>' + l.mac + '</span>' +
+            (l.motion ? ' style="color:var(--csi-hit)"' : '') + '>' + esc(l.mac) + '</span>' +
             (l.bssids > 1 ? '<span class="res-badge">' + l.bssids + ' ssids</span>' : '') + '</span>' +
             '<span class="res-meta">' + csiSpark(csiHist[k], trig, 200, 30) +
             '<span><strong>' + l.rssi + '</strong> dBm</span>' +
