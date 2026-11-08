@@ -38,6 +38,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       input::placeholder{color:var(--mut);opacity:0.6}
       select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
       [data-theme="dark"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a90e2' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E")}
+      [data-theme="dark"][data-palette="paper"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a9a9a2' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E")}
       textarea{min-height:80px;resize:vertical;line-height:1.5}
       input[type="checkbox"]{width:20px;height:20px;cursor:pointer;position:relative;appearance:none;-webkit-appearance:none;background:var(--bg);border:2px solid var(--acc);border-radius:4px;transition:all 0.2s;flex-shrink:0}
       input[type="checkbox"]:checked{background:var(--acc);border-color:var(--acc);box-shadow:var(--glow)}
@@ -72,6 +73,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .psk-badge.unset{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
       .psk-badge.tamper{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg);animation:scanPulse 1.2s ease-in-out infinite}
       #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
+      .ah-dlg{margin:auto;border:1px solid var(--bord);border-radius:12px;background:linear-gradient(var(--surf),var(--surf)),var(--bg);background-color:#fff;color:var(--txt);padding:22px;width:calc(100% - 32px);max-width:440px;box-shadow:var(--shad-hover)}
+      .ah-dlg::backdrop{background:rgba(0,0,0,0.55)}
+      .ah-dlg p{margin:0 0 20px;font-size:14px;line-height:1.55;white-space:pre-line}
+      .ah-dlg-acts{display:flex;justify-content:flex-end;gap:10px}
+      .btn:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+      .status-item.sent-on{border-color:var(--c-wifi);color:var(--c-wifi)}
+      .status-item.sent-on::before{background:var(--c-wifi)}
+      .status-item.sent-paused{border-color:var(--warn);color:var(--warn)}
+      .status-item.sent-paused::before{background:var(--warn)}
+      .sev.sev-clients{background:var(--c-wifi-bg);color:var(--c-wifi);border:1px solid var(--c-wifi)}
+      .sev.sev-audit{background:var(--accbg);color:var(--acc);border:1px solid var(--acc)}
       .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
       .toast.show{opacity:1;transform:none}
       .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(96,160,224,0.2)}
@@ -607,6 +619,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       ahApplyScheme();
       document.addEventListener('DOMContentLoaded',ahApplyScheme);
+      document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('div[onclick],span[onclick]').forEach(function(el){if(!el.hasAttribute('tabindex'))el.tabIndex=0;if(!el.hasAttribute('role'))el.setAttribute('role','button');});});
+      document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var t=e.target;if(t&&t.getAttribute&&t.getAttribute('role')==='button'&&t.hasAttribute('onclick')&&t.tagName!=='BUTTON'){e.preventDefault();t.click();}});
     </script>
   </head>
   <body>
@@ -679,6 +693,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     })();
     </script>
     <div id="toast"></div>
+    <dialog class="ah-dlg" id="ahDlg" aria-labelledby="ahDlgMsg"><p id="ahDlgMsg"></p><div class="ah-dlg-acts"><button class="btn" type="button" id="ahDlgNo">Cancel</button><button class="btn danger" type="button" id="ahDlgYes">Confirm</button></div></dialog>
     <div class="header">
       <div class="header-bar">
         <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm">Anti<b>Hunter</b></span></h1>
@@ -1991,7 +2006,7 @@ R"HTML(
 
         <div class="card" data-key="apclients">
           <div class="card-header" onclick="toggleCollapse('apClientsCard')">
-            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients</h3>
+            <h3><span class="sev sev-clients">clients</span>AP Clients</h3>
             <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
           </div>
           <div class="card-body" id="apClientsCardBody">
@@ -2001,7 +2016,7 @@ R"HTML(
 
         <div class="card" data-key="meshcmd">
           <div class="card-header" onclick="toggleCollapse('meshCmdCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Mesh Commands</h3>
+            <h3><span class="sev sev-audit">audit</span>Mesh Commands</h3>
             <span class="collapse-icon open" id="meshCmdCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshCmdCardBody">
@@ -2094,7 +2109,7 @@ R"HTML(
 
         <div class="card" data-key="meshradios">
           <div class="card-header" onclick="toggleCollapse('meshRadiosCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios</h3>
+            <h3><span class="sev sev-audit">audit</span>Other Mesh Radios</h3>
             <span class="collapse-icon open" id="meshRadiosCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshRadiosCardBody">
@@ -2844,6 +2859,7 @@ R"HTML(
         if ((pageName === 'system' || pageName === 'detect') && typeof fleetPoll === 'function') fleetPoll();
       }
       function pageActive(name) {
+        if (document.hidden) return false;
         var p = document.getElementById('page-' + name);
         return !!(p && p.classList.contains('active'));
       }
@@ -3235,7 +3251,7 @@ R"HTML(
 
       async function calReset() {
         const node = document.getElementById('calNode').value;
-        if (!confirm('Clear the distance calibration on ' + (node || 'this node') + '?')) return;
+        if (!await ahConfirm('Clear the distance calibration on ' + (node || 'this node') + '?')) return;
         try {
           const r = node
             ? await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node, cmd: 'CALIBRATE_RESET' }) })
@@ -3373,7 +3389,7 @@ R"HTML(
       }
 
       async function sdRepairNow() {
-        if (!confirm('Repair the SD card now? If it will not mount, the card is erased and rebuilt.')) return;
+        if (!await ahConfirm('Repair the SD card now? If it will not mount, the card is erased and rebuilt.')) return;
         try {
           const r = await fetch('/sd-repair', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'now=1' });
           toast(await r.text(), 'info');
@@ -3692,7 +3708,7 @@ R"HTML(
       }
 
       async function clearOldIdentities() {
-        if (!confirm('Clear device identities older than 1 hour?')) return;
+        if (!await ahConfirm('Clear device identities older than 1 hour?')) return;
         try {
           const response = await fetch('/randomization/clear-old', {
             method: 'POST',
@@ -3820,7 +3836,7 @@ R"HTML(
       }, 2000);
       
       async function resetBaseline() {
-        if (!confirm('Reset the baseline? Its collected data is cleared.')) return;
+        if (!await ahConfirm('Reset the baseline? Its collected data is cleared.')) return;
         try {
           const response = await fetch('/baseline/reset', { method: 'POST' });
           const data = await response.text();
@@ -3859,8 +3875,8 @@ R"HTML(
         }
       }
 
-      function clearResults() {
-        if (!confirm('Clear scan results?')) return;
+      async function clearResults() {
+        if (!await ahConfirm('Clear scan results?')) return;
         
         fetch('/clear-results', { method: 'POST' })
           .then(r => r.text())
@@ -5490,8 +5506,8 @@ R"HTML(
         }
       }
 
-      function clearSavedDevices() {
-        if (!confirm('Clear all saved probe devices?')) return;
+      async function clearSavedDevices() {
+        if (!await ahConfirm('Clear all saved probe devices?')) return;
         fetch('/api/probedb/clear', { method: 'POST' }).then(r => {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           savedDevicesLoaded = false;
@@ -5641,8 +5657,8 @@ R"HTML(
         return html;
       }
 
-      function resetRandomizationDetection() {
-        if (!confirm('Reset all randomization detection data?')) return;
+      async function resetRandomizationDetection() {
+        if (!await ahConfirm('Reset all randomization detection data?')) return;
         
         fetch('/randomization/reset', { method: 'POST' })
           .then(r => r.text())
@@ -5650,6 +5666,21 @@ R"HTML(
             toast(data, 'success');
           })
           .catch(err => toast('Error: ' + err, 'error'));
+      }
+
+      function ahConfirm(msg) {
+        const d = document.getElementById('ahDlg');
+        if (!d || typeof d.showModal !== 'function') return Promise.resolve(window.confirm(msg));
+        document.getElementById('ahDlgMsg').textContent = msg;
+        const yes = document.getElementById('ahDlgYes'), no = document.getElementById('ahDlgNo');
+        return new Promise(function(resolve) {
+          function done(v) { yes.onclick = no.onclick = d.oncancel = null; if (d.open) d.close(); resolve(v); }
+          yes.onclick = function() { done(true); };
+          no.onclick = function() { done(false); };
+          d.oncancel = function(e) { e.preventDefault(); done(false); };
+          d.showModal();
+          no.focus();
+        });
       }
 
       function toast(msg, type = 'info') {
@@ -5791,7 +5822,7 @@ R"HTML(
         if (btn) btn.textContent = t.btn;
         if (hint) hint.textContent = t.hint;
       }
-      function requestFactoryWipe() {
+      async function requestFactoryWipe() {
         const tier = document.getElementById('factoryResetTier').value;
         const t = _factoryResetTiers[tier] || _factoryResetTiers.full;
         const code = document.getElementById('factoryWipeConfirm').value;
@@ -5799,7 +5830,7 @@ R"HTML(
           toast('Enter the erase key.', 'error');
           return;
         }
-        if (!window.confirm(t.warn)) {
+        if (!await ahConfirm(t.warn)) {
           return;
         }
         toast(t.btn + ' started...', 'warning');
@@ -5834,13 +5865,13 @@ R"HTML(
           .catch(e => toast('Key change failed: ' + e, 'error'));
       }
 
-      function requestErase() {
+      async function requestErase() {
         const confirm = document.getElementById('eraseConfirm').value;
         if (!confirm) {
           toast('Enter the erase key.', 'error');
           return;
         }
-        if (!window.confirm('Last check: erase all data permanently?')) {
+        if (!await ahConfirm('Last check: erase all data permanently?')) {
           return;
         }
         toast('Starting erase.', 'warning');
@@ -5862,7 +5893,7 @@ R"HTML(
       }
 
       function formatDiagGrid(text,type){
-        if(!text||text.trim()==='')return'<div style="color:var(--mut);text-align:center;padding:20px;">No data</div>';
+        if(!text||text.trim()==='')return'<div class="data-empty">No data yet.</div>';
         let html='<div class="diag-grid">';
         const lines=text.trim().split('\n');
         lines.forEach(line=>{
@@ -5895,6 +5926,10 @@ R"HTML(
             if (diagFailStreak >= 2 && nodeReachable) {
               nodeReachable = false;
               setScanStatus('Node unreachable', 'offline');
+              ['hardwareDiag', 'networkDiag'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el && el.textContent === 'Loading...') el.innerHTML = '<div class="data-empty">Node not responding. Retrying.</div>';
+              });
             }
             return;
           }
@@ -6099,7 +6134,7 @@ R"HTML(
       }
       function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
       async function clearIncidents(){
-        if (!confirm('Clear all incidents from memory and SD?')) return;
+        if (!await ahConfirm('Clear all incidents from memory and SD?')) return;
         await fetch('/api/incidents', {method:'DELETE'});
         loadIncidents();
       }
@@ -6113,10 +6148,10 @@ R"HTML(
           const r = await fetch('/api/sentinel/status',{cache:'no-store'});
           if (!r.ok) return;
           const j = await r.json();
-          let txt='DISABLED', col='#888';
-          if (j.scanning){txt='KILLED (scan active)';col='#f99';}
-          else if (j.running){txt='RUNNING';col='#9f9';}
-          else if (j.enabled){txt='enabled, task not running';col='#fc6';}
+          let txt='DISABLED', col='var(--mut)';
+          if (j.scanning){txt='KILLED (scan active)';col='var(--warn)';}
+          else if (j.running){txt='RUNNING';col='var(--c-wifi)';}
+          else if (j.enabled){txt='enabled, task not running';col='var(--warn)';}
           const el2=document.getElementById('sentStatus2');
           if(el2){el2.textContent=txt;el2.style.color=col;}
           const dot=document.getElementById('snDot');
@@ -6382,7 +6417,7 @@ R"HTML(
         document.getElementById('pcapFilesIcon' + sfx).classList.toggle('open');
       }
       async function pcapDeleteOne(name) {
-        if (!confirm('Delete ' + name + '?')) return;
+        if (!await ahConfirm('Delete ' + name + '?')) return;
         const fd = new FormData();
         fd.append('f', name);
         const r = await fetch('/pcap/delete', { method: 'POST', body: fd });
@@ -6392,7 +6427,7 @@ R"HTML(
       async function pcapDeleteAll() {
         const n = document.getElementById('pcapCount').textContent;
         if (n === '0') { toast('No captures to delete', 'warning'); return; }
-        if (!confirm('Delete all ' + n + ' captures? This cannot be undone.')) return;
+        if (!await ahConfirm('Delete all ' + n + ' captures? This cannot be undone.')) return;
         const r = await fetch('/pcap/delete-all', { method: 'POST' });
         toast(await r.text(), r.ok ? 'success' : 'error');
         refreshPcapList();
@@ -7082,8 +7117,8 @@ R"HTML(
         el.style.display=name?'':'none';el.textContent=name?'REC '+name:'REC';
         var st=document.getElementById('campState');if(st)st.textContent=name?'Recording: '+name:'No active campaign';
       }
-      function campHdrStop(){
-        if(!confirm('Stop the campaign on this node?')) return;
+      async function campHdrStop(){
+        if(!await ahConfirm('Stop the campaign on this node?')) return;
         dataCfgPost('stop=1').then(function(ok){if(ok)toast('Campaign stopped','success');});
       }
       function campNodesRender(peers){
@@ -7202,7 +7237,7 @@ R"HTML(
       let _saData=null;
       function refreshSentinelAnalysis(){ _saData=null; loadSentinelAnalysis(); }
       async function clearSentinelAnalysis(){
-        if(!confirm('Clear all Sentinel incidents from memory and SD?'))return;
+        if(!await ahConfirm('Clear all Sentinel incidents from memory and SD?'))return;
         await fetch('/api/incidents',{method:'DELETE'}); _saData=null; loadSentinelAnalysis();
       }
       async function loadSentinelAnalysis(){
@@ -7412,10 +7447,10 @@ R"HTML(
           }).catch(function(){toast('Load failed','error');});
         }
       }
-      function clearDataSet(){
+      async function clearDataSet(){
         var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
         if(!cfg.clear) return;
-        if(!confirm('Clear all '+ds+' data? This cannot be undone.')) return;
+        if(!await ahConfirm('Clear all '+ds+' data? This cannot be undone.')) return;
         fetch(cfg.clear,{method:'POST'}).then(function(r){if(r.ok){toast('Data cleared','success');loadDataSet();}else toast('Clear failed','error');});
       }
       function parseLogData(text,cfg){
@@ -7446,12 +7481,13 @@ R"HTML(
       loadDedupTtl();
       loadSdRepair();
       loadCampaigns();
-      setInterval(function(){fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){nodeTzSet(d);campHdrSet(d.campaign);}).catch(function(e){console.warn('[CAMP] /data-cfg poll failed:',e);});},10000);
+      setInterval(function(){if(document.hidden)return;fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){nodeTzSet(d);campHdrSet(d.campaign);}).catch(function(e){console.warn('[CAMP] /data-cfg poll failed:',e);});},10000);
       updateAutoEraseStatus();
       loadVibScanConfig();
       refreshPskStatus();
       pollSecureState();
-      setInterval(tick, 5000);
+      setInterval(function(){ if (!document.hidden) tick(); }, 5000);
+      document.addEventListener('visibilitychange', function(){ if (!document.hidden) tick(); });
       setInterval(() => { if (pageActive('results')) resultsPoll(); }, 1000);
       setInterval(() => { if (pageActive('results')) refreshPcapList(); }, 5000);
       setInterval(() => { if (!pageActive('system')) return; const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
@@ -7633,7 +7669,7 @@ R"HTML(
         renderDos();
       }
       async function detectClearAll(){
-        if(!confirm('Erase all Sentinel state?\n\nClears every detection in memory and deletes the detection logs on SD, including incidents.\n\nThis cannot be undone.'))return;
+        if(!await ahConfirm('Erase all Sentinel state?\n\nClears every detection in memory and deletes the detection logs on SD, including incidents.\n\nThis cannot be undone.'))return;
         const r=await fetch('/api/detect/clear_all',{method:'POST'});
         toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
         _sessMark=null;
@@ -7857,7 +7893,7 @@ R"HTML(
           const s = await sr.json();
           const url = s.enabled ? '/api/sentinel/stop' : '/api/sentinel/start';
           const rr = await fetch(url, {method:'POST',cache:'no-store'});
-          if (!rr.ok) alert('Sentinel toggle failed: ' + await rr.text());
+          if (!rr.ok) toast('Sentinel toggle failed: ' + await rr.text(), 'error');
           await new Promise(r=>setTimeout(r,500));
           await sentinelHdrRefresh();
           if (typeof sentinelRefresh==='function') await sentinelRefresh();
@@ -7872,23 +7908,19 @@ R"HTML(
           const s = await r.json();
           const el = document.getElementById('sentStatusHdr');
           if (!el) return;
+          el.classList.toggle('sent-paused', !!(s.enabled && s.scanning));
+          el.classList.toggle('sent-on', !!(s.enabled && !s.scanning && s.running));
           if (!s.enabled) {
             el.style.display = 'none';
           } else if (s.scanning) {
             el.style.display = '';
             el.textContent = 'SENTINEL PAUSED (SCAN)';
-            el.style.color = '#fca5a5';
-            el.style.borderColor = '#dc2626';
           } else if (s.running) {
             el.style.display = '';
             el.textContent = 'SENTINEL ON';
-            el.style.color = '#86efac';
-            el.style.borderColor = '#16a34a';
           } else {
             el.style.display = '';
             el.textContent = 'SENTINEL IDLE';
-            el.style.color = '';
-            el.style.borderColor = '';
           }
         } catch (err) {
           console.warn('sentinelHdrRefresh failed', err);
@@ -7906,7 +7938,7 @@ R"HTML(
           if(r.ok){const j=await r.json();const c=document.getElementById('sentBootChk');if(c)c.checked=!!j.boot;}
         }catch(err){ console.warn('sentinelBootRefresh failed', err); }
       }
-      setInterval(()=>{sentinelHdrRefresh(); if(pageActive('detect') && typeof sentinelRefresh==='function')sentinelRefresh();}, 4000);
+      setInterval(()=>{ if(!document.hidden) sentinelHdrRefresh(); }, 4000);
       setTimeout(sentinelHdrRefresh, 700);
       setTimeout(sentinelBootRefresh, 800);
       function detMarkActive(key){
@@ -8320,7 +8352,7 @@ R"HTML(
         privacyApply(el);
       }
       async function meshCmdClear(){
-        if(!confirm('Clear all logged mesh commands?'))return;
+        if(!await ahConfirm('Clear all logged mesh commands?'))return;
         await fetch('/api/mesh_cmd',{method:'DELETE'});
         meshCmdTick();
       }
