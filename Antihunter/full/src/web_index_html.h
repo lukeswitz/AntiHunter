@@ -788,7 +788,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 </div>
               </div>
               <form id="f" method="POST" action="/save">
-                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
+                <textarea id="list" name="list" aria-label="Targets" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
                 <div class="wl-foot">
                   <span id="targetCount">0 targets</span>
                   <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
@@ -796,7 +796,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 </div>
               </form>
               <form id="af" method="POST" action="/allowlist-save" style="display:none;">
-                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
+                <textarea id="wlist" name="list" aria-label="Allow list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
                 <div class="wl-foot">
                   <span id="allowlistCount">0 allowlisted</span>
                   <button class="btn icon-btn" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8"/><rect x="7" y="13" width="10" height="8"/></svg></button>
@@ -806,14 +806,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <form id="s" method="POST" action="/scan">
               <label style="font-size:11px;">Mode</label>
-              <select name="mode" id="scanModeSel">
+              <select name="mode" id="scanModeSel" aria-label="Scan mode">
                 <option value="0">Wi-Fi</option>
                 <option value="1">BLE</option>
                 <option value="2" selected>Wi-Fi+BLE</option>
               </select>
               <div style="margin-bottom:8px;">
                 <label style="font-size:11px;">Duration (s)</label>
-                <input type="number" name="secs" min="0" max="86400" value="60">
+                <input type="number" name="secs" min="0" max="86400" value="60" aria-label="Duration (s)">
               </div>
               
               <div style="display:flex;gap:16px;margin-bottom:12px;">
@@ -829,9 +829,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               
               <div id="triangulateOptions" style="display:none;margin-bottom:8px;">
-                <input type="text" name="targetMac" placeholder="Target MAC">
+                <input type="text" name="targetMac" placeholder="Target MAC" aria-label="Target MAC">
                 <label style="font-size:11px;margin-top:8px;">RF Environment</label>
-                <select name="rfEnv" id="rfEnvSelect">
+                <select name="rfEnv" id="rfEnvSelect" aria-label="RF environment">
                   <option value="0">Open Sky</option>
                   <option value="1">Suburban</option>
                   <option value="2" selected>Indoor</option>
@@ -842,13 +842,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
                 <div style="margin-bottom:6px;">
                   <label style="font-size:10px;color:var(--mut);">Wi-Fi: <span id="wifiPwrDisplay">1.0x</span></label>
-                  <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                  <input type="range" name="wifiPwr" id="wifiPwrSlider" aria-label="Wi-Fi power multiplier" min="0.1" max="5.0" step="0.1" value="1.0"
                         oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
                         style="width:100%;">
                 </div>
                 <div style="margin-bottom:4px;">
                   <label style="font-size:10px;color:var(--mut);">BLE: <span id="blePwrDisplay">1.0x</span></label>
-                  <input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                  <input type="range" name="blePwr" id="blePwrSlider" aria-label="BLE power multiplier" min="0.1" max="5.0" step="0.1" value="1.0"
                         oninput="document.getElementById('blePwrDisplay').innerText = this.value + 'x'"
                         style="width:100%;">
                 </div>
@@ -860,7 +860,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div id="paneRecon">
             <form id="sniffer" method="POST" action="/sniffer">
-              <select name="detection" id="detectionMode" class="tile-src">
+              <select name="detection" id="detectionMode" class="tile-src" aria-label="Detection mode">
                 <optgroup label="Recon">
                   <option value="device-scan" selected>Device Discovery</option>
                   <option value="probe-scan">Probe Request Scanner</option>
@@ -881,7 +881,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div id="csiControls" style="display:none;margin-top:10px;">
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
                 <label style="font-size:11px;">Sensitivity</label>
-                <select id="csiPreset" name="csiPreset" onchange="csiApplyPreset(this.value)">
+                <select id="csiPreset" name="csiPreset" aria-label="CSI sensitivity preset" onchange="csiApplyPreset(this.value)">
                   <option value="low" selected>Low (Fewest False Alarms)</option>
                   <option value="medium">Medium (More Sensitive)</option>
                   <option value="high">High (Most Sensitive)</option>
@@ -892,34 +892,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   If a room reads wrong, change this before touching Advanced.
                 </div>
                 <label style="font-size:11px;margin-top:8px;display:block;" title="Minimum seconds between CSI_MOTION messages sent over mesh. 0 sends every alert.">Min. seconds between mesh motion alerts (0 = no limit)</label>
-                <input type="number" name="csiMeshGap" id="csiMeshGap" min="0" max="3600" value="0">
+                <input type="number" name="csiMeshGap" id="csiMeshGap" aria-label="CSI mesh alert gap (s)" min="0" max="3600" value="0">
                 <details style="margin-top:4px;">
                   <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
                     <div>
                       <label style="font-size:11px;">Channel (0 = auto)</label>
-                      <input type="number" id="csiChannelAdv" min="0" max="14" value="0"
+                      <input type="number" id="csiChannelAdv" aria-label="CSI channel (0 = auto)" min="0" max="14" value="0"
                              oninput="document.getElementById('csiChannel').value=this.value">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long movement must continue before it reports">Movement needed before alerting (s)</label>
-                      <input type="number" name="csiDwell" id="csiDwell" min="2" max="60" value="8">
+                      <input type="number" name="csiDwell" id="csiDwell" aria-label="CSI movement dwell (s)" min="2" max="60" value="8">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How long stillness must last before it says all-clear">Stillness before all-clear (s)</label>
-                      <input type="number" name="csiHold" id="csiHold" min="1" max="120" value="5">
+                      <input type="number" name="csiHold" id="csiHold" aria-label="CSI stillness hold (s)" min="1" max="120" value="5">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="How many devices must see it at once. Lower catches movement in areas only one device reaches">Devices that must agree</label>
-                      <input type="number" name="csiSpots" id="csiSpots" min="1" max="12" value="2">
+                      <input type="number" name="csiSpots" id="csiSpots" aria-label="CSI devices that must agree" min="1" max="12" value="2">
                     </div>
                     <div>
                       <label style="font-size:11px;" title="Raw trigger level. Measure an empty room first and set this above what it reads">Trigger level</label>
-                      <input type="number" name="csiThr" id="csiThr" min="0.005" max="20" step="0.005" value="0.140">
+                      <input type="number" name="csiThr" id="csiThr" aria-label="CSI trigger level" min="0.005" max="20" step="0.005" value="0.140">
                     </div>
                     <div>
                       <label style="font-size:11px;">Packets in a row before alerting</label>
-                      <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
+                      <input type="number" name="csiConsec" id="csiConsec" aria-label="CSI consecutive packets" min="1" max="50" value="3">
                     </div>
                   </div>
                   <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Trigger level is not universal. It depends on the channel the node settles on and the access points in range, so measure an empty room and set it above what that reads.</div>
@@ -932,7 +932,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
               <div id="probeScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
-                <select id="probeScanMode" name="probeScanMode">
+                <select id="probeScanMode" name="probeScanMode" aria-label="Probe scan mode">
                   <option value="0">Wi-Fi Only</option>
                   <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
@@ -941,7 +941,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <div id="droneScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
-                <select id="droneScanMode" name="droneScanMode">
+                <select id="droneScanMode" name="droneScanMode" aria-label="Drone scan mode">
                   <option value="0">Wi-Fi Only</option>
                   <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
@@ -949,7 +949,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
-                <select id="randomizationMode" name="randomizationMode">
+                <select id="randomizationMode" name="randomizationMode" aria-label="Randomization scan mode">
                   <option value="0">Wi-Fi Only</option>
                   <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
@@ -957,7 +957,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <div id="deviceScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
-                <select id="deviceScanMode" name="deviceScanMode">
+                <select id="deviceScanMode" name="deviceScanMode" aria-label="Device scan mode">
                   <option value="0">Wi-Fi Only</option>
                   <option value="2" selected>Wi-Fi + BLE</option>
                   <option value="1">BLE Only</option>
@@ -968,14 +968,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                   <div>
                     <label style="font-size:11px;">Radio</label>
-                    <select id="pcapRadio" name="pcapRadio">
+                    <select id="pcapRadio" name="pcapRadio" aria-label="PCAP radio">
                       <option value="0" selected>Wi-Fi</option>
                       <option value="1">BLE</option>
                     </select>
                   </div>
                   <div id="pcapBandWrap" style="display:none;">
                     <label style="font-size:11px;">Band</label>
-                    <select id="pcapBand" name="pcapBand">
+                    <select id="pcapBand" name="pcapBand" aria-label="PCAP band">
                       <option value="0" selected>2.4 GHz</option>
                       <option value="1">5 GHz</option>
                       <option value="2">2.4 + 5 GHz</option>
@@ -987,15 +987,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
                     <div>
                       <label style="font-size:11px;">Channels (blank = RF settings)</label>
-                      <input type="text" id="pcapChannels" name="pcapChannels" placeholder="1,6,11">
+                      <input type="text" id="pcapChannels" name="pcapChannels" placeholder="1,6,11" aria-label="PCAP channels">
                     </div>
                     <div>
                       <label style="font-size:11px;">Dwell (ms)</label>
-                      <input type="number" id="pcapDwell" name="pcapDwell" min="50" max="5000" step="50" value="250">
+                      <input type="number" id="pcapDwell" name="pcapDwell" aria-label="PCAP dwell (ms)" min="50" max="5000" step="50" value="250">
                     </div>
                     <div>
                       <label style="font-size:11px;">Max file size (MB)</label>
-                      <input type="number" id="pcapMaxFile" name="pcapMaxFile" min="8" max="300" step="1" value="100">
+                      <input type="number" id="pcapMaxFile" name="pcapMaxFile" aria-label="PCAP max file size (MB)" min="8" max="300" step="1" value="100">
                     </div>
 
                   </div>
@@ -1006,7 +1006,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
                   <div>
                     <label style="font-size:11px;">Duration (s)</label>
-                    <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+                    <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration" aria-label="Detection duration (s)">
                   </div>
                   <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
                     <input type="checkbox" id="forever3" name="forever" value="1">Forever
@@ -1018,7 +1018,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                   <div>
                     <label style="font-size:11px;">RSSI</label>
-                    <select id="baselineRssiThreshold" name="rssiThreshold">
+                    <select id="baselineRssiThreshold" name="rssiThreshold" aria-label="Baseline RSSI threshold">
                       <option value="-40">-40</option>
                       <option value="-50">-50</option>
                       <option value="-60" selected>-60</option>
@@ -1028,7 +1028,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   </div>
                   <div>
                     <label style="font-size:11px;">Baseline</label>
-                    <select id="baselineDuration" name="baselineDuration">
+                    <select id="baselineDuration" name="baselineDuration" aria-label="Baseline duration">
                       <option value="300" selected>5m</option>
                       <option value="600">10m</option>
                       <option value="900">15m</option>
@@ -1039,31 +1039,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                   <div>
                     <label style="font-size:11px;">RAM Cache (Non-SD defaults to 1500)</label>
-                    <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
+                    <input type="number" id="baselineRamSize" name="ramCacheSize" aria-label="Baseline RAM cache size" min="200" max="500" value="400" style="padding:6px;">
                   </div>
                   <div>
                     <label style="font-size:11px;">SD Device Storage</label>
-                    <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
+                    <input type="number" id="baselineSdMax" name="sdMaxDevices" aria-label="Baseline SD device storage" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
                   </div>
                 </div>
                 
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
                   <div>
                     <label style="font-size:10px;color:var(--mut);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
-                    <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
+                    <input type="number" id="absenceThreshold" aria-label="Marked absent (s)" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
                   </div>
                   <div>
                     <label style="font-size:10px;color:var(--mut);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
-                    <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
+                    <input type="number" id="reappearanceWindow" aria-label="Seen reappear (s)" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
                   </div>
                   <div>
                     <label style="font-size:10px;color:var(--mut);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
-                    <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
+                    <input type="number" id="rssiChangeDelta" aria-label="RSSI variation (dB)" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
                   </div>
                 </div>
                 
                 <label style="font-size:11px;">Monitor (s)</label>
-                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
+                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" aria-label="Baseline monitor duration (s)" style="margin-bottom:8px;">
                 <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;color:var(--txt);">
                   <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
                   <span>Forever</span>
@@ -1101,11 +1101,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <button type="button" class="sched-add" id="schedAddBtn" onclick="schedOpen(true)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="schedAddLbl">Schedule this scan</span></button>
             <div class="sched-sheet" id="schedSheet" style="display:none;">
               <input type="hidden" id="schScan">
-              <div><label style="font-size:11px;">Run on</label><select id="schNode"><option value="">This node</option></select></div>
-              <div><label style="font-size:11px;">Start (<span id="schTz">UTC</span>)</label><input type="datetime-local" id="schAt"></div>
-              <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="schDur" min="1" max="1440" value="10" placeholder="10"></div>
+              <div><label style="font-size:11px;">Run on</label><select id="schNode" aria-label="Schedule: run on"><option value="">This node</option></select></div>
+              <div><label style="font-size:11px;">Start (<span id="schTz">UTC</span>)</label><input type="datetime-local" id="schAt" aria-label="Schedule start (UTC)"></div>
+              <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="schDur" aria-label="Schedule duration (min)" min="1" max="1440" value="10" placeholder="10"></div>
               <div><label style="font-size:11px;">Repeat</label>
-                <select id="schRep">
+                <select id="schRep" aria-label="Schedule repeat">
                   <option value="0">Once</option>
                   <option value="3600">Hourly</option>
                   <option value="21600">Every 6 hours</option>
@@ -1126,8 +1126,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="det-desc" style="margin:10px 0;">Runs one device scan across the checked nodes. By radio: nodes alternate Wi-Fi and BLE, so no node loses Wi-Fi time to BLE. By channel: each node sweeps its share of the Wi-Fi channel list.</div>
               <div id="fleetSplitNodes" class="split-nodes"></div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
-                <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
-                <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" min="1" max="1440" value="10"></div>
+                <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy" aria-label="Split by"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
+                <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" aria-label="Split duration (min)" min="1" max="1440" value="10"></div>
               </div>
               <button class="btn primary" type="button" onclick="fleetSplit()" style="width:100%;margin-top:8px;">Start split scan</button>
             </details>
@@ -1142,7 +1142,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="res-toolbar">
           <div class="res-tb-sort">
             <span class="res-toolbar-lab">Sort</span>
-            <select id="sortBy" onchange="applySorting()">
+            <select id="sortBy" onchange="applySorting()" aria-label="Sort by">
               <option value="default">Default</option>
               <option value="rssi-desc">RSSI (Strongest)</option>
               <option value="rssi-asc">RSSI (Weakest)</option>
@@ -1746,7 +1746,7 @@ R"HTML(
         <div><div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;"><h2 id="dataTitle">All Devices</h2><span id="dataTzLbl" style="font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);">Times shown in UTC</span></div><p class="dn-desc" id="dataDesc"></p></div>
         <div id="dataSummary" class="dn-tiles"></div>
         <div class="dn-bar">
-          <select id="dataSet" onchange="loadDataSet()" style="display:none;">
+          <select id="dataSet" onchange="loadDataSet()" aria-label="Dataset" style="display:none;">
             <option value="devicedb">All Discovered Devices</option>
             <option value="probedb">Probe Devices</option>
             <option value="probes">Probe Events</option>
@@ -1779,7 +1779,7 @@ R"HTML(
           <section>
             <h3>New campaign</h3>
             <div class="dn-box">
-              <div class="dn-row"><b>Name</b><input type="text" id="campName" maxlength="23" placeholder="Campaign name" style="max-width:280px;"></div>
+              <div class="dn-row"><b>Name</b><input type="text" id="campName" aria-label="Campaign name" maxlength="23" placeholder="Campaign name" style="max-width:280px;"></div>
               <div class="dn-row"><div><b>Nodes</b><p>Nodes that record. Alone, only this node records.</p></div><div id="campNodes" style="display:none;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px;"></div></div>
               <div class="dn-foot"><span id="campState"></span><span style="display:flex;gap:8px;"><button class="btn alt" onclick="fleetCampaign(false)">Stop campaign</button><button class="btn primary" onclick="fleetCampaign(true)">Start campaign</button></span></div>
             </div>
@@ -1787,9 +1787,9 @@ R"HTML(
           <section>
             <h3>Export a campaign</h3>
             <div class="dn-box">
-              <div class="dn-row"><b>Campaign</b><select id="dataCampaign" onchange="onDataCampaign()" style="max-width:280px;"><option value="">All time</option></select></div>
-              <div class="dn-row"><b>From</b><input type="datetime-local" id="dataFrom" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
-              <div class="dn-row"><b>To</b><input type="datetime-local" id="dataTo" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
+              <div class="dn-row"><b>Campaign</b><select id="dataCampaign" onchange="onDataCampaign()" aria-label="Data campaign" style="max-width:280px;"><option value="">All time</option></select></div>
+              <div class="dn-row"><b>From</b><input type="datetime-local" id="dataFrom" aria-label="From date" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
+              <div class="dn-row"><b>To</b><input type="datetime-local" id="dataTo" aria-label="To date" step="1" onchange="onDataRange()" style="max-width:240px;"></div>
               <div class="dn-foot"><span>The campaign and dates also filter every dataset.</span><button class="btn alt" id="campExport" onclick="campExport()" disabled title="Download every dataset's rows for the selected campaign">Export campaign</button></div>
             </div>
           </section>
@@ -2036,31 +2036,31 @@ R"HTML(
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Triangulate attacker</span>
-                <input type="number" id="arSecTrilat" min="10" max="3600" value="60" onchange="arSave()">
+                <input type="number" id="arSecTrilat" aria-label="Response: triangulation (s)" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arPcap" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Packet capture to SD</span>
-                <input type="number" id="arSecPcap" min="10" max="3600" value="120" onchange="arSave()">
+                <input type="number" id="arSecPcap" aria-label="Response: PCAP (s)" min="10" max="3600" value="120" onchange="arSave()">
                 <span class="ar-unit">s</span>
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arDevice" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Device discovery</span>
-                <input type="number" id="arSecDevice" min="10" max="3600" value="60" onchange="arSave()">
+                <input type="number" id="arSecDevice" aria-label="Response: device scan (s)" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arProbe" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Probe requests</span>
-                <input type="number" id="arSecProbe" min="10" max="3600" value="60" onchange="arSave()">
+                <input type="number" id="arSecProbe" aria-label="Response: probe (s)" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
               </div>
               <div class="ar-row">
                 <label class="dsw"><input type="checkbox" id="arDrone" onchange="arSave()"><span class="dsw-s"></span></label>
                 <span class="ar-name">Drone RID</span>
-                <input type="number" id="arSecDrone" min="10" max="3600" value="60" onchange="arSave()">
+                <input type="number" id="arSecDrone" aria-label="Response: drone (s)" min="10" max="3600" value="60" onchange="arSave()">
                 <span class="ar-unit">s</span>
               </div>
               <div class="ar-row">
@@ -2073,13 +2073,13 @@ R"HTML(
               </div>
               <div class="ar-row ar-limits">
                 <span class="ar-name">Auto-capture budget</span>
-                <input type="number" id="arPcapBudget" min="16" max="262144" step="16" value="512" onchange="arSaveLimits()">
+                <input type="number" id="arPcapBudget" aria-label="Response PCAP budget (KB)" min="16" max="262144" step="16" value="512" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-name">Keep free</span>
-                <input type="number" id="arPcapFloor" min="0" max="262144" step="16" value="256" onchange="arSaveLimits()">
+                <input type="number" id="arPcapFloor" aria-label="Response PCAP floor (KB)" min="0" max="262144" step="16" value="256" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-name">Max capture file</span>
-                <input type="number" id="arPcapMaxFile" min="8" max="300" step="1" value="100" onchange="arSaveLimits()">
+                <input type="number" id="arPcapMaxFile" aria-label="Response PCAP max file (MB)" min="8" max="300" step="1" value="100" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-free" id="arSdFree">--</span>
               </div>
@@ -2125,7 +2125,7 @@ R"HTML(
         </div>
 
         <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
-          <input id="det-filter" placeholder="Filter (e.g. deauth, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
+          <input id="det-filter" aria-label="Filter detections" placeholder="Filter (e.g. deauth, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
           <a class="btn alt" href="/detect" target="_blank" rel="noopener">Raw detector logs</a>
           <div class="det-chips" id="det-chips">
             <span class="det-chip all" data-sev="all">All</span>
@@ -2239,8 +2239,8 @@ R"HTML(
             <details style="margin-top:12px;">
               <summary><span>▶</span> Quorum Status</summary>
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
-                <input id="q-type-in" type="text" placeholder="type (e.g. PMKID)" maxlength="16" style="width:140px;">
-                <input id="q-n-in" type="number" min="1" max="10" placeholder="nodes" style="width:70px;">
+                <input id="q-type-in" aria-label="Hunt type" type="text" placeholder="type (e.g. PMKID)" maxlength="16" style="width:140px;">
+                <input id="q-n-in" aria-label="Hunt nodes" type="number" min="1" max="10" placeholder="nodes" style="width:70px;">
                 <button class="btn" onclick="quorumSet()">Set</button>
               </div>
               <pre id="d-quorum" class="log-pre">--</pre>
@@ -2300,7 +2300,7 @@ R"HTML(
           </div>
           <div class="card-body collapsed" id="detHuntCardBody">
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-              <input id="ah-cooldown-in" type="number" min="1" max="3600" placeholder="cooldown s" style="width:110px;">
+              <input id="ah-cooldown-in" aria-label="Hunt cooldown (s)" type="number" min="1" max="3600" placeholder="cooldown s" style="width:110px;">
               <button class="btn" onclick="ahCooldown()">Set Cooldown</button>
               <button class="btn alt" onclick="ahClear()">Clear</button>
             </div>
@@ -2425,7 +2425,7 @@ R"HTML(
           </div>
           <div class="card-body collapsed" id="detTofCardBody">
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-              <input id="tof-target-in" type="text" placeholder="nodeId or *" style="width:140px;">
+              <input id="tof-target-in" aria-label="Triangulation target node" type="text" placeholder="nodeId or *" style="width:140px;">
               <button class="btn" onclick="tofPing()">Ping</button>
               <button class="btn alt" onclick="tofClear()">Clear</button>
             </div>
@@ -2437,8 +2437,8 @@ R"HTML(
         <div class="card" data-key="analysis">
           <h3>Sentinel Analysis</h3>
           <div class="data-header">
-            <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All Types</option></select>
-            <input type="text" id="saSearch" placeholder="Search..." oninput="loadSentinelAnalysis()">
+            <select id="saType" onchange="loadSentinelAnalysis()" aria-label="Sentinel analysis type"><option value="ALL">All Types</option></select>
+            <input type="text" id="saSearch" aria-label="Sentinel analysis search" placeholder="Search..." oninput="loadSentinelAnalysis()">
             <button class="btn alt" onclick="refreshSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Refresh</button>
             <a class="btn alt" href="/api/incidents.jsonl" download style="padding:8px 14px;font-size:12px;">Export</a>
             <button class="btn danger" onclick="clearSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Clear</button>
@@ -2454,7 +2454,7 @@ R"HTML(
           <div class="card-body collapsed" id="detEventsCardBody">
             <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
               <label style="font-size:12px;color:var(--mut);margin:0;">Filter:</label>
-              <select id="incFilter" style="width:auto;padding:6px 10px;font-size:12px;">
+              <select id="incFilter" aria-label="Incident filter" style="width:auto;padding:6px 10px;font-size:12px;">
                 <option value="">ALL</option>
                 <option>DEAUTH_FORGE</option>
                 <option>DEAUTH_FLOOD</option>
@@ -2479,7 +2479,7 @@ R"HTML(
                 <option>JAMMING_BASELINE</option>
               </select>
               <label style="font-size:12px;color:var(--mut);margin:0;">Source:</label>
-              <select id="incSrc" style="width:auto;padding:6px 10px;font-size:12px;">
+              <select id="incSrc" aria-label="Incident source" style="width:auto;padding:6px 10px;font-size:12px;">
                 <option value="">ALL</option>
                 <option value="local">Local Only</option>
                 <option value="peer">Peers Only</option>
@@ -8196,7 +8196,7 @@ R"HTML(
           DET_THRESHOLDS.forEach(t=>{
             const v=_detCfg[t[0]]||t[2];
             threshHtml+=`<div><label>${t[1]}</label>
-              <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
+              <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%" aria-label="${t[1]}"></div>`;
           });
           threshEl.innerHTML=threshHtml;
         }
