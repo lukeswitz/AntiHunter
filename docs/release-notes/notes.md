@@ -105,6 +105,7 @@ This applies to all three channels.
 - `TRIANGULATE_STOP` sent while the initiator waits for node ACKs cancels the run and stops the child nodes. Before, the node acknowledged the stop, then sent the cycle start and scanned for the full duration. It refused a new `TRIANGULATE_START` until it finished.
 - A node that had been a child node in one triangulation run, and then coordinated the next run, did not send `TRIANGULATE_STOP` when its run ended. Its child nodes waited 30 seconds for the stop before they left the run. The coordinating node now always sends the stop.
 - Mesh `ERASE_FORCE` runs the wipe on its own task under the same busy guard as the web wipe. It replies `ERASE_ACK:COMPLETE` or `FAILED` when done, and `BUSY` if a wipe is running.
+- `FACTORY_RESET` replies `FACTORY_RESET_ACK:<tier>:OK` or `:FAILED` over mesh when the reset finishes, as a priority message, before the node reboots. Before, the only reply was `<tier> - rebooting`, sent before the reset ran, so a controller could not tell whether a reset that needs the SD card had actually succeeded. Full and Headless.
 - A channel range such as `1..2147483647` (mesh or web) hung the node. Ranges are now limited to 1-255.
 - A Device Scan started with no channel list sweeps this node's share from Reassign or `CHAN_ASSIGN`. Before, the assignment had no effect.
 - Full: after `CONFIG_CHANNELS`, or after a reboot that loads the channel list from the SD card, System tab → **Settings** → **Scanning** → **Wi-Fi channels** showed the old list. It now shows the list the node scans.
