@@ -4408,7 +4408,7 @@ R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
+          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + esc(text) + '</pre></div>';
         }
 
         return html;
