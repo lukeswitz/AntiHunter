@@ -7,6 +7,7 @@
 #include "detect.h"
 #include "csi.h"
 #include "pcap.h"
+#include "meshcore_link.h"
 #include <Arduino.h>
 #include <errno.h>
 #include <string.h>
@@ -538,6 +539,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putBool("hbEnabled", hbEnabled);
+    prefs.putBool("meshcoreTx", g_meshcoreTransport);
     prefs.putUInt("hbInterval", hbInterval);
     prefs.putBool("vibEnabled", vibrationEnabled);
     prefs.putBool("vibScanEn", vibAutoScanEnabled);
@@ -597,6 +599,7 @@ static uint32_t configSignature() {
     mixStr(prefsGetString("maclist", ""));
     mixStr(prefsGetString("apSsid", AP_SSID));
     mix(&hbEnabled, 1);
+    mix(&g_meshcoreTransport, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
     mix(&vibAutoScanEnabled, 1);
@@ -724,6 +727,7 @@ void saveConfiguration() {
     configFile_w.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
     configFile_w.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
     configFile_w.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
+    configFile_w.printf(" \"meshcoreTx\":%s,\n", g_meshcoreTransport ? "true" : "false");
     configFile_w.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
     configFile_w.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
     configFile_w.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
@@ -1047,6 +1051,11 @@ void loadConfiguration() {
     if (doc.containsKey("hbEnabled")) {
         hbEnabled = doc["hbEnabled"].as<bool>();
         prefs.putBool("hbEnabled", hbEnabled);
+    }
+
+    if (doc.containsKey("meshcoreTx")) {
+        g_meshcoreTransport = doc["meshcoreTx"].as<bool>();
+        prefs.putBool("meshcoreTx", g_meshcoreTransport);
     }
 
     if (doc.containsKey("hbInterval")) {
@@ -1379,6 +1388,7 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
+    s += "Mesh transport: " + String(g_meshcoreTransport ? "MeshCore" : "Meshtastic") + "\n";
     if (meshEnabled && meshDrainTotal.load() > 0) {
         s += "Mesh TX: draining " + String(meshDrainSent.load()) + "/" + String(meshDrainTotal.load()) + "\n";
     } else {
@@ -2392,13 +2402,14 @@ void syncRTCFromGPS() {
                       timeDiff);
         
         didSync = true;
-
-        String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
-        sendToSerial1(meshMsg, false);
     }
 
     xSemaphoreGive(rtcMutex);
-    if (didSync) logToSD("RTC synced from GPS");
+    if (didSync) {
+        String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
+        sendToSerial1(meshMsg, false);
+        logToSD("RTC synced from GPS");
+    }
 }
 
 void updateRTCTime() {

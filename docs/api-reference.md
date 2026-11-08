@@ -143,7 +143,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/api/mesh` | GET | JSON: `node`, `peers` (this node first, marked `self`), `radios` |
 | `/api/mesh/ping` | POST | Broadcasts `@ALL STATUS`. `409` if the mesh is off |
 | `/api/mesh/clear` | POST | Clears both rosters |
-| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` must start with one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or equal `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
+| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` must start with one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or equal `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `400` bad node or command, `409` mesh off, `413` over 230 characters or over the MeshCore radio's text limit, `503` mesh busy |
 
 ## Mesh settings
 
@@ -155,6 +155,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/mesh-interval` | POST | `interval`: minimum milliseconds between mesh alerts, 1500-30000 |
 | `/mesh-hb` | POST | `enabled=true` or `false`: the status heartbeat |
 | `/mesh-hb-interval` | POST | `interval`: minutes between heartbeats, 1-60 (values outside move to the limit) |
+| `/mesh-transport` | POST | `meshcore=true` or `false`: the MeshCore radio link (Beta) |
 | `/mesh-dedup-ttl` | GET | JSON: `ttl`, `min`, `max`, `session`, `count` |
 | `/mesh-dedup-ttl` | POST | `ttl`: seconds before a device is reported again, 0-3600. `0` turns deduplication off. Default 300 |
 | `/mesh-dedup-clear` | POST | Empties the deduplication memory |

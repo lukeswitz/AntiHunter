@@ -103,11 +103,27 @@ void uartForwardTask(void *parameter) {
       const size_t MAX_DRAIN_BYTES = 256;
       size_t drained = 0;
       while (Serial1.available() && drained < MAX_DRAIN_BYTES) {
-        rxChunk += (char)Serial1.read();
+        const char rc = (char)Serial1.read();
+        if (g_meshcoreTransport) meshcoreFeedByte((uint8_t)rc);
+        else rxChunk += rc;
         lastRxMicros = micros();
         drained++;
       }
       xSemaphoreGive(serial1Mutex);
+    }
+
+    if (g_meshcoreTransport) {
+      String mcText;
+      while (meshcoreNextText(mcText)) {
+        int lineStart = 0;
+        for (int k = 0; k <= (int)mcText.length(); k++) {
+          if (k == (int)mcText.length() || mcText[k] == '\n' || mcText[k] == '\r') {
+            if (k > lineStart) meshRxProcessLine(mcText.substring(lineStart, k), lastRxMicros);
+            lineStart = k + 1;
+          }
+        }
+      }
+      meshcorePoll();
     }
 
     for (size_t i = 0; i < rxChunk.length(); i++) {
@@ -115,12 +131,6 @@ void uartForwardTask(void *parameter) {
 #if defined(AH_USB_ECHO) && (AH_USB_ECHO)
       Serial.write(c);
 #endif
-
-      if (g_meshcoreTransport) {
-        String mcLine;
-        if (meshcoreFeedByte((uint8_t)c, mcLine)) meshRxProcessLine(mcLine, lastRxMicros);
-        continue;
-      }
 
       if (c == '\n' || c == '\r') {
         meshRxProcessLine(meshBuffer, lastRxMicros);

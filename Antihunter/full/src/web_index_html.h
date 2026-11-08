@@ -1342,6 +1342,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     <div class="srow-c"><input type="number" id="hbIntervalInput" class="num" min="1" max="60" step="1" value="10" aria-label="Heartbeat interval in minutes" onchange="saveHbInterval()"><span class="srow-u">min</span><label class="dsw"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()"><span class="dsw-s"></span></label></div>
                   </div>
                   <div class="srow">
+                    <div class="srow-l"><label for="meshcoreCb">MeshCore radio</label><p>Turn off for Meshtastic.</p></div>
+                    <div class="srow-c"><label class="dsw"><input type="checkbox" id="meshcoreCb" onchange="toggleMeshcore()"><span class="dsw-s"></span></label></div>
+                  </div>
+                  <div class="srow">
                     <div class="srow-l"><label for="meshInterval">Alert send interval</label><p>Minimum gap between alerts. 1500 to 30000 ms.</p></div>
                     <div class="srow-c"><input type="number" id="meshInterval" class="num" min="1500" max="30000" step="100" value="3000" onchange="saveMeshInterval()"><span class="srow-u">ms</span></div>
                   </div>
@@ -2524,6 +2528,7 @@ R"HTML(
       let meshEnabled = true;
       let vibrationEnabled = true;
       let hbEnabled = false;
+      let meshcoreOn = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
       let radioBusy = false;
@@ -3536,6 +3541,28 @@ R"HTML(
           toast('Failed to update heartbeat', 'error');
           hbEnabled = !hbEnabled;
           updateHbUI();
+        }
+      }
+
+      function updateMeshcoreUI() {
+        const cb = document.getElementById('meshcoreCb');
+        if (cb) cb.checked = meshcoreOn;
+      }
+
+      async function toggleMeshcore() {
+        meshcoreOn = document.getElementById('meshcoreCb').checked;
+        try {
+          const r = await fetch('/mesh-transport', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'meshcore=' + meshcoreOn
+          });
+          const msg = await r.text();
+          toast(msg, 'success');
+        } catch(e) {
+          toast('Failed to change the mesh radio', 'error');
+          meshcoreOn = !meshcoreOn;
+          updateMeshcoreUI();
         }
       }
 
@@ -5953,6 +5980,8 @@ R"HTML(
           hbEnabled = diagText.includes('Heartbeat: Enabled');
           if (hbMatch) { const inp = document.getElementById('hbIntervalInput'); if (inp && document.activeElement !== inp) inp.value = hbMatch[1]; }
           updateHbUI();
+          meshcoreOn = diagText.includes('Mesh transport: MeshCore');
+          updateMeshcoreUI();
           vibrationEnabled = diagText.includes('Vibration Broadcasts: Enabled');
           updateVibrationUI();
 

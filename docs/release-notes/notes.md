@@ -37,6 +37,7 @@ This applies to all three channels.
 - Full sends the `BASELINE_WATCH` summary when a baseline ends, as Headless does.
 - Headless results match Full: target and device scan rows show the network's security, `TARGET`, range, signal trend, and probed networks. Baseline and target scans write their results to `/last_results.txt`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for Headless nodes.
+- Beta, Full and Headless: the node can use a MeshCore radio instead of Meshtastic. `MESHCORE_ON` and `MESHCORE_OFF` (`MC1`, `MC0`) switch the link, reply `MESHCORE_ACK:ON` or `:OFF`, and survive a reboot. Full adds the **MeshCore radio** switch and `/mesh-transport`. The Operator's Guide §7.7 covers the radio setup.
 
 **Web UI**
 - System tab: one menu on the left (tabs on a phone) opens **Diagnostics**, **Fleet**, and the **Settings** sections: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.

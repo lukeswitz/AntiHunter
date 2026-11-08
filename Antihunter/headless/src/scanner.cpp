@@ -22,6 +22,7 @@
 #include "scanner_internal.h"
 #include "oui_table.h"
 #include "ble_class.h"
+#include "meshcore_link.h"
 
 extern "C"
 {
@@ -1015,7 +1016,8 @@ void snifferScanTask(void *pv)
         compact.replace(":", "");
         compact += row.substring(7 + mac.length());
         String candidate = (meshBatch.length() == 0) ? firstFrame : (meshBatch + "\n" + compact);
-        if (candidate.length() > (size_t)MAX_MESH_SIZE) {
+        const size_t meshCap = g_meshcoreTransport ? (size_t)meshcoreTextCap() : (size_t)MAX_MESH_SIZE;
+        if (candidate.length() > meshCap) {
             flushMeshBatch();
             meshBatch = firstFrame;
         } else {
