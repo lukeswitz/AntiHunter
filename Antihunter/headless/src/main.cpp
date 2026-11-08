@@ -8,6 +8,7 @@
 #include "scanner.h"
 #include "hardware.h"
 #include "detect.h"
+#include "meshcore_link.h"
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
@@ -49,6 +50,65 @@ extern std::atomic<bool> scanning;
 std::string antihunter::lastResults = "No scan data yet.";
 std::mutex antihunter::lastResultsMutex;
 
+static void meshRxProcessLine(const String &line, uint32_t lastRxMicros) {
+  if (line.length() == 0) return;
+  if (!line.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshRedactSecrets(line).c_str());
+
+  String toProcess, senderId;
+  meshSplitSender(line, senderId, toProcess);
+
+  mesh_observeInbound(senderId, toProcess);
+  detect_fleetObserve(senderId, line);
+
+  if (toProcess.startsWith("TIME_SYNC_REQ:")) {
+    processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
+  } else if (toProcess.startsWith("PMKID_HARVEST:") ||
+             toProcess.startsWith("EVILTWIN:") ||
+             toProcess.startsWith("SAE_DOS:") ||
+             toProcess.startsWith("DEAUTH_FLOOD:") ||
+             toProcess.startsWith("BEACON_FORGE:") ||
+             toProcess.startsWith("PMKID_FORGE:") ||
+             toProcess.startsWith("EAPOL_BAIT:") ||
+             toProcess.startsWith("PROBE_FLOOD:") ||
+             toProcess.startsWith("PROBE_FLOOD_BEHAVE:") ||
+             toProcess.startsWith("ASSOC_SLEEP:") ||
+             toProcess.startsWith("RECON:") ||
+             toProcess.startsWith("RID_CLAIM:") ||
+             toProcess.startsWith("RID_RX:") ||
+             toProcess.startsWith("BLOOM:") ||
+             toProcess.startsWith("CHAN_ASSIGN:") ||
+             toProcess.startsWith("FRAG:") ||
+             toProcess.startsWith("IDHASH:") ||
+             toProcess.startsWith("HSHK:") ||
+             toProcess.startsWith("KRACK:") ||
+             toProcess.startsWith("ATTACKER_HUNT:") ||
+             toProcess.startsWith("PWNAGOTCHI:") ||
+             toProcess.startsWith("RADIO_DETECTED:") ||
+             toProcess.startsWith("JAMMING:") ||
+             toProcess.startsWith("BEACON_FLOOD:") ||
+             toProcess.startsWith("AUTH_FLOOD:") ||
+             toProcess.startsWith("DEAUTH_FORGE:") ||
+             toProcess.startsWith("DEAUTH_AP_TARGETED:") ||
+             toProcess.startsWith("OWE_ABUSE:") ||
+             toProcess.startsWith("PROBE_FLOOD_AP:") ||
+             toProcess.startsWith("SSID_CONFUSION:") ||
+             toProcess.startsWith("CSA_SPOOF:") ||
+             toProcess.startsWith("QUIET_ABUSE:") ||
+             toProcess.startsWith("MESH_FLOOD:") ||
+             toProcess.startsWith("MESH_SPOOF_SELF:") ||
+             toProcess.startsWith("JAMMING_BASELINE:") ||
+             toProcess.startsWith("KARMA_CAND:") ||
+             toProcess.startsWith("KARMA_CONFIRMED:") ||
+             toProcess.startsWith("TOF_PING:") ||
+             toProcess.startsWith("TOF_PONG:") ||
+             toProcess.startsWith("FLEET_AP:") ||
+             toProcess.startsWith("FLEET_RADIO:")) {
+    detect_processMesh(senderId, toProcess);
+  } else {
+    processMeshMessage(line);
+  }
+}
+
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
 
@@ -72,68 +132,15 @@ void uartForwardTask(void *parameter) {
       Serial.write(c);
 #endif
 
+      if (g_meshcoreTransport) {
+        String mcLine;
+        if (meshcoreFeedByte((uint8_t)c, mcLine)) meshRxProcessLine(mcLine, lastRxMicros);
+        continue;
+      }
+
       if (c == '\n' || c == '\r') {
-        if (meshBuffer.length() > 0) {
-          if (!meshBuffer.startsWith("[")) Serial.printf("[MESH RX] %s\n", meshRedactSecrets(meshBuffer).c_str());
-
-          String toProcess, senderId;
-          meshSplitSender(meshBuffer, senderId, toProcess);
-
-          mesh_observeInbound(senderId, toProcess);
-          detect_fleetObserve(senderId, meshBuffer);
-
-          if (toProcess.startsWith("TIME_SYNC_REQ:")) {
-            processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
-          } else {
-            if (toProcess.startsWith("PMKID_HARVEST:") ||
-                toProcess.startsWith("EVILTWIN:") ||
-                toProcess.startsWith("SAE_DOS:") ||
-                toProcess.startsWith("DEAUTH_FLOOD:") ||
-                toProcess.startsWith("BEACON_FORGE:") ||
-                toProcess.startsWith("PMKID_FORGE:") ||
-                toProcess.startsWith("EAPOL_BAIT:") ||
-                toProcess.startsWith("PROBE_FLOOD:") ||
-                toProcess.startsWith("PROBE_FLOOD_BEHAVE:") ||
-                toProcess.startsWith("ASSOC_SLEEP:") ||
-                toProcess.startsWith("RECON:") ||
-                toProcess.startsWith("RID_CLAIM:") ||
-                toProcess.startsWith("RID_RX:") ||
-                toProcess.startsWith("BLOOM:") ||
-                toProcess.startsWith("CHAN_ASSIGN:") ||
-                toProcess.startsWith("FRAG:") ||
-                toProcess.startsWith("IDHASH:") ||
-                toProcess.startsWith("HSHK:") ||
-                toProcess.startsWith("KRACK:") ||
-                toProcess.startsWith("ATTACKER_HUNT:") ||
-                toProcess.startsWith("PWNAGOTCHI:") ||
-                toProcess.startsWith("RADIO_DETECTED:") ||
-                toProcess.startsWith("JAMMING:") ||
-                toProcess.startsWith("BEACON_FLOOD:") ||
-                toProcess.startsWith("AUTH_FLOOD:") ||
-                toProcess.startsWith("DEAUTH_FORGE:") ||
-                toProcess.startsWith("DEAUTH_AP_TARGETED:") ||
-                toProcess.startsWith("OWE_ABUSE:") ||
-                toProcess.startsWith("PROBE_FLOOD_AP:") ||
-                toProcess.startsWith("SSID_CONFUSION:") ||
-                toProcess.startsWith("CSA_SPOOF:") ||
-                toProcess.startsWith("QUIET_ABUSE:") ||
-                toProcess.startsWith("MESH_FLOOD:") ||
-                toProcess.startsWith("MESH_SPOOF_SELF:") ||
-                toProcess.startsWith("JAMMING_BASELINE:") ||
-                toProcess.startsWith("KARMA_CAND:") ||
-                toProcess.startsWith("KARMA_CONFIRMED:") ||
-                toProcess.startsWith("TOF_PING:") ||
-                toProcess.startsWith("TOF_PONG:") ||
-                toProcess.startsWith("FLEET_AP:") ||
-                toProcess.startsWith("FLEET_RADIO:")) {
-              detect_processMesh(senderId, toProcess);
-            } else {
-              processMeshMessage(meshBuffer);
-            }
-          }
-
-          meshBuffer = "";
-        }
+        meshRxProcessLine(meshBuffer, lastRxMicros);
+        meshBuffer = "";
       } else {
         meshBuffer += c;
         if (meshBuffer.length() > 1024) {
@@ -292,6 +299,7 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    meshcoreLoadPref();
     calibrationLoad();
     campaignInit();
 
