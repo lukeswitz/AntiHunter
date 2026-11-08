@@ -578,6 +578,10 @@ void memMark(const char *what) {
                   (unsigned)uxTaskGetNumberOfTasks());
 }
 
+#ifdef ARDUINO_XIAO_ESP32C5
+void ahPsramBarrierInit(void);
+#endif
+
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
@@ -593,6 +597,7 @@ void setup() {
 #ifdef ARDUINO_XIAO_ESP32C5
     // C5 has 320KB HP SRAM and the image eats 180KB; without this the 4096B ALWAYSINTERNAL default starves WiFi
     if (psramFound()) heap_caps_malloc_extmem_enable(AH_EXTMEM_THRESHOLD);
+    ahPsramBarrierInit();
     Serial.printf("[MEM] C5: PSRAM heap routing on (>=%uB -> PSRAM; WiFi/LWIP + ISR queues internal). psram_free=%u internal_free=%u\n",
                   (unsigned)AH_EXTMEM_THRESHOLD,
                   (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));

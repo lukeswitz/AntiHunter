@@ -200,15 +200,13 @@ void probeDetectionTask(void *pv)
     }
 
     if (probeRequestQueue == nullptr) {
-        for (size_t depth : {256u, 128u, 64u, 32u}) {
+        for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 32; depth /= 2) {
             probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-            if (probeRequestQueue) {
-                if (depth < 256u)
-                    Serial.printf("[PROBE] queue depth %u (256 would need %u B, largest free %u)\n",
-                                  (unsigned)depth, (unsigned)(256 * sizeof(ProbeRequestEvent)),
-                                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-                break;
-            }
+            if (probeRequestQueue && depth < (size_t)AH_PROBE_QUEUE_LEN)
+                Serial.printf("[PROBE] queue depth %u (%u would need %u B, largest free %u)\n",
+                              (unsigned)depth, (unsigned)AH_PROBE_QUEUE_LEN,
+                              (unsigned)((size_t)AH_PROBE_QUEUE_LEN * sizeof(ProbeRequestEvent)),
+                              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         }
         if (!probeRequestQueue)
             Serial.printf("[PROBE] WARNING: queue alloc failed - probe capture inert (need=%u internal=%u largest=%u)\n",

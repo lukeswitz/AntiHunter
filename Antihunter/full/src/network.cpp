@@ -1765,7 +1765,10 @@ void registerRemainingRoutes() {
                 if (req->hasParam("captureProbes", true)) {
                     probeDetectionEnabled = true;
                     if (probeRequestQueue == nullptr) {
-                        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+                        for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
+                            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+                        if (!probeRequestQueue)
+                            Serial.println("[PROBE] queue alloc failed - probe capture inert");
                     } else {
                         xQueueReset(probeRequestQueue);
                     }
