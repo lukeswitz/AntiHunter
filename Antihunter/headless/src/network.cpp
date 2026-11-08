@@ -2072,6 +2072,7 @@ static void handleFactoryReset(const String &command)
     else if (t == "DATA") ok = performDataReset();
     else                  ok = performSecureWipe();
     Serial.printf("[FACTORY] Reset %s %s - rebooting\n", t.c_str(), ok ? "OK" : "FAILED");
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:" + t + ":" + (ok ? "OK" : "FAILED"), true);
     delay(300);
     ESP.restart();
   }, "factory_reset", 8192, tierPtr, 1, NULL) != pdPASS) {
