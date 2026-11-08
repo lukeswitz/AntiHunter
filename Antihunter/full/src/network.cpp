@@ -804,7 +804,8 @@ int fleetSend(String node, String cmd, String &msg) {
   String line = "@" + node + " " + cmd;
   for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
   if (!cmdOk) { msg = "Command not allowed"; return 400; }
-  if ((int)line.length() > MAX_MESH_SIZE) { msg = "Too long for one mesh message"; return 413; }
+  const int lineCap = g_meshcoreTransport ? (int)meshcoreTextCap() : MAX_MESH_SIZE;
+  if ((int)line.length() > lineCap) { msg = "Too long for one mesh message"; return 413; }
   if (!sendToSerial1(line, true)) { msg = "Mesh busy - retry"; return 503; }
   msg = "Sent to " + node;
   return 200;
@@ -1329,6 +1330,17 @@ void registerRemainingRoutes() {
             req->send(200, "text/plain", hbEnabled ? "Heartbeat enabled" : "Heartbeat disabled");
         } else {
             req->send(400, "text/plain", "Missing enabled parameter");
+        } });
+
+  server->on("/mesh-transport", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("meshcore", true)) {
+            const bool on = req->getParam("meshcore", true)->value() == "true";
+            meshcoreSetTransport(on);
+            Serial.printf("[MESH] Transport %s\n", on ? "MeshCore" : "Meshtastic");
+            req->send(200, "text/plain", on ? "Mesh radio set to MeshCore" : "Mesh radio set to Meshtastic");
+        } else {
+            req->send(400, "text/plain", "Missing meshcore parameter");
         } });
 
   server->on("/mesh-hb-interval", HTTP_POST, [](AsyncWebServerRequest *req)

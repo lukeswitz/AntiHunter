@@ -516,7 +516,28 @@ python3 scripts/meshtastic_config.py</pre>
   </ul>
 
   <h3>7.6 Reaching the mesh</h3>
-  <p>Commands and detections are ordinary Meshtastic text messages. Pair the radio to the Meshtastic app over Bluetooth or Wi-Fi and send <span class="mono">@node COMMAND</span> messages, or use the Meshtastic ATAK plugin or an MQTT gateway node.</p>
+  <p>Commands and detections are ordinary Meshtastic text messages. Pair the radio to the Meshtastic app over Bluetooth or Wi-Fi and send <span class="mono">@node COMMAND</span> messages, or use the Meshtastic ATAK plugin or an MQTT gateway node. With a MeshCore radio (§7.7), they are MeshCore messages on channel 0.</p>
+
+  <h3>7.7 MeshCore radio (Beta)</h3>
+  <p>Beta firmware can use a radio that runs MeshCore instead of Meshtastic. MeshCore has no ready-made Heltec V3 build with a serial link to the node, so you build one.</p>
+  <table class="tight">
+    <tr><th style="width:26%">Setting</th><th>Value</th></tr>
+    <tr><td>Firmware</td><td>MeshCore <span class="mono">Heltec_v3_companion_radio_usb</span> with <span class="mono">-D SERIAL_RX=19 -D SERIAL_TX=20 -UENV_INCLUDE_GPS</span> added</td></tr>
+    <tr><td>Link</td><td>19 RX / 20 TX, 115200 baud</td></tr>
+    <tr><td>Radio GPS</td><td>Off. It uses the same UART as the node link</td></tr>
+    <tr><td>Channel 0</td><td>Your own private channel. The node sends and reads only channel 0. A new MeshCore radio has the shared Public channel there</td></tr>
+  </table>
+  <ol>
+    <li>Plug the <b>radio</b> in on its own USB and flash it:
+      <pre>git clone https://github.com/meshcore-dev/MeshCore &amp;&amp; cd MeshCore
+PLATFORMIO_BUILD_FLAGS="-D SERIAL_RX=19 -D SERIAL_TX=20 -UENV_INCLUDE_GPS" \
+    pio run -e Heltec_v3_companion_radio_usb -t upload</pre></li>
+    <li>Set the radio settings your other MeshCore radios use, and your channel:
+      <pre>pip3 install meshcore-cli
+meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam KEY</pre>
+      <span class="mono">set radio</span> takes the frequency in MHz, the bandwidth in kHz, the spreading factor and the coding rate. The example is the US/Canada preset. <span class="mono">KEY</span> is 32 hex characters.</li>
+    <li>Unplug the radio's USB. Send <span class="mono">MESHCORE_ON</span> to the node, or turn on System tab → <b>Settings</b> → <b>Node &amp; mesh</b> → <b>MeshCore radio</b>.</li>
+  </ol>
 </div>
 
 <div class="sec">
@@ -563,7 +584,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Battery Saver.</b> System tab → <b>Settings</b> → <b>Sensors &amp; power</b> → <b>Battery saver</b>, or <span class="mono">BATTERY_SAVER_START</span> from §11. Scanning stops, BLE turns off, the CPU drops to 80 MHz, and the node sends a heartbeat at the interval you pick: 1, 2, 5, 10, 15 or 30 minutes. The mesh and access point stay on, and the node reads GPS once a minute.</li>
     <li><b>Theme and accent colors.</b> System tab → <b>Settings</b> → <b>Appearance</b>. <b>Theme</b>: Paper dark (default), Blue dark or Light. The sun and moon button in the header switches between Light and your dark theme. <b>Stop and clear buttons</b> and <b>Sentinel banners</b> set accent colors. Each browser stores its own choices.</li>
     <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. <b>Clear</b> empties the list.</li>
-    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>Alert send interval</b> is the shortest gap between alert messages, 1500 to 30000 ms. <b>Repeat filter</b> skips a MAC the node already sent within 0 to 3600 seconds. The default is 300, and 0 sends every device on every scan. <b>Send only new devices</b> sends only devices not yet sent this session. <b>Clear cache</b> forgets what the node sent. The filters apply to device lists only. The node always sends alerts, drone events and triangulation.</li>
+    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>MeshCore radio</b> (Beta) switches the link to a MeshCore radio (§7.7). <b>Alert send interval</b> is the shortest gap between alert messages, 1500 to 30000 ms. <b>Repeat filter</b> skips a MAC the node already sent within 0 to 3600 seconds. The default is 300, and 0 sends every device on every scan. <b>Send only new devices</b> sends only devices not yet sent this session. <b>Clear cache</b> forgets what the node sent. The filters apply to device lists only. The node always sends alerts, drone events and triangulation.</li>
   </ul>
 </div>
 
@@ -908,6 +929,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEVICE_DB_CLEAR</span> [DBX]</td><td>Clears the device database. Headless only.</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START:10</span> [BSS]</td><td>Starts Battery Saver (§8.4) with a heartbeat every 10 minutes (1 to 30, default 5). <span class="mono">BATTERY_SAVER_STOP</span> [BSX] ends it.</td></tr>
     <tr><td><span class="mono">HB_ON</span> [HB1], <span class="mono">HB_OFF</span> [HB0], <span class="mono">HB_INTERVAL:10</span> [HBI]</td><td>Turns the status heartbeat on or off (off by default) or sets its interval in minutes, 1 to 60.</td></tr>
+    <tr><td><span class="mono">MESHCORE_ON</span> [MC1], <span class="mono">MESHCORE_OFF</span> [MC0]</td><td>Beta only. Switches the radio link to a MeshCore radio (§7.7) or back to Meshtastic, and saves it.</td></tr>
   </table>
   <p>The full list, with every argument, reply and alias, is in <span class="mono">docs/mesh-commands.md</span> in the repository. The ten commands to learn first are on the card in Appendix E.</p>
 </div>

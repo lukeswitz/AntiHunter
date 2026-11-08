@@ -478,6 +478,10 @@ pip3 install 'meshtastic[cli]' pyserial
 python3 scripts/meshtastic_config.py --serial on --region US
 ```
 
+### MeshCore radio (Beta)
+
+Beta firmware can also use a Heltec V3 that runs MeshCore. MeshCore has no ready-made build with a serial link to the node, so build its `Heltec_v3_companion_radio_usb` with `-D SERIAL_RX=19 -D SERIAL_TX=20 -UENV_INCLUDE_GPS` added. The node sends and reads only channel 0, so set channel 0 on the radio to your own private channel. Then send `@AH01 MESHCORE_ON`. The [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) §7.7 has the commands.
+
 ### Other Meshtastic clients
 
 Commands and alerts are ordinary Meshtastic text messages, so any client works, including [ATAK](https://meshtastic.org/docs/software/integrations/integrations-atak-plugin/) and [MQTT](https://meshtastic.org/docs/software/integrations/mqtt/).

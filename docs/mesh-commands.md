@@ -2,7 +2,7 @@
 
 [Back](../README.md)
 
-This page lists every command a node accepts over the mesh (Meshtastic LoRa radio) and on its USB serial port. It covers the Full and Headless firmware on the main branch. A command that works on only one build says so.
+This page lists every command a node accepts over the mesh (Meshtastic LoRa radio, or MeshCore on Beta) and on its USB serial port. It covers the Full and Headless firmware on the main branch. A command that works on only one build says so.
 
 ## How to send a command
 
@@ -11,7 +11,7 @@ Send a text message that starts with the target: `@AH01 STATUS` for one node, `@
 - A node ID is 2 to 5 letters or digits. Node IDs and command names are not case sensitive.
 - Each command also has a short alias: `@AH01 TS:...` is `@AH01 TRIANGULATE_START:...`.
 - Type argument keywords such as `FOREVER`, `CH`, and `+PROBE` in uppercase.
-- A whole line can be at most 230 characters.
+- A whole line can be at most 230 characters. Over a MeshCore radio (Beta), the limit is 160 minus the length of the radio's name and 2, which is 150 for the default name.
 - The node ignores any line that does not start with `@<NODE>` or `@ALL`. It also ignores a misspelled command and sends no reply.
 - Every node that receives the command answers with `<NODE>: <reply>`. This page shows only the reply text.
 - Only one scan runs at a time. A start command replies `BUSY` while another scan runs. Send `STOP` first.
@@ -416,6 +416,7 @@ While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Aler
 | Command | Alias | Where | What it does | Reply | Example |
 |---|---|---|---|---|---|
 | `CONFIG_BAND` | `CB` | C5 only | Chooses the Wi-Fi band the scans use, and saves it | `CONFIG_ACK:BAND:<n>` or `:INVALID` | `@AH01 CONFIG_BAND:2` |
+| `MESHCORE_ON` / `MESHCORE_OFF` | `MC1` / `MC0` | Beta only | Switches the radio link to a MeshCore radio or back to Meshtastic, and saves it. The reply goes out on the old link | `MESHCORE_ACK:ON` / `MESHCORE_ACK:OFF` | `@AH01 MESHCORE_ON` |
 
 | Argument | Meaning | Range | Default |
 |---|---|---|---|

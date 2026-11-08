@@ -6,4 +6,7 @@ extern bool g_meshcoreTransport;
 void meshcoreLoadPref();
 void meshcoreSetTransport(bool on);
 void meshcoreWriteText(const String &msg);
-bool meshcoreFeedByte(uint8_t c, String &outText);
+void meshcoreFeedByte(uint8_t c);
+bool meshcoreNextText(String &outText);
+uint16_t meshcoreTextCap();
+void meshcorePoll();
