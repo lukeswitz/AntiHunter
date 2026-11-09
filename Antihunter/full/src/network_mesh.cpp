@@ -2603,7 +2603,6 @@ static const char *const kCmdAliases[][2] = {
   {"BSX", "BATTERY_SAVER_STOP"},  {"BSQ", "BATTERY_SAVER_STATUS"},   {"CS", "CAMPAIGN_START"},
   {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
-  {"MC1", "MESHCORE_ON"},         {"MC0", "MESHCORE_OFF"},
   {"CB", "CONFIG_BAND"},          {"CIM", "CSI_MOTION_START"},       {"CIE", "CSI_EXCLUDE"},
   {"CIC", "CSI_CFG"},             {"CIQ", "CSI_STATUS"},             {"CIJ", "CSI_JSON"},
   {"CIR", "CSI_RECAL"},
@@ -2832,8 +2831,6 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("BLE_CLASSIFY:"))         handleBleClassify(command);
   else if (command == "HB_ON")                          handleHbOn(command);
   else if (command == "HB_OFF")                         handleHbOff(command);
-  else if (command == "MESHCORE_ON")                    { sendToSerial1(nodeId + ": MESHCORE_ACK:ON", true);  meshcoreSetTransport(true); }
-  else if (command == "MESHCORE_OFF")                   { sendToSerial1(nodeId + ": MESHCORE_ACK:OFF", true); meshcoreSetTransport(false); }
   else if (command.startsWith("HB_INTERVAL:"))          handleHbInterval(command);
   else if (command.startsWith("CALIBRATE:"))            handleCalibrate(command);
   else if (command == "CALIBRATE_RESET")                handleCalibrateReset(command);
@@ -3642,6 +3639,10 @@ void processUSBToMesh() {
                     }
                 } else if (usbBuffer == "FLEET") {
                     Serial.println(meshFleetJson());
+                } else if (usbBuffer == "MESHCORE_ON" || usbBuffer == "MESHCORE_OFF") {
+                    const bool on = usbBuffer == "MESHCORE_ON";
+                    meshcoreSetTransport(on);
+                    Serial.printf("MESHCORE_ACK:%s\n", on ? "ON" : "OFF");
                 } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(usbBuffer).c_str());
                     processMeshMessage(usbBuffer.c_str());
