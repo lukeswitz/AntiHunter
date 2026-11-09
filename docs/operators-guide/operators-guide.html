@@ -536,7 +536,7 @@ PLATFORMIO_BUILD_FLAGS="-D SERIAL_RX=19 -D SERIAL_TX=20 -UENV_INCLUDE_GPS" \
       <pre>pip3 install meshcore-cli
 meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam KEY</pre>
       <span class="mono">set radio</span> takes the frequency in MHz, the bandwidth in kHz, the spreading factor and the coding rate. The example is the US/Canada preset. <span class="mono">KEY</span> is 32 hex characters.</li>
-    <li>Unplug the radio's USB. Send <span class="mono">MESHCORE_ON</span> to the node, or turn on System tab → <b>Settings</b> → <b>Node &amp; mesh</b> → <b>MeshCore radio</b>.</li>
+    <li>Unplug the radio's USB. Type <span class="mono">MESHCORE_ON</span> on the node's USB serial port at 115200 baud, or turn on System tab → <b>Settings</b> → <b>Node &amp; mesh</b> → <b>MeshCore radio</b>. It does not work over the mesh.</li>
   </ol>
 </div>
 
@@ -928,9 +928,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
     <tr><td><span class="mono">MESH_TX_CANCEL</span> [MTC]</td><td>Drops queued mesh messages and keeps the scan running.</td></tr>
     <tr><td><span class="mono">DEVICE_DB_CLEAR</span> [DBX]</td><td>Clears the device database. Headless only.</td></tr>
     <tr><td><span class="mono">BATTERY_SAVER_START:10</span> [BSS]</td><td>Starts Battery Saver (§8.4) with a heartbeat every 10 minutes (1 to 30, default 5). <span class="mono">BATTERY_SAVER_STOP</span> [BSX] ends it.</td></tr>
-    <tr><td><span class="mono">HB_ON</span> [HB1], <span class="mono">HB_OFF</span> [HB0], <span class="mono">HB_INTERVAL:10</span> [HBI]</td><td>Turns the status heartbeat on or off (off by default) or sets its interval in minutes, 1 to 60.</td></tr>
-    <tr><td><span class="mono">MESHCORE_ON</span> [MC1], <span class="mono">MESHCORE_OFF</span> [MC0]</td><td>Beta only. Switches the radio link to a MeshCore radio (§7.7) or back to Meshtastic, and saves it.</td></tr>
-  </table>
+    <tr><td><span class="mono">HB_ON</span> [HB1], <span class="mono">HB_OFF</span> [HB0], <span class="mono">HB_INTERVAL:10</span> [HBI]</td><td>Turns the status heartbeat on or off (off by default) or sets its interval in minutes, 1 to 60.</td></tr>  </table>
   <p>The full list, with every argument, reply and alias, is in <span class="mono">docs/mesh-commands.md</span> in the repository. The ten commands to learn first are on the card in Appendix E.</p>
 </div>
 

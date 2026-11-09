@@ -416,7 +416,7 @@ While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Aler
 | Command | Alias | Where | What it does | Reply | Example |
 |---|---|---|---|---|---|
 | `CONFIG_BAND` | `CB` | C5 only | Chooses the Wi-Fi band the scans use, and saves it | `CONFIG_ACK:BAND:<n>` or `:INVALID` | `@AH01 CONFIG_BAND:2` |
-| `MESHCORE_ON` / `MESHCORE_OFF` | `MC1` / `MC0` | Beta only | Switches the radio link to a MeshCore radio or back to Meshtastic, and saves it. The reply goes out on the old link | `MESHCORE_ACK:ON` / `MESHCORE_ACK:OFF` | `@AH01 MESHCORE_ON` |
+| `MESHCORE_ON` / `MESHCORE_OFF` | | Beta only, USB serial | Switches the radio link to a MeshCore radio or back to Meshtastic, and saves it. It does not work over the mesh | `MESHCORE_ACK:ON` / `MESHCORE_ACK:OFF` on USB | `MESHCORE_ON` |
 
 | Argument | Meaning | Range | Default |
 |---|---|---|---|

@@ -114,6 +114,12 @@ static bool mcPendPop(McPending &out) {
     return true;
 }
 
+static bool mcWanted(uint8_t code) {
+    return code == MC_RESP_SELF_INFO || code == MC_RESP_CONTACT_MSG || code == MC_RESP_CHANNEL_MSG ||
+           code == MC_RESP_CONTACT_MSG_V3 || code == MC_RESP_CHANNEL_MSG_V3 || code == MC_RESP_CHANNEL_DATA ||
+           code == MC_PUSH_MSG_WAITING;
+}
+
 static uint32_t mcHash(const char *text, uint16_t len) {
     uint32_t h = 2166136261u;
     for (uint16_t i = 0; i < len; i++) {
@@ -134,8 +140,7 @@ static int mcAwait(uint8_t want, uint8_t &err) {
                 return code;
             }
             if (code == want) return code;
-            if (code == MC_RESP_OK || code == MC_RESP_ERR || code == MC_RESP_CURR_TIME) continue;
-            mcPendPush(s_rx, s_rxLen);
+            if (mcWanted(code)) mcPendPush(s_rx, s_rxLen);
         }
         vTaskDelay(1);
     }
@@ -315,7 +320,7 @@ void meshcoreSetTransport(bool on) {
 }
 
 void meshcoreFeedByte(uint8_t c) {
-    if (mcAssemble(c)) mcPendPush(s_rx, s_rxLen);
+    if (mcAssemble(c) && mcWanted(s_rx[0])) mcPendPush(s_rx, s_rxLen);
 }
 
 static bool mcHandleFrame(const McPending &f, String &outText) {
@@ -336,6 +341,8 @@ static bool mcHandleFrame(const McPending &f, String &outText) {
         if (f.len <= txtOfs || f.data[chOfs] != MC_CHANNEL) return false;
         outText = "";
         for (uint16_t i = txtOfs; i < f.len; i++) outText += (char)f.data[i];
+        const int sep = outText.indexOf(": ");
+        if (sep >= 0) outText.remove(0, sep + 2);
         return outText.length() > 0;
     }
     return false;
