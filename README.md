@@ -25,9 +25,9 @@
 
 ## What is AntiHunter?
 
-AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a bedroom, along a fence line, at an event, or in a cabin with no signal; it learns what belongs, then tells you when a new device shows up, when someone moves it, or when a Wi-Fi attack starts — naming the tool behind it. It runs on battery with no internet, no cloud, and no subscription, and your data stays on the device.
+AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a home, along a fence line, at an event, or in a barn with no signal; it learns what belongs, then tells you when a new device shows up, when someone moves it, or when a Wi-Fi attack starts — naming and mapping the tool behind it and locating. It runs on battery with no internet, no cloud, and no subscription, and your data stays on the device.
 
-It's open source and listens only; it never jams or attacks anything. One node works alone. Add more and they compare notes over long-range LoRa radio, confirm each other's alerts, and with GPS put a signal on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+It's open source and listens only; it never jams or attacks anything. One node works alone. Add more and they compare notes over long-range LoRa radio, confirm each other's alerts, and put signals on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
@@ -92,7 +92,7 @@ Every node runs the same detectors and shares one LoRa mesh. They differ in the 
 | [DIGI](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-node) | ESP32-S3 | Wi-Fi and Bluetooth, 2.4 GHz | Stable |
 | [DIGI C5](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-C5) | ESP32-C5 | Wi-Fi and Bluetooth, 2.4 and 5 GHz | Testing |
 | [RadarNode](https://github.com/lukeswitz/AntiHunter/wiki/RadarNode) | ESP32-C5 | 24 GHz radar, then a Wi-Fi and Bluetooth sweep | Experimental |
-| SDR node | ESP32-S3 | Wideband radio capture | In development |
+| SDR node | ESP32-S3+C5, nRF24, CC1001, M.2 | Wideband radio capture | In development |
 | [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) | Server | A whole fleet on one map | Beta |
 
 ---
@@ -116,6 +116,7 @@ The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers each step in det
 - [Mesh command reference](docs/mesh-commands.md): every command, value, and alert
 - [HTTP API reference](docs/api-reference.md): the Full firmware's endpoints
 - [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf): unboxing to deployment, with a printable quick-reference card
+- [Assembly Manual (PDF)](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ---
 
@@ -125,8 +126,6 @@ Buy a node from the [store](https://lectronz.com/stores/antihunter), or build on
 
 > [!IMPORTANT]
 > Use a regulated 5 V supply. Unregulated batteries cause voltage instability.
-
-A node is built from a Seeed XIAO ESP32-S3 (or a XIAO ESP32-C5 for 5 GHz), a Meshtastic board (Heltec V3.2 or T114), a GPS module, an SD card, a vibration sensor, and a real-time clock.
 
 ---
 
@@ -141,7 +140,7 @@ pio run -e AntiHunter-full -t upload        # Full: web UI on its own access poi
 pio run -e AntiHunter-headless -t upload    # Headless: serial and mesh only
 ```
 
-The first build downloads about 6 GB of tools. The ESP32-C5 builds are on the `feat/c5` branch. See [Build from source](https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source).
+The ESP32-C5 builds are on the `feat/c5` branch. See [Build from source](https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source).
 
 ---
 
