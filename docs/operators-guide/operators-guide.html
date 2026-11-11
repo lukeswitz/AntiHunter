@@ -538,7 +538,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
       <span class="mono">set radio</span> takes the frequency in MHz, the bandwidth in kHz, the spreading factor and the coding rate. The example is the US/Canada preset. <span class="mono">KEY</span> is 32 hex characters.</li>
     <li>Unplug the radio's USB. Type <span class="mono">MESHCORE_ON</span> on the node's USB serial port at 115200 baud, or turn on System tab → <b>Settings</b> → <b>Node &amp; mesh</b> → <b>MeshCore radio</b>. It does not work over the mesh.</li>
   </ol>
-  <p>To change the radio's settings later without unplugging it, run <span class="mono">meshcore-cli</span> on the node's USB port while MeshCore is on, for example <span class="mono">meshcore-cli -s PORT:dtr=1,rts=1 -b 115200 infos</span>. The node passes the frames to the radio and back, and stops its own mesh traffic until the port has been idle for 10 seconds. <span class="mono">dtr=1,rts=1</span> keeps the port from resetting the node.</p>
+  <p>To change the radio's settings later without unplugging it, run <span class="mono">meshcore-cli</span> on the node's USB port while MeshCore is on, for example <span class="mono">meshcore-cli -s PORT:dtr=1,rts=1 -b 115200 infos</span>. The node passes the frames to the radio and back, and stops its own mesh traffic until the port has been idle for 10 seconds. <span class="mono">dtr=1,rts=1</span> keeps the port from resetting the node. Run it after the node has finished starting. If <span class="mono">meshcore-cli</span> reports no response, it retries in a way that restarts the node, so wait for the node to start and run it again.</p>
 </div>
 
 <div class="sec">
