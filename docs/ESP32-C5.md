@@ -102,4 +102,8 @@ To set the trigger for a room:
 
 `SENSITIVITY` takes a number from 0.005 to 20, or `LOW`, `MEDIUM` or `HIGH`. The three words also set the trigger to 0.070, 0.070 and 0.056, and they set how long motion must last and how many links must agree. `@AH01 CSI_RECAL` clears the value you set and returns to the default.
 
+### MeshCore radio on a C5
+
+**In progress.** The C5 build has the same MeshCore radio link as Beta ([README](../README.md#meshcore-radio-beta-and-c5)). On the C5 board, the Heltec V3 cannot be flashed in place. The flash tool reaches the bootloader but gets no reply, even with the XIAO removed. Take the Heltec off the board to flash MeshCore, then put it back. A fix is in the works.
+
 Chip-level detail and open Espressif issues: [C5 firmware notes](ESP32-C5-firmware-notes.md).
