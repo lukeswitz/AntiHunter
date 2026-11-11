@@ -10,3 +10,4 @@ void meshcoreFeedByte(uint8_t c);
 bool meshcoreNextText(String &outText);
 uint16_t meshcoreTextCap();
 void meshcorePoll();
+void meshcoreBridge(uint8_t first);

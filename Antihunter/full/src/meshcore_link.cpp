@@ -35,6 +35,7 @@ static const uint32_t MC_REPLY_TIMEOUT_MS = 1000;
 static const uint8_t MC_PEND_SLOTS = 8;
 static const uint8_t MC_RETRY_SLOTS = 8;
 static const uint32_t MC_RETRY_HOLD_MS = 600000;
+static const uint32_t MC_BRIDGE_IDLE_MS = 10000;
 
 static volatile uint16_t s_textCap = MC_DEFAULT_TEXT_CAP;
 static volatile bool s_syncPending = false;
@@ -321,6 +322,30 @@ void meshcoreSetTransport(bool on) {
 
 void meshcoreFeedByte(uint8_t c) {
     if (mcAssemble(c) && mcWanted(s_rx[0])) mcPendPush(s_rx, s_rxLen);
+}
+
+void meshcoreBridge(uint8_t first) {
+    if (!serial1Mutex || xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return;
+    Serial1.write(&first, 1);
+    uint8_t buf[64];
+    uint32_t last = millis();
+    while (millis() - last < MC_BRIDGE_IDLE_MS) {
+        int n = Serial.available();
+        if (n > 0) {
+            n = Serial.readBytes(buf, n < (int)sizeof(buf) ? n : (int)sizeof(buf));
+            Serial1.write(buf, n);
+            last = millis();
+        }
+        n = Serial1.available();
+        if (n > 0) {
+            n = Serial1.readBytes(buf, n < (int)sizeof(buf) ? n : (int)sizeof(buf));
+            Serial.write(buf, n);
+        }
+        vTaskDelay(1);
+    }
+    mcPendClear();
+    s_handshakeSent = false;
+    xSemaphoreGive(serial1Mutex);
 }
 
 static bool mcHandleFrame(const McPending &f, String &outText) {

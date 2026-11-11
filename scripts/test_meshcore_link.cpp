@@ -180,6 +180,22 @@ int main() {
     assert(pump().empty() && !wroteSyncNext());
     printf("inbound ch0 v1/v3 decode, other channel ignored, 0x83 sync, 0x88 skipped: ok\n");
 
+    Serial1.frames.clear();
+    Serial.tx.clear();
+    const uint8_t appStart[] = {0x0B, 0x00, 0x01, 3, 0, 0, 0, 0, 0, 0, 'c', 'l', 'i'};
+    Serial.rx.insert(Serial.rx.end(), appStart, appStart + sizeof(appStart));
+    t0 = g_fakeMillis;
+    meshcoreBridge(0x3C);
+    assert(g_fakeMillis - t0 >= 10000 && Serial.rx.empty());
+    assert(Serial1.frames.size() == 1 && Serial1.frames[0].size() == 11 && Serial1.frames[0][0] == 0x01);
+    assert(Serial.tx.size() == 3 + 66 && Serial.tx[0] == 0x3E && Serial.tx[1] == 66 && Serial.tx[3] == 0x05);
+    assert(pump().empty());
+    Serial1.frames.clear();
+    meshcoreWriteText(String("AH01: after bridge"));
+    assert(Serial1.frames.size() >= 3 && Serial1.frames[0][0] == 0x01 && Serial1.frames[1][0] == 0x0A);
+    assert(sentTexts() == std::vector<std::string>({"AH01: after bridge"}));
+    printf("USB bridge forwards both ways, exits after 10 s idle, link re-handshakes: ok\n");
+
     printf("meshcore_link: all tests passed\n");
     return 0;
 }

@@ -417,6 +417,7 @@ While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Aler
 |---|---|---|---|---|---|
 | `CONFIG_BAND` | `CB` | C5 only | Chooses the Wi-Fi band the scans use, and saves it | `CONFIG_ACK:BAND:<n>` or `:INVALID` | `@AH01 CONFIG_BAND:2` |
 | `MESHCORE_ON` / `MESHCORE_OFF` | | Beta only, USB serial | Switches the radio link to a MeshCore radio or back to Meshtastic, and saves it. It does not work over the mesh | `MESHCORE_ACK:ON` / `MESHCORE_ACK:OFF` on USB | `MESHCORE_ON` |
+| MeshCore radio passthrough | | Beta only, USB serial | With MeshCore on, a MeshCore app frame on USB (it starts with `<`) is passed to the radio, and the radio's replies come back. The node stops its own mesh traffic until USB has been idle for 10 seconds | `[MC] Radio bridge closed` on USB | `meshcore-cli -s PORT:dtr=1,rts=1 infos` |
 
 | Argument | Meaning | Range | Default |
 |---|---|---|---|

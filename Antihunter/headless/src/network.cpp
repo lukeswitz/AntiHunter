@@ -3559,6 +3559,12 @@ void processUSBToMesh() {
     
     while (Serial.available()) {
         char c = Serial.read();
+        // A MeshCore app frame (0x3C) at line start: pass USB through to the radio
+        if (c == 0x3C && usbBuffer.length() == 0 && g_meshcoreTransport) {
+            meshcoreBridge((uint8_t)c);
+            Serial.println("[MC] Radio bridge closed");
+            continue;
+        }
 #if defined(AH_USB_ECHO) && (AH_USB_ECHO)
         Serial.write(c);
 #endif
