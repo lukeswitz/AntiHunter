@@ -155,7 +155,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/mesh-interval` | POST | `interval`: minimum milliseconds between mesh alerts, 1500-30000 |
 | `/mesh-hb` | POST | `enabled=true` or `false`: the status heartbeat |
 | `/mesh-hb-interval` | POST | `interval`: minutes between heartbeats, 1-60 (values outside move to the limit) |
-| `/mesh-transport` | POST | `meshcore=true` or `false`: the MeshCore radio link (Beta) |
+| `/mesh-transport` | POST | `meshcore=true` or `false`: the MeshCore radio link (Beta and C5) |
 | `/mesh-dedup-ttl` | GET | JSON: `ttl`, `min`, `max`, `session`, `count` |
 | `/mesh-dedup-ttl` | POST | `ttl`: seconds before a device is reported again, 0-3600. `0` turns deduplication off. Default 300 |
 | `/mesh-dedup-clear` | POST | Empties the deduplication memory |

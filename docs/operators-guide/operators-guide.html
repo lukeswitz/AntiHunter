@@ -518,8 +518,8 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>7.6 Reaching the mesh</h3>
   <p>Commands and detections are ordinary Meshtastic text messages. Pair the radio to the Meshtastic app over Bluetooth or Wi-Fi and send <span class="mono">@node COMMAND</span> messages, or use the Meshtastic ATAK plugin or an MQTT gateway node. With a MeshCore radio (§7.7), they are MeshCore messages on channel 0.</p>
 
-  <h3>7.7 MeshCore radio (Beta)</h3>
-  <p>Beta firmware can use a radio that runs MeshCore instead of Meshtastic. MeshCore has no ready-made Heltec V3 build with a serial link to the node, so you build one.</p>
+  <h3>7.7 MeshCore radio (Beta and C5)</h3>
+  <p>Beta and C5 firmware can use a radio that runs MeshCore instead of Meshtastic. MeshCore has no ready-made Heltec V3 build with a serial link to the node, so you build one.</p>
   <table class="tight">
     <tr><th style="width:26%">Setting</th><th>Value</th></tr>
     <tr><td>Firmware</td><td>MeshCore <span class="mono">Heltec_v3_companion_radio_usb</span> with <span class="mono">-D SERIAL_RX=19 -D SERIAL_TX=20 -UENV_INCLUDE_GPS</span> added</td></tr>
@@ -584,7 +584,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
     <li><b>Battery Saver.</b> System tab → <b>Settings</b> → <b>Sensors &amp; power</b> → <b>Battery saver</b>, or <span class="mono">BATTERY_SAVER_START</span> from §11. Scanning stops, BLE turns off, the CPU drops to 80 MHz, and the node sends a heartbeat at the interval you pick: 1, 2, 5, 10, 15 or 30 minutes. The mesh and access point stay on, and the node reads GPS once a minute.</li>
     <li><b>Theme and accent colors.</b> System tab → <b>Settings</b> → <b>Appearance</b>. <b>Theme</b>: Paper dark (default), Blue dark or Light. The sun and moon button in the header switches between Light and your dark theme. <b>Stop and clear buttons</b> and <b>Sentinel banners</b> set accent colors. Each browser stores its own choices.</li>
     <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. <b>Clear</b> empties the list.</li>
-    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>MeshCore radio</b> (Beta) switches the link to a MeshCore radio (§7.7). <b>Alert send interval</b> is the shortest gap between alert messages, 1500 to 30000 ms. <b>Repeat filter</b> skips a MAC the node already sent within 0 to 3600 seconds. The default is 300, and 0 sends every device on every scan. <b>Send only new devices</b> sends only devices not yet sent this session. <b>Clear cache</b> forgets what the node sent. The filters apply to device lists only. The node always sends alerts, drone events and triangulation.</li>
+    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>MeshCore radio</b> (Beta and C5) switches the link to a MeshCore radio (§7.7). <b>Alert send interval</b> is the shortest gap between alert messages, 1500 to 30000 ms. <b>Repeat filter</b> skips a MAC the node already sent within 0 to 3600 seconds. The default is 300, and 0 sends every device on every scan. <b>Send only new devices</b> sends only devices not yet sent this session. <b>Clear cache</b> forgets what the node sent. The filters apply to device lists only. The node always sends alerts, drone events and triangulation.</li>
   </ul>
 </div>
 
