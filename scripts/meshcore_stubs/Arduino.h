@@ -41,11 +41,26 @@ inline uint32_t millis() { return g_fakeMillis; }
 inline void vTaskDelay(uint32_t ticks) { g_fakeMillis += ticks; }
 
 struct HostSerial {
+    std::deque<uint8_t> rx;
+    std::vector<uint8_t> tx;
     void printf(const char *fmt, ...) {
         va_list ap;
         va_start(ap, fmt);
         std::vprintf(fmt, ap);
         va_end(ap);
+    }
+    int available() { return (int)rx.size(); }
+    size_t readBytes(uint8_t *b, size_t n) {
+        size_t i = 0;
+        for (; i < n && !rx.empty(); i++) {
+            b[i] = rx.front();
+            rx.pop_front();
+        }
+        return i;
+    }
+    size_t write(const uint8_t *b, size_t n) {
+        tx.insert(tx.end(), b, b + n);
+        return n;
     }
 };
 extern HostSerial Serial;
@@ -73,6 +88,14 @@ struct HostRadioSerial {
         int c = rx.front();
         rx.pop_front();
         return c;
+    }
+    size_t readBytes(uint8_t *b, size_t n) {
+        size_t i = 0;
+        for (; i < n && !rx.empty(); i++) {
+            b[i] = rx.front();
+            rx.pop_front();
+        }
+        return i;
     }
     void reply(const std::vector<uint8_t> &payload) {
         rx.push_back(0x3E);

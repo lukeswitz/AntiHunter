@@ -104,6 +104,6 @@ To set the trigger for a room:
 
 ### MeshCore radio on a C5
 
-**In progress.** The C5 build has the same MeshCore radio link as Beta ([README](../README.md#meshcore-radio-beta-and-c5)). On the C5 board, the Heltec V3 cannot be flashed in place. The flash tool reaches the bootloader but gets no reply, even with the XIAO removed. Take the Heltec off the board to flash MeshCore, then put it back. A fix is in the works.
+**In progress.** The C5 build has the same MeshCore radio link as Beta ([README](../README.md#meshcore-radio-beta-and-c5)). On the C5 board, the Heltec V3 cannot be flashed or set up over its own USB port. The flash tool reaches the bootloader but gets no reply, even with the XIAO removed. Take the Heltec off the board to flash MeshCore, then put it back. After that, change its radio settings in place through the node: run `meshcore-cli -s PORT:dtr=1,rts=1` on the C5's USB port while MeshCore is on. A fix for flashing in place is in the works.
 
 Chip-level detail and open Espressif issues: [C5 firmware notes](ESP32-C5-firmware-notes.md).
