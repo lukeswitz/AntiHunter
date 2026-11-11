@@ -39,6 +39,7 @@ jobs:
       run: |
         make test-csi
         make test-ble
+        make test-meshcore
 
   build:
     runs-on: ubuntu-latest
