@@ -25,9 +25,9 @@
 
 ## What is AntiHunter?
 
-AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a home, along a fence line, at an event, or in a barn with no signal. It learns what belongs, then alerts you when a new device shows up, when someone moves the node, or when a Wi-Fi attack starts. It names the attack tool and puts it on a map. It runs on battery with no internet, cloud, or subscription, and your data stays on the device.
+AntiHunter is open-source perimeter detection for small battery-powered nodes. A node learns which devices belong, then alerts you to new devices, tampering, and Wi-Fi attacks.
 
-It is open source and only listens. It never jams or attacks anything. One node works alone. Several nodes share alerts over long-range LoRa radio, confirm each other, and put signals on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+It only listens, needs no internet, and keeps its data on the node. Several nodes share alerts over LoRa radio. Control them from the web page, over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
