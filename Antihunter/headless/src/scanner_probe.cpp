@@ -222,7 +222,7 @@ void probeDetectionTask(void *pv)
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = "Probe scan - Mode: WiFi (IN PROGRESS)\nDevices: 0 | Probes: 0 | SSIDs: 0 | Hits: 0\n\n(Starting...)\n";
+        antihunter::lastResults = "Probe scan - Mode: WiFi (IN PROGRESS)\nDevices: 0 | Probes: 0 | SSIDs: 0 | Saved: 0\n\n(Starting...)\n";
     }
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {

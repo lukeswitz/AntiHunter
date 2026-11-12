@@ -1279,9 +1279,8 @@ void snifferScanTask(void *pv)
                 if (apCache.find(bssid) == apCache.end())
                 {
                     std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                    if (apCache.size() < MAX_AP_CACHE) {
-                        apCache[bssid] = ssid;
-                    }
+                    if (apCache.size() >= MAX_AP_CACHE) continue;
+                    apCache[bssid] = ssid;
                     if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
                     Hit h;
@@ -1347,6 +1346,7 @@ void snifferScanTask(void *pv)
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
+                        if (bleDeviceCache.size() >= MAX_BLE_CACHE) continue;
                         String name = device->haveName() ? String(device->getName().c_str()) : "";
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
@@ -1362,9 +1362,7 @@ void snifferScanTask(void *pv)
 
                         {
                             std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                            if (bleDeviceCache.size() < MAX_BLE_CACHE) {
-                                bleDeviceCache[macStr] = cleanName;
-                            }
+                            bleDeviceCache[macStr] = cleanName;
                         }
                         if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
 
@@ -1647,7 +1645,13 @@ void snifferScanTask(void *pv)
                         }
                         if (pd.respondingSSID[0]) {
                             std::string rs = sanitizeAsciiStd(pd.respondingSSID, sizeof(pd.respondingSSID));
-                            if (!rs.empty()) results += " AP=\"" + rs + "\"";
+                            if (!rs.empty()) {
+                                results += " AP=\"" + rs + "\"";
+                                if (pd.respondingAP[0]) {
+                                    std::string rap = sanitizeAsciiStd(pd.respondingAP, sizeof(pd.respondingAP));
+                                    if (!rap.empty()) results += " APBSSID=" + rap;
+                                }
+                            }
                         }
                         results += " x" + std::to_string(pd.probeCount) + "\n";
                     }
@@ -3066,6 +3070,7 @@ void radioStopListScan() {
     Serial.println("[RADIO] Stopping list scan mode");
 
     // Clean up any pending scan
+    esp_wifi_scan_stop();
     WiFi.scanDelete();
     vTaskDelay(pdMS_TO_TICKS(50));
 
