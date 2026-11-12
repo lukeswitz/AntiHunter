@@ -891,7 +891,9 @@ static void handleDeviceScanStart(const String &command)
           sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
           return;
       }
-      Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+      Serial.printf("[MESH] Started device scan via mesh command (%s%s)\n",
+                    forever ? "forever" : (String(secs) + "s").c_str(),
+                    captureProbes ? ", +probe" : "");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
   }
