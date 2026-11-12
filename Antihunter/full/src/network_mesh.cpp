@@ -2515,6 +2515,26 @@ static void selftestReport(const char *name, bool pass, const String &detail) {
   Serial.printf("[SELFTEST] %s %s %s\n", name, pass ? "PASS" : "FAIL", detail.c_str());
 }
 
+static std::vector<void *> g_selftestBlocks;
+static void selftestSqueezeInternal(uint32_t targetFreeBytes) {
+  size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  while (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) > targetFreeBytes) {
+    void *p = heap_caps_malloc(2048, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!p) break;
+    g_selftestBlocks.push_back(p);
+  }
+  Serial.printf("[SELFTEST] squeeze internal %u -> %u (%u blocks) integrity=%s\n",
+                (unsigned)before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)g_selftestBlocks.size(),
+                heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
+}
+static void selftestRelease() {
+  for (void *p : g_selftestBlocks) heap_caps_free(p);
+  g_selftestBlocks.clear();
+  Serial.printf("[SELFTEST] released, internal=%u\n",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+}
+
 static int selftestHttp(const char *method, const String &path, const String &body, String &resp) {
   HTTPClient http;
   http.setTimeout(4000);
@@ -2710,6 +2730,12 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   }
   else if (command == "SELFTEST_CAMP2") {
       selftestCampaignCheck();
+  }
+  else if (command.startsWith("SELFTEST_SQUEEZE:")) {
+      selftestSqueezeInternal((uint32_t)command.substring(17).toInt());
+  }
+  else if (command == "SELFTEST_RELEASE") {
+      selftestRelease();
   }
   else if (command == "SELFTEST_HTTP") {
       selftestHttpCheck();

@@ -2860,6 +2860,27 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (cmdIs(command, "SD_REPAIR"))                 handleSdRepair(command);
   else if (command == "STOP")                         handleStop(command);
 #if AH_SELFTEST
+  else if (command == "SELFTEST_VIBSCAN") {
+      vibAutoScanPending = true;
+  }
+  else if (command == "SELFTEST_CHANNELS") {
+      extern std::vector<uint8_t> CHANNELS;
+      String s;
+      for (uint8_t c : CHANNELS) s += String(c) + ",";
+      Serial.printf("[SELFTEST] channels %s sweep=%d\n", s.c_str(), (int)g_sweepHopChannels);
+  }
+  else if (command == "SELFTEST_ATTACK") {
+      const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+      attack_responseArm(m, "SELFTEST");
+  }
+  else if (command.startsWith("SELFTEST_BLEADV:")) {
+      extern void selftestBleAdvertise(uint32_t, uint32_t);
+      String p = command.substring(16);
+      int c = p.indexOf(':');
+      uint32_t n = (uint32_t)(c > 0 ? p.substring(0, c) : p).toInt();
+      uint32_t ms = (uint32_t)(c > 0 ? p.substring(c + 1).toInt() : 200);
+      selftestBleAdvertise(n, ms);
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");
