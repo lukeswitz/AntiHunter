@@ -25,7 +25,7 @@ No tier comes with AntiHunter installed. You flash it yourself.
 
 The Meshtastic radio is already flashed and configured. The ESP32 is not.
 
-1. Fit the antennas ([Operator's Guide §2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2)).
+1. Fit the antennas ([Operator's Guide §3](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s3)).
 2. Flash AntiHunter with the [web flasher](https://lukeswitz.github.io/AntiHunter/). Choose **Full** first.
 3. Change the access point name and password.
 4. Set the LoRa region, a pairing pin, and an encrypted channel ([Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup)).
@@ -52,7 +52,7 @@ The PlatformIO environments are under [Build from source](../README.md#build-fro
 
 ### Several nodes
 
-Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view. Its install steps are in [Operator's Guide §12](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12).
+Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view. Its install steps are in [Operator's Guide §13](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s13).
 
 ---
 
@@ -60,17 +60,17 @@ Give each node its own ID and put all of them on the same encrypted channel. Nod
 
 | # | Step | Where |
 |---|------|-------|
-| 1 | Fit the antennas: 2.4 GHz on the XIAO, LoRa on the radio, GPS on the GPS module. | [§2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2) |
+| 1 | Fit the antennas: 2.4 GHz on the XIAO, LoRa on the radio, GPS on the GPS module. | [§3](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s3) |
 | 2 | Flash AntiHunter. Choose Full first. | [Web flasher](https://lukeswitz.github.io/AntiHunter/), [flasher script](../README.md#flash-from-the-command-line) |
 | 3 | Change the access point name and password. The defaults are published in this repository. | Web UI: System tab → **Settings** → **Access point** |
 | 4 | Set the radio's LoRa region. Until you do, the radio receives but never transmits. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
 | 5 | Create your own encrypted channel, make it primary, and turn off the public channel. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
-| 6 | Set the node ID. The node starts every message it sends with this ID. | Web UI, or `@AH01 CONFIG_NODEID:GATE1` ([§8.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s8-2)) |
+| 6 | Set the node ID. The node starts every message it sends with this ID. | Web UI, or `@AH01 CONFIG_NODEID:GATE1` ([§10.1](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s10-1)) |
 | 7 | Set the clock. The CLI flasher and the web flasher's **Connect & Configure** button set it. GPS keeps it in sync afterward. | None needed |
-| 8 | Confirm the SD card mounts and the GPS gets a fix outdoors. | [§4](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s4) |
-| 9 | Tune the vibration trimpot in place, on the real mount. | [§10.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s10-2) |
+| 8 | Confirm the SD card mounts and the GPS gets a fix outdoors. | [§7](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s7) |
+| 9 | Tune the vibration trimpot in place, on the real mount. | [§12.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12-2) |
 | 10 | Send `@ALL STATUS` over the mesh and confirm the node answers. | [Mesh Commands](mesh-commands.md) |
-| 11 | Seal the node and deploy it. | [§13](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s13) |
+| 11 | Seal the node and deploy it. | [§14](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s14) |
 
 ---
 
@@ -129,10 +129,10 @@ Most commands also have a short alias, such as `SS` for `SCAN_START`. [Mesh Comm
 | A node scans until you stop it. | The scan started with `FOREVER` or a duration of `0`. | Send `@ALL STOP`, or select Stop in the web UI. |
 | Settings are gone after flashing. | **Erase device** was checked, and the SD card had no saved config. | Configure the node again. It also has a new erase key: use **Show my erase key** and write it down. |
 | Lost the erase key. | | Reflash with **Erase device** checked, then **Show my erase key**. Settings come back from the SD card; the AP password and web password go back to their defaults. |
-| Vibration alerts never stop. | The trimpot is too sensitive, or the mount resonates. | Retune in place ([§10.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s10-2)) and pad the mount. |
+| Vibration alerts never stop. | The trimpot is too sensitive, or the mount resonates. | Retune in place ([§12.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12-2)) and pad the mount. |
 | Detections have no coordinates. | The GPS had no valid fix at that moment. | None. The node attaches a position only when the fix is valid. |
 
-The full symptom table, the factory reset, and what to include in a bug report are in [§14](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s14). For help, use [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or [Discord](https://discord.gg/AYFzUurfmh). Remove coordinates and MAC addresses from anything you paste.
+The full symptom table, the factory reset, and what to include in a bug report are in [§15](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s15). For help, use [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or [Discord](https://discord.gg/AYFzUurfmh). Remove coordinates and MAC addresses from anything you paste.
 
 ---
 
