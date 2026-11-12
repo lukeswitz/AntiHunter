@@ -36,6 +36,8 @@ static const uint8_t MC_PEND_SLOTS = 8;
 static const uint8_t MC_RETRY_SLOTS = 8;
 static const uint32_t MC_RETRY_HOLD_MS = 600000;
 static const uint32_t MC_BRIDGE_IDLE_MS = 10000;
+static const char MC_CONT[] = " +";
+static const uint16_t MC_CONT_LEN = sizeof(MC_CONT) - 1;
 
 static volatile uint16_t s_textCap = MC_DEFAULT_TEXT_CAP;
 static volatile bool s_syncPending = false;
@@ -250,21 +252,25 @@ void meshcoreWriteText(const String &msg) {
         const uint16_t pre = (!first && hasId) ? id.length() : 0;
         const uint16_t room = (cap > pre) ? cap - pre : 1;
         uint16_t end = (len - start > room) ? start + room : len;
+        bool spaceCut = false;
         if (end < len) {
             const uint16_t minCut = start + ((first && hasId) ? id.length() : 0);
             uint16_t cut = end;
             while (cut > minCut && p[cut] != '\n') cut--;
             if (cut == minCut) {
-                cut = end;
+                cut = (end - minCut > MC_CONT_LEN) ? end - MC_CONT_LEN : end;
                 while (cut > minCut && p[cut] != ' ') cut--;
+                spaceCut = cut > minCut;
             }
             if (cut > minCut) end = cut;
         }
+        uint16_t next = end;
+        while (next < len && (p[next] == '\n' || p[next] == ' ')) next++;
         String part = pre ? id : String();
         part += msg.substring(start, end);
+        if (spaceCut && next < len) part += MC_CONT;
         mcSendChannelText(part.c_str(), part.length());
-        start = end;
-        while (start < len && (p[start] == '\n' || p[start] == ' ')) start++;
+        start = next;
         first = false;
     }
 }

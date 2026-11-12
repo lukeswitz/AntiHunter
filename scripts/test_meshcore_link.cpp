@@ -155,12 +155,31 @@ int main() {
     assert(parts.size() >= 2);
     std::string joined;
     for (size_t i = 0; i < parts.size(); i++) {
+        const bool last = i + 1 == parts.size();
         assert(parts[i].size() <= 150);
         assert(parts[i].compare(0, 6, "AH01: ") == 0);
-        joined += (i ? " " : "") + parts[i].substr(6);
+        const bool marked = parts[i].size() >= 2 && parts[i].compare(parts[i].size() - 2, 2, " +") == 0;
+        assert(marked == !last);
+        joined += (i ? " " : "") + parts[i].substr(6, parts[i].size() - 6 - (marked ? 2 : 0));
     }
     assert(joined == body);
-    printf("split at 150 on spaces, continuation re-prefixed: ok (%zu parts)\n", parts.size());
+    printf("split at 150 on spaces, continuation re-prefixed and marked \" +\": ok (%zu parts)\n", parts.size());
+
+    Serial1.frames.clear();
+    meshcoreWriteText(String("AH01: line one\nline two"));
+    assert(sentTexts() == std::vector<std::string>({"AH01: line one\nline two"}));
+    std::string lines = "AH01: ";
+    for (int i = 0; i < 12; i++) lines += "row" + std::to_string(i) + " abcdefghij\n";
+    lines.pop_back();
+    Serial1.frames.clear();
+    meshcoreWriteText(String(lines.c_str()));
+    parts = sentTexts();
+    assert(parts.size() >= 2);
+    for (const auto &pt : parts) {
+        assert(pt.size() <= 150);
+        assert(pt.compare(pt.size() - 2, 2, " +") != 0);
+    }
+    printf("newline cuts carry no marker: ok (%zu parts)\n", parts.size());
 
     Serial1.frames.clear();
     Serial1.reply(channelMsg(0x08, 0, "8CF27974: @AH01 STATUS"));
