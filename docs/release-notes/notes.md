@@ -37,6 +37,8 @@ This applies to all three channels.
 - Full sends the `BASELINE_WATCH` summary when a baseline ends, as Headless does.
 - Headless results match Full: target and device scan rows show the network's security, `TARGET`, range, signal trend, and probed networks. Baseline and target scans write their results to `/last_results.txt`.
 - `scripts/campaign_report.py <sd_dir> [--list] [--campaign NAME] [--from ..] [--to ..]` summarizes a copied SD card per file, for Headless nodes.
+- Headless: `FLEET` on the USB serial port prints the mesh roster as JSON, as Full does: each node and radio heard, its last message, mode, scan state, hits, and GPS.
+- Selftest builds: Headless accepts `SELFTEST_VIBSCAN`, `SELFTEST_CHANNELS`, and `SELFTEST_ATTACK`, as Full does.
 
 **Web UI**
 - System tab: one menu on the left (tabs on a phone) opens **Diagnostics**, **Fleet**, and the **Settings** sections: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.
@@ -111,6 +113,8 @@ This applies to all three channels.
 - A Device Scan started with no channel list sweeps this node's share from Reassign or `CHAN_ASSIGN`. Before, the assignment had no effect.
 - Full: after `CONFIG_CHANNELS`, or after a reboot that loads the channel list from the SD card, System tab → **Settings** → **Scanning** → **Wi-Fi channels** showed the old list. It now shows the list the node scans.
 - The node caps the Remote ID claim and channel assignment tables that the mesh fills.
+- Headless: `TRIANGULATE_STOP` sent while the coordinator waits for ACKs sent the stop to the child nodes twice. It now sends it once.
+- Headless `DEVICE_SCAN_START` logs `forever` and `+probe` in its start line. Before, a forever scan logged `0s`.
 
 **Detectors, results, and storage**
 - Sentinel tab: 16 detector cards and the verbose log, quorum, and pending-response controls were missing from the page while their refresh code still ran. They are back. The cards are Remote ID spoof, hostile recon, Karma, attacker hunts, handshakes, probe graph, two-channel twin, beacon forgery, PMKID forgery, EAPOL bait, probe flood, association sleep, Wi-Fi interference, mesh disruption, mesh link RTT, and Pwnagotchi.
@@ -172,6 +176,11 @@ This applies to all three channels.
 - The randomized MAC tracer linked unrelated devices into one identity on signal strength and timing alone, and merged two different hardware MACs. It now links only on device evidence: a matching probe fingerprint, sequence-number continuity, a shared MAC prefix, or a leaked hardware MAC. The fingerprint score counts only the fields a device sends, so a device that sends few fields can still match itself after a MAC change.
 - Triangulation showed a misleading "Clock Sync" line. Each node sets its clock from GPS, and the position fix used no clock exchange. The remaining mesh exchange measures the round-trip time to each node and widens the mesh wait timeouts, so a slow link is not cut off early. These messages now skip the rate limiter. The results screen shows `Peer link: OK` or `degraded` in place of the old clock-sync and offset readout.
 - The randomized MAC tracer could hang the node when it stopped early (out of memory, a radio that would not start, or a previous scan still sending). It now reports `RANDOMIZATION_ACK:FAILED` and stops cleanly, and in Wi-Fi-and-BLE mode it no longer silently drops to Wi-Fi only when BLE cannot start.
+- Headless device scan: once 200 Wi-Fi networks or 200 BLE devices were listed, each new one was logged and sent as a hit again every time the node heard it. The node now skips devices past the limit, as Full does.
+- Headless probe results shown during a scan carry `APBSSID=`, the address of the access point that answered, as the final results do.
+- Headless baseline read the scan's device queue without its lock. It now uses the locked reads, as Full does.
+- Headless distance calibration stops a running Wi-Fi scan before it clears the scan results, as Full does.
+- Full diagnostics: `Mesh TX drops` no longer shows `evicted=`. It was always 0.
 
 **Build and release**
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
