@@ -842,7 +842,7 @@ static void csiEmitAlert(const CsiAlert &al) {
     String mac = macFmt6(al.mac);
 
     if (al.rising) {
-        Serial.printf("[CSI] MOTION %s score=%.2f mad=%.4f floor=%.4f rssi=%d\n",
+        Serial.printf("[CSI] MOTION %s score=%.2f mad=%.4f madfloor=%.4f rssi=%d\n",
                       mac.c_str(), al.score, al.mad, al.floorMad, al.rssi);
     } else {
         Serial.printf("[CSI] CLEAR %s dwell=%us\n", mac.c_str(), al.dwell);
@@ -1604,6 +1604,7 @@ void csiMotionTask(void *pv) {
             int movingLinks = 0;
             int armedLinks = 0;
             float peak = 0.0f;
+            int radiosRecent = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 armedLinks = csiCountRadios(false);
@@ -1612,6 +1613,7 @@ void csiMotionTask(void *pv) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     { const float lr = csiLinkRatio(g_links[i]); if (lr > peak) peak = lr; }
                 }
+                radiosRecent = movingLinks;
             }
 
             const int needLinks = csiNeedLinks(armedLinks);
@@ -1621,7 +1623,7 @@ void csiMotionTask(void *pv) {
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
-            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && tickOk;
+            const bool areaNow = (dutySec >= csiAreaDutyMinS.load()) && (radiosRecent >= needLinks) && tickOk;
             if (areaNow) g_areaLastMotionMs = now;
             if (csiTelemetry.load()) {
                 Serial.printf("[CSIA] mv=%d armed=%d need=%d duty=%u peak=%.2f area=%d\n",
@@ -1870,10 +1872,11 @@ void csiMotionTask(void *pv) {
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
                     if (!l.used) continue;
-                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d vote=%.2f psi=%.3f acf=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lag=%u/%u/%u/%u/%u pspread=%.4f phold=%u consec=%u elev=%u above=%u\n",
+                    Serial.printf("[CSIL] %s rssi=%d set=%d use=%d mot=%d sigz=%.2f sfloor=%.4f sspread=%.4f vote=%.2f psi=%.3f acf=%.3f acfz=%.2f afloor=%.3f sig=%.4f score=%.2f psiz=%.1f pfloor=%.3f pr=%.1f lag=%u/%u/%u/%u/%u pspread=%.4f phold=%u consec=%u elev=%u above=%u\n",
                                   macFmt6(l.mac).c_str(), l.rssi, l.sc.settled() ? 1 : 0,
                                   csiLinkUsable(l) ? 1 : 0, l.motion ? 1 : 0,
-                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate,
+                                  l.sc.sigZ, l.sc.sigFloor, l.sc.sigSpread,
+                                  l.sc.vote, l.sc.psi, l.sc.acf, l.sc.acfZ, l.sc.acfFloor, l.sc.sigVar, l.sc.score, l.sc.psiZ, l.sc.psiFloor, l.pairRate,
                                   (unsigned)l.sc.lagBkt[0], (unsigned)l.sc.lagBkt[1],
                                   (unsigned)l.sc.lagBkt[2], (unsigned)l.sc.lagBkt[3],
                                   (unsigned)l.sc.lagBkt[4], l.sc.psiSpread, (unsigned)(l.sc.psiHoldUs / 1000u),
