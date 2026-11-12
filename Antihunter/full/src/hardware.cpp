@@ -1468,8 +1468,7 @@ String getDiagnostics() {
     s += "Mesh TX drops: full=" + String(meshTxDroppedCount()) +
          " rate=" + String(meshTxDroppedRateLimit.load()) +
          " bufFull=" + String(meshTxDroppedBufFull.load()) +
-         " triGate=" + String(meshTxDroppedTriGate.load()) +
-         " evicted=" + String(meshTxDroppedEvicted.load()) + "\n";
+         " triGate=" + String(meshTxDroppedTriGate.load()) + "\n";
     s += "Mesh Dedup: " + String(meshDedupCount()) + " MACs (" + (getMeshSessionDedup() ? "session" : "ttl") + ")\n";
     s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
     s += "Vibration Broadcasts: " + String(vibrationEnabled ? "Enabled" : "Disabled") + "\n";

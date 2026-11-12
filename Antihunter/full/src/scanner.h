@@ -278,7 +278,6 @@ extern std::atomic<bool> stopMeshDrain;
 extern std::atomic<uint32_t> meshTxDroppedRateLimit;
 extern std::atomic<uint32_t> meshTxDroppedBufFull;
 extern std::atomic<uint32_t> meshTxDroppedTriGate;
-extern std::atomic<uint32_t> meshTxDroppedEvicted;
 void initBLEOnce();
 void radioReleaseBLE();
 bool sentinelBleTick(bool want);

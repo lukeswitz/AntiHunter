@@ -74,7 +74,6 @@ private:
     static const uint32_t CHECK_INTERVAL_MS = 1000;
     static const uint32_t MOUNT_LOG_INTERVAL_MS = 60000;
     static uint32_t sdMountFailures;
-    static uint32_t sdWriteRetries;
     static uint32_t lastMountLogMs;
     static bool checkAvailability();
 
@@ -90,8 +89,6 @@ public:
     static size_t read(fs::File& file, uint8_t* data, size_t len);
     static bool flush(fs::File& file);
     static void forceRecheck();
-    static uint32_t mountFailureCount();
-    static uint32_t writeRetryCount();
 };
 
 // Print wrapper so print/println/printf/serializeJson all go through the retrying write

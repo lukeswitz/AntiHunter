@@ -29,7 +29,6 @@ extern bool triangulationOrchestratorAssigned;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static std::atomic<bool> triSetupAbort{false};
-static std::atomic<bool> triOperatorStop{false};
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 const size_t MAX_TRIANGULATION_NODES = 15;
 const size_t MAX_SYNC_STATUS = 15;
@@ -951,12 +950,10 @@ void markTriangulationStopFromMesh() {
 void triangulationAbortSetup() {
     if (coordinatorSetupTaskHandle == nullptr) return;
     triSetupAbort.store(true);
-    sendMeshCommand("@ALL TRIANGULATE_STOP");
     Serial.println("[TRIANGULATE] Stop during setup - signaling coordinator abort");
 }
 
 void stopTriangulation() {
-    triOperatorStop.store(true);
     if (coordinatorSetupTaskHandle != nullptr) {
         triSetupAbort.store(true);
         Serial.println("[TRIANGULATE] Stop during setup - signaling coordinator abort");
@@ -997,7 +994,6 @@ void stopTriangulation() {
         {
             uint32_t w = millis();
             while ((uint32_t)(millis() - w) < 10000) {
-                if (triOperatorStop.load()) { Serial.println("[TRIANGULATE] Operator stop - skipping late-ACK wait"); break; }
                 size_t total = 0, reported = 0;
                 {
                     std::lock_guard<std::mutex> lock(triangulationMutex);
@@ -1036,7 +1032,6 @@ void stopTriangulation() {
             int lastProgress = -1;
 
             while (millis() < deadline && millis() < hardStop) {
-                if (triOperatorStop.load()) { Serial.println("[TRIANGULATE] Operator stop - ending report collection"); break; }
                 // Count how many nodes have reported (mutex protected)
                 int reportedCount = 0;
                 int totalAcked = 0;
@@ -1462,7 +1457,6 @@ void stopTriangulation() {
 
     triangulationOrchestratorAssigned = false;
     triStopCameFromMesh = false;
-    triOperatorStop.store(false);
 
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);

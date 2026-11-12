@@ -155,7 +155,6 @@ std::atomic<bool> stopMeshDrain(false);
 std::atomic<uint32_t> meshTxDroppedRateLimit(0);
 std::atomic<uint32_t> meshTxDroppedBufFull(0);
 std::atomic<uint32_t> meshTxDroppedTriGate(0);
-std::atomic<uint32_t> meshTxDroppedEvicted(0);
 std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
@@ -2989,10 +2988,12 @@ void radioStartSTA() {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // Configure STA for scanning
+#ifndef ARDUINO_XIAO_ESP32C5
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#endif
     applyBandMode();
 
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
@@ -3049,10 +3050,12 @@ void radioStartListScan() {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // Configure country for scanning
+#ifndef ARDUINO_XIAO_ESP32C5
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#endif
     applyBandMode();
 
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");

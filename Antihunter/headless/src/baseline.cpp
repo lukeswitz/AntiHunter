@@ -809,7 +809,7 @@ void baselineDetectionTask(void *pv) {
             }
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
@@ -969,11 +969,11 @@ void baselineDetectionTask(void *pv) {
             }
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
-            
+
             if (baselineEstablished) {
                 checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch, h.cls);
             }
