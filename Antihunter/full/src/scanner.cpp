@@ -162,7 +162,6 @@ std::atomic<bool> stopMeshDrain(false);
 std::atomic<uint32_t> meshTxDroppedRateLimit(0);
 std::atomic<uint32_t> meshTxDroppedBufFull(0);
 std::atomic<uint32_t> meshTxDroppedTriGate(0);
-std::atomic<uint32_t> meshTxDroppedEvicted(0);
 std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);

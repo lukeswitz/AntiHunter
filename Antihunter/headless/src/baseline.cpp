@@ -806,7 +806,7 @@ void baselineDetectionTask(void *pv) {
             }
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
@@ -845,11 +845,8 @@ void baselineDetectionTask(void *pv) {
         apCaptureEnabled = false;
         radioStopSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
-        
-        if (macQueue) {
-            vQueueDeleteWithCaps(macQueue);
-            macQueue = nullptr;
-        }
+
+        safeMacQueueDelete();
         if (anomalyQueue) {
             vQueueDeleteWithCaps(anomalyQueue);
             anomalyQueue = nullptr;
@@ -969,11 +966,11 @@ void baselineDetectionTask(void *pv) {
             }
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
-            
+
             if (baselineEstablished) {
                 checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch, h.cls);
             }
@@ -1084,10 +1081,7 @@ void baselineDetectionTask(void *pv) {
         Serial.println("[BASELINE] Detection complete summary enqueued");
     }
 
-    if (macQueue) {
-        vQueueDeleteWithCaps(macQueue);
-        macQueue = nullptr;
-    }
+    safeMacQueueDelete();
     if (anomalyQueue) {
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;

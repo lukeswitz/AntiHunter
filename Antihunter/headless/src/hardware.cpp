@@ -135,7 +135,6 @@ uint32_t lastBatterySaverHeartbeat = 0;
 // SD & HW Init
 
 uint32_t SafeSD::sdMountFailures = 0;
-uint32_t SafeSD::sdWriteRetries = 0;
 uint32_t SafeSD::lastMountLogMs = 0;
 
 bool sdAutoRepair = false;
@@ -274,7 +273,6 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     const size_t more = file.write(data + written, len - written);
     const int retryErr = errno;
     written += more;
-    if (more) sdWriteRetries++;
 
     if (written != len) {
         const int reported = retryErr ? retryErr : firstErr;
@@ -308,16 +306,6 @@ bool SafeSD::flush(fs::File& file) {
 
 void SafeSD::forceRecheck() {
     lastCheckTime = 0;
-}
-
-// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
-uint32_t SafeSD::mountFailureCount() {
-    return sdMountFailures;
-}
-
-// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
-uint32_t SafeSD::writeRetryCount() {
-    return sdWriteRetries;
 }
 
 String jsonEscape(const String &in) {
