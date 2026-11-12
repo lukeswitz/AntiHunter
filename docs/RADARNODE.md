@@ -28,9 +28,9 @@ A detection holds the target's distance, speed, angle, direction and class, plus
 | `TRIGGERED` | Target confirmed and detection recorded. |
 | `LINGER` | Target lost. The node waits (3 s by default) before returning to `IDLE`. |
 
-**Target classes** are `UNKNOWN`, `PERSON` and `VEHICLE`. The node votes on the class over recent frames, so a new track reads `UNKNOWN` at first. `PERSON` fits speeds up to 20 km/h and `VEHICLE` fits speeds from 15 km/h.
+**Target classes** are `UNKNOWN`, `PERSON` and `VEHICLE`. The node votes on the class over recent frames, so a new track reads `UNKNOWN` at first. `PERSON` fits speeds up to 20 km/h. `VEHICLE` fits speeds from 15 km/h.
 
-**Alarm.** The node raises an alarm when a target moves in the set Direction, is inside Alarm Distance, moves at or above Alarm Speed, is within Alarm Angle of straight ahead, and matches Alarm Class. Angle and class default to open (90°, any class), so by default only distance and speed decide.
+**Alarm.** The node raises an alarm when a target moves in the set Direction, is inside Alarm Distance, moves at or above Alarm Speed, is within Alarm Angle of straight ahead, and matches Alarm Class. Angle and class default to open (90°, any class), so only distance and speed decide by default.
 
 **Traffic baseline.** The node learns the normal detection rate and device count over a set time, then reports how current activity compares.
 
@@ -68,7 +68,7 @@ Connect two wires to the RTC header. Take power from the fan rail, not from this
 | NC | Leave empty. |
 
 > [!IMPORTANT]
-> The HLK-LD2451 needs **5 V at 300 mA or more**. The XIAO's 3V3 pin cannot supply that. The radar's data lines are 3.3 V, so they connect directly with no level shifter.
+> The HLK-LD2451 needs **5 V at 300 mA or more**. The XIAO's 3V3 pin cannot supply that. The radar's data lines are 3.3 V and connect directly, with no level shifter.
 >
 > **Do not take the radar's ground from the RTC header.** A bench supply grounded there does not work. Take both 5 V and ground from the board's fan rail (+/-), and jumper the thermal switch to reach it.
 
@@ -96,7 +96,7 @@ Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with either tool:
 
 The node hosts its own access point. Connect to it and open `http://192.168.4.1/`.
 
-The default access point name is `RN-` plus the last bytes of the MAC address. You change the name and password in Config. The node ID is `RN` plus three random digits (`RN100` to `RN999`).
+The default access point name is `RN-` plus the last bytes of the MAC address. Change the name and password in Config. The node ID is `RN` plus three random digits (`RN100` to `RN999`).
 
 | Panel | Shows |
 |---|---|
@@ -176,7 +176,7 @@ Address a command as `@ALL <CMD>` to reach every node, or `@<NODEID> <CMD>` to r
 
 `TIME_SYNC_RESP` carries the node's Unix time (`<epoch>`, seconds) and its microsecond counter (`<micros>`).
 
-The `RADAR_CONFIG` fields are the keys in the [Alarm table](#alarm): `DIST` in meters, `SPD` in meters per second, `ANG` in degrees and `CLS` as a class number. Leave a field out to keep its current value. If any value is out of range, the node changes nothing and replies with the error. With `CLS` set to `1` or `2`, the first frames of a new track read `UNKNOWN` and do not alarm.
+The `RADAR_CONFIG` fields are the keys in the [Alarm table](#alarm): `DIST` in meters, `SPD` in meters per second, `ANG` in degrees and `CLS` as a class number. Leave a field out to keep its value. If any value is out of range, the node changes nothing and replies with the error. With `CLS` set to `1` or `2`, the first frames of a new track read `UNKNOWN` and do not alarm.
 
 ---
 
@@ -198,7 +198,7 @@ The `RADAR_CONFIG` fields are the keys in the [Alarm table](#alarm): `DIST` in m
 | `ALM` | This detection raised the alarm. |
 | `CAND1` to `CAND3` | The top three devices from the sweep. Moving devices (`mov`) come first, then the rest by score. |
 
-`TYPE:RADAR` tells the RadarNode mesh list and the Command Center that the sender is a RadarNode. A peer with no `TYPE` field counts as `RADAR` if it reports a `RADAR:` field, and as DIGI otherwise. DIGI Full reads both fields for its fleet list. DIGI Headless does not.
+`TYPE:RADAR` tells the RadarNode mesh list and the Command Center that the sender is a RadarNode. A peer with no `TYPE` field counts as `RADAR` if it reports a `RADAR:` field, and as DIGI otherwise. DIGI Full reads both fields for its fleet list. DIGI Headless reads neither.
 
 ---
 

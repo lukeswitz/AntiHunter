@@ -74,7 +74,7 @@ Parameters shared by the start routes:
 | `drone-detection` | Drone Remote ID detection | `droneScanMode` (`0` Wi-Fi, `1` BLE, other both) |
 | `pcap` | Packet capture to the SD card. Needs `secs` of 1 or more, and an SD card | `pcapRadio` (`0` Wi-Fi, `1` BLE; default 0), `pcapBand` (`0` 2.4 GHz, `1` 5 GHz, `2` both; this hardware always uses 0), `pcapChannels` (channel list), `pcapDwell` (milliseconds per channel, 50-5000, default 250), `pcapMaxFile` (largest file in MB, 8-300), `pcapMgmtOnly` (any value records management frames only) |
 
-**`/sniffer` with `detection=csi-motion` (Beta, C5)** starts CSI motion detection. It takes `secs` and `forever`, and these fields. A field you leave out keeps its saved value, except `csiRaw`, `csiNoTx`, and `csiRnd`, which turn off when you leave them out. `409` means a scan is running or the node is out of memory.
+**`/sniffer` with `detection=csi-motion` (Beta, C5)** starts CSI motion detection with `secs`, `forever`, and these fields. A field you leave out keeps its saved value, except `csiRaw`, `csiNoTx`, and `csiRnd`, which turn off. `409` means a scan is running or the node is out of memory.
 
 | Parameter | Meaning | Range | Default |
 |---|---|---|---|
@@ -143,7 +143,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/api/mesh` | GET | JSON: `node`, `peers` (this node first, marked `self`), `radios` |
 | `/api/mesh/ping` | POST | Broadcasts `@ALL STATUS`. `409` if the mesh is off |
 | `/api/mesh/clear` | POST | Clears both rosters |
-| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` must start with one of `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or equal `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`. `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
+| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` starts with `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, or `BLE_CLASSIFY:`, or equals `STOP`, `STATUS`, `CAMPAIGN_STOP`, or `CAMPAIGN_STATUS`. Errors: `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
 
 ## Mesh settings
 
@@ -155,6 +155,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/mesh-interval` | POST | `interval`: minimum milliseconds between mesh alerts, 1500-30000 |
 | `/mesh-hb` | POST | `enabled=true` or `false`: the status heartbeat |
 | `/mesh-hb-interval` | POST | `interval`: minutes between heartbeats, 1-60 (values outside move to the limit) |
+| `/mesh-transport` | POST | `meshcore=true` or `false`: the MeshCore radio link (Beta) |
 | `/mesh-dedup-ttl` | GET | JSON: `ttl`, `min`, `max`, `session`, `count` |
 | `/mesh-dedup-ttl` | POST | `ttl`: seconds before a device is reported again, 0-3600. `0` turns deduplication off. Default 300 |
 | `/mesh-dedup-clear` | POST | Empties the deduplication memory |
@@ -189,7 +190,7 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/antihunter.log` | GET | System log (text). `404` if none |
 | `/api/antihunter.log/clear` | POST | Clears the system log |
 | `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
-| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `tz` (the node's time zone name, such as `UTC` or the local zone set from GPS), `tzOff` (that zone's current offset from UTC in seconds), `tzPosix` (the zone's POSIX TZ rule, `UTC0` before a GPS fix) |
+| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
 | `/data-cfg` | POST | `bleClassify` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
 | `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
 | `/api/probedb/clear` | POST | Clears the probe database |
@@ -207,7 +208,7 @@ These six logs take query parameters to read the end of a large file: `/api/deau
 
 The reply header `X-Start` gives the offset of the first byte returned, and `X-Size` gives the file size.
 
-`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The node keeps the device database in `/devicedb.jsonl` on the SD card, and it survives reboots. It holds 2000 entries. When it is full, the node drops the device it saw longest ago.
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It holds 2000 entries and drops the least recently seen device when full.
 
 <details>
 <summary>Sentinel and detector endpoints</summary>
@@ -282,7 +283,7 @@ Each incident record has `ts` (uptime in milliseconds), `epoch` (clock seconds, 
 | `/rf-config` | POST | Sets one of the groups below. `409` while a scan runs, `400` if nothing matched. Returns the new settings as JSON |
 | `/wifi-config` | GET | JSON: `ssid`, `auth`, `hidden`, `webPassSet`, `webAuth`. Passwords are never returned |
 | `/wifi-config` | POST | Sets the access point (parameters below). The node always restarts 3 seconds later |
-| `/web-pass` | POST | `pass` (8-63 characters, no `:`) and `current`. `current` is the web password, or the access point password until a web password exists. `400` invalid, `403` wrong `current`. 5 wrong tries lock `/web-pass` and `/web-auth` for 10 minutes |
+| `/web-pass` | POST | `pass` (8-63 characters, no `:`) and `current` (the web password, or the access point password until a web password exists). `400` invalid, `403` wrong `current`. 5 wrong tries lock `/web-pass` and `/web-auth` for 10 minutes |
 | `/web-auth` | POST | `enabled` (`1` login required, `0` login off) and `current`. Stored in flash, not in the SD config. `400` missing, `403` wrong `current` |
 
 **`/rf-config` POST** takes one group of fields:
@@ -335,7 +336,7 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 | `reappearanceWindow` | A device returning within this time raises a return alert | seconds |
 | `rssiChangeDelta` | Signal change that raises a change alert | dB |
 
-Defaults and effects are in the [README baseline section](../README.md#detection-baseline-anomaly).
+Defaults and effects are on the [Baseline anomaly wiki page](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly).
 
 </details>
 

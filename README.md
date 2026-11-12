@@ -25,9 +25,9 @@
 
 ## What is AntiHunter?
 
-AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a home, along a fence line, at an event, or in a barn with no signal; it learns what belongs, then tells you when a new device shows up, when someone moves it, or when a Wi-Fi attack starts — naming and mapping the tool behind it and locating. It runs on battery with no internet, no cloud, and no subscription, and your data stays on the device.
+AntiHunter is a perimeter detection platform you set up and walk away from. Put a node in a home, along a fence line, at an event, or in a barn with no signal. It learns what belongs, then alerts you when a new device shows up, when someone moves the node, or when a Wi-Fi attack starts. It names the attack tool and puts it on a map. It runs on battery with no internet, cloud, or subscription, and your data stays on the device.
 
-It's open source and listens only; it never jams or attacks anything. One node works alone. Add more and they compare notes over long-range LoRa radio, confirm each other's alerts, and put signals on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+It is open source and only listens. It never jams or attacks anything. One node works alone. Several nodes share alerts over long-range LoRa radio, confirm each other, and put signals on a map. Control a node from its web page, by text over the mesh, or from the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
 <p align="center">
   <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
@@ -36,7 +36,7 @@ It's open source and listens only; it never jams or attacks anything. One node w
 <p align="center"><i>Featured in Seeed Studio's <a href="https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/">Best 20 XIAO Projects in 2025</a>.</i></p>
 
 > [!TIP]
-> Flash your first node with the [Quick start](#quick-start) below, then open the wiki's [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup) page to change the default password and keys. The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) has every feature and troubleshooting in depth.
+> Flash your first node with the [Quick start](#quick-start) below, then open the wiki's [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup) page to change the default password and keys. The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers every feature and troubleshooting.
 
 ---
 
@@ -50,7 +50,7 @@ Each feature has its own wiki page with settings, mesh commands, and troubleshoo
 |---|---|
 | [Target scan](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan) | Alerts when it hears a MAC, vendor, or network name on your watchlist. |
 | [Device discovery](https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery) | Lists nearby Wi-Fi access points and Bluetooth devices. |
-| [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) | Labels each Bluetooth device by what it is, such as AirPods, a Tile tag, a drone, or a tire-pressure sensor, by reading its advertisement. |
+| [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) | Reads each Bluetooth advertisement and labels the device, such as AirPods, a Tile tag, a drone, or a tire-pressure sensor. |
 | [Probe request scanner](https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests) | Shows which network names each phone or laptop is looking for. |
 | [Randomized MAC tracer](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer) | Links a phone's changing MAC addresses back to one device, using methods from peer-reviewed research. |
 | [Drone Remote ID](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID) | Reads a drone's ID, position, flight data, and the operator's location. |
@@ -68,7 +68,7 @@ Each feature has its own wiki page with settings, mesh commands, and troubleshoo
 
 | Feature | What it does |
 |---|---|
-| [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Runs in the background and reports Wi-Fi attacks such as deauth floods, evil twins, and handshake capture. It names the tool when it recognizes one, such as Marauder, MDK4, or aireplay-ng. |
+| [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Reports Wi-Fi attacks in the background, such as deauth floods, evil twins, and handshake capture. It names the attack tool when it recognizes one, such as Marauder, MDK4, or aireplay-ng. |
 | [Connected client visibility](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Lists the devices that join the node's own access point. |
 | [Mesh radio detection](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Finds other Meshtastic and MeshCore radios nearby, and audits the commands sent on your own mesh channel. |
 | [Deauth detection](https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection) | Logs every deauth frame and flags floods. |
@@ -100,10 +100,10 @@ Every node runs the same detectors and shares one LoRa mesh. They differ in the 
 ## Quick start
 
 1. **Attach all three antennas** before you power on.
-2. **Flash the firmware** from the [Web Flasher](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge on a desktop. Pick **Full** (with the web UI) or **Headless** (mesh and serial only). See [Full or Headless](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless).
+2. **Flash the firmware** from the [Web Flasher](https://lukeswitz.github.io/AntiHunter/) in Chrome or Edge on a desktop. Pick **Full** (with the web UI) or **Headless** (mesh and serial only). See [Full or Headless](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless). On macOS or Linux you can use the [flasher script](#flash-from-the-command-line) instead.
 3. **Connect.** For Full, join the `Antihunter` Wi-Fi network (password `antihunt3r123`), open `http://192.168.4.1`, and log in as `admin` with the same password. For Headless, open a serial monitor at 115200 baud.
 4. **Set the radio's LoRa region.** Without it, the radio never transmits. See [Meshtastic radio setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup).
-5. **Lock it down.** Every unit comes with the same published defaults, so change them: the access point name and password, the node ID, the Meshtastic channel, and the erase key. See [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup).
+5. **Lock it down.** Every unit has the same published defaults. Change the access point name and password, the node ID, the Meshtastic channel, and the erase key. See [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup).
 6. **Run a scan.** Scan only where you have permission. See the [legal disclaimer](#legal-disclaimer).
 
 The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers each step in detail.
@@ -113,19 +113,34 @@ The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers each step in det
 ## Documentation
 
 - [Wiki](https://github.com/lukeswitz/AntiHunter/wiki): setup, every feature, and troubleshooting
+- [Start Here](docs/README.md): setup order, common questions, and fixes
 - [Mesh command reference](docs/mesh-commands.md): every command, value, and alert
 - [HTTP API reference](docs/api-reference.md): the Full firmware's endpoints
 - [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf): unboxing to deployment, with a printable quick-reference card
 - [Assembly Manual (PDF)](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+- Tier notes (PDF), one per kit: [Tier 1 Assembled](docs/note-tier1-assembled.pdf), [Tier 2 Parts Kit](docs/note-tier2-parts-kit.pdf), [Tier 3 Populated PCB](docs/note-tier3-populated-pcb.pdf), [Tier 4 Bare PCB](docs/note-tier4-bare-pcb.pdf)
+- [Enclosure STL files](hw/Prototype_STL_Files) and the [welcome letter](hw/Prototype_STL_Files/ahwelcome.txt)
 
 ---
 
 ## Hardware
 
-Buy a node from the [store](https://lectronz.com/stores/antihunter), or build one from the [bill of materials](hw/Prototype_STL_Files/BOM-Links.md). The [Hardware and BOM](https://github.com/lukeswitz/AntiHunter/wiki/Hardware-and-BOM) wiki page lists the parts, the pinout, and the enclosure files.
+Buy a node from the [store](https://lectronz.com/stores/antihunter), or build one from the [bill of materials](hw/Prototype_STL_Files/BOM-Links.md) and the [Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf). Each kit has a [tier note](#documentation). The [Hardware and BOM](https://github.com/lukeswitz/AntiHunter/wiki/Hardware-and-BOM) wiki page lists the parts, the pinout, and the enclosure files.
 
 > [!IMPORTANT]
 > Use a regulated 5 V supply. Unregulated batteries cause voltage instability.
+
+---
+
+## Flash from the command line
+
+The flasher script downloads the firmware and flashes it over USB:
+
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh        # -e erases first, -c sets device parameters, -l lists firmware
+```
 
 ---
 

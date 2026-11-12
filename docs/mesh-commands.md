@@ -2,7 +2,7 @@
 
 [Back](../README.md)
 
-This page lists every command a node accepts over the mesh (Meshtastic LoRa radio) and on its USB serial port. It covers the Full and Headless firmware on the main branch. A command that works on only one build says so.
+This page lists every command a node accepts over the mesh (Meshtastic LoRa radio, or MeshCore on Beta) and on its USB serial port. It covers the Full and Headless firmware on the main branch. A command that works on only one build says so.
 
 ## How to send a command
 
@@ -11,8 +11,8 @@ Send a text message that starts with the target: `@AH01 STATUS` for one node, `@
 - A node ID is 2 to 5 letters or digits. Node IDs and command names are not case sensitive.
 - Each command also has a short alias: `@AH01 TS:...` is `@AH01 TRIANGULATE_START:...`.
 - Type argument keywords such as `FOREVER`, `CH`, and `+PROBE` in uppercase.
-- A whole line can be at most 230 characters.
-- The node ignores any line that does not start with `@<NODE>` or `@ALL`. It also ignores a misspelled command and sends no reply.
+- A line is at most 230 characters. Over a MeshCore radio (Beta), the limit is 160 minus the radio name's length and 2, which is 150 for the default name. A longer reply goes out in parts, and a part cut in the middle of a line ends with ` +`.
+- The node ignores a line that does not start with `@<NODE>` or `@ALL`, or that has a misspelled command, and sends no reply.
 - Every node that receives the command answers with `<NODE>: <reply>`. This page shows only the reply text.
 - Only one scan runs at a time. A start command replies `BUSY` while another scan runs. Send `STOP` first.
 - The same line typed on the node's USB serial port runs the same way.
@@ -62,7 +62,7 @@ These commands change settings and save them.
 | `CONFIG_TARGETS` | list | Entries separated by `\|`. Each entry is a full MAC (`AA:BB:CC:DD:EE:FF`), a vendor prefix of the first three bytes (`AA:BB:CC`), a network name (SSID), or a tracer ID (`T-` and four characters). While a scan runs, the node stores the list but does not load it into that scan | 230 characters per line | |
 | `CONFIG_NODEID` | ID | New ID, saved in upper case | 2-5 letters or digits | |
 | `CONFIG_RSSI` | dBm | The node ignores devices with a weaker signal than this. `-80` ignores everything below -80 dBm | -128 to -10 | -95 |
-| `CONFIG_CHANNELS` | list | Channels as a list (`1,6,11`) or a range (`1..11`). The node drops invalid entries, falls back to 1-11 if none are left, and adds its own access point channel. The reply repeats what you sent, not the cleaned list. While a scan runs the list is saved but applied afterward | 1-14 | 1-11 |
+| `CONFIG_CHANNELS` | list | Channels as a list (`1,6,11`) or a range (`1..11`). The node drops invalid entries, falls back to 1-11 if none remain, and adds its access point channel. The reply echoes your input, not the cleaned list. During a scan the list is saved and applied afterward | 1-14 | 1-11 |
 | `CONFIG_DEDUP_TTL` | seconds | Time before the node may report the same device again. `0` turns deduplication off | 0-3600 | 300 |
 | `CONFIG_SESSION_DEDUP` | `0` or `1` | `1`: a repeated scan sends only devices not reported earlier in the session. Any nonzero number counts as `1` | 0-1 | |
 | `BLE_CLASSIFY` | `0` or `1` | `1`: BLE devices get a class label that appears as `C=<class>` in alerts. Any nonzero number counts as `1` | 0-1 | 1 |
@@ -113,7 +113,7 @@ Each command starts one scan task. `secs` is the run time.
 | `PCAP_START` | `band` | `0` 2.4 GHz, `1` 5 GHz, `2` both. This hardware has 2.4 GHz only, so the node always uses `0` | 0-2 | 0 |
 | `PCAP_START` | `CH<list>` | Channels to capture on | 1-177 | |
 | `PCAP_LIMITS` | MB | Size at which a capture file closes | 8-300 | |
-| `PCAP_AUTO` | `budgetMB,floorMB` | Both, separated by a comma. `budgetMB` is the total space automatic captures may use. The node deletes automatic captures until both limits hold. `floorMB` is the free space it keeps on the card | budget 16-262144, floor 0-262144 | 512, 256 |
+| `PCAP_AUTO` | `budgetMB,floorMB` | Both, comma separated. `budgetMB` is the total space automatic captures may use. `floorMB` is the free space kept on the card. The node deletes automatic captures until both hold | budget 16-262144, floor 0-262144 | 512, 256 |
 | `SD_REPAIR` | keyword | `ON` rebuilds a card that will not mount. `OFF` never does. `NOW` remounts the card now and rebuilds it only if every mount attempt fails. A rebuild erases the card | | `OFF` |
 | `SCHED_ADD` | `start` | First run, in the node's local time, as `YYYY-MM-DDTHH:MM`. Must be after 2021-01-01 | | |
 | `SCHED_ADD` | `repeat` | Seconds between runs. `0` runs once | 0, or 600-2678400 | |
@@ -129,7 +129,7 @@ Notes:
 
 ### Triangulation
 
-Several nodes measure the signal strength of one target and estimate its position. See [Locate: Triangulation](../README.md#locate-triangulation-experimental) for the method. Send `TRIANGULATE_START` to one node by its ID, not to `@ALL`. That node becomes the coordinator and starts every other node on the mesh.
+Several nodes measure the signal strength of one target and estimate its position. See [Triangulation](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation) for the method. Send `TRIANGULATE_START` to one node by its ID, not to `@ALL`. That node becomes the coordinator and starts every other node on the mesh.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -143,7 +143,7 @@ Several nodes measure the signal strength of one target and estimate its positio
 |---|---|---|---|
 | `target` | The device to locate: a MAC address, or a tracer ID that starts with `T-` | | |
 | `secs` | Run time. Values outside the range are moved to the nearest limit. Zero or less is ignored | 10-3600 | |
-| `rfEnv` | Surroundings, used to turn signal strength into distance: `0` open sky, `1` suburban, `2` indoor, `3` indoor dense, `4` industrial. Other values become `2`. The README has the [calibration table](../README.md#locate-triangulation-experimental) | 0-4 | 2 |
+| `rfEnv` | Surroundings, used to turn signal strength into distance: `0` open sky, `1` suburban, `2` indoor, `3` indoor dense, `4` industrial. Other values become `2`. The wiki has the [calibration table](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation) | 0-4 | 2 |
 | `wifiPwr` | Multiplier for Wi-Fi distance estimates. Raise it if estimates come out too short | 0.1-5.0 | 1.0 |
 | `blePwr` | Same for BLE. Out-of-range values become `1.0` | 0.1-5.0 | 1.0 |
 
@@ -151,7 +151,7 @@ Nodes also trade `TRI_CYCLE_START:<ms>:<node,...>` (alias `TCS`) to schedule the
 
 #### Distance calibration
 
-Calibration replaces the RF environment's guess of signal strength at 1 m with a measurement from one node. Place a Wi-Fi access point or BLE device at a measured distance from the node, then send `CALIBRATE` to that node. The node listens to the device for 30 seconds. It saves the result to its built-in memory and the SD card, and keeps it after a reboot and when you change the RF environment. Calibrate each node on its own, and reset it when you move the node.
+Calibration replaces the RF environment's assumed signal strength at 1 m with a measurement from one node. Place a Wi-Fi access point or BLE device at a measured distance from the node, then send `CALIBRATE` to that node. The node listens for 30 seconds and saves the result to its built-in memory and the SD card. The result survives a reboot and RF environment changes. Calibrate each node separately, and reset it when you move it.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -169,7 +169,7 @@ The `<dBm>` values in `CALIBRATE_DONE` are the calibrated signal strength at 1 m
 
 ### Erase
 
-A wipe cannot be undone, so the node only wipes when you prove you know its **erase key**. The node makes the key on first start, and every flasher shows it. See [Secure data destruction](../README.md#secure-data-destruction). You never send that key over the radio. Instead:
+A wipe cannot be undone, so the node only wipes when you prove you know its **erase key**. The node makes the key on first start, and every flasher shows it. See [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe). You never send that key over the radio. Instead:
 
 - The node gives you a **token**, a one-time random challenge, good for 5 minutes.
 - You turn the token and your key into a short **answer** code.
@@ -186,7 +186,7 @@ To send an erase command:
    ```
 3. Within 5 minutes, send the command with the answer: `@AH01 ERASE_FORCE:<answer>`.
 
-The answer is the first 8 hex characters of that HMAC-SHA256 (upper or lower case). The full 64 also work. Each token allows one try, right or wrong, so request a new token before each command. The node keeps only the newest token. A new `ERASE_REQUEST`, or a tamper alert, replaces it. You can request a token once every 20 seconds.
+The answer is the first 8 hex characters of that HMAC-SHA256, in upper or lower case. The full 64 also work. A token allows one try, right or wrong, so request a new one for each command. The node keeps only the newest token. A new `ERASE_REQUEST` or a tamper alert replaces it. You can request a token every 20 seconds.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -249,7 +249,7 @@ The vibration sensor detects when someone moves the node.
 | `scan` | Which scan to start, always on both radios: `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target scan on channels 1-11, `5` drone, `6` deauth, `7` baseline, `8` packet capture on Wi-Fi 2.4 GHz. `0` starts none | 0-8 |
 | `secs` | Scan length in seconds. `0` runs until `STOP`, except scan `8`, which needs a length above 0 | 0-65535 |
 | `cooldown` | Seconds before the next movement can start a scan. Left out, it keeps the current value | 5-86400 |
-| `interrupt` | `1` stops a running scheduled scan to make room. The scheduled scan resumes afterward if it had 10 seconds or more left. Left out, it keeps the current value | 0-1 |
+| `interrupt` | `1` stops a running scheduled scan to make room. It resumes if it had 10 seconds or more left. Left out, it keeps the current value | 0-1 |
 
 To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in the reply is the interrupt setting.
 
@@ -270,7 +270,7 @@ To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in th
 
 ### Sentinel
 
-Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interference, attack devices, and Meshtastic and MeshCore radios. It is part of both builds. The [README](../README.md#detection-sentinel) describes what it detects.
+Sentinel is the node's threat detection, in both builds. It watches for Wi-Fi attacks, interference, attack devices, and Meshtastic and MeshCore radios. The [Sentinel wiki page](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) describes what it detects.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -304,7 +304,7 @@ Sentinel is the node's threat detection. It watches for Wi-Fi attacks, interfere
 | `RADIO_KNOWN_ADD` | `mac:type[:name]` | `type` is `Meshtastic` or `MeshCore`. `name` is the radio's Bluetooth name. If you leave it out, the node uses the name it last saw for that MAC | 32 radios, name up to 31 characters | |
 | `SELF_RADIO_SET` | `prefix` | The first characters of the node's own radio's Bluetooth name | 1 to 12 characters | |
 
-A known radio matches by MAC. A radio that changes its Bluetooth address also matches by type and name. A radio with a fixed address that uses a known name still raises an alert. The list survives a reboot. The node waits up to 30 seconds for the name of a radio that changes its address before it alerts.
+A known radio matches by MAC. A radio that changes its Bluetooth address also matches by type and name. A radio with a fixed address and a known name still raises an alert. The list survives a reboot. For a radio that changes its address, the node waits up to 30 seconds for its name before alerting.
 
 A node that has another node nearby learns the name of its own radio from that node and stops alerting on it. A node on its own takes that name prefix from `SELF_RADIO_SET`. The prefix survives a reboot.
 
@@ -320,7 +320,7 @@ A `GROUP` name selects these detectors:
 | `devices` | LoRa mesh radios (Meshtastic and MeshCore) |
 | `all` | All of the above |
 
-`DETECT_CFG` takes one JSON object with any of these keys. The reply is always `OK`, and the node skips keys it does not know. The whole line must fit in 230 characters. A switch is on for `true` or `1` and off for anything else. A number must be above 0. The node skips a `0`, except for `attack_resp_mask`.
+`DETECT_CFG` takes one JSON object with any of these keys, in a line of at most 230 characters. The reply is always `OK`, and the node skips unknown keys. A switch is on for `true` or `1`, off for anything else. A number must be above 0. The node skips a `0`, except for `attack_resp_mask`.
 
 | Keys | Value | Sets |
 |---|---|---|
@@ -346,11 +346,11 @@ A `GROUP` name selects these detectors:
 | `ar_secs_pcap` | Length of the follow-up capture | s | 120 |
 | `ar_secs_device` `ar_secs_probe` `ar_secs_drone` `ar_secs_trilat` | Length of each other follow-up | s | 60 |
 
-Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` records a 300-second capture and runs a device discovery after each confirmed attack. The mask 6 is 2 (capture) plus 4 (device discovery).
+Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` runs a 300-second capture and a device discovery after each confirmed attack. Mask 6 is 2 (capture) plus 4 (device discovery).
 
 ### CSI Motion (Beta, C5)
 
-These commands exist in the Beta firmware and the Experimental C5 firmware. The main (Stable) firmware does not have them. CSI (channel state information) motion detection reports movement from changes in nearby Wi-Fi signals. See [Detection: CSI Motion](../README.md#detection-csi-motion-beta) for how it works. A start command replies `BUSY` while another scan runs.
+These commands exist in the Beta firmware and the Experimental C5 firmware. The main (Stable) firmware does not have them. CSI (channel state information) motion detection reports movement from changes in nearby Wi-Fi signals. See [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) for how it works. A start command replies `BUSY` while another scan runs.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
@@ -416,6 +416,8 @@ While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Aler
 | Command | Alias | Where | What it does | Reply | Example |
 |---|---|---|---|---|---|
 | `CONFIG_BAND` | `CB` | C5 only | Chooses the Wi-Fi band the scans use, and saves it | `CONFIG_ACK:BAND:<n>` or `:INVALID` | `@AH01 CONFIG_BAND:2` |
+| `MESHCORE_ON` / `MESHCORE_OFF` | | Beta, USB serial | Switches the radio link to a MeshCore radio or back to Meshtastic, and saves it. It does not work over the mesh | `MESHCORE_ACK:ON` / `MESHCORE_ACK:OFF` on USB | `MESHCORE_ON` |
+| MeshCore radio passthrough | | Beta, USB serial | With MeshCore on, a MeshCore app frame on USB (it starts with `<`) goes to the radio and its replies come back. The node pauses its own mesh traffic until USB has been idle for 10 seconds | `[MC] Radio bridge closed` on USB | `meshcore-cli -s PORT:dtr=1,rts=1 infos` |
 
 | Argument | Meaning | Range | Default |
 |---|---|---|---|
@@ -437,7 +439,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | Triangulation result | `NODE: T_F: ... GPS=<lat>,<lon> CONF=<pct> UNC=<m>`, then `NODE: T_C: MAC=<mac> Nodes=<n> [GPS=<lat>,<lon> CONF=<pct> URL=<link>]` |
 | Probe hit | `NODE: PROBE_HIT <mac> [Randomized\|<vendor>] RSSI=<n> CH=<n> [SSID="<x>" [GHOST]] [DST]` |
 | Packet capture | `NODE: PCAP_START: WIFI\|BLE D=<secs>`, then `PCAP_DONE: F=<frames> B=<bytes> D=<dropped> [R=WRITEFAIL\|SIZECAP]` |
-| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats>`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Baseline `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<anomaly alerts sent> PEND=<anomaly alerts unsent>`. Also `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`, `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`, `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`, and `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<sent> PEND=<unsent>`. A probe scan sends no completion line |
+| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats>`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Baseline `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<anomaly alerts sent> PEND=<anomaly alerts unsent>`. Drone `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`. Deauth `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`. Randomization `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`. A probe scan sends no completion line |
 | CSI motion (Beta, C5) | `NODE: CSI_MOTION: CH=<n> N=<transmitters> S=<score>` when movement starts, and `NODE: CSI_CLEAR: CH=<n> D=<s>s` when it ends, with the movement time in seconds. `GAP` limits how often `CSI_MOTION` is sent |
 | Movement | `NODE: VIBRATION: Movement detected at <time>`. During setup mode: `VIBRATION: Movement in setup mode (active in <s>s)` |
 | Tamper | `NODE: TAMPER_DETECTED: Auto-erase in <s>s [GPS:<lat>,<lon>]`, then `TAMPER_CANCELLED` if you cancel |
@@ -469,8 +471,9 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `JAMMING:<ch>:noise_rise:<db>` | `db`: how far the noise floor rose above its learned level |
 | `JAMMING_BASELINE:<ch>:silence:<fps>` | `fps`: the channel's usual frames per second |
 | `RADIO_DETECTED:<radio>:<mac>:<rssi>:<name>` | `Meshtastic` `MeshCore`. `name` is empty if the radio has not sent one yet |
-| `FLEET_AP:<mac>` | A Full node sends the MAC address of its own access point about 10 seconds after boot and every 10 minutes. It also sends it when it hears a new node's `FLEET_AP` or a changed MAC address from a known node, waiting until 30 seconds have passed since its last send. Receiving nodes do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
+| `FLEET_AP:<mac>` | A Full node sends its own access point MAC about 10 seconds after boot, then every 10 minutes. It also sends it on hearing a new node's `FLEET_AP` or a known node's changed MAC, at least 30 seconds after its last send. Receivers do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
 | `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 10 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
+| `CSI_PEER:<mac>` | Beta. At its first CSI motion start after boot, a node sends its access point MAC and its probe source MAC. Other nodes stop using those MACs as CSI links and answer with their own |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
 A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 10 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
