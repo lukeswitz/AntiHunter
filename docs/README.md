@@ -3,7 +3,11 @@
 - **[README](../README.md)**: features, settings, mesh, hardware, build.
 - **[Operator's Guide](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html)** ([PDF](AntiHunter-Operators-Guide.pdf)): the node from the box to the field.
 - **[Assembly Manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)**: soldering, SD card preparation, connectors, printed enclosure.
-- **Tier notes**, the sheet in the box: [Assembled](note-tier1-assembled.pdf) · [Parts Kit](note-tier2-parts-kit.pdf) · [Soldered Core PCB](note-tier3-populated-pcb.pdf) · [Bare PCB](note-tier4-bare-pcb.pdf)
+- **Tier notes**, the sheet in the box:
+  - [Tier 1 Assembled](note-tier1-assembled.pdf)
+  - [Tier 2 Parts Kit](note-tier2-parts-kit.pdf)
+  - [Tier 3 Populated PCB](note-tier3-populated-pcb.pdf)
+  - [Tier 4 Bare PCB](note-tier4-bare-pcb.pdf)
 
 ---
 
@@ -138,12 +142,42 @@ The full symptom table, the factory reset, and what to include in a bug report a
 
 ## Everything else
 
-**Hardware**: [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [BOM links](../hw/Prototype_STL_Files/BOM-Links.md) · [enclosures and STLs](../hw/Prototype_STL_Files/README.md) · [welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt) · [what each tier includes](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware) · tier notes: [Assembled](note-tier1-assembled.pdf), [Parts Kit](note-tier2-parts-kit.pdf), [Soldered Core PCB](note-tier3-populated-pcb.pdf), [Bare PCB](note-tier4-bare-pcb.pdf)
+### Hardware
 
-**Firmware**: [web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI flasher](../Dist/flashAntihunter.sh) · [build from source](../README.md#build-from-source) · [releases](https://github.com/lukeswitz/AntiHunter/releases) · [release notes](release-notes/notes.md)
+- [Assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) (PDF)
+- [BOM links](../hw/Prototype_STL_Files/BOM-Links.md): every part with a buy link
+- [Enclosures and STLs](../hw/Prototype_STL_Files/README.md)
+- [Welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt)
+- [What each tier includes](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware)
+- Tier notes (PDF):
+  - [Tier 1 Assembled](note-tier1-assembled.pdf)
+  - [Tier 2 Parts Kit](note-tier2-parts-kit.pdf)
+  - [Tier 3 Populated PCB](note-tier3-populated-pcb.pdf)
+  - [Tier 4 Bare PCB](note-tier4-bare-pcb.pdf)
 
-**Operating**: [what it detects](../README.md#what-it-detects) · [scan presets](https://github.com/lukeswitz/AntiHunter/wiki/Settings) · [web UI](https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour) · [secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe) · [mesh radio](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+### Firmware
 
-**Scripts**: [`meshtastic_config.py`](../scripts/meshtastic_config.py) sets the radio's screen, LED, pairing pin, serial module, and region.
+- [Web flasher](https://lukeswitz.github.io/AntiHunter/): flash from Chrome or Edge on a desktop
+- [CLI flasher](../Dist/flashAntihunter.sh): flash from a terminal
+- [Build from source](../README.md#build-from-source)
+- [Releases](https://github.com/lukeswitz/AntiHunter/releases) and [release notes](release-notes/notes.md)
 
-**Project**: [Discord](https://discord.gg/AYFzUurfmh) · [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) · [store](https://lectronz.com/stores/antihunter) · [website](https://rootdowndigital.com/antihunter) · [contributing](../CONTRIBUTING.md) · [CLA](../CLA.md) · [security policy](../SECURITY.md) · [license](../LICENSE) · [legal disclaimer](../README.md#legal-disclaimer)
+### Operating
+
+- [What it detects](../README.md#what-it-detects): every feature, with a link to its wiki page
+- [Scan presets](https://github.com/lukeswitz/AntiHunter/wiki/Settings)
+- [Web UI](https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour)
+- [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe)
+- [Mesh radio](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup)
+- [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+
+### Scripts
+
+- [`meshtastic_config.py`](../scripts/meshtastic_config.py) sets the radio's screen, LED, pairing pin, serial module, and region.
+
+### Project
+
+- Help: [Discord](https://discord.gg/AYFzUurfmh) and [Discussions](https://github.com/lukeswitz/AntiHunter/discussions)
+- Buy: [store](https://lectronz.com/stores/antihunter) and [website](https://rootdowndigital.com/antihunter)
+- Contribute: [contributing](../CONTRIBUTING.md), [CLA](../CLA.md), and the [security policy](../SECURITY.md)
+- Legal: [license](../LICENSE) and the [legal disclaimer](../README.md#legal-disclaimer)
