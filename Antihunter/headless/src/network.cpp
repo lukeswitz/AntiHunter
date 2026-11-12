@@ -2640,6 +2640,19 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (cmdIs(command, "PCAP_LIMITS"))               handlePcapLimits(command);
   else if (command == "STOP")                         handleStop(command);
 #if AH_SELFTEST
+  else if (command == "SELFTEST_VIBSCAN") {
+      vibAutoScanPending = true;
+  }
+  else if (command == "SELFTEST_CHANNELS") {
+      extern std::vector<uint8_t> CHANNELS;
+      String s;
+      for (uint8_t c : CHANNELS) s += String(c) + ",";
+      Serial.printf("[SELFTEST] channels %s sweep=%d\n", s.c_str(), (int)g_sweepHopChannels);
+  }
+  else if (command == "SELFTEST_ATTACK") {
+      const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+      attack_responseArm(m, "SELFTEST");
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");
