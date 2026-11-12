@@ -1382,6 +1382,11 @@ void snifferScanTask(void *pv)
                                 if (bleClassifyEnabled) {
                                     std::vector<uint8_t> pl = device->getPayload();
                                     bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+#if AH_SELFTEST
+                                    String hex;
+                                    for (uint8_t b : pl) { char x[3]; snprintf(x, sizeof(x), "%02X", b); hex += x; }
+                                    Serial.printf("[ADV] %s %s %s\n", macStr.c_str(), hex.c_str(), h.cls[0] ? h.cls : "-");
+#endif
                                 }
                             }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
@@ -2747,7 +2752,103 @@ static volatile bool bleInitDone = false;
 static volatile bool bleInitFailed = false;
 static std::atomic<bool> bleInitStarted{false};
 
+#ifndef AH_SELFTEST
+#define AH_SELFTEST 0
+#endif
+#if AH_SELFTEST
+void selftestInjectDevices(uint32_t count) {
+    uint32_t sentAp = 0, dropAp = 0, sentProbe = 0, dropProbe = 0;
+    Serial.printf("[SELFTEST] inject start count=%u apQ=%d probeQ=%d\n",
+                  (unsigned)count, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
+    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+        if (apInfoQueue) {
+            ApInfoEvent ae = {};
+            ae.bssid[0] = 0x02; ae.bssid[1] = 0xAB;
+            ae.bssid[2] = (uint8_t)(i >> 24); ae.bssid[3] = (uint8_t)(i >> 16);
+            ae.bssid[4] = (uint8_t)(i >> 8);  ae.bssid[5] = (uint8_t)i;
+            ae.rssi = (int8_t)(-30 - (i % 60));
+            ae.channel = (uint8_t)(1 + (i % 11));
+            snprintf(ae.ssid, sizeof(ae.ssid), "AHTEST_%lu", (unsigned long)(i % 4096));
+            if (xQueueSend(apInfoQueue, &ae, 0) == pdTRUE) sentAp++; else dropAp++;
+        }
+        if (probeRequestQueue) {
+            ProbeRequestEvent pe = {};
+            bool randomized = (i & 1);
+            pe.mac[0] = randomized ? 0x06 : 0x04; pe.mac[1] = 0xCD;
+            pe.mac[2] = (uint8_t)(i >> 24); pe.mac[3] = (uint8_t)(i >> 16);
+            pe.mac[4] = (uint8_t)(i >> 8);  pe.mac[5] = (uint8_t)i;
+            pe.rssi = (int8_t)(-35 - (i % 55));
+            pe.channel = (uint8_t)(1 + (i % 11));
+            pe.dstMatch = false;
+            pe.isProbeResponse = false;
+            char nm[24];
+            int nl = snprintf(nm, sizeof(nm), "net_%lu", (unsigned long)(i % 2048));
+            if (nl > 20) nl = 20;
+            bool wildcard = (i % 8 == 0);
+            uint8_t ssidLen = wildcard ? 0 : (uint8_t)nl;
+            pe.payload[24] = 0x00;
+            pe.payload[25] = ssidLen;
+            for (uint8_t k = 0; k < ssidLen; k++) pe.payload[26 + k] = (uint8_t)nm[k];
+            pe.payloadLen = (uint16_t)(26 + ssidLen);
+            if (xQueueSend(probeRequestQueue, &pe, 0) == pdTRUE) sentProbe++; else dropProbe++;
+        }
+        if ((i & 0x1F) == 0x1F) vTaskDelay(1);
+    }
+    Serial.printf("[SELFTEST] inject done ap=%u/%u probe=%u/%u internal=%u psram=%u integrity=%s\n",
+                  (unsigned)sentAp, (unsigned)(sentAp + dropAp),
+                  (unsigned)sentProbe, (unsigned)(sentProbe + dropProbe),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                  heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
+}
+
+static void selftestBleAdvTask(void *pv) {
+    const uint32_t packed = (uint32_t)reinterpret_cast<uintptr_t>(pv);
+    const uint32_t count = packed >> 12;
+    const uint32_t periodMs = packed & 0xFFF;
+    if (!BLEDevice::isInitialized() && !BLEDevice::init("")) {
+        Serial.println("[SELFTEST] bleadv: BLE init failed");
+        vTaskDelete(NULL);
+        return;
+    }
+    NimBLEAdvertising *adv = BLEDevice::getAdvertising();
+    BLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
+    adv->setMinInterval(32);
+    adv->setMaxInterval(48);
+    uint32_t sent = 0;
+    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums\n", (unsigned)count, (unsigned)periodMs);
+    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+        adv->stop();
+        uint8_t a[6];
+        a[0] = (uint8_t)i; a[1] = (uint8_t)(i >> 8); a[2] = (uint8_t)(i >> 16);
+        a[3] = 0x5E; a[4] = 0x1F; a[5] = 0xC0 | (uint8_t)((i >> 24) & 0x3F);
+        if (!BLEDevice::setOwnAddr(a)) { Serial.printf("[SELFTEST] bleadv setOwnAddr failed at %u\n", (unsigned)i); break; }
+        char nm[20];
+        snprintf(nm, sizeof(nm), "AHTEST_%lu", (unsigned long)i);
+        adv->setName(nm);
+        if (adv->start()) sent++;
+        vTaskDelay(pdMS_TO_TICKS(periodMs ? periodMs : 200));
+    }
+    adv->stop();
+    Serial.printf("[SELFTEST] bleadv done advertised=%u internal=%u\n", (unsigned)sent,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    vTaskDelete(NULL);
+}
+
+void selftestBleAdvertise(uint32_t count, uint32_t periodMs) {
+    if (count > 0xFFFFF) count = 0xFFFFF;
+    if (periodMs > 0xFFF) periodMs = 0xFFF;
+    const uint32_t packed = (count << 12) | periodMs;
+    ahCreateTask(selftestBleAdvTask, "bleadv", 6144, reinterpret_cast<void *>(static_cast<uintptr_t>(packed)), 1, NULL, 0);
+}
+#endif
+
 static void bleInitTask(void *pv) {
+#if AH_SELFTEST
+    Serial.printf("[SELFTEST] pre-BLE integrity=%s internal=%u\n",
+                  heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#endif
     Serial.printf("[BLE_INIT] core=%d heap=%u largest=%u\n",
                   xPortGetCoreID(),
                   (unsigned)ESP.getFreeHeap(),
