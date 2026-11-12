@@ -8,7 +8,7 @@
 
 ## AntiHunter DIGI Node — Bill of Materials
 
-This is the full parts list for one node. To see which parts each tier includes, read [Deployment Steps by Tier](../../README.md#deployment-steps-by-tier).
+This is the full parts list for one node. To see which parts each tier includes, read [Choose your hardware](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware).
 
 ### Core Electronics
 | Qty | Part |

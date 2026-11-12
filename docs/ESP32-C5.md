@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** Breadboard the C5 and test it before you solder anything. A C5 soldered into a PCB can go back to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Experimental** channel. The S3 build on `main` is the stable one.
+> **Testing phase.** Breadboard the C5 and test it before you solder anything. A C5 soldered into a PCB can return to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Experimental** channel. The S3 build on `main` is the stable one.
 
 The XIAO ESP32-C5 replaces the XIAO ESP32-S3 on the same AntiHunter PCB, with the same footprint, peripherals and mesh. Its radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 radio is 2.4 GHz only.
 
@@ -92,7 +92,7 @@ The build uses board `seeed_xiao_esp32c5`, partition table `Dist/partitions_c5.c
 
 **In testing.** In the same room, a C5 separates movement from background less cleanly than an S3. Use an S3 where detection matters.
 
-The C5 default trigger level is 0.020. The S3 Beta build's is 0.140. Do not copy a value between them. C5 scores run lower than S3 scores, so an S3 value silences a C5 and a C5 value floods an S3.
+The C5 default trigger level is 0.020. The S3 Beta build's is 0.140. Do not copy a value between them. C5 scores run lower, so an S3 value silences a C5 and a C5 value floods an S3.
 
 To set the trigger for a room:
 
@@ -100,10 +100,10 @@ To set the trigger for a room:
 2. Set the trigger between the two scores: `@AH01 CSI_CFG:SENSITIVITY=<value>`.
 3. If the two scores overlap, move the node.
 
-`SENSITIVITY` takes a number from 0.005 to 20, or `LOW`, `MEDIUM` or `HIGH`. The three words also set the trigger to 0.070, 0.070 and 0.056, and they set how long motion must last and how many links must agree. `@AH01 CSI_RECAL` clears the value you set and returns to the default.
+`SENSITIVITY` takes a number from 0.005 to 20, or `LOW`, `MEDIUM` or `HIGH`. The three words set the trigger to 0.070, 0.070 and 0.056, and also set how long motion must last and how many links must agree. `@AH01 CSI_RECAL` clears your value and returns to the default.
 
 ### MeshCore radio on a C5
 
-**In progress.** The C5 build has the same MeshCore radio link as Beta ([README](../README.md#meshcore-radio-beta-and-c5)). On the C5 board, flashing MeshCore onto the Heltec V3 over its own USB port does not work yet: the flash tool reaches the bootloader but gets no reply. A fix is in the works. Once the Heltec runs MeshCore, change its radio settings through the node: run `meshcore-cli -s PORT:dtr=1,rts=1` on the C5's USB port while MeshCore is on.
+The C5 has the same MeshCore link as Beta ([MeshCore radio setup](https://github.com/lukeswitz/AntiHunter/wiki/MeshCore-radio-setup)). Flash the Heltec over its own USB, on the board. If the flash tool gets no reply, check the Heltec header solder joints. To change radio settings from the C5's USB port, run `meshcore-cli -s PORT:dtr=1,rts=1` with MeshCore on.
 
 Chip-level detail and open Espressif issues: [C5 firmware notes](ESP32-C5-firmware-notes.md).

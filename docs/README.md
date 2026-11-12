@@ -19,7 +19,7 @@ Flashing needs a **data** USB-C cable and Chrome or Edge on a desktop. Charge-on
 
 ## Pick your path
 
-No tier ships with AntiHunter installed. You flash it yourself.
+No tier comes with AntiHunter installed. You flash it yourself.
 
 ### Assembled or Soldered Core PCB
 
@@ -28,14 +28,14 @@ The Meshtastic radio is already flashed and configured. The ESP32 is not.
 1. Fit the antennas ([Operator's Guide §2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2)).
 2. Flash AntiHunter with the [web flasher](https://lukeswitz.github.io/AntiHunter/). Choose **Full** first.
 3. Change the access point name and password.
-4. Set the LoRa region, a pairing pin, and an encrypted channel ([Radio Setup](../README.md#radio-setup)).
+4. Set the LoRa region, a pairing pin, and an encrypted channel ([Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup)).
 5. Continue at [Setup order](#setup-order-for-a-new-node).
 
 ### Parts Kit or Bare PCB
 
 Nothing is soldered and nothing is flashed.
 
-1. Check the box against [what each tier ships](../README.md#deployment-steps-by-tier).
+1. Check the box against [what each tier includes](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware).
 2. Bare PCB only: buy the parts from the [BOM](../hw/Prototype_STL_Files/BOM-Links.md).
 3. Solder the board with the [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf).
 4. Print an [enclosure](../hw/Prototype_STL_Files/README.md) if you want one.
@@ -52,7 +52,7 @@ The PlatformIO environments are under [Build from source](../README.md#build-fro
 
 ### Several nodes
 
-Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](../README.md#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view. Its install steps are in [Operator's Guide §12](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12).
+Give each node its own ID and put all of them on the same encrypted channel. Nodes relay for each other, 3 hops by default ([reaching a node you cannot hear](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup#reaching-a-node-you-cannot-hear)). The [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) collects all nodes in one view. Its install steps are in [Operator's Guide §12](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s12).
 
 ---
 
@@ -61,10 +61,10 @@ Give each node its own ID and put all of them on the same encrypted channel. Nod
 | # | Step | Where |
 |---|------|-------|
 | 1 | Fit the antennas: 2.4 GHz on the XIAO, LoRa on the radio, GPS on the GPS module. | [§2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s2) |
-| 2 | Flash AntiHunter. Choose Full first. | [Web flasher](https://lukeswitz.github.io/AntiHunter/), [CLI flash](../README.md#cli-flash) |
+| 2 | Flash AntiHunter. Choose Full first. | [Web flasher](https://lukeswitz.github.io/AntiHunter/), [flasher script](../README.md#flash-from-the-command-line) |
 | 3 | Change the access point name and password. The defaults are published in this repository. | Web UI: System tab → **Settings** → **Access point** |
-| 4 | Set the radio's LoRa region. Until you do, the radio receives but never transmits. | [Radio Setup](../README.md#radio-setup) |
-| 5 | Create your own encrypted channel, make it primary, and turn off the public channel. | [Radio Setup](../README.md#radio-setup) |
+| 4 | Set the radio's LoRa region. Until you do, the radio receives but never transmits. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
+| 5 | Create your own encrypted channel, make it primary, and turn off the public channel. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
 | 6 | Set the node ID. The node starts every message it sends with this ID. | Web UI, or `@AH01 CONFIG_NODEID:GATE1` ([§8.2](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s8-2)) |
 | 7 | Set the clock. The CLI flasher and the web flasher's **Connect & Configure** button set it. GPS keeps it in sync afterward. | None needed |
 | 8 | Confirm the SD card mounts and the GPS gets a fix outdoors. | [§4](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s4) |
@@ -78,12 +78,12 @@ Give each node its own ID and put all of them on the same encrypted channel. Nod
 
 | Question | Answer |
 |---|---|
-| **Full or Headless?** | Both builds run the same detectors, scan engine, and mesh commands. Full adds a Wi-Fi access point with the web UI and API; the access point beacons unless **Hidden network** is on. Headless has no access point and is controlled by serial and mesh only. Start with Full. Switch to Headless for a deployment that must stay quiet. [Details](../README.md#full-vs-headless) |
+| **Full or Headless?** | Both builds run the same detectors, scan engine, and mesh commands. Full adds a Wi-Fi access point with the web UI and API. The access point is visible unless **Hidden network** is on. Headless has no access point and is controlled by serial and mesh only. Start with Full. Use Headless where the node must stay quiet. [Details](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless) |
 | **Stable or Beta?** | Use Stable (`main`) in the field. Beta (`beta`) gets new features first. See the [release notes](release-notes/notes.md). |
 | **S3 or C5?** | The ESP32-S3 is the stable board. The [ESP32-C5](ESP32-C5.md) fits the same pads and adds 5 GHz. It is under the flasher's Experimental channel while it is in testing. [RadarNode](RADARNODE.md) adds a 24 GHz radar to the same mesh. |
 | **Do I need the Meshtastic radio?** | Not to scan. Without it, you control a node from its own access point or over USB serial, standing next to it. With it, you send commands to every node in mesh range and receive detections from them. |
 | **Which SD card?** | Use FAT32. A card of 32 GB or more is not recommended. Every tier except Bare PCB includes an 8 GB card. |
-| **How do I update?** | Run the flasher again on the same channel and leave **Erase device** unchecked. Settings stay on the node and are mirrored to the SD card. The access point password, web password, and erase key stay on the node only and also survive. Read the release notes first. |
+| **How do I update?** | Run the flasher again on the same channel and leave **Erase device** unchecked. Settings stay on the node and on the SD card. The access point password, web password, and erase key stay on the node only. Read the release notes first. |
 
 ---
 
@@ -106,7 +106,7 @@ Every node that runs a command replies with its node ID and a result such as `SC
 | `@ALL CONFIG_TARGETS:AA:BB:CC\|MyNetwork` | Replaces the watchlist that the target scan looks for. | Separate entries with `\|`. An entry is a full MAC address, the first three bytes of one (a vendor prefix, like `AA:BB:CC`), or a Wi-Fi network name. |
 | `@ALL SCAN_START:2:600:1..11` | Starts a target scan. The node alerts when it hears a watchlist entry. | `2` is the radio: `0` Wi-Fi, `1` Bluetooth LE, `2` both. `600` is the run time in seconds (0 to 86400; `0` runs until `STOP`). `1..11` is the Wi-Fi channels: a range (`1..11`) or a list (`1,6,11`). The channel field is required. Put `FOREVER` in its place to run until `STOP` on the default channels 1 to 11. |
 | `@ALL DEVICE_SCAN_START:2:300` | Lists every access point and Bluetooth LE device the node hears. | `2` is the radio, as above. `300` is the run time in seconds. |
-| `@ALL BASELINE_START:900` | Learns which devices are normally present, then reports new, missing, returning, and moved devices. | `900` is the monitoring time in seconds after learning (60 to 86400). The learning time is a separate setting: 300 seconds by default, changed in the web UI or the web flasher. |
+| `@ALL BASELINE_START:900` | Learns which devices are normally present, then reports new, missing, returning, and moved devices. | `900` is the monitoring time in seconds after learning (60 to 86400). Learning time is a separate setting, 300 seconds by default, set in the web UI or the web flasher. |
 | `@ALL SENTINEL_ON` | Starts Sentinel, which detects Wi-Fi attacks, interference, attack devices, and LoRa mesh radios. | None. `SENTINEL_OFF` turns it off. |
 | `@ALL DRONE_START:0` | Starts the drone Remote ID scan. | `0` runs until `STOP`. Any other number is the run time in seconds. |
 | `@AH01 BATTERY_SAVER_START:10` | Stops scanning and lowers the CPU clock. The mesh stays on. | `10` is the minutes between heartbeat messages (1 to 30, default 5). `BATTERY_SAVER_STOP` ends it. |
@@ -138,11 +138,11 @@ The full symptom table, the factory reset, and what to include in a bug report a
 
 ## Everything else
 
-**Hardware**: [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [BOM links](../hw/Prototype_STL_Files/BOM-Links.md) · [enclosures and STLs](../hw/Prototype_STL_Files/README.md) · [welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt) · [what each tier ships](../README.md#deployment-steps-by-tier) · tier notes: [Assembled](note-tier1-assembled.pdf), [Parts Kit](note-tier2-parts-kit.pdf), [Soldered Core PCB](note-tier3-populated-pcb.pdf), [Bare PCB](note-tier4-bare-pcb.pdf)
+**Hardware**: [assembly manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [BOM links](../hw/Prototype_STL_Files/BOM-Links.md) · [enclosures and STLs](../hw/Prototype_STL_Files/README.md) · [welcome letter](../hw/Prototype_STL_Files/ahwelcome.txt) · [what each tier includes](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware) · tier notes: [Assembled](note-tier1-assembled.pdf), [Parts Kit](note-tier2-parts-kit.pdf), [Soldered Core PCB](note-tier3-populated-pcb.pdf), [Bare PCB](note-tier4-bare-pcb.pdf)
 
 **Firmware**: [web flasher](https://lukeswitz.github.io/AntiHunter/) · [CLI flasher](../Dist/flashAntihunter.sh) · [build from source](../README.md#build-from-source) · [releases](https://github.com/lukeswitz/AntiHunter/releases) · [release notes](release-notes/notes.md)
 
-**Operating**: [what it detects](../README.md#what-it-detects) · [scan presets](../README.md#rf-scan-presets) · [field controls](../README.md#field-controls) · [secure data destruction](../README.md#secure-data-destruction) · [mesh networking](../README.md#mesh-networking) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+**Operating**: [what it detects](../README.md#what-it-detects) · [scan presets](https://github.com/lukeswitz/AntiHunter/wiki/Settings) · [web UI](https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour) · [secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe) · [mesh radio](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
 
 **Scripts**: [`meshtastic_config.py`](../scripts/meshtastic_config.py) sets the radio's screen, LED, pairing pin, serial module, and region.
 
