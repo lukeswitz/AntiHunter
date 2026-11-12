@@ -118,7 +118,11 @@ The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers each step in det
 - [HTTP API reference](docs/api-reference.md): the Full firmware's endpoints
 - [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf): unboxing to deployment, with a printable quick-reference card
 - [Assembly Manual (PDF)](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
-- Tier notes (PDF), one per kit: [Tier 1 Assembled](docs/note-tier1-assembled.pdf), [Tier 2 Parts Kit](docs/note-tier2-parts-kit.pdf), [Tier 3 Populated PCB](docs/note-tier3-populated-pcb.pdf), [Tier 4 Bare PCB](docs/note-tier4-bare-pcb.pdf)
+- Tier notes (PDF), one per kit:
+  - [Tier 1 Assembled](docs/note-tier1-assembled.pdf)
+  - [Tier 2 Parts Kit](docs/note-tier2-parts-kit.pdf)
+  - [Tier 3 Populated PCB](docs/note-tier3-populated-pcb.pdf)
+  - [Tier 4 Bare PCB](docs/note-tier4-bare-pcb.pdf)
 - [Enclosure STL files](hw/Prototype_STL_Files) and the [welcome letter](hw/Prototype_STL_Files/ahwelcome.txt)
 
 ---
