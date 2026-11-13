@@ -2452,6 +2452,7 @@ static void handleBleLongRange(const String &command)
   bleLongRange = command.substring(14).toInt() != 0;
   prefs.putBool("bleLongRange", bleLongRange.load());
   bleApplyScanPhy();
+  saveConfiguration();
   sendToSerial1(nodeId + ": CONFIG_ACK:BLE_LONGRANGE:" + String(bleLongRange.load() ? 1 : 0), true);
 }
 
@@ -3413,6 +3414,31 @@ String meshFleetJson() {
     return "{\"node\":\"" + getNodeId() + "\",\"peers\":[" + peers + "],\"radios\":[" + radios + "]}";
 }
 
+int fleetSend(String node, String cmd, String &msg) {
+  node.trim();
+  node.toUpperCase();
+  cmd.trim();
+  bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
+  for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
+  if (!nodeOk) { msg = "Bad node ID"; return 400; }
+  static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS",
+                                          "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS", "BLE_CLASSIFY:",
+                                          "CALIBRATE:", "CALIBRATE_RESET"};
+  bool cmdOk = false;
+  for (const char *p : kAllowed) {
+    size_t n = strlen(p);
+    if (p[n - 1] == ':' ? cmd.startsWith(p) : cmd == p) { cmdOk = true; break; }
+  }
+  String line = "@" + node + " " + cmd;
+  for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
+  if (!cmdOk) { msg = "Command not allowed"; return 400; }
+  const int lineCap = g_meshcoreTransport ? (int)meshcoreTextCap() : MAX_MESH_SIZE;
+  if ((int)line.length() > lineCap) { msg = "Too long for one mesh message"; return 413; }
+  if (!sendToSerial1(line, true)) { msg = "Mesh busy - retry"; return 503; }
+  msg = "Sent to " + node;
+  return 200;
+}
+
 void processMeshMessage(const String &message) {
     if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
     std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
@@ -3887,6 +3913,13 @@ void processUSBToMesh() {
                     }
                 } else if (usbBuffer == "FLEET") {
                     Serial.println(meshFleetJson());
+                } else if (usbBuffer.startsWith("FLEET_SEND:")) {
+                    String p = usbBuffer.substring(11);
+                    int sp = p.indexOf(' ');
+                    String msg = "Usage: FLEET_SEND:<node> <command>";
+                    int code = !meshEnabled ? 409 : sp > 0 ? fleetSend(p.substring(0, sp), p.substring(sp + 1), msg) : 400;
+                    if (code == 409) msg = "Mesh disabled";
+                    Serial.printf("FLEET_SEND:%d %s\n", code, msg.c_str());
                 } else if (usbBuffer == "MESHCORE_ON" || usbBuffer == "MESHCORE_OFF") {
                     const bool on = usbBuffer == "MESHCORE_ON";
                     meshcoreSetTransport(on);

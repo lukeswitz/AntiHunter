@@ -76,6 +76,7 @@ void meshSplitSender(const String &line, String &sender, String &payload);
 String meshRedactSecrets(const String &line);
 void meshFleetObserve(const String &sender, const String &payload);
 String meshFleetJson();
+int fleetSend(String node, String cmd, String &msg);
 void processUSBToMesh();
 void serviceVibrationAutoScan();
 void scheduleTick();
