@@ -5220,7 +5220,7 @@ R"HTML(
       const DETECTION_DESC = {
         'device-scan': 'Lists every Wi-Fi and BLE device in range, with signal strength and vendor.',
         'baseline': 'Learns which devices belong here, then alerts on anything new, returning, or moving.',
-        'randomization-detection': 'Links rotating MAC addresses back to one device so randomisation stops hiding it.',
+        'randomization-detection': 'Links rotating MAC addresses back to one device so randomization stops hiding it.',
         'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
         'drone-detection': 'Decodes drone Remote ID beacons over Wi-Fi and BLE, including operator position.',
         'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
