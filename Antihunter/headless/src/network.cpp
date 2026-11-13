@@ -2233,6 +2233,14 @@ static void handleBleClassify(const String &command)
   sendToSerial1(nodeId + ": CONFIG_ACK:BLE_CLASSIFY:" + String(bleClassifyEnabled ? 1 : 0), true);
 }
 
+static void handleBleLongRange(const String &command)
+{
+  bleLongRange = command.substring(14).toInt() != 0;
+  prefs.putBool("bleLongRange", bleLongRange.load());
+  bleApplyScanPhy();
+  sendToSerial1(nodeId + ": CONFIG_ACK:BLE_LONGRANGE:" + String(bleLongRange.load() ? 1 : 0), true);
+}
+
 static void handleHbOn(const String &command)
 {
   hbEnabled = true;
@@ -2603,7 +2611,7 @@ static const char *const kCmdAliases[][2] = {
   {"ER", "ERASE_REQUEST"},        {"FR", "FACTORY_RESET"},           {"AE1", "AUTOERASE_ENABLE"},
   {"AE0", "AUTOERASE_DISABLE"},   {"AEQ", "AUTOERASE_STATUS"},       {"BSS", "BATTERY_SAVER_START"},
   {"BSX", "BATTERY_SAVER_STOP"},  {"BSQ", "BATTERY_SAVER_STATUS"},   {"CS", "CAMPAIGN_START"},
-  {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},
+  {"CX", "CAMPAIGN_STOP"},        {"CQ", "CAMPAIGN_STATUS"},         {"BC", "BLE_CLASSIFY"},  {"BL5", "BLE_LONGRANGE"},
   {"HB1", "HB_ON"},               {"HB0", "HB_OFF"},                 {"HBI", "HB_INTERVAL"},
   {"CAL", "CALIBRATE"},           {"CALX", "CALIBRATE_RESET"},
   {"RKA", "RADIO_KNOWN_ADD"},     {"RKD", "RADIO_KNOWN_DEL"},        {"RKX", "RADIO_KNOWN_CLEAR"},
@@ -2727,6 +2735,18 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       if (!apInfoQueue || !apCaptureEnabled.load()) Serial.println("[SELFTEST] apflood needs a running Wi-Fi device scan");
       else xTaskCreate(selftestApFloodTask, "stapflood", 3072, (void *)(uintptr_t)n, 1, nullptr);
   }
+  else if (command.startsWith("SELFTEST_BLEADV:")) {
+      extern void selftestBleAdvertise(uint32_t, uint32_t, bool);
+      String p = command.substring(16);
+      int c = p.indexOf(':');
+      uint32_t n = (uint32_t)(c > 0 ? p.substring(0, c) : p).toInt();
+      uint32_t ms = (uint32_t)(c > 0 ? p.substring(c + 1).toInt() : 200);
+      selftestBleAdvertise(n, ms, p.endsWith(":C"));
+  }
+  else if (command.startsWith("SELFTEST_BLEPHY:")) {
+      extern void selftestBlePhy(uint8_t);
+      selftestBlePhy((uint8_t)command.substring(16).toInt());
+  }
   else if (command.startsWith("SELFTEST_TX:")) { Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true)); }
   else if (command.startsWith("SELFTEST_DUMP:")) {
       String p = command.substring(14);
@@ -2794,6 +2814,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("CAMPAIGN_START:") || command == "CAMPAIGN_STOP" ||
            command == "CAMPAIGN_STATUS")              handleCampaign(command);
   else if (command.startsWith("BLE_CLASSIFY:"))       handleBleClassify(command);
+  else if (command.startsWith("BLE_LONGRANGE:"))      handleBleLongRange(command);
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);

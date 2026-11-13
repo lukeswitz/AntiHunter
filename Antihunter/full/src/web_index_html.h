@@ -730,6 +730,7 @@ R"HTML(
             <div class="scan-head">
               <h2 class="scan-title" id="scanTitle">Device Discovery</h2>
               <label class="sw-lbl" title="Labels BLE devices by advertisement (AirPods, FindMy, Tile...) in every scan. Off saves CPU and heap; existing labels stay. Saved on the node.">Classify BLE devices<span class="dsw"><input type="checkbox" id="bleClassifyScan" onchange="saveBleClassify(this)"><span class="dsw-s"></span></span></label>
+              <label class="sw-lbl" title="Also hears Bluetooth 5 long range. Normal BLE gets less listening time. Saved on the node.">BLE long range<span class="dsw"><input type="checkbox" id="bleLongRange" onchange="saveBleLongRange(this)"><span class="dsw-s"></span></span></label>
             </div>
             <div id="paneTarget" style="display:none;">
             <div class="det-desc" style="margin:0 0 10px;">Scans for the MACs, OUIs and SSIDs in the Targets list.</div>
@@ -6847,6 +6848,7 @@ R"HTML(
         fetch('/data-cfg').then(function(r){return r.json();}).then(function(d){
           nodeTzSet(d);
           ['bleClassify','bleClassifyScan'].forEach(function(id){var cb=document.getElementById(id);if(cb)cb.checked=!!d.bleClassify;});
+          var lr=document.getElementById('bleLongRange');if(lr)lr.checked=!!d.bleLongRange;
           document.getElementById('campState').textContent=d.campaign?'Recording: '+d.campaign:'No active campaign';
           campHdrSet(d.campaign);
         }).catch(function(e){console.error('[DATA] /data-cfg failed:',e);});
@@ -6871,6 +6873,7 @@ R"HTML(
           .then(function(){loadCampaigns();return true;}).catch(function(e){toast(e.message||'Failed','error');return false;});
       }
       function saveBleClassify(el){dataCfgPost('bleClassify='+(el.checked?1:0));}
+      function saveBleLongRange(el){dataCfgPost('bleLongRange='+(el.checked?1:0));}
       function dataRefilter(){
         var q=document.getElementById('dataSearch').value.toLowerCase();
         dataFiltered=dataRows.filter(function(row){
