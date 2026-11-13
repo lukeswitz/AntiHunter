@@ -41,6 +41,7 @@ This applies to all three channels.
 - Headless: `FLEET` on the USB serial port prints the mesh roster as JSON, as Full does: each node and radio heard, its last message, mode, scan state, hits, and GPS.
 - Beta and Experimental, Headless: the CSI serial lines match Full. `[CSIL]` adds `sigz`, `sfloor`, `sspread`, `acfz`, and `afloor`. `AREA MOTION` adds `links=` and `peak=`. The 15-second status line adds `now=`, the current CSI rate. With the raw dump on, `AREA HELD` reports how long area motion has held. Detection is unchanged.
 - Selftest builds: Full and Headless accept the same `SELFTEST_` commands, except `SELFTEST_HTTP` and `SELFTEST_FLEET`, which need the web server.
+- Selftest builds: `SELFTEST_PSQUEEZE:<bytes>` fills PSRAM until about that many bytes are free, and `SELFTEST_RELEASE` frees it. `SELFTEST_APFLOOD:<n>` feeds n test access points into a running Wi-Fi device scan. `SELFTEST_MESH:<0|1>` turns mesh output off or on until the next reboot.
 
 **Web UI**
 - System tab: one menu on the left (tabs on a phone) opens **Diagnostics**, **Fleet**, and the **Settings** sections: **Scanning**, **Node & mesh**, **Access point**, **Sensors & power**, **Storage**, **Appearance**, **Danger zone**. Switches apply at once. Number fields under **Node & mesh** save when you leave them.
@@ -191,6 +192,7 @@ This applies to all three channels.
 - Full diagnostics: `Mesh TX drops` no longer shows `evicted=`. It was always 0.
 
 **Build and release**
+- CI runs a host test of the PSRAM device table on Full and Headless (`make test-psram-table`).
 - Full: the web page is gzip-compressed at build time and served with `Content-Encoding: gzip`. The Stable page shrinks from 451,990 B to 101,321 B, and the full image is 307,096 B smaller.
 - Removed `POST /api/oui/reload` and the LittleFS library. They loaded `/oui_cat.bin`, which no build or tool produces, into a table that nothing read.
 - Removed the BLE attack detector. No build ever compiled its detection in, and its web card had no counter on the page.
