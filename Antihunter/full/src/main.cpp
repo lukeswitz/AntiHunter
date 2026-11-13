@@ -34,6 +34,8 @@ extern std::atomic<bool> scanning;
 std::string antihunter::lastResults = "No scan data yet.";
 std::mutex antihunter::lastResultsMutex;
 
+static TaskHandle_t s_uartForwardTask = nullptr;
+
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
 
@@ -326,7 +328,7 @@ void setup() {
     Serial.println("[SENTINEL] Not built into this firmware (stable channel)");
 #endif
 
-    if (ahCreateTask(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
+    if (ahCreateTask(uartForwardTask, "UARTForwardTask", 8192, NULL, 2, &s_uartForwardTask, 1) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
     memMark("boot complete");
@@ -424,12 +426,13 @@ void loop() {
 
     if (millis() - lastHeapCheck > 30000) {
         uint32_t freeHeap = ESP.getFreeHeap();
-        Serial.printf("[HEAP] int=%u largest=%u minever=%u psram=%u tasks=%u\n",
+        Serial.printf("[HEAP] int=%u largest=%u minever=%u psram=%u tasks=%u meshRxStackFree=%u\n",
                       (unsigned)freeHeap,
                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                       (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-                      (unsigned)uxTaskGetNumberOfTasks());
+                      (unsigned)uxTaskGetNumberOfTasks(),
+                      s_uartForwardTask ? (unsigned)uxTaskGetStackHighWaterMark(s_uartForwardTask) : 0u);
         if (freeHeap < 25000) {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
         }

@@ -5,11 +5,17 @@
 #include <mutex>
 #include <set>
 #include <map>
+#include <esp_heap_caps.h>
 
 // ---- Probe-subsystem shared types ----
 using ProbeDevicesMap = std::map<String, ProbeDevice, std::less<String>,
     PsramAllocator<std::pair<const String, ProbeDevice>>>;
 using StringSetPsram = std::set<String, std::less<String>, PsramAllocator<String>>;
+
+// Probe devices have no count limit; new ones wait only while free PSRAM is below this.
+constexpr uint32_t PROBE_PSRAM_FLOOR = 512 * 1024;
+constexpr size_t PROBE_RESULTS_SHOW = 200;
+inline bool probePsramLow() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < PROBE_PSRAM_FLOOR; }
 
 // ---- Probe-subsystem globals (defined in scanner.cpp) ----
 extern ProbeDevicesMap probeDevices;

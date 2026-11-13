@@ -3763,7 +3763,9 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     else if (eapolHit)                   kind = DetectFrameEvent::EAPOL;   // PMKID/handshake — keep
     else if (ftype == 2 && stype == 8 && g_fragEnabled.load()) kind = DetectFrameEvent::QOS_DATA;
     else return;
-    if (uxQueueSpacesAvailable(detectFrameQueue) < 2) { g_droppedWifi.fetch_add(1); return; }
+    const bool bulkKind = kind == DetectFrameEvent::BEACON_DEEP || kind == DetectFrameEvent::PROBE_RESP ||
+                          kind == DetectFrameEvent::PROBE_REQ || kind == DetectFrameEvent::QOS_DATA;
+    if (uxQueueSpacesAvailable(detectFrameQueue) < (bulkKind ? 8u : 1u)) { g_droppedWifi.fetch_add(1); return; }
     DetectFrameEvent ev;
     ev.kind = kind;
     ev.channel = channel;
@@ -4555,6 +4557,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         int p1 = msg.indexOf(':', 6);
         if (p1 < 0) return;
         String idStr = msg.substring(6, p1);
+        if (idStr.length() >= sizeof(ReconAlert::identityId)) idStr = idStr.substring(0, sizeof(ReconAlert::identityId) - 1);
         int score = msg.substring(p1 + 1).toInt();
         quorum_addReport("RECON", idStr, fromNode, -50);
         if (score >= 70) {

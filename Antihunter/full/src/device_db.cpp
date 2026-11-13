@@ -15,6 +15,8 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 static PsramTable<DeviceDBEntry> deviceDB;
 static std::mutex deviceDBMutex;
 static const char *DEVICE_DB_PATH = "/devicedb.jsonl";
+static const char *DEVICE_DB_TMP = "/devicedb.jsonl.tmp";
+static const char *DEVICE_DB_BAK = "/devicedb.jsonl.bak";
 
 static uint64_t deviceDBKey(const uint8_t mac[6])
 {
@@ -39,12 +41,14 @@ void loadDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
 
-    if (!SD.exists(DEVICE_DB_PATH)) {
+    const char *path = SafeSD::exists(DEVICE_DB_PATH) ? DEVICE_DB_PATH
+                     : SafeSD::exists(DEVICE_DB_BAK)  ? DEVICE_DB_BAK : nullptr;
+    if (!path) {
         Serial.println("[DEVDB] No database on SD");
         return;
     }
 
-    File f = SafeSD::open(DEVICE_DB_PATH, FILE_READ);
+    File f = SafeSD::open(path, FILE_READ);
     if (!f) {
         Serial.println("[DEVDB] Failed to open database");
         return;
@@ -108,7 +112,7 @@ void saveDeviceDB()
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     deviceDBNoteDrops(deviceDB.evicted(), true);
 
-    File f = SafeSD::open(DEVICE_DB_PATH, FILE_WRITE);
+    File f = SafeSD::open(DEVICE_DB_TMP, FILE_WRITE);
     SdWriter f_w(f);
     if (!f) {
         Serial.println("[DEVDB] Failed to write database");
@@ -137,6 +141,11 @@ void saveDeviceDB()
         if ((written & 0x3FF) == 0) vTaskDelay(1);
     }
     f.close();
+    if (written == 0) {
+        for (const char *p : {DEVICE_DB_TMP, DEVICE_DB_PATH, DEVICE_DB_BAK}) SafeSD::remove(p);
+        return;
+    }
+    if (!sdCommitStaged(DEVICE_DB_TMP, DEVICE_DB_PATH, DEVICE_DB_BAK)) return;
     Serial.printf("[DEVDB] Saved %u devices to SD\n", written);
 }
 
@@ -260,6 +269,6 @@ void clearDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     deviceDB.clear();
-    SafeSD::remove(DEVICE_DB_PATH);
+    for (const char *p : {DEVICE_DB_PATH, DEVICE_DB_TMP, DEVICE_DB_BAK}) SafeSD::remove(p);
     Serial.println("[DEVDB] Database cleared");
 }

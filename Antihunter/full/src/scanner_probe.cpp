@@ -120,7 +120,9 @@ static bool shouldSendProbeHit(const String &key)
 
     std::lock_guard<std::mutex> lock(probeMutex);
 
-    if (probeHitCooldowns.size() >= PROBE_HIT_COOLDOWN_MAX) {
+    static uint32_t lastSweep = 0;
+    if (probeHitCooldowns.size() >= PROBE_HIT_COOLDOWN_MAX && now - lastSweep >= 10000) {
+        lastSweep = now;
         for (auto it = probeHitCooldowns.begin(); it != probeHitCooldowns.end(); ) {
             if ((now - it->second) >= PROBE_HIT_COOLDOWN_MS)
                 it = probeHitCooldowns.erase(it);
@@ -322,7 +324,7 @@ void probeDetectionTask(void *pv)
                     }
                     if (dstHit) dev.isDstHit = true;
                 } else {
-                    if (probeDevices.size() >= 100) {
+                    if (probePsramLow()) {
                         uint32_t oldestTime = UINT32_MAX;
                         String oldestKey;
                         for (const auto &p : probeDevices) {
@@ -437,7 +439,7 @@ void probeDetectionTask(void *pv)
                         }
                         continue;
                     }
-                    if (probeDevices.size() >= 100) continue;
+                    if (probePsramLow()) continue;
 
                     ProbeDevice dev = {};
                     memcpy(dev.mac, mac, 6);
@@ -594,7 +596,12 @@ String getProbeResults()
 
     uint32_t nowEpoch = millis() / 1000;
 
+    size_t devShown = 0;
     for (const auto &p : sorted) {
+        if (devShown++ >= PROBE_RESULTS_SHOW) {
+            results += "... (" + String((unsigned)(sorted.size() - PROBE_RESULTS_SHOW)) + " more in the probe database)\n";
+            break;
+        }
         ProbeDevice &dev = *p.second;
         results += (dev.isBLE ? "BLE " : "WiFi ") + p.first + " RSSI=" + String(dev.rssi) + "dBm";
         if (!dev.isBLE) results += " CH=" + String(dev.channel);
@@ -691,26 +698,29 @@ String getProbeResults()
 static std::map<String, ProbeDBEntry> probeDB;
 static std::mutex probeDBMutex;
 static const char *PROBE_DB_PATH = "/probedb.jsonl";
-static const size_t PROBE_DB_MAX_ENTRIES = 500;
+static const char *PROBE_DB_TMP = "/probedb.jsonl.tmp";
+static const char *PROBE_DB_BAK = "/probedb.jsonl.bak";
 
 void loadProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDB.clear();
 
-    if (!SD.exists(PROBE_DB_PATH)) {
+    const char *path = SafeSD::exists(PROBE_DB_PATH) ? PROBE_DB_PATH
+                     : SafeSD::exists(PROBE_DB_BAK)  ? PROBE_DB_BAK : nullptr;
+    if (!path) {
         Serial.println("[PROBEDB] No database file on SD");
         return;
     }
 
-    File f = SafeSD::open(PROBE_DB_PATH, FILE_READ);
+    File f = SafeSD::open(path, FILE_READ);
     if (!f) {
         Serial.println("[PROBEDB] Failed to open database");
         return;
     }
 
     uint32_t count = 0;
-    while (f.available() && count < PROBE_DB_MAX_ENTRIES) {
+    while (f.available() && !probePsramLow()) {
         String line = f.readStringUntil('\n');
         line.trim();
         if (line.length() < 10) continue;
@@ -773,7 +783,7 @@ void saveProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
 
-    File f = SafeSD::open(PROBE_DB_PATH, FILE_WRITE);
+    File f = SafeSD::open(PROBE_DB_TMP, FILE_WRITE);
     SdWriter f_w(f);
     if (!f) {
         Serial.println("[PROBEDB] Failed to write database");
@@ -805,6 +815,11 @@ void saveProbeDB()
         written++;
     }
     f.close();
+    if (written == 0) {
+        for (const char *p : {PROBE_DB_TMP, PROBE_DB_PATH, PROBE_DB_BAK}) SafeSD::remove(p);
+        return;
+    }
+    if (!sdCommitStaged(PROBE_DB_TMP, PROBE_DB_PATH, PROBE_DB_BAK)) return;
     Serial.printf("[PROBEDB] Saved %u devices to SD\n", written);
 }
 
@@ -845,7 +860,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
             }
         }
     } else {
-        if (probeDB.size() >= PROBE_DB_MAX_ENTRIES) {
+        if (probePsramLow()) {
             uint32_t oldestEpoch = UINT32_MAX;
             String oldestKey;
             for (const auto &p : probeDB) {
@@ -897,59 +912,67 @@ uint32_t getProbeDBSize()
     return probeDB.size();
 }
 
-PsramJsonString getProbeDBJson()
+static size_t probeDBFormatRow(const ProbeDBEntry &e, bool first, char *out, size_t cap)
 {
-    std::vector<ProbeDBEntry> snap;
-    {
-        std::lock_guard<std::mutex> lock(probeDBMutex);
-        snap.reserve(probeDB.size());
-        std::transform(probeDB.begin(), probeDB.end(), std::back_inserter(snap),
-                       [](const auto &p) { return p.second; });
+    const String v = sanitizeAscii(e.vendor, sizeof(e.vendor));
+    const String n = sanitizeAscii(e.name, sizeof(e.name));
+    int len = snprintf(out, cap,
+        "%s{\"mac\":\"%s\",\"seen\":%u,\"sessions\":%u,\"first\":%u,\"last\":%u,\"rssi\":%d,"
+        "\"vendor\":\"%s\",\"name\":\"%s\",\"rand\":%s,\"ble\":%s,\"ch\":%u,\"ssids\":[",
+        first ? "" : ",", e.mac, (unsigned)e.totalSeen, (unsigned)e.sessionCount, (unsigned)e.firstEpoch,
+        (unsigned)e.lastEpoch, (int)e.bestRssi, v.c_str(), n.c_str(), e.isRandomized ? "true" : "false",
+        e.isBLE ? "true" : "false", (unsigned)e.channel);
+    bool sfirst = true;
+    for (uint8_t i = 0; i < e.ssidCount && i < 8 && len > 0 && (size_t)len < cap; i++) {
+        const String s = sanitizeAscii(e.ssids[i], 33);
+        if (s.length() == 0) continue;
+        len += snprintf(out + len, cap - len, "%s\"%s\"", sfirst ? "" : ",", s.c_str());
+        sfirst = false;
     }
+    if (len > 0 && (size_t)len < cap) len += snprintf(out + len, cap - len, "]}");
+    return (len > 0 && (size_t)len < cap) ? (size_t)len : 0;
+}
 
-    PsramJsonString out;
-    out.reserve(2 + snap.size() * 256);
-    out.push_back('[');
-    char num[16];
-    bool first = true;
-    for (const auto &e : snap) {
-        if (!first) out.push_back(',');
-        first = false;
-        out += "{\"mac\":\"";
-        out += e.mac;
-        out += "\",\"seen\":";
-        snprintf(num, sizeof(num), "%u", (unsigned)e.totalSeen); out += num;
-        out += ",\"sessions\":";
-        snprintf(num, sizeof(num), "%u", (unsigned)e.sessionCount); out += num;
-        out += ",\"first\":";
-        snprintf(num, sizeof(num), "%u", (unsigned)e.firstEpoch); out += num;
-        out += ",\"last\":";
-        snprintf(num, sizeof(num), "%u", (unsigned)e.lastEpoch); out += num;
-        out += ",\"rssi\":";
-        snprintf(num, sizeof(num), "%d", (int)e.bestRssi); out += num;
-        out += ",\"vendor\":\"";
-        { String v = sanitizeAscii(e.vendor, sizeof(e.vendor)); out.append(v.c_str(), v.length()); }
-        out += "\",\"name\":\"";
-        { String n = sanitizeAscii(e.name, sizeof(e.name)); out.append(n.c_str(), n.length()); }
-        out += "\",\"rand\":";
-        out += (e.isRandomized ? "true" : "false");
-        out += ",\"ble\":";
-        out += (e.isBLE ? "true" : "false");
-        out += ",\"ch\":";
-        snprintf(num, sizeof(num), "%u", (unsigned)e.channel); out += num;
-        out += ",\"ssids\":[";
-        bool sfirst = true;
-        for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
-            String s = sanitizeAscii(e.ssids[i], 33);
-            if (s.length() == 0) continue;
-            if (!sfirst) out.push_back(',');
-            sfirst = false;
-            out.push_back('"'); out.append(s.c_str(), s.length()); out.push_back('"');
+size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen)
+{
+    size_t written = 0;
+    while (written < maxLen) {
+        if (st.pendOff < st.pendLen) {
+            size_t n = st.pendLen - st.pendOff;
+            if (n > maxLen - written) n = maxLen - written;
+            memcpy(buf + written, st.pend + st.pendOff, n);
+            st.pendOff += n;
+            written += n;
+            continue;
         }
-        out += "]}";
+        st.pendOff = st.pendLen = 0;
+        if (st.phase == 0) {
+            st.pend[0] = '[';
+            st.pendLen = 1;
+            st.phase = 1;
+            continue;
+        }
+        if (st.phase == 1) {
+            std::lock_guard<std::mutex> lock(probeDBMutex);
+            auto it = st.lastKey[0] ? probeDB.upper_bound(String(st.lastKey)) : probeDB.begin();
+            if (it != probeDB.end()) {
+                st.pendLen = (uint16_t)probeDBFormatRow(it->second, st.first, st.pend, sizeof(st.pend));
+                st.first = false;
+                strncpy(st.lastKey, it->first.c_str(), sizeof(st.lastKey) - 1);
+                st.lastKey[sizeof(st.lastKey) - 1] = '\0';
+                continue;
+            }
+            st.phase = 2;
+        }
+        if (st.phase == 2) {
+            st.pend[0] = ']';
+            st.pendLen = 1;
+            st.phase = 3;
+            continue;
+        }
+        break;
     }
-    out.push_back(']');
-    return out;
+    return written;
 }
 
 PsramJsonString getProbeEventsJsonl()
@@ -993,6 +1016,6 @@ void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDB.clear();
-    SafeSD::remove(PROBE_DB_PATH);
+    for (const char *p : {PROBE_DB_PATH, PROBE_DB_TMP, PROBE_DB_BAK}) SafeSD::remove(p);
     Serial.println("[PROBEDB] Database cleared");
 }

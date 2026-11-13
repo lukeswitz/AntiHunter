@@ -2721,6 +2721,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
       attack_responseArm(m, "SELFTEST");
   }
+  else if (command.startsWith("SELFTEST_DEAUTHFLOOD:")) {
+      extern void selftestDeauthFlood(uint32_t);
+      selftestDeauthFlood((uint32_t)command.substring(21).toInt());
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");
