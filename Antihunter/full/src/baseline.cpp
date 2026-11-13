@@ -1357,6 +1357,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
 
         return (written == sizeof(BaselineDevice));
     } else {
+        if (totalDevicesOnSD >= baselineSdMaxDevices) return false;
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         SdWriter dataFile_w(dataFile);
         if (!dataFile) {
@@ -1435,23 +1436,32 @@ bool flushBaselineCacheToSD() {
     std::vector<std::pair<uint64_t, BaselineDevice>> updates;
     std::vector<uint32_t> updatePositions;
     std::vector<std::pair<uint64_t, BaselineDevice>> appends;
+    std::vector<uint64_t> skippedKeys;
 
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         if (baselineCache.empty()) {
             return false;
         }
+        const uint32_t room = totalDevicesOnSD < baselineSdMaxDevices ? baselineSdMaxDevices - totalDevicesOnSD : 0;
         for (auto& entry : baselineCache) {
             if (entry.second.dirtyFlag) {
                 auto idxIt = sdDeviceIndex.find(entry.first);
                 if (idxIt != sdDeviceIndex.end()) {
                     updates.push_back({entry.first, entry.second});
                     updatePositions.push_back(idxIt->second);
-                } else {
+                } else if (appends.size() < room) {
                     appends.push_back({entry.first, entry.second});
+                } else {
+                    skippedKeys.push_back(entry.first);
                 }
             }
         }
+        for (const auto& key : skippedKeys) baselineCache[key].dirtyFlag = false;
+    }
+    if (!skippedKeys.empty()) {
+        Serial.printf("[BASELINE_SD] SD device storage full (%u/%u): %u new devices kept in RAM only\n",
+                      (unsigned)totalDevicesOnSD, (unsigned)baselineSdMaxDevices, (unsigned)skippedKeys.size());
     }
 
     const uint32_t total = updates.size() + appends.size();
