@@ -82,15 +82,6 @@ using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
 constexpr uint8_t BLE_SCAN_RESULTS_UNLIMITED = 0xFF;
 using PsramJsonString = std::basic_string<char, std::char_traits<char>, PsramAllocator<char>>;
 
-struct DeauthStats {
-    String srcMac;
-    uint32_t count{};
-    uint32_t broadcastCount{};
-    uint32_t targetedCount{};
-    int8_t lastRssi{};
-    uint8_t channel{};
-};
-
 struct Target {
     uint8_t bytes[6];
     uint8_t len;
