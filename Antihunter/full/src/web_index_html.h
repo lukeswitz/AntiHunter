@@ -8195,11 +8195,6 @@ R"HTML(
         ['mesh_guard','Mesh Disruption'],['mesh_meshradio','LoRa Mesh Radios']
       ];
       const DET_THRESHOLDS=[
-        ['cs_copresent_ms','Follower: co-present (ms)',60000,3600000],
-        ['cs_min_clusters','Follower: min node clusters',1,10],
-        ['cs_persist_ms','Follower: single-node persist (ms)',60000,3600000],
-        ['cs_owner_absent_pct','Follower: owner-absent %',10,100],
-        ['cs_rotation_rate','BLE-spam: MACs/sec',2,50],
         ['pmkid_window','PMKID Window (ms)',1000,60000],
         ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
         ['sae_window','SAE Window (ms)',1000,60000],
