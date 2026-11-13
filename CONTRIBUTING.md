@@ -38,7 +38,7 @@ pio run -e AntiHunter-headless
 - Reference related issues.
 - Include testing details and the hardware you used.
 - Make the code compile without warnings.
-- Run `make lint`, `make test-csi`, and `make test-ble`. CI runs all three and fails on any finding.
+- Run `make lint`, `make test-csi`, `make test-ble`, `make test-meshcore`, and `make test-psram-table`. CI runs all five and fails on any finding.
 - Keep to one feature or fix per PR.
 
 ### Reporting Issues
