@@ -273,6 +273,7 @@ void resetBaselineDetection() {
             SafeSD::remove("/baseline_stats.json");
             Serial.println("[BASELINE] Removed SD stats file");
         }
+        SafeSD::remove("/baseline_stats.json.bak");
     }
     
     sdBaselineInitialized = false;
@@ -296,6 +297,18 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
 
     BaselineDevice evictDevice;
     bool haveEvictDevice = false;
+
+    // A device evicted from the RAM cache keeps its record on SD; restore it instead of counting it again.
+    BaselineDevice restored;
+    bool haveRestored = false;
+    {
+        bool cached;
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            cached = baselineCache.find(macKey) != baselineCache.end();
+        }
+        if (!cached && sdAvailable && sdBaselineInitialized) haveRestored = readBaselineDeviceFromSD(mac, restored);
+    }
 
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
@@ -330,19 +343,29 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
             }
 
             BaselineDevice dev;
-            memcpy(dev.mac, mac, 6);
-            dev.avgRssi = rssi;
-            dev.minRssi = rssi;
-            dev.maxRssi = rssi;
-            dev.firstSeen = now;
-            dev.lastSeen = now;
-            strncpy(dev.name, name, sizeof(dev.name) - 1);
-            dev.name[sizeof(dev.name) - 1] = '\0';
-            dev.isBLE = isBLE;
-            dev.channel = channel;
-            dev.hitCount = 1;
-            dev.checksum = 0;
-            dev.dirtyFlag = true;
+            if (haveRestored) {
+                dev = restored;
+                dev.avgRssi = (int64_t(dev.avgRssi) * int64_t(dev.hitCount) + rssi) / int64_t(dev.hitCount + 1);
+                if (rssi < dev.minRssi) dev.minRssi = rssi;
+                if (rssi > dev.maxRssi) dev.maxRssi = rssi;
+                dev.lastSeen = now;
+                if (dev.hitCount < UINT32_MAX) dev.hitCount++;
+                dev.dirtyFlag = true;
+            } else {
+                memcpy(dev.mac, mac, 6);
+                dev.avgRssi = rssi;
+                dev.minRssi = rssi;
+                dev.maxRssi = rssi;
+                dev.firstSeen = now;
+                dev.lastSeen = now;
+                strncpy(dev.name, name, sizeof(dev.name) - 1);
+                dev.name[sizeof(dev.name) - 1] = '\0';
+                dev.isBLE = isBLE;
+                dev.channel = channel;
+                dev.hitCount = 1;
+                dev.checksum = 0;
+                dev.dirtyFlag = true;
+            }
 
             baselineCache[macKey] = dev;
 
@@ -352,12 +375,12 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
             lruList.push_back(node);
             lruMap[macKey] = --lruList.end();
 
-            baselineDeviceCount++;
+            if (!haveRestored) baselineDeviceCount++;
             baselineResultsDirty = true;
         } else {
             BaselineDevice &dev = baselineCache[macKey];
             bool durableChange = false;
-            dev.avgRssi = (int32_t(dev.avgRssi) * int32_t(dev.hitCount) + rssi) / int32_t(dev.hitCount + 1);
+            dev.avgRssi = (int64_t(dev.avgRssi) * int64_t(dev.hitCount) + rssi) / int64_t(dev.hitCount + 1);
             if (rssi < dev.minRssi) { dev.minRssi = rssi; durableChange = true; }
             if (rssi > dev.maxRssi) { dev.maxRssi = rssi; durableChange = true; }
             dev.lastSeen = now;
@@ -1614,7 +1637,7 @@ void saveBaselineStatsToSD() {
         snapEstablished = baselineEstablished;
     }
 
-    File statsFile = SafeSD::open("/baseline_stats.json", FILE_WRITE);
+    File statsFile = SafeSD::open("/baseline_stats.json.tmp", FILE_WRITE);
     if (!statsFile) {
         return;
     }
@@ -1635,6 +1658,7 @@ void saveBaselineStatsToSD() {
     sw2.println("}");
 
     statsFile.close();
+    sdCommitStaged("/baseline_stats.json.tmp", "/baseline_stats.json", "/baseline_stats.json.bak");
 }
 
 void loadBaselineStatsFromSD() {

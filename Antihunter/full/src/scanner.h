@@ -314,7 +314,16 @@ void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
-PsramJsonString getProbeDBJson();
+// Streams /api/probedb one row at a time, resuming after the last MAC sent.
+struct ProbeDBStream {
+    uint8_t phase = 0;
+    bool first = true;
+    char lastKey[18] = {0};
+    uint16_t pendLen = 0;
+    uint16_t pendOff = 0;
+    char pend[768];
+};
+size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen);
 PsramJsonString getProbeEventsJsonl();
 void clearProbeDB();
 
@@ -335,7 +344,6 @@ void clearDeviceDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
-const uint32_t MAX_LOG_SIZE = 1000;                // Max RAM log entries
 const uint32_t MAX_MAP_SIZE = 500;                 // Max map entries in RAM
 const uint32_t MAX_TIMING_SIZE = 100;              // Max RAM timing entries per device
 
@@ -348,7 +356,30 @@ const uint32_t DEAUTH_TARGETED_THRESHOLD = 10;   // compile default for ah_detec
 const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;    
 const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
 
-extern std::vector<DeauthHit> deauthLog;
+template <typename V> using U64MapPsram =
+    std::map<uint64_t, V, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, V>>>;
+
+struct DeauthDstAgg {
+    uint32_t count = 0;
+    uint32_t broadcastCount = 0;
+    uint32_t targetedCount = 0;
+    int8_t lastRssi = -128;
+    uint8_t channel = 0;
+    U64MapPsram<uint32_t> bySrc;
+};
+
+// Running totals of every attack frame in the current deauth scan; no record limit.
+struct DeauthAgg {
+    uint32_t total = 0;
+    uint32_t forgeHits = 0;
+    uint32_t bcastHits = 0;
+    U64MapPsram<DeauthDstAgg> byDst;
+    U64MapPsram<uint32_t> srcUnicast;
+    void add(const DeauthHit &h);
+    void clear();
+};
+
+extern DeauthAgg deauthAgg;
 extern std::mutex deauthLogMutex;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;

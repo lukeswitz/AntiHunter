@@ -487,7 +487,9 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     
     if (validDrone) {
         drone.viaWifi = true;
-        {
+        static uint32_t s_lastRawPrint = 0;
+        if (millis() - s_lastRawPrint >= DRONE_LOG_INTERVAL) {
+            s_lastRawPrint = millis();
             int n = length < 96 ? length : 96;
             String hx; hx.reserve(n * 2);
             for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", payload[i]); hx += b; }
@@ -504,7 +506,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             auto existingIt = detectedDrones.end();
             if (uavIdStr.length() > 0) {
                 for (auto it = detectedDrones.begin(); it != detectedDrones.end(); ++it) {
-                    if (String(it->second.uavId) == uavIdStr) { existingIt = it; break; }
+                    if (strncmp(it->second.uavId, drone.uavId, sizeof(drone.uavId)) == 0) { existingIt = it; break; }
                 }
             }
             if (existingIt == detectedDrones.end()) existingIt = detectedDrones.find(macStr);
@@ -618,7 +620,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     std::lock_guard<std::mutex> lock(detectedDronesMutex);
     auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
         [&](const std::pair<const String, DroneDetection>& entry) {
-            if (uavIdStr.length() > 0 && String(entry.second.uavId) == uavIdStr) return true;
+            if (uavIdStr.length() > 0 && strncmp(entry.second.uavId, drone.uavId, sizeof(drone.uavId)) == 0) return true;
             return memcmp(entry.second.mac, drone.mac, 6) == 0;
         });
     if (existingIt != detectedDrones.end()) {

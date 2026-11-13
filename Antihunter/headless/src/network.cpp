@@ -2955,6 +2955,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       extern void selftestBlePhy(uint8_t);
       selftestBlePhy((uint8_t)command.substring(16).toInt());
   }
+  else if (command.startsWith("SELFTEST_DEAUTHFLOOD:")) {
+      extern void selftestDeauthFlood(uint32_t);
+      selftestDeauthFlood((uint32_t)command.substring(21).toInt());
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");

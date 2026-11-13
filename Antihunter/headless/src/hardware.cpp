@@ -1798,6 +1798,10 @@ void updateGPSLocation() {
 
 static std::mutex g_sdLogMutex;
 
+static std::atomic<bool> g_logReopen{false};
+
+void logToSDReopen() { g_logReopen = true; }
+
 void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
 
@@ -1806,19 +1810,7 @@ void logToSD(const String &data) {
     static uint32_t totalWrites = 0;
     static File logFile;
 
-    if (!SD.exists("/")) {
-        static uint32_t failCount = 0;
-        failCount++;
-        if (failCount > 5) {
-            Serial.println("[SD] Multiple failures, marking unavailable");
-            sdAvailable = false;
-        }
-        return;
-    }
-    
-    if (!SafeSD::exists("/")) {
-        SafeSD::mkdir("/");
-    }
+    if (g_logReopen.exchange(false) && logFile) logFile.close();
 
     if (!logFile) {
         logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
@@ -1861,7 +1853,13 @@ void logToSD(const String &data) {
     if (millis() - lastSizeCheck > 10000) {
         if (logFile) {
             logFile.flush();
-            Serial.printf("[SD] Log file size: %lu bytes\n", (unsigned long)logFile.size());
+            const size_t sz = logFile.size();
+            Serial.printf("[SD] Log file size: %lu bytes\n", (unsigned long)sz);
+            if (sz > 1048576) {
+                logFile.close();
+                SafeSD::rename("/antihunter.log", "/antihunter_old.log");
+                Serial.println("[SD] Rotated /antihunter.log -> /antihunter_old.log");
+            }
         }
         lastSizeCheck = millis();
     }
@@ -1993,7 +1991,11 @@ void logVibrationEvent(int sensorValue) {
 }
 
 void logEventToSD(const char* path, const String& jsonLine) {
-    if (!SafeSD::isAvailable()) return;
+    logEventsToSD(path, &jsonLine, 1);
+}
+
+void logEventsToSD(const char* path, const String* lines, size_t count) {
+    if (!SafeSD::isAvailable() || count == 0) return;
 
     // Heap-floor guard: under an attack flood, per-event SD writes (File buffers +
     // rotation reads) can drain heap to an abort. Below the floor, drop the write
@@ -2021,10 +2023,13 @@ void logEventToSD(const char* path, const String& jsonLine) {
     }
     SdWriter f_w(f);
     const char *camp = campaignName();
-    if (camp[0] && jsonLine.length() > 1 && jsonLine[0] == '{' && jsonLine[1] != '}') {
-        f_w.println(String("{\"campaign\":\"") + camp + "\"," + jsonLine.substring(1));
-    } else {
-        f_w.println(jsonLine);
+    for (size_t i = 0; i < count; i++) {
+        const String &jsonLine = lines[i];
+        if (camp[0] && jsonLine.length() > 1 && jsonLine[0] == '{' && jsonLine[1] != '}') {
+            f_w.println(String("{\"campaign\":\"") + camp + "\"," + jsonLine.substring(1));
+        } else {
+            f_w.println(jsonLine);
+        }
     }
     size_t curSize = f.size();
     f.close();
@@ -2884,6 +2889,7 @@ bool performDataReset() {
     }
 
     deleteAllFiles("/");
+    logToSDReopen();
 
     File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
