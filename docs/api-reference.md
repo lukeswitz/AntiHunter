@@ -187,8 +187,8 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/drones/clear` | POST | Clears the drone log and the detected-drone list |
 | `/api/vibrations.jsonl` | GET | Movement and tamper events (JSONL). `404` if none |
 | `/api/vibrations/clear` | POST | Clears that log |
-| `/api/antihunter.log` | GET | System log (text). `404` if none |
-| `/api/antihunter.log/clear` | POST | Clears the system log |
+| `/api/antihunter.log` | GET | System log (text). `404` if none. At 1 MB the node renames it to `/antihunter_old.log` and starts a new one |
+| `/api/antihunter.log/clear` | POST | Clears the system log and deletes `/antihunter_old.log` |
 | `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
 | `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
 | `/data-cfg` | POST | `bleClassify` (`0` or `1`), `bleLongRange` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
@@ -208,7 +208,7 @@ These six logs take query parameters to read the end of a large file: `/api/deau
 
 The reply header `X-Start` gives the offset of the first byte returned, and `X-Size` gives the file size.
 
-`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It has no fixed size. If PSRAM runs low, it drops the least recently seen devices first.
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It has no fixed size. If PSRAM runs low, it drops the least recently seen devices first. The probe database is in `/probedb.jsonl` on the SD card. It has no fixed size either, and it adds no new devices while free PSRAM is under 512 KB.
 
 <details>
 <summary>Sentinel and detector endpoints</summary>
@@ -331,7 +331,7 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 | `rssiThreshold` | Weakest signal the baseline counts | dBm |
 | `baselineDuration` | Length of the learning phase (0-86400; default 300) | seconds |
 | `ramCacheSize` | Devices kept in memory | devices |
-| `sdMaxDevices` | Devices kept on the SD card | devices |
+| `sdMaxDevices` | Devices kept on the SD card (1000-100000; default 50000). New devices past it stay in memory only | devices |
 | `absenceThreshold` | Time without a signal before a device counts as gone | seconds |
 | `reappearanceWindow` | A device returning within this time raises a return alert | seconds |
 | `rssiChangeDelta` | Signal change that raises a change alert | dB |
