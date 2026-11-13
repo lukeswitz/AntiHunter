@@ -581,11 +581,11 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);
 
-        if (oneWayUs > 0) nodePropagationDelays[nodeId] = oneWayUs;
-
         auto syncIt = std::find_if(nodeSyncStatus.begin(), nodeSyncStatus.end(),
             [&](const auto& s) { return s.nodeId == nodeId; });
         const bool found = (syncIt != nodeSyncStatus.end());
+        const bool tracked = found || nodeSyncStatus.size() < MAX_SYNC_STATUS;
+        if (oneWayUs > 0 && tracked) nodePropagationDelays[nodeId] = oneWayUs;
         if (found) {
             syncIt->rtcTimestamp = timestamp;
             syncIt->millisOffset = offMs;
@@ -2118,4 +2118,14 @@ AdaptivePathLoss adaptivePathLoss = {
     false,                             // ble_calibrated
     0                                  // lastUpdate
 };
+
+#if defined(AH_SELFTEST) && AH_SELFTEST
+void selftestTriState() {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    Serial.printf("[SELFTEST] tri sync=%u propdelay=%u active=%d waiting=%d rtc=%d us32=%lu\n", (unsigned)nodeSyncStatus.size(),
+                  (unsigned)nodePropagationDelays.size(), triangulationActive.load() ? 1 : 0,
+                  waitingForFinalReports ? 1 : 0, rtcAvailable ? 1 : 0,
+                  (unsigned long)(getCorrectedMicroseconds() & 0xFFFFFFFF));
+}
+#endif
 
