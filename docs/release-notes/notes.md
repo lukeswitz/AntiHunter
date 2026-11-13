@@ -33,6 +33,7 @@ This applies to all three channels.
 - Full and Headless: `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. While a campaign runs, SD log lines carry `[C:<name>]`. Start and stop times go to `/campaigns.csv`. The active campaign survives a reboot. Mesh `STATUS` adds `Camp:<name>`.
 - `BLE_CLASSIFY:0|1` turns the BLE classifier off or on. Off skips advertisement parsing during scans. It is on by default, and the setting persists. The Scan tab **Classify BLE devices** switch and the Data tab checkbox do the same. On Headless, list and device scan results carry `C=<class>`.
 - `/api/fleet/send` accepts the campaign commands and `BLE_CLASSIFY:`.
+- `BLE_LONGRANGE:0|1` (alias `BL5`) adds Bluetooth 5 long range (Coded PHY) to BLE scans. It is off by default, and the setting persists. The radio listens on one PHY at a time, so ordinary BLE gets less listening time: in a bench test an S3 heard about 25 devices per scan window with it on and 31 with it off. The Scan tab **BLE long range** switch does the same.
 - Full and Headless: `PROBE_DB_CLEAR`, `BASELINE_RESET`, `RANDOMIZATION_RESET`, and `DETECT_CLEAR` work over mesh. Before, only the Full web UI could do these. Full also accepts `DEVICE_DB_CLEAR`, and its `STATUS` reply adds `Rst:`, as Headless does.
 - Full sends the `BASELINE_WATCH` summary when a baseline ends, as Headless does.
 - Headless results match Full: target and device scan rows show the network's security, `TARGET`, range, signal trend, and probed networks. Baseline and target scans write their results to `/last_results.txt`.
@@ -184,6 +185,7 @@ This applies to all three channels.
 - The randomized MAC tracer linked unrelated devices into one identity on signal strength and timing alone, and merged two different hardware MACs. It now links only on device evidence: a matching probe fingerprint, sequence-number continuity, a shared MAC prefix, or a leaked hardware MAC. The fingerprint score counts only the fields a device sends, so a device that sends few fields can still match itself after a MAC change.
 - Triangulation showed a misleading "Clock Sync" line. Each node sets its clock from GPS, and the position fix used no clock exchange. The remaining mesh exchange measures the round-trip time to each node and widens the mesh wait timeouts, so a slow link is not cut off early. These messages now skip the rate limiter. The results screen shows `Peer link: OK` or `degraded` in place of the old clock-sync and offset readout.
 - Full and Headless device scan: a scan kept only the first 200 Wi-Fi networks and 200 BLE devices. On a busy site, every later device was missed (Full) or logged and sent again at each sighting (Headless). The scan now has no device limit. It keeps devices in PSRAM, and if PSRAM runs low it moves the devices it heard longest ago into the device database and keeps scanning. In a bench test with injected access points, an S3 held 5,802 devices with none dropped, then took 24,893 with PSRAM squeezed to 3 MB free and no crash.
+- Full and Headless: the BLE stack kept at most 200 devices per scan window, and 150 during a baseline, so a busy site lost the rest of each window. It now keeps every device. In a bench test with 3,000 rotating test adverts, one scan window held 392 devices and a 2-minute scan logged 1,614 with no crash.
 - The device database held 2000 devices. It now has no fixed limit and drops the least recently seen devices first only when PSRAM runs low. `/api/devicedb` sends the list row by row instead of building it in memory first.
 - A device scan added its devices to the device database only when mesh was on. It now always does.
 - A device scan lost one captured access point each time the capture queue held more than 50.
@@ -218,12 +220,12 @@ App image size compared with the v1.0.4 release bins. Full builds shrink because
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
-| Stable full | 2,601,872 B | 2,425,360 B | -176,512 B | 77.8% -> 72.6% |
-| Beta full | 2,787,152 B | 2,483,552 B | -303,600 B | 83.4% -> 74.3% |
-| C5 full | 3,141,952 B | 2,857,056 B | -284,896 B | 74.9% -> 68.1% |
-| Stable headless | 1,897,584 B | 2,046,992 B | +149,408 B | 56.8% -> 61.2% |
-| Beta headless | 1,966,272 B | 2,094,320 B | +128,048 B | 58.8% -> 62.7% |
-| C5 headless | 2,321,776 B | 2,474,528 B | +152,752 B | 55.4% -> 59.0% |
+| Stable full | 2,601,872 B | 2,418,672 B | -183,200 B | 77.8% -> 72.4% |
+| Beta full | 2,787,152 B | 2,482,496 B | -304,656 B | 83.4% -> 74.3% |
+| C5 full | 3,141,952 B | 2,850,192 B | -291,760 B | 74.9% -> 68.0% |
+| Stable headless | 1,897,584 B | 2,048,640 B | +151,056 B | 56.8% -> 61.3% |
+| Beta headless | 1,966,272 B | 2,099,472 B | +133,200 B | 58.8% -> 62.8% |
+| C5 headless | 2,321,776 B | 2,475,600 B | +153,824 B | 55.4% -> 59.0% |
 
 C5 sizes exclude the 64 KiB bootloader and partition table in `.factory.bin`.
 

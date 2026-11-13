@@ -190,8 +190,8 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/antihunter.log` | GET | System log (text). `404` if none |
 | `/api/antihunter.log/clear` | POST | Clears the system log |
 | `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
-| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
-| `/data-cfg` | POST | `bleClassify` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
+| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
+| `/data-cfg` | POST | `bleClassify` (`0` or `1`), `bleLongRange` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
 | `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
 | `/api/probedb/clear` | POST | Clears the probe database |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |

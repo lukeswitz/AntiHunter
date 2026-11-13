@@ -51,6 +51,7 @@ These commands change settings and save them.
 | `CONFIG_SESSION_DEDUP` | `CSD` | Turns session deduplication on or off | `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
 | `MESH_DEDUP_CLEAR` | `MDC` | Empties the deduplication memory, so the node reports known devices again | `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
 | `BLE_CLASSIFY` | `BC` | Turns BLE device classification on or off | `CONFIG_ACK:BLE_CLASSIFY:<0\|1>` | `@ALL BLE_CLASSIFY:0` |
+| `BLE_LONGRANGE` | `BL5` | Turns Bluetooth 5 long range scanning on or off | `CONFIG_ACK:BLE_LONGRANGE:<0\|1>` | `@ALL BLE_LONGRANGE:1` |
 | `CAMPAIGN_START` | `CS` | Starts a named campaign. Logged events carry the name, and the start and stop are recorded in the campaign log | `CAMPAIGN_ACK:START:<name>` or `:INVALID` | `@ALL CAMPAIGN_START:site-a` |
 | `CAMPAIGN_STOP` | `CX` | Ends the running campaign | `CAMPAIGN_ACK:STOP:<name>` or `:NONE` | `@ALL CAMPAIGN_STOP` |
 | `CAMPAIGN_STATUS` | `CQ` | Reports the running campaign | `CAMPAIGN_STATUS:<name>` or `:NONE` | `@AH01 CAMPAIGN_STATUS` |
@@ -66,6 +67,7 @@ These commands change settings and save them.
 | `CONFIG_DEDUP_TTL` | seconds | Time before the node may report the same device again. `0` turns deduplication off | 0-3600 | 300 |
 | `CONFIG_SESSION_DEDUP` | `0` or `1` | `1`: a repeated scan sends only devices not reported earlier in the session. Any nonzero number counts as `1` | 0-1 | |
 | `BLE_CLASSIFY` | `0` or `1` | `1`: BLE devices get a class label that appears as `C=<class>` in alerts. Any nonzero number counts as `1` | 0-1 | 1 |
+| `BLE_LONGRANGE` | `0` or `1` | `1`: BLE scans also listen for Bluetooth 5 long range (Coded PHY) adverts. Ordinary BLE then gets less listening time. Any nonzero number counts as `1` | 0-1 | 0 |
 | `CAMPAIGN_START` | name | Letters, digits, `-` and `_`. Starting a campaign ends the running one | 1-23 characters | |
 
 ### Scan
