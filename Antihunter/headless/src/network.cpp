@@ -467,6 +467,7 @@ static void handleConfigTargets(const String &command)
   if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
       saveTargetsList(targets);
   }
+  saveConfiguration();
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
@@ -792,9 +793,10 @@ static void handleSdRepair(const String &command)
   String p = command.substring(10);
   p.trim();
   p.toUpperCase();
-  if (p == "ON")       setSdAutoRepair(true);
-  else if (p == "OFF") setSdAutoRepair(false);
-  else if (p == "NOW") {
+  if (p == "ON" || p == "OFF") {
+    setSdAutoRepair(p == "ON");
+    saveConfiguration();
+  } else if (p == "NOW") {
     const bool prev = sdAutoRepair;
     sdAutoRepair = true;
     const bool ok = sdMountOrRepair();
@@ -816,6 +818,7 @@ static void handlePcapLimits(const String &command)
       return;
     }
     setPcapMaxFileMB(mb);
+    saveConfiguration();
   }
   sendToSerial1(getNodeId() + ": PCAP_LIMITS_ACK:MAXFILE=" + String(getPcapMaxFileMB()) + "MB", true);
 }
@@ -2466,6 +2469,7 @@ static void handleHbInterval(const String &command)
   if (minutes > 60) minutes = 60;
   hbInterval = minutes * 60000;
   prefs.putUInt("hbInterval", hbInterval);
+  saveConfiguration();
   Serial.printf("[HB] Interval set to %u min\n", minutes);
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
