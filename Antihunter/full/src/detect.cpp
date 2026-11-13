@@ -282,14 +282,26 @@ static bool fleetSendAp() {
     return sendToSerial1(getNodeId() + ": FLEET_AP:" + macStr(g_selfApMac), true);
 }
 
+// key() returns a millis() stamp; age is taken modulo 2^32 so the order survives the 49.7-day wrap.
 template <typename M, typename F> static void evictOldestBy(M &m, F key) {
     if (m.empty()) return;
+    const uint32_t now = millis();
     auto oldest = m.begin();
-    for (auto it = m.begin(); it != m.end(); ++it) if (key(it->second) < key(oldest->second)) oldest = it;
+    uint32_t oldestAge = now - (uint32_t)key(oldest->second);
+    for (auto it = m.begin(); it != m.end(); ++it) {
+        const uint32_t age = now - (uint32_t)key(it->second);
+        if (age > oldestAge) { oldest = it; oldestAge = age; }
+    }
     m.erase(oldest);
 }
 template <typename M> static void evictOldestTs(M &m) {
     evictOldestBy(m, [](const typename M::mapped_type &v) { return v; });
+}
+template <typename M> static void evictLowestCount(M &m) {
+    if (m.empty()) return;
+    auto low = m.begin();
+    for (auto it = m.begin(); it != m.end(); ++it) if (it->second < low->second) low = it;
+    m.erase(low);
 }
 
 static constexpr uint8_t EV_MAX_SRCS = 8;
@@ -2545,7 +2557,7 @@ static void probeGlobalCheck(const uint8_t *src, const char *ssid, int8_t rssi, 
     uint16_t &scRef = g_probeGlobal.srcCount[sk];
     if (scRef < 65535) scRef++;
     const uint16_t sc = scRef;
-    if (g_probeGlobal.srcCount.size() > 512) evictOldestTs(g_probeGlobal.srcCount);
+    if (g_probeGlobal.srcCount.size() > 512) evictLowestCount(g_probeGlobal.srcCount);
     if (g_probeGlobal.alerted) return;
     bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
     auto st = g_probeGlobal.srcStreak.find(sk);

@@ -564,7 +564,7 @@ static void baselineHarvestWifiPassive() {
     if (!apInfoQueue) return;
     ApInfoEvent ae;
     int drained = 0;
-    while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && drained < 50) {
+    while (drained < 50 && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
         drained++;
         String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
 

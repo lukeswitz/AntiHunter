@@ -236,7 +236,7 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (probeRequestQueue && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
+        while (probeRequestQueue && processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
             processedCount++;
 
             // --- Probe Response (stype 5) ---
