@@ -3974,7 +3974,10 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     else return;
     // Backpressure: drop if queue full rather than spinning the ISR.
     // Note: uxQueueSpacesAvailable is also safe-from-ISR on ESP-IDF FreeRTOS port.
-    if (uxQueueSpacesAvailable(detectFrameQueue) < 2) { g_droppedWifi.fetch_add(1); return; }
+    // Beacons and probes leave 7 slots free, so EAPOL, SAE, assoc and deauth frames still get in during a beacon storm.
+    const bool bulkKind = kind == DetectFrameEvent::BEACON_DEEP || kind == DetectFrameEvent::PROBE_RESP ||
+                          kind == DetectFrameEvent::PROBE_REQ || kind == DetectFrameEvent::QOS_DATA;
+    if (uxQueueSpacesAvailable(detectFrameQueue) < (bulkKind ? 8u : 1u)) { g_droppedWifi.fetch_add(1); return; }
     DetectFrameEvent ev;
     ev.kind = kind;
     ev.channel = channel;
@@ -4798,6 +4801,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         int p1 = msg.indexOf(':', 6);
         if (p1 < 0) return;
         String idStr = msg.substring(6, p1);
+        if (idStr.length() >= sizeof(ReconAlert::identityId)) idStr = idStr.substring(0, sizeof(ReconAlert::identityId) - 1);
         int score = msg.substring(p1 + 1).toInt();
         quorum_addReport("RECON", idStr, fromNode, -50);
         if (score >= 70) {

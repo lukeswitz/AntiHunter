@@ -335,8 +335,10 @@ void meshMarkMacSent(const String& mac) {
     if (ttl == 0) return;
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     g_meshSentMacs[mac] = millis();
-    if (g_meshSentMacs.size() > MESH_DEDUP_MAX_ENTRIES) {
+    static uint32_t lastSweep = 0;
+    if (g_meshSentMacs.size() > MESH_DEDUP_MAX_ENTRIES && millis() - lastSweep >= 10000) {
         uint32_t now = millis();
+        lastSweep = now;
         for (auto it = g_meshSentMacs.begin(); it != g_meshSentMacs.end();) {
             if (now - it->second >= ttl) it = g_meshSentMacs.erase(it);
             else ++it;
@@ -458,8 +460,36 @@ void loadRFConfigFromPrefs() {
 }
 
 // Detection system variables
-std::vector<DeauthHit> deauthLog;
+DeauthAgg deauthAgg;
 std::mutex deauthLogMutex;
+
+void DeauthAgg::add(const DeauthHit &h) {
+    total++;
+    if (h.toolHint & 0x01) forgeHits++;
+    if (h.toolHint & 0x04) bcastHits++;
+    DeauthDstAgg &d = byDst[macKey(h.destMac, false)];
+    if (d.count == 0) d.channel = h.channel;
+    d.count++;
+    if (h.isBroadcast) d.broadcastCount++;
+    else d.targetedCount++;
+    d.lastRssi = h.rssi;
+    d.bySrc[macKey(h.srcMac, false)]++;
+    if (!h.isBroadcast) srcUnicast[macKey(h.srcMac, false)]++;
+}
+
+void DeauthAgg::clear() {
+    total = forgeHits = bcastHits = 0;
+    byDst.clear();
+    srcUnicast.clear();
+}
+
+extern String macFmt6(const uint8_t *m);
+
+static String macFromKey(uint64_t k) {
+    uint8_t m[6];
+    for (int i = 5; i >= 0; i--) { m[i] = (uint8_t)(k & 0xFF); k >>= 8; }
+    return macFmt6(m);
+}
 std::atomic<uint32_t> deauthCount(0);
 std::atomic<uint32_t> disassocCount(0);
 std::atomic<bool> deauthDetectionEnabled{false};
@@ -1617,7 +1647,7 @@ void snifferScanTask(void *pv)
                     pd.probeCount++;
                     if (pHasSsid) addProbeSsid(pd, pssid);
                     if (pWildcard) pd.wildcardCount++;
-                } else if (probeDevices.size() < 100) {
+                } else if (!probePsramLow()) {
                     ProbeDevice pd = {};
                     memcpy(pd.mac, pEvt.mac, 6);
                     pd.rssi = pEvt.rssi;
@@ -2014,39 +2044,8 @@ String getSnifferCache()
 }
 
 static std::string buildDeauthResults(bool forever, int duration, uint32_t deauthTotal,
-                                       uint32_t disassocTotal, const std::vector<DeauthHit>& deauthEntries) {
-    std::map<String, DeauthStats> statsMap;
-    
-    for (const auto& h : deauthEntries) {
-        String dstMac = macFmt6(h.destMac);
-        if (dstMac == "FF:FF:FF:FF:FF:FF") dstMac = "[BROADCAST]";
-
-        if (statsMap.find(dstMac) == statsMap.end()) {
-            DeauthStats stats;
-            stats.srcMac = dstMac;
-            stats.count = 0;
-            stats.broadcastCount = 0;
-            stats.targetedCount = 0;
-            stats.lastRssi = -128;
-            stats.channel = h.channel;
-            statsMap[dstMac] = stats;
-        }
-
-        statsMap[dstMac].count++;
-        if (h.isBroadcast) {
-            statsMap[dstMac].broadcastCount++;
-        } else {
-            statsMap[dstMac].targetedCount++;
-        }
-        statsMap[dstMac].lastRssi = h.rssi;
-    }
-
-    // Tool-fingerprint tallies — surface known attacker frameworks
-    uint32_t forgeHits = 0, bcastHits = 0;
-    for (const auto &h : deauthEntries) {
-        if (h.toolHint & 0x01) forgeHits++;
-        if (h.toolHint & 0x04) bcastHits++;
-    }
+                                       uint32_t disassocTotal, const DeauthAgg& agg) {
+    const uint32_t forgeHits = agg.forgeHits, bcastHits = agg.bcastHits;
 
     std::string results = scanning.load()
         ? ("Deauth Attack Detection Results (IN PROGRESS)\nElapsed: " + std::to_string(millis() / 1000) + "s\n")
@@ -2054,8 +2053,8 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     results += "Duration: " + (forever ? std::string("Forever\n") : (std::to_string(duration) + "s\n"));
     results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
     results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
-    results += "Total attacks: " + std::to_string(deauthEntries.size()) + "\n";
-    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n";
+    results += "Total attacks: " + std::to_string(agg.total) + "\n";
+    results += "Targets attacked: " + std::to_string(agg.byDst.size()) + "\n";
     if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
     if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
 
@@ -2063,13 +2062,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     // unicast deauth, no follow-up) is the classic "knock-the-client-off and
     // wait for re-auth" PMKID/handshake capture pattern. Count such srcs.
     {
-        std::map<String, int> srcUnicastCount;
-        for (const auto &h : deauthEntries) {
-            if (!h.isBroadcast) {
-                srcUnicastCount[macFmt6(h.srcMac)]++;
-            }
-        }
-        uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(srcUnicastCount.begin(), srcUnicastCount.end(),
+        uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(agg.srcUnicast.begin(), agg.srcUnicast.end(),
             [](const auto &kv) { return kv.second == 1; }));
         if (loneSrcs > 0) {
             results += "EAPOL-capture-bait pattern (single targeted deauth, no follow-up): "
@@ -2078,48 +2071,40 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     }
     results += "\n";
     
-    if (statsMap.empty()) {
+    if (agg.byDst.empty()) {
         results += "No attacks detected.\n";
     } else {
         results += "Attack Targets:\n";
         results += "===============\n\n";
-        
-        std::vector<std::pair<String, DeauthStats>> sorted(statsMap.begin(), statsMap.end());
+
+        std::vector<std::pair<uint64_t, const DeauthDstAgg*>> sorted;
+        sorted.reserve(agg.byDst.size());
+        for (const auto& kv : agg.byDst) sorted.emplace_back(kv.first, &kv.second);
         std::sort(sorted.begin(), sorted.end(),
-            [](const std::pair<String, DeauthStats>& a, 
-            const std::pair<String, DeauthStats>& b) { 
-                return a.second.count > b.second.count; 
+            [](const std::pair<uint64_t, const DeauthDstAgg*>& a,
+               const std::pair<uint64_t, const DeauthDstAgg*>& b) {
+                return a.second->count > b.second->count;
             });
-        
+
         for (size_t i = 0; i < sorted.size() && i < 100; i++) {
-            const auto& entry = sorted[i];
-            const auto& stats = entry.second;
-            
-            results += std::string(entry.first.c_str());
+            const auto& stats = *sorted[i].second;
+
+            results += sorted[i].first == 0xFFFFFFFFFFFFULL ? std::string("[BROADCAST]")
+                                                             : std::string(macFromKey(sorted[i].first).c_str());
             results += " Total=" + std::to_string(stats.count);
             results += " Broadcast=" + std::to_string(stats.broadcastCount);
             results += " Targeted=" + std::to_string(stats.targetedCount);
             results += " LastRSSI=" + std::to_string(stats.lastRssi) + "dBm CH=" + std::to_string(stats.channel) + "\n";
-            
+
             int sourcesShown = 0;
-            std::map<String, int> sourceCounts;
-            for (const auto& h : deauthEntries) {
-                String dst = macFmt6(h.destMac);
-                if (dst == "FF:FF:FF:FF:FF:FF") dst = "[BROADCAST]";
-                if (dst == entry.first) {
-                    String src = macFmt6(h.srcMac);
-                    sourceCounts[src]++;
-                }
-            }
-            
-            for (const auto& source : sourceCounts) {
+            for (const auto& source : stats.bySrc) {
                 if (sourcesShown++ >= 5) {
-                    if (sourceCounts.size() > 5) {
-                        results += "    ... (" + std::to_string(sourceCounts.size() - 5) + " more attackers)\n";
+                    if (stats.bySrc.size() > 5) {
+                        results += "    ... (" + std::to_string(stats.bySrc.size() - 5) + " more attackers)\n";
                     }
                     break;
                 }
-                results += "    ← " + std::string(source.first.c_str()) + " (" + std::to_string(source.second) + "x)\n";
+                results += "    ← " + std::string(macFromKey(source.first).c_str()) + " (" + std::to_string(source.second) + "x)\n";
             }
             results += "\n";
         }
@@ -2142,7 +2127,7 @@ void blueTeamTask(void *pv) {
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
     
-    { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
+    { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthAgg.clear(); }
     deauthCount = 0;
     disassocCount = 0;
     deauthDetectionEnabled = false;
@@ -2170,8 +2155,26 @@ void blueTeamTask(void *pv) {
     }
     deauthDetectionEnabled = true;
 
-    std::set<String> transmittedAttacks;
-    
+    // src->dst pairs already sent over mesh, and the first unsent frame of each other pair.
+    using AttackKey = std::pair<uint64_t, uint64_t>;
+    std::set<AttackKey, std::less<AttackKey>, PsramAllocator<AttackKey>> transmittedAttacks;
+    std::map<AttackKey, DeauthHit, std::less<AttackKey>, PsramAllocator<std::pair<const AttackKey, DeauthHit>>> pendingMesh;
+    // /deauth.jsonl lines are flushed in batches so a flood is not limited by one SD open per frame.
+    std::vector<String, PsramAllocator<String>> jsonlBatch;
+    uint32_t lastJsonlFlush = millis();
+    auto flushJsonl = [&]() {
+        if (!jsonlBatch.empty()) logEventsToSD("/deauth.jsonl", jsonlBatch.data(), jsonlBatch.size());
+        jsonlBatch.clear();
+        lastJsonlFlush = millis();
+    };
+    auto shortAttackMsg = [](const DeauthHit &e) {
+        String m = getNodeId() + ": ATTACK: ";
+        m += String(e.isDisassoc ? "DISASSOC" : "DEAUTH");
+        m += " " + macFmt6(e.srcMac) + "->" + macFmt6(e.destMac);
+        m += " R" + String(e.rssi) + " C" + String(e.channel);
+        return m;
+    };
+
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = "Deauth Attack Detection Results\nStarting...\n";
@@ -2182,6 +2185,7 @@ void blueTeamTask(void *pv) {
     uint32_t lastCleanup = millis();
     uint32_t lastResultsUpdate = millis() + 1000;
     uint32_t lastWrittenDeauthTotal = UINT32_MAX;
+    uint32_t lastResultsBuild = 0;
     uint32_t lastMeshUpdate = millis();
     const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
@@ -2191,7 +2195,7 @@ void blueTeamTask(void *pv) {
     radioStartSTA();
     vTaskDelay(pdMS_TO_TICKS(200));
 
-    const int BATCH_LIMIT = 4;
+    const int BATCH_LIMIT = 32;
     std::map<String, std::vector<uint32_t>> targetHistory;
     uint32_t lastHistoryCleanup = millis();
 
@@ -2227,9 +2231,7 @@ void blueTeamTask(void *pv) {
 
             {
                 std::lock_guard<std::mutex> lock(deauthLogMutex);
-                if (deauthLog.size() < 2000) {
-                    deauthLog.push_back(hit);
-                }
+                deauthAgg.add(hit);
             }
 
             // Feed detect.cpp for EAPOL-capture-bait correlation. Broadcast included:
@@ -2267,8 +2269,8 @@ void blueTeamTask(void *pv) {
             }
 
             String srcMac = macFmt6(hit.srcMac);
-            String attackKey = srcMac + "->" + dstMac;
-            
+            const AttackKey attackKey{macKey(hit.srcMac, false), macKey(hit.destMac, false)};
+
             String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
             if (hit.isBroadcast) {
                 alert += " [BROADCAST]";
@@ -2282,56 +2284,80 @@ void blueTeamTask(void *pv) {
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
 
-            if (meshEnabled && ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
-                String meshAlert = getNodeId() + ": ATTACK: " + alert;
-                if (gpsValid) {
-                    if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                        meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-                        xSemaphoreGive(gpsMutex);
+            if (SafeSD::isAvailable()) {
+                DynamicJsonDocument doc(384);
+                doc["t"] = getEventTimestamp();
+                doc["src"] = srcMac;
+                doc["dst"] = dstMac;
+                doc["bssid"] = macFmt6(hit.bssid);
+                doc["rssi"] = hit.rssi;
+                doc["ch"] = hit.channel;
+                doc["reason"] = hit.reasonCode;
+                doc["disassoc"] = hit.isDisassoc;
+                doc["broadcast"] = hit.isBroadcast;
+                doc["seq"] = hit.seqCtrl;
+                doc["tool"] = hit.toolHint;  // bit0=tool bit1=tool-target bit2=tool-flood
+                String line;
+                serializeJson(doc, line);
+                jsonlBatch.push_back(line);
+                if (jsonlBatch.size() >= 64) flushJsonl();
+            }
+
+            if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                bool sent = false;
+                if (meshEnabled && ah_detect::g_meshDeauth.load()) {
+                    String meshAlert = getNodeId() + ": ATTACK: " + alert;
+                    if (gpsValid) {
+                        if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                            meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                            xSemaphoreGive(gpsMutex);
+                        }
                     }
+                    sent = meshEnqueue(meshAlert);
                 }
-                if (meshEnqueue(meshAlert)) {
+                if (sent) {
                     transmittedAttacks.insert(attackKey);
+                    pendingMesh.erase(attackKey);
+                } else if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) >= 512 * 1024) {
+                    pendingMesh.emplace(attackKey, hit);
                 }
             }
         }
+
+        if (!jsonlBatch.empty() && millis() - lastJsonlFlush >= 1000) flushJsonl();
 
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DEAUTH_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
 
-            std::lock_guard<std::mutex> lock(deauthLogMutex);
-            for (const auto& entry : deauthLog) {
-                String srcMac = macFmt6(entry.srcMac);
-                String dstMac = macFmt6(entry.destMac);
-                String attackKey = srcMac + "->" + dstMac;
-
-                if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
-                    String attackMsg = getNodeId() + ": ATTACK: ";
-                    attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
-                    attackMsg += " " + srcMac + "->" + dstMac;
-                    attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
-
+            if (ah_detect::g_meshDeauth.load()) {
+                for (auto it = pendingMesh.begin(); it != pendingMesh.end(); ) {
+                    String attackMsg = shortAttackMsg(it->second);
                     if (attackMsg.length() <= MAX_MESH_SIZE && meshEnqueue(attackMsg)) {
-                        transmittedAttacks.insert(attackKey);
+                        transmittedAttacks.insert(it->first);
+                        it = pendingMesh.erase(it);
+                    } else {
+                        ++it;
                     }
                 }
             }
         }
-        
+
         if ((int32_t)(millis() - nextStatus) >= 0) {
             size_t n;
-            { std::lock_guard<std::mutex> lock(deauthLogMutex); n = deauthLog.size(); }
+            { std::lock_guard<std::mutex> lock(deauthLogMutex); n = deauthAgg.total; }
             Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n",
                          deauthCount.load(), disassocCount.load(), (unsigned)n);
             nextStatus += 5000;
         }
 
         uint32_t curDeauthTotal = deauthCount.load() + disassocCount.load();
-        if ((int32_t)(millis() - lastResultsUpdate) >= 0 || curDeauthTotal != lastWrittenDeauthTotal) {
+        if ((int32_t)(millis() - lastResultsUpdate) >= 0 ||
+            (curDeauthTotal != lastWrittenDeauthTotal && millis() - lastResultsBuild >= 250)) {
+            lastResultsBuild = millis();
             std::string results;
             {
                 std::lock_guard<std::mutex> lock(deauthLogMutex);
-                results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+                results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthAgg);
             }
 
             {
@@ -2374,15 +2400,16 @@ void blueTeamTask(void *pv) {
     }
 
     deauthDetectionEnabled = false;
+    flushJsonl();
 
-    std::vector<DeauthHit> deauthSnapshot;
+    uint32_t totalAttacks = 0;
     {
-        std::lock_guard<std::mutex> lock(deauthLogMutex);
-        deauthSnapshot = deauthLog;
-    }
-
-    {
-        std::string deauthRes = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthSnapshot);
+        std::string deauthRes;
+        {
+            std::lock_guard<std::mutex> lock(deauthLogMutex);
+            deauthRes = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthAgg);
+            totalAttacks = deauthAgg.total;
+        }
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = deauthRes;
     }
@@ -2408,50 +2435,23 @@ void blueTeamTask(void *pv) {
 
     lastScanEnd = millis();
 
-    // Log deauth events to SD
-    if (SafeSD::isAvailable() && !deauthSnapshot.empty()) {
-        uint32_t now = getEventTimestamp();
-        for (const auto& deauthHit : deauthSnapshot) {
-            DynamicJsonDocument doc(384);
-            doc["t"] = now;
-            doc["src"] = macFmt6(deauthHit.srcMac);
-            doc["dst"] = macFmt6(deauthHit.destMac);
-            doc["bssid"] = macFmt6(deauthHit.bssid);
-            doc["rssi"] = deauthHit.rssi;
-            doc["ch"] = deauthHit.channel;
-            doc["reason"] = deauthHit.reasonCode;
-            doc["disassoc"] = deauthHit.isDisassoc;
-            doc["broadcast"] = deauthHit.isBroadcast;
-            doc["seq"] = deauthHit.seqCtrl;
-            doc["tool"] = deauthHit.toolHint;  // bit0=tool bit1=tool-target bit2=tool-flood
-            String line;
-            serializeJson(doc, line);
-            logEventToSD("/deauth.jsonl", line);
-        }
-        Serial.printf("[BLUE] Logged %d deauth events to SD\n", (int)deauthSnapshot.size());
-    }
+    if (totalAttacks > 0) Serial.printf("[BLUE] Logged %u deauth events to SD as they arrived\n", (unsigned)totalAttacks);
 
     if (meshEnabled && !stopRequested) {
         uint32_t enqueued = 0;
-        for (const auto& entry : deauthSnapshot) {
-            String srcMac = macFmt6(entry.srcMac);
-            String dstMac = macFmt6(entry.destMac);
-            String attackKey = srcMac + "->" + dstMac;
-
-            if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
-                String attackMsg = getNodeId() + ": ATTACK: ";
-                attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
-                attackMsg += " " + srcMac + "->" + dstMac;
-                attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
-
+        if (ah_detect::g_meshDeauth.load()) {
+            for (auto it = pendingMesh.begin(); it != pendingMesh.end(); ) {
+                String attackMsg = shortAttackMsg(it->second);
                 if (attackMsg.length() <= MAX_MESH_SIZE && meshEnqueue(attackMsg)) {
-                    transmittedAttacks.insert(attackKey);
+                    transmittedAttacks.insert(it->first);
+                    it = pendingMesh.erase(it);
                     enqueued++;
+                } else {
+                    ++it;
                 }
             }
         }
 
-        uint32_t totalAttacks = deauthSnapshot.size();
         String summary = getNodeId() + ": DEAUTH_DONE: Total=" + String(deauthCount + disassocCount) +
                         " Deauth=" + String(deauthCount) +
                         " Disassoc=" + String(disassocCount) +
@@ -2470,6 +2470,7 @@ void blueTeamTask(void *pv) {
     floodWin.clear();
     floodAlerted.clear();
     transmittedAttacks.clear();
+    pendingMesh.clear();
     targetHistory.clear();
 
     blueTeamTaskHandle = nullptr;
@@ -2965,6 +2966,38 @@ void selftestBleAdvertise(uint32_t count, uint32_t periodMs, bool coded) {
     if (periodMs > 0xFFF) periodMs = 0xFFF;
     const uint32_t packed = (coded ? 0x80000000u : 0u) | (count << 12) | periodMs;
     ahCreateTask(selftestBleAdvTask, "bleadv", 6144, reinterpret_cast<void *>(static_cast<uintptr_t>(packed)), 1, NULL, 0);
+}
+
+// Feeds synthetic deauth records into deauthQueue, the same entry point the sniffer uses. Nothing is transmitted.
+static void selftestDeauthFloodTask(void *pv) {
+    const uint32_t n = (uint32_t)reinterpret_cast<uintptr_t>(pv);
+    uint32_t queued = 0;
+    for (uint32_t i = 0; i < n && deauthQueue && !stopRequested; i++) {
+        DeauthHit h{};
+        const uint8_t src[6] = {0x02, 0x5E, 0x1F, 0x00, (uint8_t)(i >> 8), (uint8_t)i};
+        const uint32_t t = i % 300;
+        const uint8_t dst[6] = {0x02, 0x7A, 0x00, 0x00, (uint8_t)(t >> 8), (uint8_t)t};
+        memcpy(h.srcMac, src, 6);
+        memcpy(h.destMac, dst, 6);
+        memcpy(h.bssid, src, 6);
+        h.rssi = -60;
+        h.channel = 6;
+        h.reasonCode = 7;
+        h.timestamp = millis();
+        h.isBroadcast = true;
+        if (xQueueSend(deauthQueue, &h, pdMS_TO_TICKS(100)) == pdTRUE) queued++;
+        if ((i & 15) == 15) vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    Serial.printf("[SELFTEST] deauthflood queued=%u of %u\n", (unsigned)queued, (unsigned)n);
+    vTaskDelete(NULL);
+}
+
+void selftestDeauthFlood(uint32_t n) {
+    if (!deauthQueue) {
+        Serial.println("[SELFTEST] deauthflood needs a running deauth scan");
+        return;
+    }
+    ahCreateTask(selftestDeauthFloodTask, "stdeauth", 3072, reinterpret_cast<void *>(static_cast<uintptr_t>(n)), 1, NULL, 0);
 }
 #endif
 
@@ -3598,7 +3631,8 @@ void listScanTask(void *pv) {
     uniqueMacs.clear();
     hitsLog.clear();
     totalHits = 0;
-    std::set<String> seenTargets;
+    // One hitsLog row per target MAC, kept at its best RSSI; no row limit.
+    std::map<uint64_t, uint32_t, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, uint32_t>>> hitIndex;
     std::set<String> transmittedDevices;
     framesSeen = 0;
     bleFramesSeen = 0;
@@ -3854,13 +3888,16 @@ void listScanTask(void *pv) {
 
             localDeviceLastSeen[macStr] = now;
             uniqueNote(h.mac, h.isBLE);
-            if (hitsLog.size() < MAX_LOG_SIZE) {
-                hitsLog.push_back(h);
-            }
-
-            bool inserted = seenTargets.insert(macStr).second;
-            if (inserted) {
-                totalHits = totalHits + 1;
+            {
+                const uint64_t hk = macKey(h.mac, false);
+                auto hi = hitIndex.find(hk);
+                if (hi == hitIndex.end()) {
+                    hitIndex.emplace(hk, (uint32_t)hitsLog.size());
+                    hitsLog.push_back(h);
+                    totalHits = totalHits + 1;
+                } else if (h.rssi > hitsLog[hi->second].rssi) {
+                    hitsLog[hi->second] = h;
+                }
             }
 
             FoxTrack &fox = foxTracks[std::string(macStr.c_str())];
@@ -4157,22 +4194,7 @@ void listScanTask(void *pv) {
             pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
             pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
 
-            // Dedupe hitsLog by MAC, keeping best RSSI per device
-            std::map<std::string, Hit> bestByMac;
-            for (const auto& sh : hitsLog) {
-                char mb[18];
-                snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
-                         sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
-                std::string key(mb);
-                auto it = bestByMac.find(key);
-                if (it == bestByMac.end() || sh.rssi > it->second.rssi) {
-                    bestByMac[key] = sh;
-                }
-            }
-            std::vector<Hit> deduped;
-            deduped.reserve(bestByMac.size());
-            std::transform(bestByMac.begin(), bestByMac.end(), std::back_inserter(deduped),
-                [](const std::pair<const std::string, Hit>& p) { return p.second; });
+            std::vector<Hit> deduped(hitsLog.begin(), hitsLog.end());
             std::sort(deduped.begin(), deduped.end(), [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
             int shown = 0;
             for (const auto& sh : deduped) {
@@ -4214,36 +4236,10 @@ void listScanTask(void *pv) {
         "Unique devices: " + std::to_string(uniqueMacs.inserted()) + "\n" +
         "Target Hits: " + std::to_string(totalHits) + "\n\n";
 
-    std::map<String, Hit> hitsMap;
-    for (const auto& targetMacStr : seenTargets) {
-        Hit bestHit;
-        int8_t bestRssi = -128;
-        bool found = false;
-
-        String targetMac = targetMacStr;
-        for (const auto& hit : hitsLog) {
-            String hitMacStrOrig = macFmt6(hit.mac);
-            String hitMacStr = hitMacStrOrig;
-            hitMacStr.toUpperCase();
-            if (hitMacStr == targetMac && hit.rssi > bestRssi) {
-                bestHit = hit;
-                bestRssi = hit.rssi;
-                found = true;
-            }
-        }
-
-        if (found) {
-            hitsMap[targetMac] = bestHit;
-        }
-    }
-
-    if (hitsMap.empty()) {
+    if (hitsLog.empty()) {
         results += "No targets detected.\n";
     } else {
-        std::vector<Hit> sortedHits;
-        sortedHits.reserve(hitsMap.size());
-        std::transform(hitsMap.begin(), hitsMap.end(), std::back_inserter(sortedHits),
-            [](const std::pair<const String, Hit>& entry) { return entry.second; });
+        std::vector<Hit> sortedHits(hitsLog.begin(), hitsLog.end());
         std::sort(sortedHits.begin(), sortedHits.end(),
                   [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
@@ -4271,19 +4267,8 @@ void listScanTask(void *pv) {
         }
     }
 
-    {
-        std::map<std::string, Hit> bestForDb;
-        for (const auto &sh : hitsLog) {
-            char mb[18];
-            snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
-                     sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
-            std::string key(mb);
-            auto it = bestForDb.find(key);
-            if (it == bestForDb.end() || sh.rssi > it->second.rssi) bestForDb[key] = sh;
-        }
-        for (const auto &p : bestForDb) mergeHitToDeviceDB(p.second);
-        if (!bestForDb.empty()) saveDeviceDB();
-    }
+    for (const auto &sh : hitsLog) mergeHitToDeviceDB(sh);
+    if (!hitsLog.empty()) saveDeviceDB();
 
     // Write final results while still scanning so tick() picks them up
     if (!triangulationActive) {
@@ -4359,7 +4344,7 @@ void listScanTask(void *pv) {
     }
 
     if (meshEnabled && !stopRequested) {
-        uint32_t totalTargets = seenTargets.size();
+        uint32_t totalTargets = hitIndex.size();
         uint32_t finalTransmitted = transmittedDevices.size();
         uint32_t finalRemaining = totalTargets - finalTransmitted;
         
@@ -4382,7 +4367,7 @@ void listScanTask(void *pv) {
 
     safeMacQueueDelete();
 
-    seenTargets.clear();
+    hitIndex.clear();
     transmittedDevices.clear();
     localDeviceLastSeen.clear();
 

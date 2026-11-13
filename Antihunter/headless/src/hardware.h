@@ -172,7 +172,9 @@ void serviceDeferredSave();
 void loadConfiguration();
 void syncSettingsToNVS();
 void logToSD(const String &data);
+void logToSDReopen();
 void logEventToSD(const char* path, const String& jsonLine);
+void logEventsToSD(const char* path, const String* lines, size_t count);
 
 #define RESULTS_SNAPSHOT_FILE "/last_results.txt"
 #define RESULTS_SNAPSHOT_TMP "/last_results.tmp"

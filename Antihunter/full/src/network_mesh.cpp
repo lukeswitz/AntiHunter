@@ -2774,6 +2774,26 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       extern void selftestBlePhy(uint8_t);
       selftestBlePhy((uint8_t)command.substring(16).toInt());
   }
+  else if (command == "SELFTEST_PROBEDBSTREAM") {
+      // Drains the /api/probedb stream in this task; the loopback HTTP client starves async_tcp on large bodies.
+      auto st = std::make_unique<ProbeDBStream>();
+      uint8_t buf[1024];
+      size_t total = 0, rows = 0;
+      char first = 0, last = 0;
+      for (size_t n; (n = probeDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
+          if (!total) first = (char)buf[0];
+          last = (char)buf[n - 1];
+          for (size_t i = 0; i < n; i++) if (buf[i] == '{') rows++;
+          total += n;
+          vTaskDelay(1);
+      }
+      Serial.printf("[SELFTEST] probedb stream bytes=%u rows=%u first=%c last=%c db=%u\n",
+                    (unsigned)total, (unsigned)rows, first, last, (unsigned)getProbeDBSize());
+  }
+  else if (command.startsWith("SELFTEST_DEAUTHFLOOD:")) {
+      extern void selftestDeauthFlood(uint32_t);
+      selftestDeauthFlood((uint32_t)command.substring(21).toInt());
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");
@@ -2814,6 +2834,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       String r;
       int c = selftestHttp(post ? "POST" : "GET", path, body, r);
       Serial.printf("[SELFTEST] http %d %s\n", c, r.c_str());
+      Serial.printf("[SELFTEST] http len=%u tail=%s\n", (unsigned)r.length(),
+                    r.substring(r.length() > 80 ? r.length() - 80 : 0).c_str());
   }
   else if (command.startsWith("SELFTEST_TX:")) {
       Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true));

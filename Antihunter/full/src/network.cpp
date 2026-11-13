@@ -2316,15 +2316,10 @@ void registerRemainingRoutes() {
 
   // Probe database endpoints
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
-      auto body = std::make_shared<PsramJsonString>(getProbeDBJson());
+      auto st = std::make_shared<ProbeDBStream>();
       AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-              size_t total = body->size();
-              if (index >= total) return 0;
-              size_t n = total - index;
-              if (n > maxLen) n = maxLen;
-              memcpy(buffer, body->data() + index, n);
-              return n;
+          [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
+              return probeDBStreamFill(*st, buffer, maxLen);
           });
       req->send(res);
   });
@@ -2379,7 +2374,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/deauth/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
+      { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthAgg.clear(); }
       deauthCount = 0;
       disassocCount = 0;
       SafeSD::remove("/deauth.jsonl");
@@ -2415,6 +2410,8 @@ void registerRemainingRoutes() {
 
   server->on("/api/antihunter.log/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
       SafeSD::remove("/antihunter.log");
+      SafeSD::remove("/antihunter_old.log");
+      logToSDReopen();
       req->send(200, "text/plain", "System log cleared");
   });
 
