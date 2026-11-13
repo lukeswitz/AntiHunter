@@ -96,6 +96,8 @@ using UniqueMacsSet = PsramTable<uint8_t>;
 using DeviceLastSeenMap = std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>>;
 using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
+// NimBLE treats 0xFF as no limit on devices stored per scan window.
+constexpr uint8_t BLE_SCAN_RESULTS_UNLIMITED = 0xFF;
 
 struct DeauthStats {
     String srcMac;
@@ -374,6 +376,8 @@ extern std::atomic<bool> apCaptureEnabled;
 extern std::atomic<bool> listScanTriMode;
 
 // Functions
+extern std::atomic<bool> bleLongRange;
+void bleApplyScanPhy();
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
 void rebuildIdentityMacSnapshot();

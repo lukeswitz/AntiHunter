@@ -704,7 +704,7 @@ void baselineDetectionTask(void *pv) {
         pBLEScan->setInterval(160);
         pBLEScan->setWindow(48);
         pBLEScan->setDuplicateFilter(false);
-        pBLEScan->setMaxResults(150);
+        pBLEScan->setMaxResults(BLE_SCAN_RESULTS_UNLIMITED);
         pBLEScan->start(0, false);
     }
 
