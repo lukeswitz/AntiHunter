@@ -578,7 +578,7 @@ static void baselineHarvestWifiActive() {
         wh.isBLE = false;
 
         baselinePushHit(wh);
-        framesSeen = framesSeen + 1;
+        framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
     WiFi.scanDelete();
 }
@@ -600,7 +600,7 @@ static void baselineHarvestWifiPassive() {
         wh.isBLE = false;
 
         baselinePushHit(wh);
-        framesSeen = framesSeen + 1;
+        framesSeen.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -818,7 +818,7 @@ void baselineDetectionTask(void *pv) {
                     }
 
                     baselinePushHit(bh);
-                    bleFramesSeen = bleFramesSeen + 1;
+                    bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 }  else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }
@@ -978,7 +978,7 @@ void baselineDetectionTask(void *pv) {
                     }
 
                     baselinePushHit(bh);
-                    bleFramesSeen = bleFramesSeen + 1;
+                    bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
                 } else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }

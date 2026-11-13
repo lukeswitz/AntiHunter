@@ -87,6 +87,9 @@ void SerialRateLimiter::flush() {
 
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    if (!meshEnabled) {
+        return false;
+    }
     if (serial1Mutex == nullptr) {
         return false;
     }
@@ -210,10 +213,15 @@ void initializeNetwork()
   WiFi.mode(WIFI_AP_STA);
   delay(100);
   memMark("wifi mode");
-  esp_wifi_stop();
-  randomizeMacAddress();
-  esp_wifi_start();
-  
+  {
+    const esp_err_t stopErr = esp_wifi_stop();
+    randomizeMacAddress();
+    const esp_err_t rateErr = esp_wifi_config_11b_rate(WIFI_IF_AP, true);
+    const esp_err_t startErr = esp_wifi_start();
+    Serial.printf("[WIFI] AP 11b rates disabled (OFDM beacons): stop=%s cfg=%s start=%s\n",
+                  esp_err_to_name(stopErr), esp_err_to_name(rateErr), esp_err_to_name(startErr));
+  }
+
   customApSsid = prefsGetString("apSsid", AP_SSID);
   customApPass = prefsGetString("apPass", AP_PASS);
   
@@ -719,6 +727,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
+      Serial.printf("[WEB CMD] stop from %s\n", req->client()->remoteIP().toString().c_str());
       attack_responseCancel();
       stopAllScans();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
@@ -1207,7 +1216,7 @@ void registerRemainingRoutes() {
             meshEnabled = req->getParam("enabled", true)->value() == "true";
             prefs.putBool("meshEnabled", meshEnabled);
             saveConfiguration();
-            if (!meshEnabled) meshTxFlushQueue();
+            if (!meshEnabled) meshTxFlushQueue(true);
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
         } else {
@@ -2133,6 +2142,11 @@ void registerRemainingRoutes() {
       {
           std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
           antihunter::lastResults.clear();
+      }
+      if (scanning.load()) {
+          req->send(200, "text/plain",
+                    "Results cleared - a running scan will repopulate them from live data");
+          return;
       }
       req->send(200, "text/plain", "Results cleared");
   });

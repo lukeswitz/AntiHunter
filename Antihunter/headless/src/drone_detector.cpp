@@ -824,7 +824,7 @@ void droneDetectorTask(void *pv)
     
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
-    uint32_t nextResultsUpdate = millis() + 2000;
+    uint32_t nextResultsUpdate = millis() + 1000;
     uint32_t lastWrittenDroneCount = UINT32_MAX;
     uint32_t lastCleanup = millis();
     uint32_t lastLossSweep = millis();
@@ -911,7 +911,7 @@ void droneDetectorTask(void *pv)
 
         uint32_t curDroneCount = droneDetectionCount.load();
         if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || curDroneCount != lastWrittenDroneCount) {
-            nextResultsUpdate += 2000;
+            nextResultsUpdate += 1000;
             lastWrittenDroneCount = curDroneCount;
             String liveResults = getDroneDetectionResults();
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -928,11 +928,6 @@ void droneDetectorTask(void *pv)
     
     droneDetectionEnabled = false;
     scanning = false;
-
-    if (droneFrameQueue) {
-        vQueueDeleteWithCaps(droneFrameQueue);
-        droneFrameQueue = nullptr;
-    }
 
     if (meshEnabled && !stopRequested) {
         uint32_t enqueuedDrones = 0;
@@ -959,6 +954,11 @@ void droneDetectorTask(void *pv)
 
     radioStopSTA();
     delay(100);
+
+    if (droneFrameQueue) {
+        vQueueDeleteWithCaps(droneFrameQueue);
+        droneFrameQueue = nullptr;
+    }
 
     {
         String droneRes = getDroneDetectionResults();

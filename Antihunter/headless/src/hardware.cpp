@@ -1267,7 +1267,11 @@ void initializeSD()
     delay(100);
     if (sdMountOrRepair()) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-        Serial.printf("SD Card initialized: %lluMB at %lu Hz\n", cardSize, (unsigned long)sdMountedHz);
+        const uint64_t totalMB = SD.totalBytes() / (1024ULL * 1024ULL);
+        const uint64_t usedMB = SD.usedBytes() / (1024ULL * 1024ULL);
+        Serial.printf("SD Card initialized: %lluMB (fs %lluMB, used %lluMB, free %lluMB) at %lu Hz\n",
+                      cardSize, totalMB, usedMB, totalMB > usedMB ? totalMB - usedMB : 0ULL,
+                      (unsigned long)sdMountedHz);
         sdAvailable = true;
         SafeSD::forceRecheck();
         delay(10);        
@@ -2070,13 +2074,14 @@ void syncRTCFromGPS() {
                       timeDiff);
         
         didSync = true;
-
-        String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
-        sendToSerial1(meshMsg, false);
     }
 
     xSemaphoreGive(rtcMutex);
-    if (didSync) logToSD("RTC synced from GPS");
+    if (didSync) {
+        String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
+        sendToSerial1(meshMsg, false);
+        logToSD("RTC synced from GPS");
+    }
 }
 
 void updateRTCTime() {

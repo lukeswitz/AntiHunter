@@ -251,6 +251,7 @@ void setup() {
     delay(300);
 
     Serial.println("\n=== Antihunter [FULL] Boot ===");
+    Serial.printf("[BUILD] sha=%s epoch=%lu\n", AH_GIT_SHA, (unsigned long)AH_BUILD_EPOCH);
     randomizeRadioIdentity();
     recordBootReason();
 

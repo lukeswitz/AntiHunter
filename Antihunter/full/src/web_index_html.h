@@ -14,7 +14,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#2563eb;--c-ble-bg:rgba(37,99,235,0.08);--c-wifi:#15803d;--c-wifi-bg:rgba(21,128,61,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#9a7a2e;--dang:#c0392f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#2563eb;--c-ble-bg:rgba(37,99,235,0.08);--c-wifi:#15803d;--c-wifi-bg:rgba(21,128,61,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#b9e83c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.14),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#4c8dff;--c-ble-bg:rgba(76,141,255,0.12);--c-wifi:#34c77b;--c-wifi-bg:rgba(52,199,123,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#a2c95a;--c-err-bg:rgba(162,201,90,0.08);--dang-glow:rgba(185,232,60,0.22);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       [data-theme="dark"][data-palette="paper"]{--bg:#121211;--surf:#1b1b19;--surf-hover:#242421;--bord:#34342f;--bord-focus:rgba(203,230,66,0.45);--txt:#ededE8;--mut:#a9a9a2;--acc:#cbe642;--acch:#d8ef6a;--accbg:rgba(203,230,66,0.10);--succ:#cbe642;--warn:#e6a85a;--shad:0 1px 0 rgba(0,0,0,0.35);--shad-hover:0 4px 14px rgba(0,0,0,0.45);--glow:0 0 0 transparent;--backdrop:none;--c-known:#a9a9a2;--c-ap:#a9a9a2;--c-ok:#cbe642;--tgt:#cbe642;--tgtbg:rgba(203,230,66,0.10)}
       [data-theme="dark"][data-palette="paper"] .btn.primary,[data-theme="dark"][data-palette="paper"] .chip-row .chip.active,[data-theme="dark"][data-palette="paper"] input[type="checkbox"]:checked::after,[data-theme="dark"][data-palette="paper"] .res-badge.target,[data-theme="dark"][data-palette="paper"] .res-badge.known,[data-theme="dark"][data-palette="paper"] .res-badge.muted,[data-theme="dark"][data-palette="paper"] .res-cta{color:#0b0b0b}
@@ -99,9 +99,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.idle{border-color:rgba(80,180,120,0.4);color:#50b478}
       .status-item.idle::before{background:#50b478;box-shadow:0 0 6px rgba(80,180,120,0.7)}
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
-      .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       .status-item.offline{border-color:var(--dang);color:var(--dang)}
       .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
+      .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:142px;justify-content:flex-start}
       .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;text-align:right;scrollbar-width:none;-webkit-overflow-scrolling:touch}
       .statx-ticker::-webkit-scrollbar{display:none}
@@ -495,7 +495,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
       .res-toolbar .btn svg{width:11px;height:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs,.res-kvs.g5{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs,.res-kvs.g5{grid-template-columns:1fr 1fr}.res-toolbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:7px;width:100%}.res-toolbar-lab{font-size:10px}.res-toolbar select#sortBy{min-width:0;width:100%;padding:9px 30px 9px 11px;background-position:right 10px center}.res-toolbar .btn{padding:9px 11px}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
+      @media(max-width:379px){.res-toolbar{grid-template-columns:minmax(0,1fr) auto auto auto}.res-toolbar-lab{display:none}}
     </style>
     <style id="accentScheme"></style>
     <script>
@@ -829,6 +830,7 @@ R"HTML(
                   <option value="pcap">Packet Capture</option>
                 </optgroup>
               </select>
+              <div id="detectionDesc" class="det-desc"></div>
 
               <div id="probeScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -2593,6 +2595,12 @@ R"HTML(
         }
       }
 
+      function resIsEditing(el) {
+        const ae = document.activeElement;
+        if (!ae || !el.contains(ae)) return false;
+        return ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '');
+      }
+
       function resHasSelection(el) {
         const sel = window.getSelection && window.getSelection();
         if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
@@ -2689,7 +2697,10 @@ R"HTML(
         const closedDetails = new Set();
         el.querySelectorAll('details:not([open])').forEach(d => { const k = dkeyOf(d); if (k) closedDetails.add(k); });
 
-        el.innerHTML = parseAndStyleResults(text);
+        const nextHtml = parseAndStyleResults(text);
+        if (nextHtml === window._resLastHtml) return;
+        window._resLastHtml = nextHtml;
+        el.innerHTML = nextHtml;
         if (typeof pcapPaintList === 'function') pcapPaintList();
 
         openCards.forEach(id => {
@@ -2702,14 +2713,14 @@ R"HTML(
         if (openDetails.size || closedDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; else if (k && closedDetails.has(k)) d.open = false; });
         if (typeof sortResultsDisplay === 'function') sortResultsDisplay();
         if (typeof updateSortOptions === 'function') updateSortOptions();
-        if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(el);
+        privacyApply(el);
       }
 
       async function resultsPoll(force) {
         if (resultsPolling) return;
         if (!force && !radioBusy && stopResultsRefresh <= 0 && resultsSynced) return;
         const el = document.getElementById('r');
-        if (el && el.contains(document.activeElement)) return;
+        if (el && resIsEditing(el)) return;
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
         const epoch = resultsEpoch;
@@ -2727,6 +2738,7 @@ R"HTML(
           renderResults(txt);
           lastResultsText = txt;
         } catch (e) {
+          console.warn('resultsPoll: /results fetch failed', e);
         } finally {
           resultsPolling = false;
           if (!radioBusy && stopResultsRefresh > 0) stopResultsRefresh--;
@@ -3043,9 +3055,9 @@ R"HTML(
 
           const resultsText = await resultsResp.text();
           lastResultsText = resultsText;
+          renderResults(resultsText);
           resultsSynced = true;
           loadEverSucceeded = true;
-          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
           refreshPcapList();
 
           loadNodeId();
@@ -5068,6 +5080,20 @@ R"HTML(
         return { groups, broadcast };
       }
 
+      const DETECTION_DESC = {
+        'device-scan': 'Lists every Wi-Fi and BLE device in range, with signal strength and vendor.',
+        'baseline': 'Learns which devices belong here, then alerts on anything new, returning, or moving.',
+        'randomization-detection': 'Links rotating MAC addresses back to one device so randomization stops hiding it.',
+        'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
+        'drone-detection': 'Decodes drone Remote ID beacons over Wi-Fi and BLE, including operator position.',
+        'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
+        'pcap': 'Records the Wi-Fi or BLE traffic around you to SD, ready to open in Wireshark.'
+      };
+      function setDetectionDesc(mode) {
+        const el = document.getElementById('detectionDesc');
+        if (el) el.textContent = DETECTION_DESC[mode] || '';
+      }
+
       function renderProbeClientCard(d) {
         let chips = '';
         if (d.vendor && !d.randomized && !isRandomMac(d.mac)) chips += resChip(esc(d.vendor));
@@ -5281,7 +5307,7 @@ R"HTML(
         let html = '';
 
         const modeMatch = text.match(/Mode: ([^\s]+)/);
-        const durationMatch = text.match(/Duration: ([^\n]+)/);
+        const durationMatch = text.match(/Duration: ([^\n]+)/) || text.match(/Elapsed: ([^\n]+)/);
         const hitsMatch = text.match(/Target Hits: (\d+)/);
         const uniqueMatch = text.match(/Unique devices: (\d+)/);
 
@@ -5745,7 +5771,6 @@ R"HTML(
           }
           syncStopAllBtn();
           lastScanningState = isScanning;
-          if (!isScanning && stopResultsRefresh > 0) stopResultsRefresh--;
         } catch (e) {
           console.error('Tick error:', e);
         } finally {
@@ -6100,6 +6125,7 @@ R"HTML(
           }).catch(err => {
             console.error('[SCAN] Error at', new Date().toISOString(), err);
             toast('Error: ' + err.message, 'error');
+            abortScanStart('Scan request failed: ' + err.message + '\n');
           }).finally(() => {
             setTimeout(() => {
               state.inProgress = false;
@@ -6216,6 +6242,7 @@ R"HTML(
 
       document.getElementById('detectionMode').addEventListener('change', function() {
         const selectedMethod = this.value;
+        setDetectionDesc(selectedMethod);
         const standardControls = document.getElementById('standardDurationControls');
         const baselineControls = document.getElementById('baselineConfigControls');
         const randomizationModeControls = document.getElementById('randomizationModeControls');

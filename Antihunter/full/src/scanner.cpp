@@ -78,6 +78,7 @@ bool scanBusy() {
 }
 
 bool scanStopping() {
+    if (scanStopPending.load() && !scanBusy()) scanStopPending.store(false);
     return scanStopPending.load() && scanBusy();
 }
 
@@ -978,7 +979,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
                                   spl.data(), (uint16_t)spl.size());
             return;
         }
-        bleFramesSeen = bleFramesSeen + 1;
+        bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
 
         int8_t rssi = advertisedDevice->getRSSI();
 
@@ -2521,7 +2522,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    framesSeen = framesSeen + 1;
+    framesSeen.fetch_add(1, std::memory_order_relaxed);
 
     if (ppkt->rx_ctrl.rx_state != 0) return;
 

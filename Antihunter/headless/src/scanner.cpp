@@ -901,7 +901,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
                                   spl.data(), (uint16_t)spl.size());
             return;
         }
-        bleFramesSeen = bleFramesSeen + 1;
+        bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
 
         int8_t rssi = advertisedDevice->getRSSI();
 
@@ -1414,6 +1414,11 @@ void snifferScanTask(void *pv)
                                 if (bleClassifyEnabled) {
                                     std::vector<uint8_t> pl = device->getPayload();
                                     bleClassify(pl.data(), pl.size(), h.cls, sizeof(h.cls));
+#if AH_SELFTEST
+                                    String hex;
+                                    for (uint8_t b : pl) { char x[3]; snprintf(x, sizeof(x), "%02X", b); hex += x; }
+                                    Serial.printf("[ADV] %s %s %s\n", macStr.c_str(), hex.c_str(), h.cls[0] ? h.cls : "-");
+#endif
                                 }
                             }
                             if (!snifferAdd(h)) continue;
@@ -2382,7 +2387,7 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    framesSeen = framesSeen + 1;
+    framesSeen.fetch_add(1, std::memory_order_relaxed);
 
     if (ppkt->rx_ctrl.rx_state != 0) return;
 
