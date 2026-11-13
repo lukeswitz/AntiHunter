@@ -743,7 +743,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           req->send(200, "text/plain", "SD repair queued. The card is erased if it won't mount.");
           return;
       }
-      if (req->hasParam("auto", true)) setSdAutoRepair(req->getParam("auto", true)->value() == "1");
+      if (req->hasParam("auto", true)) {
+          setSdAutoRepair(req->getParam("auto", true)->value() == "1");
+          saveConfiguration();
+      }
       req->send(200, "text/plain", sdAutoRepair ? "SD auto-repair on" : "SD auto-repair off");
   });
 
@@ -1249,6 +1252,7 @@ void registerRemainingRoutes() {
         if (req->hasParam("enabled", true)) {
             meshEnabled = req->getParam("enabled", true)->value() == "true";
             prefs.putBool("meshEnabled", meshEnabled);
+            saveConfiguration();
             if (!meshEnabled) meshTxFlushQueue(true);
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
@@ -1971,6 +1975,7 @@ void registerRemainingRoutes() {
                            ? (uint16_t)req->getParam("pcapDwell", true)->value().toInt() : 250;
             if (req->hasParam("pcapMaxFile", true)) {
                 setPcapMaxFileMB((uint32_t)req->getParam("pcapMaxFile", true)->value().toInt());
+                saveConfiguration();
             }
             setPcapConfig(radio, band, pcapCh, dwell, req->hasParam("pcapMgmtOnly", true));
 
@@ -2057,6 +2062,7 @@ void registerRemainingRoutes() {
       setPcapAutoLimits(budget, floor);
       if (r->hasParam("maxFileMB", true)) {
           setPcapMaxFileMB((uint32_t)r->getParam("maxFileMB", true)->value().toInt());
+          saveConfiguration();
       }
       r->send(200, "text/plain", "Auto-capture budget " + String(getPcapAutoBudgetMB()) +
                                  " MB, keep " + String(getPcapFreeFloorMB()) +

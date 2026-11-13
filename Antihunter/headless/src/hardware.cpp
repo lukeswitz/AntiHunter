@@ -595,58 +595,79 @@ void syncSettingsToNVS() {
     Serial.println("[NVS] Settings synced to flash");
 }
 
-// FNV-1a hash over every value saveConfiguration persists. Lets saveConfiguration
-// skip the NVS+SD write (and its serial log) when nothing actually changed —
-// callers can invoke it freely without churning flash or spamming the console.
-static uint32_t configSignature() {
+class HashPrint : public Print {
+public:
     uint32_t h = 2166136261u;
-    auto mix = [&](const void *p, size_t n) {
-        const uint8_t *b = static_cast<const uint8_t *>(p);
-        for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 16777619u; }
-    };
-    auto mixStr = [&](const String &s) { mix(s.c_str(), s.length()); h ^= 0x5a; h *= 16777619u; };
+    size_t write(uint8_t c) override { h ^= c; h *= 16777619u; return 1; }
+    size_t write(const uint8_t *b, size_t n) override { for (size_t i = 0; i < n; i++) write(b[i]); return n; }
+};
 
-    mixStr(prefsGetString("nodeId", ""));
-    int sm = currentScanMode; mix(&sm, sizeof(sm));
-    for (size_t i = 0; i < CHANNELS.size(); i++) { int c = CHANNELS[i]; mix(&c, sizeof(c)); }
-    mix(&meshSendInterval, sizeof(meshSendInterval));
-    uint32_t u;
-    u = getMeshDedupTtlSec();          mix(&u, 4);
-    { bool b = getMeshSessionDedup(); mix(&b, 1); }
-    mix(&autoEraseEnabled, 1);
-    mix(&autoEraseDelay, 4); mix(&autoEraseCooldown, 4);
-    mix(&vibrationsRequired, sizeof(vibrationsRequired));
-    mix(&detectionWindow, sizeof(detectionWindow));
-    mix(&setupDelay, sizeof(setupDelay));
-    u = getBaselineRamCacheSize();     mix(&u, 4);
-    u = getBaselineSdMaxDevices();     mix(&u, 4);
-    int8_t i8;
-    i8 = getBaselineRssiThreshold();   mix(&i8, 1);
-    mix(&baselineDuration, sizeof(baselineDuration));
-    u = getDeviceAbsenceThreshold();   mix(&u, 4);
-    u = getReappearanceAlertWindow();  mix(&u, 4);
-    i8 = getSignificantRssiChange();   mix(&i8, 1);
-    mix(&rfConfig.preset, sizeof(rfConfig.preset));
-    mix(&rfConfig.bandMode, sizeof(rfConfig.bandMode));
-    mix(&rfConfig.wifiChannelTime, sizeof(rfConfig.wifiChannelTime));
-    mix(&rfConfig.wifiScanInterval, sizeof(rfConfig.wifiScanInterval));
-    mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
-    mix(&rfConfig.bleScanDuration, sizeof(rfConfig.bleScanDuration));
-    mix(&rfConfig.globalRssiThreshold, sizeof(rfConfig.globalRssiThreshold));
-    mixStr(prefsGetString("maclist", ""));
-    mix(&hbEnabled, 1);
-    mix(&g_meshcoreTransport, 1);
-    mix(&hbInterval, sizeof(hbInterval));
-    mix(&vibrationEnabled, 1);
-    mix(&vibAutoScanEnabled, 1);
-    mix(&vibAutoScanMode, sizeof(vibAutoScanMode));
-    mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
-    mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
-    mix(&vibAutoScanPreempt, 1);
-    { bool sb = prefs.getBool("sentBoot", false); mix(&sb, 1); }
-    { float c[3] = {prefsGetFloat("calDist", 0.0f), prefsGetFloat("calWifi", NAN), prefsGetFloat("calBle", NAN)}; mix(c, sizeof(c)); }
-    mixStr(detect_getConfigJson());
-    return h;
+static void writeConfigJson(Print &cw) {
+    static char channelsBuf[128];
+    int offset = 0;
+    channelsBuf[0] = '\0';
+    for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
+        offset += snprintf(channelsBuf + offset, sizeof(channelsBuf) - offset,
+                          "%d%s", CHANNELS[i], (i < CHANNELS.size() - 1) ? "," : "");
+    }
+
+    cw.println("{");
+    cw.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
+    cw.printf(" \"scanMode\":%d,\n", currentScanMode);
+    cw.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
+    cw.printf(" \"bandMode\":%u,\n", rfConfig.bandMode);
+    cw.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
+    cw.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
+    cw.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
+    cw.printf(" \"bleLongRange\":%s,\n", bleLongRange.load() ? "true" : "false");
+    cw.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
+    cw.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
+    cw.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
+    cw.printf(" \"vibrationsRequired\":%u,\n", vibrationsRequired);
+    cw.printf(" \"detectionWindow\":%u,\n", detectionWindow);
+    cw.printf(" \"setupDelay\":%u,\n", setupDelay);
+    cw.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
+    cw.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
+    cw.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
+    cw.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
+    cw.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
+    cw.printf(" \"reappearanceWindow\":%u,\n", getReappearanceAlertWindow() / 1000);
+    cw.printf(" \"rssiChangeDelta\":%d,\n", getSignificantRssiChange());
+    cw.printf(" \"rfPreset\":%u,\n", rfConfig.preset);
+    cw.printf(" \"wifiChannelTime\":%u,\n", rfConfig.wifiChannelTime);
+    cw.printf(" \"wifiScanInterval\":%u,\n", rfConfig.wifiScanInterval);
+    cw.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
+    cw.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
+    cw.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
+    cw.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
+    cw.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
+    cw.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    cw.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
+    cw.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
+    cw.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
+    cw.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
+    cw.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
+    cw.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
+    cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
+    cw.printf(" \"meshcoreTx\":%s,\n", g_meshcoreTransport ? "true" : "false");
+    cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
+    cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
+    cw.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
+    {
+        float calD = prefsGetFloat("calDist", 0.0f), calW = prefsGetFloat("calWifi", NAN), calB = prefsGetFloat("calBle", NAN);
+        cw.printf(" \"calDist\":%.2f,\n", calD > 0.0f ? calD : 0.0f);
+        if (isnan(calW)) cw.println(" \"calWifiRssi\":null,"); else cw.printf(" \"calWifiRssi\":%.2f,\n", calW);
+        if (isnan(calB)) cw.println(" \"calBleRssi\":null,"); else cw.printf(" \"calBleRssi\":%.2f,\n", calB);
+    }
+    cw.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
+    cw.println("}");
+}
+
+// Hash of the exact text saveConfiguration writes.
+static uint32_t configSignature() {
+    HashPrint hp;
+    writeConfigJson(hp);
+    return hp.h;
 }
 
 static bool commitConfigFile() {
@@ -716,64 +737,8 @@ void saveConfiguration() {
         return;
     }
 
-    static char channelsBuf[128];
-    int offset = 0;
-    for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
-        offset += snprintf(channelsBuf + offset, sizeof(channelsBuf) - offset,
-                          "%d%s", CHANNELS[i], (i < CHANNELS.size() - 1) ? "," : "");
-    }
-
     SdWriter cw(configFile);
-    cw.println("{");
-    cw.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
-    cw.printf(" \"scanMode\":%d,\n", currentScanMode);
-    cw.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
-    cw.printf(" \"bandMode\":%u,\n", rfConfig.bandMode);
-    cw.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
-    cw.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
-    cw.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
-    cw.printf(" \"bleLongRange\":%s,\n", bleLongRange.load() ? "true" : "false");
-    cw.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
-    cw.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
-    cw.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
-    cw.printf(" \"vibrationsRequired\":%u,\n", vibrationsRequired);
-    cw.printf(" \"detectionWindow\":%u,\n", detectionWindow);
-    cw.printf(" \"setupDelay\":%u,\n", setupDelay);
-    cw.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
-    cw.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
-    cw.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
-    cw.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
-    cw.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
-    cw.printf(" \"reappearanceWindow\":%u,\n", getReappearanceAlertWindow() / 1000);
-    cw.printf(" \"rssiChangeDelta\":%d,\n", getSignificantRssiChange());
-    cw.printf(" \"rfPreset\":%u,\n", rfConfig.preset);
-    cw.printf(" \"wifiChannelTime\":%u,\n", rfConfig.wifiChannelTime);
-    cw.printf(" \"wifiScanInterval\":%u,\n", rfConfig.wifiScanInterval);
-    cw.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
-    cw.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
-    cw.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
-    cw.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
-    cw.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
-    cw.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
-    cw.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
-    cw.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
-    cw.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
-    cw.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
-    cw.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
-    cw.printf(" \"vibScanPreempt\":%s,\n", vibAutoScanPreempt ? "true" : "false");
-    cw.printf(" \"meshEnabled\":%s,\n", meshEnabled ? "true" : "false");
-    cw.printf(" \"meshcoreTx\":%s,\n", g_meshcoreTransport ? "true" : "false");
-    cw.printf(" \"sdAutoRepair\":%s,\n", sdAutoRepair ? "true" : "false");
-    cw.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
-    cw.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
-    {
-        float calD = prefsGetFloat("calDist", 0.0f), calW = prefsGetFloat("calWifi", NAN), calB = prefsGetFloat("calBle", NAN);
-        cw.printf(" \"calDist\":%.2f,\n", calD > 0.0f ? calD : 0.0f);
-        if (isnan(calW)) cw.println(" \"calWifiRssi\":null,"); else cw.printf(" \"calWifiRssi\":%.2f,\n", calW);
-        if (isnan(calB)) cw.println(" \"calBleRssi\":null,"); else cw.printf(" \"calBleRssi\":%.2f,\n", calB);
-    }
-    cw.printf(" \"detectors\":%s\n", detect_getConfigJson().c_str());
-    cw.println("}");
+    writeConfigJson(cw);
 
     configFile.flush();
     configFile.close();
