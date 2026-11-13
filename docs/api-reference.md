@@ -143,7 +143,7 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/api/mesh` | GET | JSON: `node`, `peers` (this node first, marked `self`), `radios` |
 | `/api/mesh/ping` | POST | Broadcasts `@ALL STATUS`. `409` if the mesh is off |
 | `/api/mesh/clear` | POST | Clears both rosters |
-| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` starts with `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, or `BLE_CLASSIFY:`, or equals `STOP`, `STATUS`, `CAMPAIGN_STOP`, or `CAMPAIGN_STATUS`. Errors: `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
+| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` starts with `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or `CALIBRATE:`, or equals `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, or `CALIBRATE_RESET`. Errors: `400` bad node or command, `409` mesh off, `413` over 230 characters, `503` mesh busy |
 
 ## Mesh settings
 

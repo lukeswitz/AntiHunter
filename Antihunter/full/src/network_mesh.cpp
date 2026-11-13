@@ -1928,6 +1928,7 @@ static void handleBleLongRange(const String &command)
   bleLongRange = command.substring(14).toInt() != 0;
   prefs.putBool("bleLongRange", bleLongRange.load());
   bleApplyScanPhy();
+  saveConfiguration();
   sendToSerial1(nodeId + ": CONFIG_ACK:BLE_LONGRANGE:" + String(bleLongRange.load() ? 1 : 0), true);
 }
 
@@ -3364,6 +3365,13 @@ void processUSBToMesh() {
                     }
                 } else if (usbBuffer == "FLEET") {
                     Serial.println(meshFleetJson());
+                } else if (usbBuffer.startsWith("FLEET_SEND:")) {
+                    String p = usbBuffer.substring(11);
+                    int sp = p.indexOf(' ');
+                    String msg = "Usage: FLEET_SEND:<node> <command>";
+                    int code = !meshEnabled ? 409 : sp > 0 ? fleetSend(p.substring(0, sp), p.substring(sp + 1), msg) : 400;
+                    if (code == 409) msg = "Mesh disabled";
+                    Serial.printf("FLEET_SEND:%d %s\n", code, msg.c_str());
                 } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(usbBuffer).c_str());
                     processMeshMessage(usbBuffer.c_str());
