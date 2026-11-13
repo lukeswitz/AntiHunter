@@ -17,6 +17,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
@@ -670,70 +671,90 @@ static uint32_t configSignature() {
     return hp.h;
 }
 
-static bool commitConfigFile() {
-    File verify = SafeSD::open(CONFIG_TMP_FILE, FILE_READ);
+bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath) {
+    File verify = SafeSD::open(tmpPath, FILE_READ);
     size_t written = verify ? verify.size() : 0;
     if (verify) verify.close();
 
     if (written == 0) {
-        Serial.println("[CONFIG] ERROR: staged config is empty - previous config kept");
-        SafeSD::remove(CONFIG_TMP_FILE);
+        Serial.printf("[SD] ERROR: staged %s is empty - previous file kept\n", finalPath);
+        SafeSD::remove(tmpPath);
         return false;
     }
 
-    bool hadConfig = SafeSD::exists(CONFIG_FILE);
-    if (hadConfig) {
-        SafeSD::rename(CONFIG_FILE, CONFIG_BAK_FILE);
+    bool hadFile = SafeSD::exists(finalPath);
+    if (hadFile) {
+        SafeSD::rename(finalPath, bakPath);
     }
 
-    if (!SafeSD::rename(CONFIG_TMP_FILE, CONFIG_FILE)) {
-        Serial.println("[CONFIG] ERROR: failed to commit config - restoring previous");
-        if (hadConfig) {
-            SafeSD::rename(CONFIG_BAK_FILE, CONFIG_FILE);
+    if (!SafeSD::rename(tmpPath, finalPath)) {
+        Serial.printf("[SD] ERROR: failed to commit %s - restoring previous\n", finalPath);
+        if (hadFile) {
+            SafeSD::rename(bakPath, finalPath);
         }
-        SafeSD::remove(CONFIG_TMP_FILE);
+        SafeSD::remove(tmpPath);
         return false;
     }
     return true;
 }
 
-static bool s_saveDeferred = false;
-
-void serviceDeferredSave() {
-    if (s_saveDeferred && millis() - lastSaveTime >= SAVE_DEBOUNCE_MS) saveConfiguration();
+static bool commitConfigFile() {
+    return sdCommitStaged(CONFIG_TMP_FILE, CONFIG_FILE, CONFIG_BAK_FILE);
 }
 
-void saveConfiguration() {
+static bool s_saveDeferred = false;
+
+static bool s_sdPendingOnly = false;
+static uint32_t s_sdRetryMs = SAVE_DEBOUNCE_MS;
+
+void serviceDeferredSave() {
+    if (!s_saveDeferred || millis() - lastSaveTime < max<uint32_t>(SAVE_DEBOUNCE_MS, s_sdRetryMs)) return;
+    if (s_sdPendingOnly && !SafeSD::isAvailable()) return;
+    saveConfiguration();
+}
+
+static void saveConfigurationLocked() {
     uint32_t now = millis();
     if (g_sweepHopChannels || now - lastSaveTime < SAVE_DEBOUNCE_MS) {
         s_saveDeferred = true;
         return;
     }
     s_saveDeferred = false;
+    s_sdPendingOnly = false;
 
-    // Only persist when the config actually changed — avoids constant NVS/SD
-    // rewrites (flash wear + log spam) from periodic/no-op callers.
-    static uint32_t lastCfgSig = 0;
-    static bool haveCfgSig = false;
-    uint32_t sig = configSignature();
-    if (haveCfgSig && sig == lastCfgSig) {
-        return;
-    }
-    haveCfgSig = true;
-    lastCfgSig = sig;
+    // NVS and SD each record the hash they last stored, so a failed SD write is retried.
+    static uint32_t nvsSig = 0, sdSig = 0;
+    static bool haveNvsSig = false, haveSdSig = false;
+    const uint32_t sig = configSignature();
+    const bool nvsCurrent = haveNvsSig && sig == nvsSig;
+    const bool sdCurrent = haveSdSig && sig == sdSig;
+    if (nvsCurrent && sdCurrent) return;
     lastSaveTime = now;
 
-    syncSettingsToNVS();
-    vTaskDelay(pdMS_TO_TICKS(200));
+    if (!nvsCurrent) {
+        syncSettingsToNVS();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        nvsSig = sig;
+        haveNvsSig = true;
+    }
+    if (sdCurrent) return;
+
+    auto sdPending = []() {
+        s_saveDeferred = true;
+        s_sdPendingOnly = true;
+        s_sdRetryMs = min<uint32_t>(s_sdRetryMs * 2, 60000);
+    };
 
     if (!SafeSD::isAvailable()) {
-        Serial.println("[CONFIG] Settings saved to NVS only (SD unavailable)");
+        if (!nvsCurrent) Serial.println("[CONFIG] Settings saved to NVS only (SD unavailable)");
+        sdPending();
         return;
     }
 
     File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
     if (!configFile) {
         Serial.println("[CONFIG] ERROR: Failed to open config file for writing!");
+        sdPending();
         return;
     }
 
@@ -744,10 +765,24 @@ void saveConfiguration() {
     configFile.close();
 
     if (!commitConfigFile()) {
+        sdPending();
         return;
     }
 
+    sdSig = sig;
+    haveSdSig = true;
+    s_sdRetryMs = SAVE_DEBOUNCE_MS;
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
+}
+
+void saveConfiguration() {
+    static SemaphoreHandle_t mtx = xSemaphoreCreateRecursiveMutex();
+    if (!mtx || xSemaphoreTakeRecursive(mtx, pdMS_TO_TICKS(5000)) != pdTRUE) {
+        s_saveDeferred = true;
+        return;
+    }
+    saveConfigurationLocked();
+    xSemaphoreGiveRecursive(mtx);
 }
 
 void loadConfiguration() {
@@ -2640,10 +2675,12 @@ bool validateEraseKeyChange(const String &response) {
     return eraseCheck(response, true);
 }
 
+static int64_t uptimeMs64() { return esp_timer_get_time() / 1000; }
+
 static bool eraseCheck(const String &response, bool allowKey) {
     static uint8_t s_fails = 0;
-    static uint32_t s_lockUntil = 0;
-    if (s_lockUntil != 0 && (int32_t)(millis() - s_lockUntil) < 0) {
+    static int64_t s_lockUntil = 0;
+    if (uptimeMs64() < s_lockUntil) {
         Serial.println("[ERASE] Locked out after repeated wrong keys");
         return false;
     }
@@ -2656,7 +2693,7 @@ static bool eraseCheck(const String &response, bool allowKey) {
     }
     if (++s_fails >= 5) {
         s_fails = 0;
-        s_lockUntil = millis() + 600000;
+        s_lockUntil = uptimeMs64() + 600000;
         Serial.println("[ERASE] 5 wrong keys - erase commands locked for 10 min");
     }
     return false;

@@ -1590,7 +1590,7 @@ void snifferScanTask(void *pv)
         if (probeDetectionEnabled && probeRequestQueue) {
             ProbeRequestEvent pEvt;
             int pCount = 0;
-            while (xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE && pCount < 30) {
+            while (pCount < 30 && xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE) {
                 pCount++;
 
                 // Handle probe responses — map responding AP to device
@@ -2923,7 +2923,7 @@ static void selftestBleAdvTask(void *pv) {
     for (uint32_t i = 0; i < count && !stopRequested; i++) {
         adv->stop(0);
         uint8_t a[6];
-        a[0] = 0xC0 | (uint8_t)((i >> 24) & 0x3F); a[1] = 0x1F; a[2] = 0x5E;
+        a[0] = 0xC2 | (uint8_t)((i >> 24) & 0x3C); a[1] = 0x1F; a[2] = 0x5E;
         a[3] = (uint8_t)(i >> 16); a[4] = (uint8_t)(i >> 8); a[5] = (uint8_t)i;
         NimBLEExtAdvertisement data(phy, phy);
         data.setLegacyAdvertising(!coded);
@@ -3805,7 +3805,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
             int apDrained = 0;
-            while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && apDrained < 50) {
+            while (apDrained < 50 && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
                 apDrained++;
                 bool isMatch;
                 if (triMode) {
