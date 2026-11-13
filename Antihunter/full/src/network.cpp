@@ -343,6 +343,22 @@ static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *
 
 void registerRemainingRoutes();
 
+static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack, int secs,
+                            bool forever, TaskHandle_t *handle)
+{
+    scanning = true;
+    if (ahCreateTask(fn, name, stack,
+                     reinterpret_cast<void *>(static_cast<intptr_t>(forever ? 0 : secs)),
+                     1, handle, 1) != pdPASS) {
+        scanning = false;
+        *handle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.printf("[SCAN] Task create failed: %s\n", name);
+        return false;
+    }
+    return true;
+}
+
 static const char *WEB_USER = "admin";
 static const char *WEB_REALM = "AntiHunter";
 static std::mutex s_webAuthMutex;
@@ -571,17 +587,11 @@ void startWebServer()
       }
 
       String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-      req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
-      
-      if (!workerTaskHandle) {
-          scanning = true;
-          if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-              scanning = false;
-              workerTaskHandle = nullptr;
-              scanSetCountdown(0, false);
-              Serial.println("[SCAN] task create failed: scan");
-          }
+      if (!ahStartScanTask(listScanTask, "scan", 8192, secs, forever, &workerTaskHandle)) {
+          req->send(500, "text/plain", "Failed to start scan task");
+          return;
       }
+      req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
   });
 
   server->on("/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -1210,19 +1220,13 @@ void registerRemainingRoutes() {
         currentScanMode = dMode;
         stopRequested = false;
 
+        if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle)) {
+            req->send(500, "text/plain", "Failed to start drone detection task");
+            return;
+        }
         req->send(200, "text/plain", forever ?
                   ("Drone detection starting (forever) - " + dModeStr) :
-                  ("Drone detection starting for " + String(secs) + "s - " + dModeStr));
-        
-        if (!workerTaskHandle) {
-            scanning = true;
-            if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                scanning = false;
-                workerTaskHandle = nullptr;
-                scanSetCountdown(0, false);
-                Serial.println("[SCAN] task create failed: drone");
-            }
-        } });
+                  ("Drone detection starting for " + String(secs) + "s - " + dModeStr)); });
 
 
   server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
@@ -1673,37 +1677,25 @@ void registerRemainingRoutes() {
             if (secs > 86400) secs = 86400;
             
             stopRequested = false;
-            req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
-            
-            if (!blueTeamTaskHandle) {
-                scanning = true;
-                if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    blueTeamTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: blueteam");
-                }
+            if (!ahStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start deauth task");
+                return;
             }
+            req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
 
         } else if (detection == "baseline") {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
             stopRequested = false;
+            currentScanMode = SCAN_BOTH;
+            if (!ahStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start baseline task");
+                return;
+            }
             req->send(200, "text/plain",
                     forever ? "Baseline detection starting (forever)" :
                     ("Baseline detection starting for " + String(secs) + "s"));
-
-            if (!workerTaskHandle) {
-                currentScanMode = SCAN_BOTH;
-                scanning = true;
-                if (ahCreateTask(baselineDetectionTask, "baseline", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    workerTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: baseline");
-                }
-            }
             
         } else if (detection == "randomization-detection") {
             int scanMode = SCAN_BOTH;
@@ -1722,24 +1714,18 @@ void registerRemainingRoutes() {
             String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
+            currentScanMode = (ScanMode)scanMode;
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
+            }
+            if (!ahStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start randomization task");
+                return;
+            }
             req->send(200, "text/plain",
                     forever ? ("Randomization detection starting (forever) - " + modeStr) :
                     ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
-
-            if (!workerTaskHandle) {
-                currentScanMode = (ScanMode)scanMode;
-                scanning = true;
-                {
-                    std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                    antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
-                }
-                if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    workerTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: randdetect");
-                }
-            }
             
         } else if (detection == "device-scan") {
             int scanMode = SCAN_BOTH;
@@ -1758,30 +1744,24 @@ void registerRemainingRoutes() {
             String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
+            currentScanMode = (ScanMode)scanMode;
+
+            if (req->hasParam("captureProbes", true)) {
+                probeDetectionEnabled = true;
+                if (probeRequestQueue == nullptr) {
+                    probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                } else {
+                    xQueueReset(probeRequestQueue);
+                }
+            }
+
+            if (!ahStartScanTask(snifferScanTask, "sniffer", 12288, secs, forever, &workerTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start device scan task");
+                return;
+            }
             req->send(200, "text/plain",
                     forever ? ("Device scan starting (forever) - " + modeStr) :
                     ("Device scan starting for " + String(secs) + "s - " + modeStr));
-
-            if (!workerTaskHandle) {
-                currentScanMode = (ScanMode)scanMode;
-
-                if (req->hasParam("captureProbes", true)) {
-                    probeDetectionEnabled = true;
-                    if (probeRequestQueue == nullptr) {
-                        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                    } else {
-                        xQueueReset(probeRequestQueue);
-                    }
-                }
-
-                scanning = true;
-                if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    workerTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: sniffer");
-                }
-            }
 
         } else if (detection == "probe-scan") {
             int scanMode = SCAN_BOTH;
@@ -1802,21 +1782,15 @@ void registerRemainingRoutes() {
             String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
+            currentScanMode = (ScanMode)scanMode;
+            probeBroadcastAll.store(broadcastAll);
+            if (!ahStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start probe scan task");
+                return;
+            }
             req->send(200, "text/plain",
                     forever ? ("Probe scan starting (forever) - " + modeStr + (broadcastAll ? " [ALL]" : "")) :
                     ("Probe scan starting for " + String(secs) + "s - " + modeStr + (broadcastAll ? " [ALL]" : "")));
-
-            if (!workerTaskHandle) {
-                currentScanMode = (ScanMode)scanMode;
-                scanning = true;
-                probeBroadcastAll.store(broadcastAll);
-                if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    workerTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: probedet");
-                }
-            }
 
         } else if (detection == "drone-detection") {
             if (secs < 0) secs = 0;
@@ -1830,20 +1804,14 @@ void registerRemainingRoutes() {
             }
 
             stopRequested = false;
+            currentScanMode = dMode;
+            if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle)) {
+                req->send(500, "text/plain", "Failed to start drone detection task");
+                return;
+            }
             req->send(200, "text/plain",
                     forever ? "Drone detection starting (forever)" :
                     ("Drone detection starting for " + String(secs) + "s"));
-
-            if (!workerTaskHandle) {
-                currentScanMode = dMode;
-                scanning = true;
-                if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-                    scanning = false;
-                    workerTaskHandle = nullptr;
-                    scanSetCountdown(0, false);
-                    Serial.println("[SCAN] task create failed: drone");
-                }
-            }
             
         } else if (detection == "csi-motion") {
             if (secs < 0) secs = 0;
