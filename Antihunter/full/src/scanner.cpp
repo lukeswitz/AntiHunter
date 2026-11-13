@@ -242,8 +242,15 @@ static size_t snifferTop(Hit *out, bool *outTarget, size_t k, size_t *nTargets)
     return n;
 }
 
-// BLE 
+// BLE
 NimBLEScan *pBLEScan;
+std::atomic<bool> bleLongRange{false};
+
+// One radio listens on one PHY at a time, so adding Coded (BT5 long range) shares time with 1M.
+void bleApplyScanPhy()
+{
+    if (pBLEScan) pBLEScan->setPhy(bleLongRange.load() ? NimBLEScan::SCAN_ALL : NimBLEScan::SCAN_1M);
+}
 void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
 // Scan intervals
@@ -2893,7 +2900,8 @@ static void bleInitTask(void *pv) {
     pBLEScan->setScanCallbacks(&bleScanCallbacks, true);
     pBLEScan->setActiveScan(true);
     pBLEScan->setDuplicateFilter(false);
-    pBLEScan->setMaxResults(200);
+    pBLEScan->setMaxResults(BLE_SCAN_RESULTS_UNLIMITED);
+    bleApplyScanPhy();
     Serial.printf("[BLE_INIT] ready (heap=%u psram=%u)\n",
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
@@ -2907,41 +2915,55 @@ static void bleInitTask(void *pv) {
 #if AH_SELFTEST
 static void selftestBleAdvTask(void *pv) {
     const uint32_t packed = (uint32_t)reinterpret_cast<uintptr_t>(pv);
-    const uint32_t count = packed >> 12;
+    const bool coded = packed >> 31;
+    const uint32_t count = (packed >> 12) & 0x7FFFF;
     const uint32_t periodMs = packed & 0xFFF;
     if (!BLEDevice::isInitialized() && !BLEDevice::init("")) {
         Serial.println("[SELFTEST] bleadv: BLE init failed");
         vTaskDelete(NULL);
         return;
     }
-    NimBLEAdvertising *adv = BLEDevice::getAdvertising();
-    BLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
-    adv->setMinInterval(32);
-    adv->setMaxInterval(48);
+    NimBLEExtAdvertising *adv = BLEDevice::getAdvertising();
+    const uint8_t phy = coded ? BLE_HCI_LE_PHY_CODED : BLE_HCI_LE_PHY_1M;
     uint32_t sent = 0;
-    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums\n", (unsigned)count, (unsigned)periodMs);
+    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums phy=%s\n", (unsigned)count, (unsigned)periodMs,
+                  coded ? "coded" : "1m");
     for (uint32_t i = 0; i < count && !stopRequested; i++) {
-        adv->stop();
+        adv->stop(0);
         uint8_t a[6];
-        a[0] = (uint8_t)i; a[1] = (uint8_t)(i >> 8); a[2] = (uint8_t)(i >> 16);
-        a[3] = 0x5E; a[4] = 0x1F; a[5] = 0xC0 | (uint8_t)((i >> 24) & 0x3F);
-        if (!BLEDevice::setOwnAddr(a)) { Serial.printf("[SELFTEST] bleadv setOwnAddr failed at %u\n", (unsigned)i); break; }
+        a[0] = 0xC0 | (uint8_t)((i >> 24) & 0x3F); a[1] = 0x1F; a[2] = 0x5E;
+        a[3] = (uint8_t)(i >> 16); a[4] = (uint8_t)(i >> 8); a[5] = (uint8_t)i;
+        NimBLEExtAdvertisement data(phy, phy);
+        data.setLegacyAdvertising(!coded);
+        data.setAddress(NimBLEAddress(a, BLE_ADDR_RANDOM));
+        data.setMinInterval(32);
+        data.setMaxInterval(48);
         char nm[20];
         snprintf(nm, sizeof(nm), "AHTEST_%lu", (unsigned long)i);
-        adv->setName(nm);
-        if (adv->start()) sent++;
+        data.setName(nm);
+        if (!adv->setInstanceData(0, data)) { Serial.printf("[SELFTEST] bleadv config failed at %u\n", (unsigned)i); break; }
+        if (adv->start(0)) sent++;
         vTaskDelay(pdMS_TO_TICKS(periodMs ? periodMs : 200));
     }
-    adv->stop();
+    adv->stop(0);
     Serial.printf("[SELFTEST] bleadv done advertised=%u internal=%u\n", (unsigned)sent,
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     vTaskDelete(NULL);
 }
 
-void selftestBleAdvertise(uint32_t count, uint32_t periodMs) {
-    if (count > 0xFFFFF) count = 0xFFFFF;
+void selftestBlePhy(uint8_t mask) {
+    if (!pBLEScan || mask < 1 || mask > 3) {
+        Serial.println("[SELFTEST] blephy needs 1 (1M), 2 (coded) or 3 (both) after BLE init");
+        return;
+    }
+    pBLEScan->setPhy(static_cast<NimBLEScan::Phy>(mask));
+    Serial.printf("[SELFTEST] blephy %u\n", (unsigned)mask);
+}
+
+void selftestBleAdvertise(uint32_t count, uint32_t periodMs, bool coded) {
+    if (count > 0x7FFFF) count = 0x7FFFF;
     if (periodMs > 0xFFF) periodMs = 0xFFF;
-    const uint32_t packed = (count << 12) | periodMs;
+    const uint32_t packed = (coded ? 0x80000000u : 0u) | (count << 12) | periodMs;
     ahCreateTask(selftestBleAdvTask, "bleadv", 6144, reinterpret_cast<void *>(static_cast<uintptr_t>(packed)), 1, NULL, 0);
 }
 #endif
@@ -2998,7 +3020,7 @@ bool sentinelBleTick(bool want)
         if (!g_sentinelBle.exchange(false)) return false;
         if (pBLEScan) {
             if (pBLEScan->isScanning()) pBLEScan->stop();
-            pBLEScan->setMaxResults(200);
+            pBLEScan->setMaxResults(BLE_SCAN_RESULTS_UNLIMITED);
             pBLEScan->clearResults();
         }
         Serial.println("[SENTINEL] BLE listen off");
@@ -3024,7 +3046,7 @@ bool radioStartBLEChecked()
     std::lock_guard<std::recursive_mutex> lk(g_bleLifeMtx);
     if (g_sentinelBle.exchange(false) && pBLEScan) {
         if (pBLEScan->isScanning()) pBLEScan->stop();
-        pBLEScan->setMaxResults(200);
+        pBLEScan->setMaxResults(BLE_SCAN_RESULTS_UNLIMITED);
         pBLEScan->clearResults();
         Serial.println("[SENTINEL] BLE listen handed to scan");
     }

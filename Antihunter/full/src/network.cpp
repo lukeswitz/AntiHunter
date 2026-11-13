@@ -761,6 +761,7 @@ static bool schedPathOk(const String &p) {
 static String dataCfgJson() {
   time_t now = schedNow();
   return String("{\"campaign\":\"") + campaignName() + "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") +
+         ",\"bleLongRange\":" + (bleLongRange.load() ? "true" : "false") +
          ",\"tz\":\"" + nodeTZAbbrev(now) + "\",\"tzOff\":" + String(nodeTZOffset(now)) + ",\"tzPosix\":\"" + nodeTZPosix() + "\"}";
 }
 
@@ -1408,6 +1409,11 @@ void registerRemainingRoutes() {
     if (req->hasParam("bleClassify", true)) {
       bleClassifyEnabled = req->getParam("bleClassify", true)->value().toInt() != 0;
       prefs.putBool("bleClassify", bleClassifyEnabled);
+    }
+    if (req->hasParam("bleLongRange", true)) {
+      bleLongRange = req->getParam("bleLongRange", true)->value().toInt() != 0;
+      prefs.putBool("bleLongRange", bleLongRange.load());
+      bleApplyScanPhy();
     }
     if (req->hasParam("stop", true)) campaignStop();
     if (req->hasParam("campaign", true) && !campaignStart(req->getParam("campaign", true)->value())) {

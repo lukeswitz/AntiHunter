@@ -462,6 +462,7 @@ void initializeHardware()
     meshEnabled = prefs.getBool("meshEnabled", true);
     Serial.printf("[CONFIG] Mesh: %s\n", meshEnabled ? "Enabled" : "Disabled");
     bleClassifyEnabled = prefs.getBool("bleClassify", true);
+    bleLongRange = prefs.getBool("bleLongRange", false);
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
