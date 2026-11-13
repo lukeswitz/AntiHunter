@@ -228,8 +228,11 @@ void karmaEmitBait(const uint8_t *targetBssid) {
     esp_err_t err = esp_wifi_80211_tx(txif, frame, total, false);
     (void)err;
 
-    if (g_baitSsids.size() >= MAX_BAIT) g_baitSsids.erase(g_baitSsids.begin());
-    g_baitSsids.push_back(String(ssid));
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        if (g_baitSsids.size() >= MAX_BAIT) g_baitSsids.erase(g_baitSsids.begin());
+        g_baitSsids.push_back(String(ssid));
+    }
     (void)targetBssid;
 }
 

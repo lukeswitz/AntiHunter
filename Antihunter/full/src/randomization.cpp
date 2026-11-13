@@ -71,6 +71,7 @@ extern bool radioStartBLEChecked();
 extern std::atomic<bool> meshTxDraining;
 
 std::mutex randMutex;
+static uint32_t randSessionsShed = 0;
 
 bool isRandomizedMAC(const uint8_t *mac) {
     return (mac[0] & 0x02) && !(mac[0] & 0x01);
@@ -490,6 +491,7 @@ uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length) {
 }
 
 bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime) {
+    if (identity.lastSeen == 0) return false;  // loaded from SD: last sighting time unknown this boot
     uint32_t gap = currentTime - identity.lastSeen;
     if (identity.isBLE) {
         return (gap >= MAC_ROTATION_GAP_MIN_BLE && gap <= MAC_ROTATION_GAP_MAX_BLE);
@@ -537,9 +539,7 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
             }
         }
         
-        int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
-                               session.rssiSum / static_cast<int>(session.rssiReadings.size()) :
-                               session.rssiSum / max(1, static_cast<int>(session.probeCount));
+        int8_t sessionAvgRssi = session.rssiSum / max(1, static_cast<int>(session.probeCount));
         int8_t rssiDelta = abs(rssi - sessionAvgRssi);
         if (rssiDelta < 20) {
             score += 0.25f * (1.0f - (rssiDelta / 40.0f));
@@ -655,7 +655,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     for (const auto& identityEntry : deviceIdentities) {
         const DeviceIdentity& identity = identityEntry.second;
         
-        if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
+        if (identity.lastSeen != 0 && now - identity.lastSeen > TRACK_STALE_TIME) continue;
         
         bool alreadyLinked = std::any_of(identity.macs.begin(), identity.macs.end(),
             [&session](const MacAddress& m) {
@@ -779,7 +779,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         float rotationGapScore = 0.0f;
         if (inRotationGap) {
             rotationGapScore = 1.0f;
-        } else if (timeDelta < MAC_ROTATION_GAP_MIN) {
+        } else if (identity.lastSeen != 0 && timeDelta < MAC_ROTATION_GAP_MIN) {
             rotationGapScore = 0.5f;
         }
         rotationGapScore *= 0.03f;
@@ -915,7 +915,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
             return;
         }
-        if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
+        if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
             String lruKey;
             uint32_t oldestSeen = UINT32_MAX;
             for (const auto& entry : deviceIdentities) {
@@ -1066,6 +1066,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
 }
 
 void cleanupStaleSessions() {
+    std::lock_guard<std::mutex> lock(randMutex);
     uint32_t now = millis();
     std::vector<String> toRemove;
     
@@ -1087,6 +1088,7 @@ void cleanupStaleSessions() {
 }
 
 void cleanupStaleTracks() {
+    std::lock_guard<std::mutex> lock(randMutex);
     uint32_t now = millis();
     std::vector<String> toRemove;
     
@@ -1108,9 +1110,9 @@ void resetRandomizationDetection() {
         deviceIdentities.clear();
         identityIdCounter = 0;
     }
-    SafeSD::remove("/rand_identities.dat");
+    for (const char *p : {RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK, RAND_IDENTITIES_TMP}) SafeSD::remove(p);
     rebuildIdentityMacSnapshot();
-    Serial.println("[RAND] Reset: cleared identities + wiped /rand_identities.dat");
+    Serial.println("[RAND] Reset: cleared identities + wiped " RAND_IDENTITIES_FILE);
 }
 
 static String sanitizeAscii(const char *s, size_t maxLen) {
@@ -1360,6 +1362,7 @@ void randomizationDetectionTask(void *pv) {
     {
         std::lock_guard<std::mutex> lock(randMutex);
         activeSessions.clear();
+        randSessionsShed = 0;
     }
     loadDeviceIdentities();
     cleanupStaleTracks();
@@ -1431,6 +1434,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextCleanup = startTime + 10000;
     uint32_t nextTrackCleanup = startTime + 60000;
+    uint32_t nextIdentitySave = startTime + RAND_IDENTITY_SAVE_MS;
     uint32_t nextResultsUpdate = startTime + 1000;
     size_t lastWrittenIdentityCount = SIZE_MAX;
     uint32_t lastBLEScan = 0;
@@ -1466,7 +1470,8 @@ void randomizationDetectionTask(void *pv) {
                 
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
                 
-                if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
+                if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
+                    randSessionsShed++;
                     continue;
                 }
                 
@@ -1553,10 +1558,12 @@ void randomizationDetectionTask(void *pv) {
                     }
                     
                     session.lastSeen = now;
-                    session.rssiSum += event.rssi;
                     session.rssiMin = min(session.rssiMin, event.rssi);
                     session.rssiMax = max(session.rssiMax, event.rssi);
-                    session.probeCount++;
+                    if (session.probeCount < UINT8_MAX) {
+                        session.rssiSum += event.rssi;
+                        session.probeCount++;
+                    }
                     
                     if (session.rssiReadings.size() < 20) {
                         session.rssiReadings.push_back(event.rssi);
@@ -1592,7 +1599,8 @@ void randomizationDetectionTask(void *pv) {
 
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
 
-                if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
+                if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
+                    randSessionsShed++;
                     continue;
                 }
 
@@ -1641,10 +1649,12 @@ void randomizationDetectionTask(void *pv) {
                     }
 
                     session.lastSeen = now;
-                    session.rssiSum += rssi;
                     session.rssiMin = min(session.rssiMin, rssi);
                     session.rssiMax = max(session.rssiMax, rssi);
-                    session.probeCount++;
+                    if (session.probeCount < UINT8_MAX) {
+                        session.rssiSum += rssi;
+                        session.probeCount++;
+                    }
 
                     try {
                         if (session.rssiReadings.size() < 20) {
@@ -1668,29 +1678,23 @@ void randomizationDetectionTask(void *pv) {
         
         if (static_cast<int32_t>(millis() - nextStatus) >= 0) {
             uint32_t now = millis();
-            std::vector<ProbeSession*> toProcess;
-            
             {
                 std::lock_guard<std::mutex> lock(randMutex);
                 for (auto& entry : activeSessions) {
-                    if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
-                        if (now - entry.second.startTime >= 2000) {
-                            toProcess.push_back(&entry.second);
-                        }
+                    if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac) &&
+                        now - entry.second.startTime >= 2000) {
+                        linkSessionToTrackBehavioral(entry.second);
                     }
                 }
-            }
-            
-            for (auto* session : toProcess) {
-                linkSessionToTrackBehavioral(*session);
             }
 
             rebuildIdentityMacSnapshot();
 
             {
                 std::lock_guard<std::mutex> lock(randMutex);
-                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu\n",
-                            activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap());
+                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu PSRAM:%u Shed:%u\n",
+                            activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap(),
+                            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)randSessionsShed);
             }
 
             nextStatus += 5000;
@@ -1748,6 +1752,11 @@ void randomizationDetectionTask(void *pv) {
             nextTrackCleanup += 60000;
         }
 
+        if (static_cast<int32_t>(millis() - nextIdentitySave) >= 0) {
+            saveDeviceIdentities();
+            nextIdentitySave = millis() + RAND_IDENTITY_SAVE_MS;
+        }
+
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
@@ -1794,28 +1803,25 @@ void randomizationDetectionTask(void *pv) {
 
     if (!stopRequested) {
         Serial.println("[RAND] Processing remaining sessions (heap-gated)...");
-        std::vector<ProbeSession*> toLink;
+        uint32_t linked = 0, skipped = 0;
         {
             std::lock_guard<std::mutex> lock(randMutex);
-            toLink.reserve(activeSessions.size());
+            uint32_t pending = 0;
+            for (const auto& entry : activeSessions) {
+                if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) pending++;
+            }
             for (auto& entry : activeSessions) {
-                if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
-                    toLink.push_back(&entry.second);
+                if (entry.second.linkedToIdentity || !isRandomizedMAC(entry.second.mac)) continue;
+                if (stopRequested) break;
+                if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
+                    skipped = pending - linked;
+                    Serial.printf("[RAND] End-of-scan heap-gate hit (internal:%u), skipping %u remaining\n",
+                                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)skipped);
+                    break;
                 }
+                linkSessionToTrackBehavioral(entry.second);
+                linked++;
             }
-        }
-        uint32_t linked = 0, skipped = 0;
-        for (auto* session : toLink) {
-            if (stopRequested) break;
-            if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
-                Serial.printf("[RAND] End-of-scan heap-gate hit (internal:%u), skipping %u remaining\n",
-                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                              (unsigned)(toLink.size() - linked - skipped));
-                skipped = toLink.size() - linked;
-                break;
-            }
-            linkSessionToTrackBehavioral(*session);
-            linked++;
         }
         Serial.printf("[RAND] End-of-scan linked %u, skipped %u (internal:%u psram:%u)\n",
                       linked, skipped,
@@ -1905,7 +1911,7 @@ void saveDeviceIdentities() {
         append(&id.mfrDataLen, sizeof(id.mfrDataLen));
     }
 
-    File file = SafeSD::open("/rand_identities.dat", FILE_WRITE);
+    File file = SafeSD::open(RAND_IDENTITIES_TMP, FILE_WRITE);
     SdWriter file_w(file);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for writing");
@@ -1913,29 +1919,38 @@ void saveDeviceIdentities() {
     }
     size_t written = file_w.write(buf.data(), buf.size());
     file.close();
+    if (written != buf.size()) {
+        Serial.printf("[RAND] Identities write short (%u of %u bytes), previous file kept\n",
+                      (unsigned)written, (unsigned)buf.size());
+        SafeSD::remove(RAND_IDENTITIES_TMP);
+        return;
+    }
+    if (!sdCommitStaged(RAND_IDENTITIES_TMP, RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK)) return;
     Serial.printf("[RAND] Saved %u identities to SD (fmt RAN4, %u bytes)\n", count, (unsigned)written);
 }
 
 void loadDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
-    if (!SafeSD::exists("/rand_identities.dat")) return;
+    const char *path = SafeSD::exists(RAND_IDENTITIES_FILE) ? RAND_IDENTITIES_FILE
+                     : SafeSD::exists(RAND_IDENTITIES_BAK)  ? RAND_IDENTITIES_BAK : nullptr;
+    if (!path) return;
 
     std::lock_guard<std::mutex> lock(randMutex);
 
     deviceIdentities.clear();
 
-    File file = SafeSD::open("/rand_identities.dat", FILE_READ);
+    File file = SafeSD::open(path, FILE_READ);
     if (!file) {
-        Serial.println("[RAND] Failed to open identities file");
+        Serial.printf("[RAND] Failed to open %s\n", path);
         return;
     }
 
     const uint32_t kFormatMagic = 0x52414E34;
     uint32_t magic = 0;
     if (file.read(reinterpret_cast<uint8_t*>(&magic), sizeof(magic)) != sizeof(magic) || magic != kFormatMagic) {
-        Serial.printf("[RAND] Old/unknown format (magic=0x%08X), wiping rand_identities.dat\n", magic);
+        Serial.printf("[RAND] Old/unknown format (magic=0x%08X), wiping %s\n", magic, path);
         file.close();
-        SafeSD::remove("/rand_identities.dat");
+        SafeSD::remove(path);
         return;
     }
 
@@ -1946,8 +1961,8 @@ void loadDeviceIdentities() {
         return;
     }
     
-    if (count > MAX_DEVICE_TRACKS) {
-        Serial.printf("[RAND] Invalid count: %u\n", count);
+    if (count > file.size() / sizeof(BehavioralSignature)) {
+        Serial.printf("[RAND] Invalid count: %u for %u bytes\n", count, (unsigned)file.size());
         file.close();
         return;
     }

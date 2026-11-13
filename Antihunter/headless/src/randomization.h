@@ -152,8 +152,12 @@ const uint32_t SESSION_START_THRESHOLD = 3000;
 const uint32_t SESSION_END_TIMEOUT = 10000;
 const uint32_t SESSION_CLEANUP_AGE = 45000;
 const uint32_t TRACK_STALE_TIME = 86400000; // 24hr window for SD 
-const uint32_t MAX_ACTIVE_SESSIONS = 128;
-const uint32_t MAX_DEVICE_TRACKS = 256;
+// Sessions and identities have no count limit; new ones wait only while free PSRAM is below this.
+const uint32_t RAND_PSRAM_FLOOR = 512 * 1024;
+const uint32_t RAND_IDENTITY_SAVE_MS = 300000;
+#define RAND_IDENTITIES_FILE "/rand_identities.dat"
+#define RAND_IDENTITIES_TMP "/rand_identities.dat.tmp"
+#define RAND_IDENTITIES_BAK "/rand_identities.dat.bak"
 const uint32_t MAX_LINKED_MACS_PER_IDENTITY = 128;
 const uint32_t FINGERPRINT_MATCH_THRESHOLD = 2;
 const uint32_t MAC_ROTATION_GAP_MIN = 600000;        // 10 minutes WiFi

@@ -70,6 +70,9 @@ public:
     static void forceRecheck();
 };
 
+// Replaces finalPath with the fully written tmpPath; the old file survives any failure.
+bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath);
+
 // Print wrapper so print/println/printf/serializeJson all go through the retrying write
 class SdWriter : public Print {
 public:
