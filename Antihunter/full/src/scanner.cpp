@@ -2917,7 +2917,8 @@ static void bleInitTask(void *pv) {
 static void selftestBleAdvTask(void *pv) {
     const uint32_t packed = (uint32_t)reinterpret_cast<uintptr_t>(pv);
     const bool coded = packed >> 31;
-    const uint32_t count = (packed >> 12) & 0x7FFFF;
+    const bool rid = (packed >> 30) & 1;
+    const uint32_t count = (packed >> 12) & 0x3FFFF;
     const uint32_t periodMs = packed & 0xFFF;
     if (!BLEDevice::isInitialized() && !BLEDevice::init("")) {
         Serial.println("[SELFTEST] bleadv: BLE init failed");
@@ -2927,8 +2928,8 @@ static void selftestBleAdvTask(void *pv) {
     NimBLEExtAdvertising *adv = BLEDevice::getAdvertising();
     const uint8_t phy = coded ? BLE_HCI_LE_PHY_CODED : BLE_HCI_LE_PHY_1M;
     uint32_t sent = 0;
-    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums phy=%s\n", (unsigned)count, (unsigned)periodMs,
-                  coded ? "coded" : "1m");
+    Serial.printf("[SELFTEST] bleadv start count=%u period=%ums phy=%s rid=%d\n", (unsigned)count, (unsigned)periodMs,
+                  coded ? "coded" : "1m", rid ? 1 : 0);
     for (uint32_t i = 0; i < count && !stopRequested; i++) {
         adv->stop(0);
         uint8_t a[6];
@@ -2939,9 +2940,15 @@ static void selftestBleAdvTask(void *pv) {
         data.setAddress(NimBLEAddress(a, BLE_ADDR_RANDOM));
         data.setMinInterval(32);
         data.setMaxInterval(48);
-        char nm[20];
-        snprintf(nm, sizeof(nm), "AHTEST_%lu", (unsigned long)i);
-        data.setName(nm);
+        if (rid) {
+            uint8_t sd[27] = {0x0D, (uint8_t)i, 0x02, 0x12};
+            snprintf(reinterpret_cast<char *>(sd + 4), 21, "AHTEST%06lu", (unsigned long)i);
+            data.setServiceData(NimBLEUUID((uint16_t)0xFFFA), sd, sizeof(sd));
+        } else {
+            char nm[20];
+            snprintf(nm, sizeof(nm), "AHTEST_%lu", (unsigned long)i);
+            data.setName(nm);
+        }
         if (!adv->setInstanceData(0, data)) { Serial.printf("[SELFTEST] bleadv config failed at %u\n", (unsigned)i); break; }
         if (adv->start(0)) sent++;
         vTaskDelay(pdMS_TO_TICKS(periodMs ? periodMs : 200));
@@ -2961,10 +2968,10 @@ void selftestBlePhy(uint8_t mask) {
     Serial.printf("[SELFTEST] blephy %u\n", (unsigned)mask);
 }
 
-void selftestBleAdvertise(uint32_t count, uint32_t periodMs, bool coded) {
-    if (count > 0x7FFFF) count = 0x7FFFF;
+void selftestBleAdvertise(uint32_t count, uint32_t periodMs, bool coded, bool rid) {
+    if (count > 0x3FFFF) count = 0x3FFFF;
     if (periodMs > 0xFFF) periodMs = 0xFFF;
-    const uint32_t packed = (coded ? 0x80000000u : 0u) | (count << 12) | periodMs;
+    const uint32_t packed = (coded ? 0x80000000u : 0u) | (rid ? 0x40000000u : 0u) | (count << 12) | periodMs;
     ahCreateTask(selftestBleAdvTask, "bleadv", 6144, reinterpret_cast<void *>(static_cast<uintptr_t>(packed)), 1, NULL, 0);
 }
 

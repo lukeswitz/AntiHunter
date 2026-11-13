@@ -2922,12 +2922,12 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       attack_responseArm(m, "SELFTEST");
   }
   else if (command.startsWith("SELFTEST_BLEADV:")) {
-      extern void selftestBleAdvertise(uint32_t, uint32_t, bool);
+      extern void selftestBleAdvertise(uint32_t, uint32_t, bool, bool);
       String p = command.substring(16);
       int c = p.indexOf(':');
       uint32_t n = (uint32_t)(c > 0 ? p.substring(0, c) : p).toInt();
       uint32_t ms = (uint32_t)(c > 0 ? p.substring(c + 1).toInt() : 200);
-      selftestBleAdvertise(n, ms, p.endsWith(":C"));
+      selftestBleAdvertise(n, ms, p.indexOf(":C") > 0, p.indexOf(":R") > 0);
   }
   else if (command.startsWith("SELFTEST_BLEPHY:")) {
       extern void selftestBlePhy(uint8_t);
