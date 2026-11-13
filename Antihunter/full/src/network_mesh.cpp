@@ -2475,6 +2475,19 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       extern void selftestDeauthFlood(uint32_t);
       selftestDeauthFlood((uint32_t)command.substring(21).toInt());
   }
+  else if (command.startsWith("SELFTEST_EAPOLFLOOD:")) {
+      extern void selftestEapolFlood(uint32_t);
+      selftestEapolFlood((uint32_t)command.substring(20).toInt());
+  }
+  else if (command.startsWith("SELFTEST_MESHRX:")) {
+      String line = command.substring(16);
+      line.replace("|", ": ");
+      processMeshMessage(line);
+  }
+  else if (command == "SELFTEST_TRISTATE") {
+      extern void selftestTriState();
+      selftestTriState();
+  }
   else if (command == "SELFTEST_CAMP1") {
       bool ok = campaignStart("st1");
       logToSD("SELFTEST_PROBE camp");

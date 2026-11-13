@@ -387,6 +387,7 @@ struct PmkidBurst {
     uint32_t lastSeen{};
 };
 PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
+static constexpr uint32_t PMKID_PSRAM_FLOOR = 512 * 1024;
 static constexpr uint32_t PMKID_ORPHAN_SETTLE_MS = 1500;
 
 static uint64_t eapolSessionKey(const uint8_t *bssid, const uint8_t *sta) {
@@ -1181,7 +1182,19 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         }
     }
     uint64_t srcK = packMac(src);
-    PmkidBurst &b = g_pmkidBursts[srcK];
+    auto bIt = g_pmkidBursts.find(srcK);
+    if (bIt == g_pmkidBursts.end()) {
+        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR) {
+            static uint32_t s_lastShedLog = 0;
+            if (now - s_lastShedLog > 10000) {
+                s_lastShedLog = now;
+                Serial.printf("[DETECT] PSRAM low (%u free): new PMKID sources not tracked\n", (unsigned)ESP.getFreePsram());
+            }
+            return;
+        }
+        bIt = g_pmkidBursts.emplace(srcK, PmkidBurst{}).first;
+    }
+    PmkidBurst &b = bIt->second;
     b.lastSeen = now;
     uint64_t bssK = packMac(bssid);
     b.bssidTs[bssK] = now;
@@ -5105,3 +5118,43 @@ void detect_clearAll() {
         if (SafeSD::exists(kDetectLogs[i])) SafeSD::remove(kDetectLogs[i]);
     }
 }
+
+#if defined(AH_SELFTEST) && AH_SELFTEST
+static void selftestEapolFloodTask(void *pv) {
+    const uint32_t n = (uint32_t)reinterpret_cast<uintptr_t>(pv);
+    uint32_t queued = 0;
+    for (uint32_t i = 0; i < n && g_detectFrameQueue; i++) {
+        DetectFrameEvent ev{};
+        ev.kind = DetectFrameEvent::EAPOL;
+        ev.channel = 6;
+        ev.rssi = -55;
+        uint8_t *p = ev.payload;
+        p[0] = 0x08; p[1] = 0x02;
+        const uint8_t sta[6] = {0x00, 0x1B, 0x5E, 0x00, (uint8_t)(i >> 8), (uint8_t)i};
+        const uint8_t bss[6] = {0x00, 0x1A, 0x2B, 0x00, 0x00, 0x01};
+        memcpy(p + 4, sta, 6);
+        memcpy(p + 10, bss, 6);
+        memcpy(p + 16, bss, 6);
+        const uint8_t llc[8] = {0xAA, 0xAA, 0x03, 0x00, 0x00, 0x00, 0x88, 0x8E};
+        memcpy(p + 24, llc, 8);
+        p[32] = 0x02; p[33] = 0x03; p[34] = 0x00; p[35] = 0x5F; p[36] = 0x02;
+        p[37] = 0x00; p[38] = 0x8A; p[39] = 0x00; p[40] = 0x10; p[48] = 0x01;
+        memset(p + 49, 0xA5, 32);
+        ev.len = 131;
+        if (xQueueSend(g_detectFrameQueue, &ev, pdMS_TO_TICKS(50)) == pdTRUE) queued++;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    size_t bursts;
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        bursts = g_pmkidBursts.size();
+    }
+    Serial.printf("[SELFTEST] eapolflood queued=%u of %u bursts=%u psram=%u\n", (unsigned)queued, (unsigned)n,
+                  (unsigned)bursts, (unsigned)ESP.getFreePsram());
+    vTaskDelete(NULL);
+}
+
+void selftestEapolFlood(uint32_t n) {
+    ahCreateTask(selftestEapolFloodTask, "steapol", 4096, reinterpret_cast<void *>(static_cast<uintptr_t>(n)), 1, NULL, 0);
+}
+#endif
