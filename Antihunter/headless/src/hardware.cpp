@@ -666,6 +666,7 @@ void saveConfiguration() {
     configFile_w.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
     configFile_w.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
     configFile_w.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
+    configFile_w.printf(" \"bleLongRange\":%s,\n", bleLongRange.load() ? "true" : "false");
     configFile_w.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
     configFile_w.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
     configFile_w.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
@@ -887,6 +888,13 @@ void loadConfiguration() {
         setMeshSessionDedup(sd);
         prefs.putBool("meshSessDedup", sd);
         Serial.printf("Loaded meshSessDedup from SD: %s\n", sd ? "ON" : "OFF");
+    }
+
+    if (doc.containsKey("bleLongRange") && doc["bleLongRange"].is<bool>()) {
+        bleLongRange = doc["bleLongRange"].as<bool>();
+        prefs.putBool("bleLongRange", bleLongRange.load());
+        bleApplyScanPhy();
+        Serial.printf("Loaded bleLongRange from SD: %s\n", bleLongRange.load() ? "ON" : "OFF");
     }
 
     if (doc.containsKey("targets") && doc["targets"].is<String>()) {

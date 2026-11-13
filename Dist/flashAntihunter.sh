@@ -157,6 +157,8 @@ collect_configuration() {
     echo "  2 - Both WiFi and BLE"
     read -p "Select scan mode (0-2) [default: 2]: " SCAN_MODE
     SCAN_MODE=${SCAN_MODE:-2}
+    read -p "BLE long range (Bluetooth 5)? Normal BLE gets less listening time (y/N): " BLE_LR_ON
+    if [[ "$BLE_LR_ON" =~ ^[Yy]$ ]]; then BLE_LONG_RANGE="true"; else BLE_LONG_RANGE="false"; fi
 
     echo ""
     local ch_default="1..11"
@@ -308,7 +310,7 @@ collect_configuration() {
     fi
 
     cat > /tmp/antihunter_config.json <<EOF
-{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${TARGETS//,/\\n}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
+{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"bleLongRange":$BLE_LONG_RANGE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${TARGETS//,/\\n}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
 EOF
 
     echo ""

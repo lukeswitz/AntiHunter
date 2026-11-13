@@ -408,6 +408,15 @@
             </select>
           </div>
           <div>
+            <label>BLE Long Range</label>
+            <select id="cfgBleLongRange">
+              <option value="" selected>Off (Default)</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+            <div class="cfg-note">Also hears Bluetooth 5 long range. Normal BLE gets less listening time.</div>
+          </div>
+          <div>
             <label>Wi-Fi Channels</label>
             <input type="text" id="cfgChannels" placeholder="1..11 or 1,6,11">
           </div>
@@ -872,6 +881,7 @@ chmod +x flashAntihunter.sh
       bool('cfgMeshEnabled', 'meshEnabled');
       num('cfgMeshDedupTtl', 'meshDedupTtl');
       bool('cfgMeshSessDedup', 'meshSessDedup');
+      bool('cfgBleLongRange', 'bleLongRange');
       bool('cfgVibScanEnabled', 'vibScanEnabled');
       num('cfgVibScanMode', 'vibScanMode');
       num('cfgVibScanDuration', 'vibScanDuration');

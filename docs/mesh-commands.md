@@ -413,6 +413,15 @@ Rules for `CSI_CFG`:
 
 While a CSI scan runs, the node sends `CSI_MOTION` and `CSI_CLEAR` alerts. [Alerts](#alerts) lists both.
 
+### USB serial only
+
+These commands work only when typed on the node's USB serial port, on Full and Headless.
+
+| Command | What it does | Reply | Example |
+|---|---|---|---|
+| `FLEET` | Prints the other nodes this node has heard, as JSON | JSON on USB | `FLEET` |
+| `FLEET_SEND:<node> <command>` | Sends one command over the mesh to another node. It accepts the same commands as `/api/fleet/send` in the [API reference](api-reference.md) | `FLEET_SEND:<code> <message>`: `200` sent, `400` bad node or command, `409` mesh off, `413` too long, `503` mesh busy | `FLEET_SEND:AH02 STATUS` |
+
 ### Branch-only
 
 | Command | Alias | Where | What it does | Reply | Example |

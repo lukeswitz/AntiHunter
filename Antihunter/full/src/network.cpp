@@ -1414,6 +1414,7 @@ void registerRemainingRoutes() {
       bleLongRange = req->getParam("bleLongRange", true)->value().toInt() != 0;
       prefs.putBool("bleLongRange", bleLongRange.load());
       bleApplyScanPhy();
+      saveConfiguration();
     }
     if (req->hasParam("stop", true)) campaignStop();
     if (req->hasParam("campaign", true) && !campaignStart(req->getParam("campaign", true)->value())) {
