@@ -9,6 +9,7 @@
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
 #include "randomization.h"
+#include "psram_table.h"
 
 // Resident tasks only: the PSRAM stack needs vTaskDeleteWithCaps, so never use this for a
 // task that self-deletes with vTaskDelete.
@@ -46,12 +47,10 @@ struct Hit {
    uint8_t auth = 0xFF;
 };
 
-using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
+using UniqueMacsSet = PsramTable<uint8_t>;
 using DeviceLastSeenMap = std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>>;
 using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
-using StringStringMapPsram = std::map<String, String, std::less<String>,
-    PsramAllocator<std::pair<const String, String>>>;
 
 struct DeauthStats {
     String srcMac;

@@ -10,6 +10,7 @@
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
 #include "randomization.h"
+#include "psram_table.h"
 
 static inline BaseType_t ahCreateResidentTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                               void *arg, UBaseType_t prio, TaskHandle_t *handle,
@@ -45,12 +46,10 @@ struct Hit {
    uint8_t auth = 0xFF;
 };
 
-using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
+using UniqueMacsSet = PsramTable<uint8_t>;
 using DeviceLastSeenMap = std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>>;
 using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
-using StringStringMapPsram = std::map<String, String, std::less<String>,
-    PsramAllocator<std::pair<const String, String>>>;
 using PsramJsonString = std::basic_string<char, std::char_traits<char>, PsramAllocator<char>>;
 
 struct DeauthStats {
@@ -254,7 +253,14 @@ void loadDeviceDB();
 void saveDeviceDB();
 void mergeHitToDeviceDB(const Hit &h);
 uint32_t getDeviceDBSize();
-PsramJsonString getDeviceDBJson();
+struct DeviceDBStream {
+    size_t cursor = 0;
+    uint8_t phase = 0;
+    uint16_t pendLen = 0;
+    uint16_t pendOff = 0;
+    char pend[320];
+};
+size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen);
 void clearDeviceDB();
 
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
@@ -304,7 +310,6 @@ struct ApInfoEvent {
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
-extern portMUX_TYPE uniqueMacsMux;
 
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);

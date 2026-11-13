@@ -2505,6 +2505,61 @@ static void selftestReport(const char *name, bool pass, const String &detail) {
   Serial.printf("[SELFTEST] %s %s %s\n", name, pass ? "PASS" : "FAIL", detail.c_str());
 }
 
+static std::vector<void *> g_selftestBlocks;
+static void selftestSqueezeInternal(uint32_t targetFreeBytes) {
+  size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  while (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) > targetFreeBytes) {
+    void *p = heap_caps_malloc(2048, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!p) break;
+    g_selftestBlocks.push_back(p);
+  }
+  Serial.printf("[SELFTEST] squeeze internal %u -> %u (%u blocks) integrity=%s\n",
+                (unsigned)before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)g_selftestBlocks.size(),
+                heap_caps_check_integrity_all(true) ? "OK" : "CORRUPT");
+}
+static void selftestRelease() {
+  for (void *p : g_selftestBlocks) heap_caps_free(p);
+  g_selftestBlocks.clear();
+  Serial.printf("[SELFTEST] released, internal=%u psram=%u\n",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+}
+static void selftestSqueezePsram(uint32_t targetFreeBytes) {
+  const size_t kBlock = 65536;
+  size_t before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  while (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > targetFreeBytes + kBlock) {
+    void *p = heap_caps_malloc(kBlock, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!p) break;
+    g_selftestBlocks.push_back(p);
+  }
+  Serial.printf("[SELFTEST] squeeze psram %u -> %u (%u blocks)\n", (unsigned)before,
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)g_selftestBlocks.size());
+}
+// Feeds n distinct synthetic APs through apInfoQueue, the promiscuous capture path the device scan drains.
+static void selftestApFloodTask(void *pv) {
+  const uint32_t n = (uint32_t)(uintptr_t)pv;
+  const uint32_t salt = esp_random();
+  uint32_t sent = 0, dropped = 0;
+  for (uint32_t i = 0; i < n && apInfoQueue && apCaptureEnabled.load(); i++) {
+    ApInfoEvent ev = {};
+    ev.bssid[0] = 0x02;
+    ev.bssid[1] = (uint8_t)(salt >> 8);
+    ev.bssid[2] = (uint8_t)(i >> 24);
+    ev.bssid[3] = (uint8_t)(i >> 16);
+    ev.bssid[4] = (uint8_t)(i >> 8);
+    ev.bssid[5] = (uint8_t)i;
+    ev.rssi = -40;
+    ev.channel = 6;
+    ev.auth = 3;
+    snprintf(ev.ssid, sizeof(ev.ssid), "STFLOOD%u", (unsigned)i);
+    if (xQueueSend(apInfoQueue, &ev, pdMS_TO_TICKS(200)) == pdTRUE) sent++;
+    else dropped++;
+  }
+  Serial.printf("[SELFTEST] apflood sent=%u dropped=%u\n", (unsigned)sent, (unsigned)dropped);
+  vTaskDelete(nullptr);
+}
+
 static void selftestCampaignCheck() {
   bool stopped = campaignStop();
   selftestReport("camp_stop", stopped && !campaignName()[0], String("name='") + campaignName() + "'");
@@ -2660,6 +2715,18 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       Serial.printf("[SELFTEST] camp1 start=%d name=%s\n", (int)ok, campaignName());
   }
   else if (command == "SELFTEST_CAMP2")               selftestCampaignCheck();
+  else if (command.startsWith("SELFTEST_SQUEEZE:"))   selftestSqueezeInternal((uint32_t)command.substring(17).toInt());
+  else if (command == "SELFTEST_RELEASE")             selftestRelease();
+  else if (command.startsWith("SELFTEST_PSQUEEZE:"))  selftestSqueezePsram((uint32_t)command.substring(18).toInt());
+  else if (command.startsWith("SELFTEST_MESH:")) {
+      meshEnabled = command.substring(14).toInt() != 0;
+      Serial.printf("[SELFTEST] mesh %d\n", (int)meshEnabled);
+  }
+  else if (command.startsWith("SELFTEST_APFLOOD:")) {
+      const uint32_t n = (uint32_t)command.substring(17).toInt();
+      if (!apInfoQueue || !apCaptureEnabled.load()) Serial.println("[SELFTEST] apflood needs a running Wi-Fi device scan");
+      else xTaskCreate(selftestApFloodTask, "stapflood", 3072, (void *)(uintptr_t)n, 1, nullptr);
+  }
   else if (command.startsWith("SELFTEST_TX:")) { Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true)); }
   else if (command.startsWith("SELFTEST_DUMP:")) {
       String p = command.substring(14);
