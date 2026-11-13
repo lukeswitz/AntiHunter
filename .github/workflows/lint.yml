@@ -44,3 +44,4 @@ jobs:
         make test-csi
         make test-ble
         make test-meshcore
+        make test-psram-table

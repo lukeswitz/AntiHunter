@@ -208,7 +208,7 @@ These six logs take query parameters to read the end of a large file: `/api/deau
 
 The reply header `X-Start` gives the offset of the first byte returned, and `X-Size` gives the file size.
 
-`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It holds 2000 entries and drops the least recently seen device when full.
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It has no fixed size. If PSRAM runs low, it drops the least recently seen devices first.
 
 <details>
 <summary>Sentinel and detector endpoints</summary>

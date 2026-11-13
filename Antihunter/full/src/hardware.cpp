@@ -1452,10 +1452,7 @@ String getDiagnostics() {
     s += "Devices Found: " + String(totalHits) + "\n";
     s += "Current channel: " + String(WiFi.channel()) + "\n";
     s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
-    portENTER_CRITICAL(&uniqueMacsMux);
-    int uniqueMacsCount = (int)uniqueMacs.size();
-    portEXIT_CRITICAL(&uniqueMacsMux);
-    s += "Unique devices: " + String(uniqueMacsCount) + "\n";
+    s += "Unique devices: " + String((unsigned)uniqueMacs.inserted()) + "\n";
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";

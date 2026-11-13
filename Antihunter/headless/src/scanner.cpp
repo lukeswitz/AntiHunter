@@ -128,15 +128,113 @@ static std::string fmtAuth(const Hit &h) {
     return std::string(" AUTH=") + a;
 }
 
-static StringStringMapPsram apCache;
-static StringStringMapPsram bleDeviceCache;
+struct SniffDev {
+    Hit hit;
+    uint32_t seen;
+    uint8_t flags;
+};
+static constexpr uint8_t SNIFF_MESH_SENT = 0x01;
+static constexpr uint8_t SNIFF_TARGET = 0x02;
+static PsramTable<SniffDev> snifferDevices;
 static std::mutex snifferCacheMutex;
+static uint32_t snifferApSeen = 0;
+static uint32_t snifferBleSeen = 0;
+static uint32_t snifferMeshSent = 0;
 
 static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
-const size_t MAX_AP_CACHE = 200;
-const size_t MAX_BLE_CACHE = 200;
-const size_t MAX_UNIQUE_MACS = 5000;
+static uint64_t macKey(const uint8_t mac[6], bool ble)
+{
+    uint64_t k = 0;
+    for (int i = 0; i < 6; i++) k = (k << 8) | mac[i];
+    return ble ? (k | (1ULL << 48)) : k;
+}
+
+static void uniqueNote(const uint8_t mac[6], bool ble)
+{
+    bool isNew = false;
+    uniqueMacs.upsert(macKey(mac, ble), millis(), &isNew);
+}
+
+static void snifferWarnUnstored()
+{
+    static uint32_t lastWarnMs = 0;
+    if (millis() - lastWarnMs > 10000) {
+        lastWarnMs = millis();
+        Serial.println("[SNIFFER] PSRAM exhausted: device not stored");
+    }
+}
+
+// true if already known this scan; refreshes last-seen and best RSSI.
+static bool snifferTouch(const uint8_t mac[6], bool ble, int8_t rssi, uint8_t ch)
+{
+    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+    auto *e = snifferDevices.find(macKey(mac, ble));
+    if (!e) return false;
+    e->lastMs = millis();
+    e->val.seen++;
+    if (rssi > e->val.hit.rssi) {
+        e->val.hit.rssi = rssi;
+        if (ch) e->val.hit.ch = ch;
+    }
+    return true;
+}
+
+// false when the device was already known or PSRAM could not hold it.
+static bool snifferAdd(const Hit &h)
+{
+    const bool target = matchesMac(h.mac);
+    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+    bool isNew = false;
+    auto *e = snifferDevices.upsert(macKey(h.mac, h.isBLE), millis(), &isNew);
+    if (!e) {
+        snifferWarnUnstored();
+        return false;
+    }
+    if (!isNew) return false;
+    e->val.hit = h;
+    e->val.seen = 1;
+    e->val.flags = target ? SNIFF_TARGET : 0;
+    if (h.isBLE) snifferBleSeen++;
+    else snifferApSeen++;
+    uniqueNote(h.mac, h.isBLE);
+    return true;
+}
+
+static void snifferEvictToDB(const PsramTable<SniffDev>::Entry &e, void *)
+{
+    mergeHitToDeviceDB(e.val.hit);
+}
+
+static bool hitRanksAbove(const Hit &a, bool aTarget, const Hit &b, bool bTarget)
+{
+    if (aTarget != bTarget) return aTarget;
+    return a.rssi > b.rssi;
+}
+
+// Fills out[] with the k best devices (targets first, then strongest); returns count and target count.
+static size_t snifferTop(Hit *out, bool *outTarget, size_t k, size_t *nTargets)
+{
+    size_t n = 0;
+    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+    for (size_t i = 0; i < snifferDevices.size(); i++) {
+        const SniffDev &d = snifferDevices.at(i).val;
+        const bool t = d.flags & SNIFF_TARGET;
+        if (n == k && !hitRanksAbove(d.hit, t, out[n - 1], outTarget[n - 1])) continue;
+        size_t pos = (n < k) ? n++ : n - 1;
+        while (pos > 0 && hitRanksAbove(d.hit, t, out[pos - 1], outTarget[pos - 1])) {
+            out[pos] = out[pos - 1];
+            outTarget[pos] = outTarget[pos - 1];
+            pos--;
+        }
+        out[pos] = d.hit;
+        outTarget[pos] = t;
+    }
+    size_t t = 0;
+    while (t < n && outTarget[t]) t++;
+    *nTargets = t;
+    return n;
+}
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -1127,7 +1225,23 @@ void snifferScanTask(void *pv)
     }
     uniqueMacs.clear();
     hitsLog.clear();
-    { std::lock_guard<std::mutex> lock(snifferCacheMutex); apCache.clear(); bleDeviceCache.clear(); }
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        snifferDevices.clear();
+        snifferDevices.setEvictHook(snifferEvictToDB, nullptr);
+        snifferDevices.setReserve(PsramTable<SniffDev>::reserveFraction(4, 1024 * 1024));
+        uniqueMacs.setReserve(PsramTable<SniffDev>::reserveFraction(4, 1024 * 1024));
+        snifferApSeen = snifferBleSeen = snifferMeshSent = 0;
+    }
+    Serial.printf("[SCANMEM] start internal=%u largest=%u psram=%u psram_largest=%u reserve=%u\n",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
+                  (unsigned)snifferDevices.reserve());
+    const size_t kTopLive = 50, kTopFinal = 100;
+    Hit *topHits = static_cast<Hit *>(heap_caps_malloc(kTopFinal * sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    bool *topTarget = static_cast<bool *>(heap_caps_malloc(kTopFinal * sizeof(bool), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     totalHits = 0;
     framesSeen = 0;
     bleFramesSeen = 0;
@@ -1147,26 +1261,34 @@ void snifferScanTask(void *pv)
     unsigned long nextResultsUpdate = millis();
     size_t lastWrittenHitCount = SIZE_MAX;
 
-    std::set<String> transmittedDevices;
     if (!getMeshSessionDedup()) meshDedupClear();
 
     String meshBatch;
     std::vector<String> meshBatchMacs;
+    std::vector<uint64_t> meshBatchKeys;
     unsigned long meshBatchStart = 0;
     const unsigned long MESH_BATCH_HOLD_MS = 10000;
     auto flushMeshBatch = [&]() {
         if (meshBatch.length() == 0) return;
         if (meshEnqueue(meshBatch)) {
-            for (const auto &m : meshBatchMacs) {
-                transmittedDevices.insert(m);
-                meshMarkMacSent(m);
+            {
+                std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                for (uint64_t k : meshBatchKeys) {
+                    auto *e = snifferDevices.find(k);
+                    if (e && !(e->val.flags & SNIFF_MESH_SENT)) {
+                        e->val.flags |= SNIFF_MESH_SENT;
+                        snifferMeshSent++;
+                    }
+                }
             }
+            for (const auto &m : meshBatchMacs) meshMarkMacSent(m);
         }
         meshBatch = "";
         meshBatchMacs.clear();
+        meshBatchKeys.clear();
     };
-    auto addMeshDeviceRow = [&](const String &row, const String &mac) {
-        for (const auto &m : meshBatchMacs) if (m == mac) return;
+    auto addMeshDeviceRow = [&](const String &row, const String &mac, uint64_t key) {
+        for (uint64_t k : meshBatchKeys) if (k == key) return;
         String firstFrame = getNodeId() + ": " + row;
         if (firstFrame.length() > (size_t)MAX_MESH_SIZE) return;
         String compact = mac;
@@ -1182,6 +1304,53 @@ void snifferScanTask(void *pv)
         }
         if (meshBatchMacs.empty()) meshBatchStart = millis();
         meshBatchMacs.push_back(mac);
+        meshBatchKeys.push_back(key);
+    };
+    struct MeshRowSrc {
+        uint64_t key;
+        Hit hit;
+    };
+    // Bounded pass from a rotating cursor; rows are built outside the table lock.
+    size_t meshCursor = 0;
+    auto queueUnsentRows = [&](size_t scanBudget, size_t rowBudget, uint32_t *skipped) -> size_t {
+        MeshRowSrc picks[16];
+        size_t done = 0;
+        while (done < rowBudget) {
+            size_t nPick = 0;
+            {
+                std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                const size_t n = snifferDevices.size();
+                if (n == 0) break;
+                if (meshCursor >= n) meshCursor = 0;
+                size_t examined = 0;
+                while (examined < n && examined < scanBudget && nPick < 16 && done + nPick < rowBudget) {
+                    const auto &e = snifferDevices.at(meshCursor);
+                    if (!(e.val.flags & SNIFF_MESH_SENT)) picks[nPick++] = {e.key, e.val.hit};
+                    meshCursor = (meshCursor + 1) % n;
+                    examined++;
+                }
+                scanBudget -= examined;
+            }
+            if (nPick == 0) break;
+            for (size_t i = 0; i < nPick; i++) {
+                const Hit &h = picks[i].hit;
+                const String macStr = macFmt6(h.mac);
+                if (!meshShouldSendMac(macStr)) {
+                    if (skipped) (*skipped)++;
+                    continue;
+                }
+                String row = "DEVICE:" + macStr + (h.isBLE ? " B " : " W ") + String(h.rssi);
+                if (!h.isBLE && h.ch > 0) row += " C" + String(h.ch);
+                const String name(h.name);
+                if (name.length() > 0 && name != (h.isBLE ? "Unknown" : "[Hidden]")) {
+                    row += " N:" + name.substring(0, 30);
+                }
+                addMeshDeviceRow(row, macStr, picks[i].key);
+                done++;
+            }
+            if (scanBudget == 0) break;
+        }
+        return done;
     };
 
     NimBLEScan *bleScan = pBLEScan;
@@ -1214,6 +1383,7 @@ void snifferScanTask(void *pv)
                 if (!bssidBytes) continue;
                 int32_t rssi = WiFi.RSSI(i);
                 if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) continue;
+                if (snifferTouch(bssidBytes, false, (int8_t)rssi, WiFi.channel(i))) continue;
 
                 char bstr[18];
                 snprintf(bstr, sizeof(bstr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1222,13 +1392,7 @@ void snifferScanTask(void *pv)
                 String ssid = WiFi.SSID(i);
                 if (ssid.length() == 0 || !ssidIsValid(ssid.c_str(), ssid.length())) ssid = "[Hidden]";
 
-                if (apCache.find(bssid) == apCache.end())
                 {
-                    std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                    if (apCache.size() >= MAX_AP_CACHE) continue;
-                    apCache[bssid] = ssid;
-                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
-
                     Hit h;
                     memcpy(h.mac, bssidBytes, 6);
                     h.rssi = rssi;
@@ -1238,7 +1402,7 @@ void snifferScanTask(void *pv)
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
 
-                    if (hitsLog.size() < MAX_LOG_SIZE) hitsLog.push_back(h);
+                    if (!snifferAdd(h)) continue;
                     if (matchesMac(bssidBytes)) totalHits = totalHits + 1;
 
                     String logEntry = "WiFi AP: " + bssid + " SSID: " + ssid +
@@ -1266,9 +1430,10 @@ void snifferScanTask(void *pv)
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
             int apDrained = 0;
-            while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && apDrained < 50) {
+            while (apDrained < 50 && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
                 apDrained++;
                 if (!triangulationActive && ae.rssi < rfConfig.globalRssiThreshold) continue;
+                if (snifferTouch(ae.bssid, false, ae.rssi, ae.channel)) continue;
 
                 char bstr[18];
                 snprintf(bstr, sizeof(bstr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1276,13 +1441,7 @@ void snifferScanTask(void *pv)
                 String bssid = bstr;
                 String ssid = (ae.ssid[0] && ssidIsValid(ae.ssid, strlen(ae.ssid))) ? String(ae.ssid) : String("[Hidden]");
 
-                if (apCache.find(bssid) == apCache.end())
                 {
-                    std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                    if (apCache.size() >= MAX_AP_CACHE) continue;
-                    apCache[bssid] = ssid;
-                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
-
                     Hit h;
                     memcpy(h.mac, ae.bssid, 6);
                     h.rssi = ae.rssi;
@@ -1292,9 +1451,7 @@ void snifferScanTask(void *pv)
                     h.name[sizeof(h.name) - 1] = '\0';
                     h.isBLE = false;
 
-                    if (hitsLog.size() < MAX_LOG_SIZE) {
-                        hitsLog.push_back(h);
-                    }
+                    if (!snifferAdd(h)) continue;
 
                     if (matchesMac(ae.bssid)) {
                         totalHits = totalHits + 1;
@@ -1344,9 +1501,11 @@ void snifferScanTask(void *pv)
                         continue;
                     }
 
-                    if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
+                    uint8_t bleMac[6];
+                    if (!parseMac6(macStr, bleMac)) continue;
+                    if (snifferTouch(bleMac, true, rssi, 0)) continue;
+
                     {
-                        if (bleDeviceCache.size() >= MAX_BLE_CACHE) continue;
                         String name = device->haveName() ? String(device->getName().c_str()) : "";
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
@@ -1360,14 +1519,7 @@ void snifferScanTask(void *pv)
                         if (cleanName.length() == 0)
                             cleanName = "";
 
-                        {
-                            std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                            bleDeviceCache[macStr] = cleanName;
-                        }
-                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
-
-                        uint8_t mac[6];
-                        if (parseMac6(macStr, mac))
+                        const uint8_t *mac = bleMac;
                         {
                             Hit h;
                             memcpy(h.mac, mac, 6);
@@ -1389,9 +1541,7 @@ void snifferScanTask(void *pv)
 #endif
                                 }
                             }
-                            if (hitsLog.size() < MAX_LOG_SIZE) {
-                                hitsLog.push_back(h);
-                            }
+                            if (!snifferAdd(h)) continue;
 
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
                                             " RSSI: " + String(rssi) + "dBm";
@@ -1425,62 +1575,7 @@ void snifferScanTask(void *pv)
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
         {
             lastMeshUpdate = millis();
-
-            for (const auto& entry : apCache)
-            {
-                String macStr = entry.first;
-                String ssid = entry.second;
-
-                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
-                {
-                    String row = "DEVICE:" + macStr + " W ";
-
-                    int8_t bestRssi = -128;
-                    uint8_t bestCh = 0;
-                    for (const auto& hit : hitsLog) {
-                        String hitMac = macFmt6(hit.mac);
-                        if (hitMac == macStr && hit.rssi > bestRssi) {
-                            bestRssi = hit.rssi;
-                            bestCh = hit.ch;
-                        }
-                    }
-
-                    row += String(bestRssi);
-                    if (bestCh > 0) row += " C" + String(bestCh);
-                    if (ssid.length() > 0 && ssid != "[Hidden]") {
-                        row += " N:" + ssid.substring(0, 30);
-                    }
-
-                    addMeshDeviceRow(row, macStr);
-                }
-            }
-
-            for (const auto& entry : bleDeviceCache)
-            {
-                String macStr = entry.first;
-                String name = entry.second;
-
-                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
-                {
-                    String row = "DEVICE:" + macStr + " B ";
-
-                    int8_t bestRssi = -128;
-                    for (const auto& hit : hitsLog) {
-                        String hitMac = macFmt6(hit.mac);
-                        if (hitMac == macStr && hit.isBLE && hit.rssi > bestRssi) {
-                            bestRssi = hit.rssi;
-                        }
-                    }
-
-                    row += String(bestRssi);
-                    if (name.length() > 0 && name != "Unknown") {
-                        row += " N:" + name.substring(0, 30);
-                    }
-
-                    addMeshDeviceRow(row, macStr);
-                }
-            }
-
+            queueUnsentRows(4096, 64, nullptr);
             if (!meshBatchMacs.empty() && millis() - meshBatchStart >= MESH_BATCH_HOLD_MS) flushMeshBatch();
         }
 
@@ -1572,7 +1667,11 @@ void snifferScanTask(void *pv)
             }
         }
 
-        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount) {
+        const size_t devicesSeen = (size_t)snifferApSeen + snifferBleSeen;
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || devicesSeen != lastWrittenHitCount) {
+            size_t nTargets = 0;
+            const size_t nTop = (topHits && topTarget) ? snifferTop(topHits, topTarget, kTopLive, &nTargets) : 0;
+
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
@@ -1580,21 +1679,14 @@ void snifferScanTask(void *pv)
             if (!forever && duration > 0) {
                 results += " / " + std::to_string(duration) + "s";
             }
-            results += "\nWiFi APs: " + std::to_string(apCache.size()) + 
-                      "\nBLE devices: " + std::to_string(bleDeviceCache.size()) + 
-                      "\nUnique devices: " + std::to_string(uniqueMacs.size()) + 
+            results += "\nWiFi APs: " + std::to_string(snifferApSeen) +
+                      "\nBLE devices: " + std::to_string(snifferBleSeen) +
+                      "\nUnique devices: " + std::to_string(uniqueMacs.inserted()) +
                       "\nTarget Hits: " + std::to_string(totalHits) + "\n\n";
 
-            HitsVecPsram sortedHits = hitsLog;
-            std::sort(sortedHits.begin(), sortedHits.end(),
-                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-            const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
-                     [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
-
-            int shown = 0;
-            for (const auto& hit : sortedHits) {
-                const bool isTarget = static_cast<size_t>(shown) < nTargets;
-                if (shown++ >= 50) break;
+            for (size_t ti = 0; ti < nTop; ti++) {
+                const Hit &hit = topHits[ti];
+                const bool isTarget = ti < nTargets;
                 results += std::string(hit.isBLE ? "BLE " : "WiFi");
                 char macStr[18];
                 snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1613,8 +1705,8 @@ void snifferScanTask(void *pv)
                 { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
                 results += "\n";
             }
-            if (hitsLog.size() > 50) {
-                results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
+            if (devicesSeen > nTop) {
+                results += "... (" + std::to_string(devicesSeen - nTop) + " more)\n";
             }
 
             // Append probe intelligence if captureProbes enabled
@@ -1665,17 +1757,27 @@ void snifferScanTask(void *pv)
 
             antihunter::lastResults = results;
             nextResultsUpdate = millis() + 1000;
-            lastWrittenHitCount = hitsLog.size();
+            lastWrittenHitCount = devicesSeen;
         }
 
         {
-            size_t nAp = apCache.size(), nBle = bleDeviceCache.size(), nUniq = uniqueMacs.size();
+            size_t nAp = snifferApSeen, nBle = snifferBleSeen, nUniq = uniqueMacs.inserted();
             int nHits = totalHits.load();
             bool changed = (nAp != lastTotalAp || nBle != lastTotalBle ||
                             nUniq != lastTotalUniq || nHits != lastTotalHits);
             if (changed || (millis() - lastTotalPrint) >= 5000) {
-                Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
-                              nAp, nBle, nUniq, nHits);
+                size_t held, evicted, unstored, tableBytes;
+                {
+                    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                    held = snifferDevices.size();
+                    evicted = snifferDevices.evicted();
+                    unstored = snifferDevices.allocFailures();
+                    tableBytes = snifferDevices.bytesUsed();
+                }
+                Serial.printf("[SNIFFER] Total: WiFi APs=%u, BLE=%u, Unique=%u, Hits=%d held=%u evicted=%u unstored=%u table=%uB psram_free=%u\n",
+                              (unsigned)nAp, (unsigned)nBle, (unsigned)nUniq, nHits, (unsigned)held,
+                              (unsigned)evicted, (unsigned)unstored, (unsigned)tableBytes,
+                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 lastTotalPrint = millis();
                 lastTotalAp = nAp; lastTotalBle = nBle; lastTotalUniq = nUniq; lastTotalHits = nHits;
             }
@@ -1712,6 +1814,10 @@ void snifferScanTask(void *pv)
     delay(500);
 
     {
+        size_t nTargets = 0;
+        const size_t nTop = (topHits && topTarget) ? snifferTop(topHits, topTarget, kTopFinal, &nTargets) : 0;
+        const size_t devicesSeen = (size_t)snifferApSeen + snifferBleSeen;
+
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
         std::string results =
@@ -1720,18 +1826,11 @@ void snifferScanTask(void *pv)
             "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
             "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
             "Target Hits: " + std::to_string(totalHits) + "\n" +
-            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
+            "Unique devices: " + std::to_string(uniqueMacs.inserted()) + "\n\n";
 
-        HitsVecPsram sortedHits = hitsLog;
-        std::sort(sortedHits.begin(), sortedHits.end(),
-                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-        const size_t nTargets = std::stable_partition(sortedHits.begin(), sortedHits.end(),
-                [](const Hit& h) { return matchesMac(h.mac); }) - sortedHits.begin();
-
-        int shown = 0;
-        for (const auto& hit : sortedHits) {
-            const bool isTarget = static_cast<size_t>(shown) < nTargets;
-            if (shown++ >= 100) break;
+        for (size_t ti = 0; ti < nTop; ti++) {
+            const Hit &hit = topHits[ti];
+            const bool isTarget = ti < nTargets;
 
             results += (hit.isBLE ? "BLE  " : "WiFi ");
             results += macFmt6(hit.mac).c_str();
@@ -1775,8 +1874,8 @@ void snifferScanTask(void *pv)
             results += "\n";
         }
 
-        if (sortedHits.size() > 100) {
-            results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
+        if (devicesSeen > nTop) {
+            results += "... (" + std::to_string(devicesSeen - nTop) + " more)\n";
         }
 
         if (hadProbes) {
@@ -1825,66 +1924,32 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
-        const size_t txBefore = transmittedDevices.size();
+        const uint32_t txBefore = snifferMeshSent;
         uint32_t skippedDevices = 0;
         uint32_t abandonedDevices = 0;
-        for (const auto& entry : apCache) {
-            if (stopRequested) { abandonedDevices++; continue; }
-            if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
-            if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
-            String row = "DEVICE:" + entry.first + " W ";
-            int8_t bestRssi = -128;
-            uint8_t bestCh = 0;
-            for (const auto& hit : hitsLog) {
-                String hitMac = macFmt6(hit.mac);
-                if (hitMac == entry.first && hit.rssi > bestRssi) {
-                    bestRssi = hit.rssi;
-                    bestCh = hit.ch;
-                }
+        size_t held = 0;
+        {
+            std::lock_guard<std::mutex> lock(snifferCacheMutex);
+            held = snifferDevices.size();
+            if (stopRequested) {
+                for (size_t i = 0; i < held; i++)
+                    if (!(snifferDevices.at(i).val.flags & SNIFF_MESH_SENT)) abandonedDevices++;
             }
-            row += String(bestRssi);
-            if (bestCh > 0) row += " C" + String(bestCh);
-            if (entry.second.length() > 0 && entry.second != "[Hidden]") {
-                row += " N:" + entry.second.substring(0, 30);
-            }
-            addMeshDeviceRow(row, entry.first);
         }
-
-        for (const auto& entry : bleDeviceCache) {
-            if (stopRequested) { abandonedDevices++; continue; }
-            if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
-            if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
-            String row = "DEVICE:" + entry.first + " B ";
-            int8_t bestRssi = -128;
-            for (const auto& hit : hitsLog) {
-                String hitMac = macFmt6(hit.mac);
-                if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
-                    bestRssi = hit.rssi;
-                }
-            }
-            row += String(bestRssi);
-            if (entry.second.length() > 0 && entry.second != "Unknown") {
-                row += " N:" + entry.second.substring(0, 30);
-            }
-            addMeshDeviceRow(row, entry.first);
-        }
+        if (!stopRequested) queueUnsentRows(held, SIZE_MAX, &skippedDevices);
         flushMeshBatch();
 
         if (abandonedDevices) {
             Serial.printf("[SNIFFER] Stop requested: %u device rows not enqueued\n", abandonedDevices);
         }
 
-        for (const auto &h : hitsLog) mergeHitToDeviceDB(h);
-        saveDeviceDB();
-        Serial.printf("[SNIFFER] Device database now holds %u devices\n", getDeviceDBSize());
-
         if (!stopRequested) {
-            const uint32_t totalTx = transmittedDevices.size();
-            const uint32_t enqueuedDevices = totalTx - static_cast<uint32_t>(txBefore);
-            const uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
-            String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
-                            " B=" + String(bleDeviceCache.size()) +
-                            " U=" + String(uniqueMacs.size()) +
+            const uint32_t totalTx = snifferMeshSent;
+            const uint32_t enqueuedDevices = totalTx - txBefore;
+            const uint32_t totalDevices = snifferApSeen + snifferBleSeen;
+            String summary = getNodeId() + ": SCAN_DONE: W=" + String(snifferApSeen) +
+                            " B=" + String(snifferBleSeen) +
+                            " U=" + String(uniqueMacs.inserted()) +
                             " H=" + String(totalHits) +
                             " TX=" + String(totalTx) +
                             " DUP=" + String(skippedDevices);
@@ -1894,9 +1959,40 @@ void snifferScanTask(void *pv)
         }
     }
 
-    transmittedDevices.clear();
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        Serial.printf("[SCANMEM] task-exit internal=%u largest=%u ap=%u ble=%u uniq=%u held=%u evicted=%u table=%uB psram_free=%u\n",
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                      (unsigned)snifferApSeen, (unsigned)snifferBleSeen, (unsigned)uniqueMacs.inserted(),
+                      (unsigned)snifferDevices.size(), (unsigned)snifferDevices.evicted(),
+                      (unsigned)snifferDevices.bytesUsed(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    }
+
+    // Tail-first, one block at a time, so the device DB grows into the memory the scan table gives back.
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        snifferDevices.releaseIndex();
+    }
+    for (;;) {
+        {
+            std::lock_guard<std::mutex> lock(snifferCacheMutex);
+            const size_t n = snifferDevices.size();
+            if (n == 0) break;
+            const size_t start = (n - 1) & ~(size_t)(PsramTable<SniffDev>::kBlockLen - 1);
+            for (size_t i = start; i < n; i++) mergeHitToDeviceDB(snifferDevices.at(i).val.hit);
+            snifferDevices.popBack(n - start);
+        }
+        vTaskDelay(1);
+    }
+    saveDeviceDB();
+    Serial.printf("[SNIFFER] Device database now holds %u devices\n", getDeviceDBSize());
+    heap_caps_free(topHits);
+    heap_caps_free(topTarget);
     meshBatchMacs.clear();
     meshBatchMacs.shrink_to_fit();
+    meshBatchKeys.clear();
+    meshBatchKeys.shrink_to_fit();
     meshBatch = String();
 
     if (g_sweepHopChannels) {
@@ -3660,7 +3756,7 @@ void listScanTask(void *pv) {
                     if (!apMatch && apSsid.length() > 0) apMatch = matchesSsid(apSsid.c_str());
                 }
 
-                if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(apBssid);
+                { uint8_t um[6]; if (parseMac6(apBssid, um)) uniqueNote(um, false); }
 
                 Hit wh;
                 memcpy(wh.mac, bssidBytes, 6);
@@ -3758,7 +3854,7 @@ void listScanTask(void *pv) {
                     }
                 }
 
-                if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
+                { uint8_t um[6]; if (parseMac6(macStr, um)) uniqueNote(um, true); }
 
                 if (isMatch) {
                     Hit bh;
@@ -3798,7 +3894,7 @@ void listScanTask(void *pv) {
             }
 
             localDeviceLastSeen[macStr] = now;
-            uniqueMacs.insert(macStr);
+            uniqueNote(h.mac, h.isBLE);
             if (hitsLog.size() < MAX_LOG_SIZE) {
                 hitsLog.push_back(h);
             }
@@ -4099,7 +4195,7 @@ void listScanTask(void *pv) {
             pr += std::to_string((millis() - lastScanStart) / 1000) + "s";
             if (!forever && secs > 0) pr += " / " + std::to_string(secs) + "s";
             pr += "\nTarget Hits: " + std::to_string(totalHits.load());
-            pr += "\nUnique devices: " + std::to_string(uniqueMacs.size());
+            pr += "\nUnique devices: " + std::to_string(uniqueMacs.inserted());
             pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
             pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
 
@@ -4157,7 +4253,7 @@ void listScanTask(void *pv) {
         " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(secs) + "s\n")) +
         "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
         "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-        "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n" +
+        "Unique devices: " + std::to_string(uniqueMacs.inserted()) + "\n" +
         "Target Hits: " + std::to_string(totalHits) + "\n\n";
 
     std::map<String, Hit> hitsMap;
@@ -4310,7 +4406,7 @@ void listScanTask(void *pv) {
         uint32_t finalRemaining = totalTargets - finalTransmitted;
         
         String summary = getNodeId() + ": LIST_SCAN_DONE: Hits=" + String(totalHits) +
-                        " Unique=" + String(uniqueMacs.size()) +
+                        " Unique=" + String(uniqueMacs.inserted()) +
                         " Targets=" + String(totalTargets) +
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
