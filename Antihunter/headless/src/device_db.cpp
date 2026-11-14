@@ -17,6 +17,9 @@ static std::mutex deviceDBMutex;
 static const char *DEVICE_DB_PATH = "/devicedb.jsonl";
 static const char *DEVICE_DB_TMP = "/devicedb.jsonl.tmp";
 static const char *DEVICE_DB_BAK = "/devicedb.jsonl.bak";
+static const char *DEVICE_DB_ARCHIVE = "/devicedb_archive.jsonl";
+// Devices that leave memory are appended here, so the live file's rewrite never loses them.
+static SdLineBatch s_devArchive(DEVICE_DB_ARCHIVE);
 
 static uint64_t deviceDBKey(const uint8_t mac[6])
 {
@@ -31,15 +34,62 @@ static void deviceDBNoteDrops(uint32_t before, bool flush = false)
     pending += deviceDB.evicted() - before;
     if (pending && (flush || millis() - lastPrintMs >= 10000)) {
         lastPrintMs = millis();
-        Serial.printf("[DEVDB] PSRAM low: dropped %u least recently seen devices (%u held)\n",
-                      (unsigned)pending, (unsigned)deviceDB.size());
+        Serial.printf("[DEVDB] Memory low: moved %u least recently seen devices to %s (%u held)\n",
+                      (unsigned)pending, DEVICE_DB_ARCHIVE, (unsigned)deviceDB.size());
         pending = 0;
     }
+}
+
+static void deviceDBFillJson(const DeviceDBEntry &e, JsonDocument &doc)
+{
+    doc["m"] = e.mac;
+    doc["t"] = e.totalSeen;
+    doc["f"] = e.firstEpoch;
+    doc["l"] = e.lastEpoch;
+    doc["s"] = e.sessionCount;
+    doc["r"] = e.bestRssi;
+    if (e.vendor[0]) doc["v"] = e.vendor;
+    if (e.name[0]) doc["n"] = e.name;
+    doc["rd"] = e.isRandomized ? 1 : 0;
+    doc["ble"] = e.isBLE ? 1 : 0;
+    doc["c"] = e.channel;
+}
+
+static void deviceDBArchiveEntry(const DeviceDBEntry &e)
+{
+    StaticJsonDocument<384> doc;
+    deviceDBFillJson(e, doc);
+    char line[512];
+    const size_t n = serializeJson(doc, line, sizeof(line));
+    s_devArchive.add(line, n);
+}
+
+static void deviceDBEvictToArchive(const PsramTable<DeviceDBEntry>::Entry &e, void *)
+{
+    deviceDBArchiveEntry(e.val);
+}
+
+static void deviceDBNewEntry(DeviceDBEntry &e, const Hit &h, uint32_t now, bool nameIsReal)
+{
+    snprintf(e.mac, sizeof(e.mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+             h.mac[0], h.mac[1], h.mac[2], h.mac[3], h.mac[4], h.mac[5]);
+    e.totalSeen = 1;
+    e.firstEpoch = now;
+    e.lastEpoch = now;
+    e.sessionCount = 1;
+    e.bestRssi = h.rssi;
+    e.isRandomized = (h.mac[0] & 0x02) && !(h.mac[0] & 0x01);
+    e.isBLE = h.isBLE;
+    e.channel = h.ch;
+    if (nameIsReal) strncpy(e.name, h.name, sizeof(e.name) - 1);
+    { const char *v = lookupOuiVendor(h.mac); if (v) strncpy(e.vendor, v, sizeof(e.vendor) - 1); }
 }
 
 void loadDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
+    deviceDB.setEvictHook(deviceDBEvictToArchive, nullptr);
+    s_devArchive.reserve();
 
     const char *path = SafeSD::exists(DEVICE_DB_PATH) ? DEVICE_DB_PATH
                      : SafeSD::exists(DEVICE_DB_BAK)  ? DEVICE_DB_BAK : nullptr;
@@ -95,6 +145,7 @@ void loadDeviceDB()
         bool isNew = false;
         auto *e = deviceDB.upsert(deviceDBKey(macBytes), entry.lastEpoch, &isNew);
         if (!e) {
+            s_devArchive.add(line.c_str(), line.length());
             unstored++;
             continue;
         }
@@ -102,14 +153,16 @@ void loadDeviceDB()
         count++;
     }
     f.close();
+    s_devArchive.flush();
     Serial.printf("[DEVDB] Loaded %u devices from SD\n", count);
-    if (unstored) Serial.printf("[DEVDB] PSRAM full: %u devices on SD not loaded\n", (unsigned)unstored);
+    if (unstored) Serial.printf("[DEVDB] Memory full: %u devices did not fit and were kept in %s\n", (unsigned)unstored, DEVICE_DB_ARCHIVE);
     deviceDBNoteDrops(evictedBefore, true);
 }
 
 void saveDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
+    s_devArchive.flush();
     deviceDBNoteDrops(deviceDB.evicted(), true);
 
     File f = SafeSD::open(DEVICE_DB_TMP, FILE_WRITE);
@@ -121,20 +174,8 @@ void saveDeviceDB()
 
     uint32_t written = 0;
     for (size_t i = 0; i < deviceDB.size(); i++) {
-        const DeviceDBEntry &e = deviceDB.at(i).val;
         DynamicJsonDocument doc(384);
-        doc["m"] = e.mac;
-        doc["t"] = e.totalSeen;
-        doc["f"] = e.firstEpoch;
-        doc["l"] = e.lastEpoch;
-        doc["s"] = e.sessionCount;
-        doc["r"] = e.bestRssi;
-        if (e.vendor[0]) doc["v"] = e.vendor;
-        if (e.name[0]) doc["n"] = e.name;
-        doc["rd"] = e.isRandomized ? 1 : 0;
-        doc["ble"] = e.isBLE ? 1 : 0;
-        doc["c"] = e.channel;
-
+        deviceDBFillJson(deviceDB.at(i).val, doc);
         serializeJson(doc, f_w);
         f_w.println();
         written++;
@@ -163,12 +204,12 @@ void mergeHitToDeviceDB(const Hit &h)
     bool isNew = false;
     auto *slot = deviceDB.upsert(deviceDBKey(h.mac), now, &isNew);
     deviceDBNoteDrops(evictedBefore);
+    if (deviceDB.evicted() != evictedBefore) s_devArchive.flush();
     if (!slot) {
-        static uint32_t lastWarnMs = 0;
-        if (millis() - lastWarnMs > 10000) {
-            lastWarnMs = millis();
-            Serial.println("[DEVDB] PSRAM exhausted: device not stored");
-        }
+        DeviceDBEntry e = {};
+        deviceDBNewEntry(e, h, now, nameIsReal);
+        deviceDBArchiveEntry(e);
+        s_devArchive.flush();
         return;
     }
     DeviceDBEntry &e = slot->val;
@@ -191,18 +232,7 @@ void mergeHitToDeviceDB(const Hit &h)
         return;
     }
 
-    snprintf(e.mac, sizeof(e.mac), "%02X:%02X:%02X:%02X:%02X:%02X",
-             h.mac[0], h.mac[1], h.mac[2], h.mac[3], h.mac[4], h.mac[5]);
-    e.totalSeen = 1;
-    e.firstEpoch = now;
-    e.lastEpoch = now;
-    e.sessionCount = 1;
-    e.bestRssi = h.rssi;
-    e.isRandomized = (h.mac[0] & 0x02) && !(h.mac[0] & 0x01);
-    e.isBLE = h.isBLE;
-    e.channel = h.ch;
-    if (nameIsReal) strncpy(e.name, h.name, sizeof(e.name) - 1);
-    { const char *v = lookupOuiVendor(h.mac); if (v) strncpy(e.vendor, v, sizeof(e.vendor) - 1); }
+    deviceDBNewEntry(e, h, now, nameIsReal);
 }
 
 uint32_t getDeviceDBSize()
@@ -215,6 +245,7 @@ void clearDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     deviceDB.clear();
-    for (const char *p : {DEVICE_DB_PATH, DEVICE_DB_TMP, DEVICE_DB_BAK}) SafeSD::remove(p);
+    s_devArchive.discard();
+    for (const char *p : {DEVICE_DB_PATH, DEVICE_DB_TMP, DEVICE_DB_BAK, DEVICE_DB_ARCHIVE}) SafeSD::remove(p);
     Serial.println("[DEVDB] Database cleared");
 }

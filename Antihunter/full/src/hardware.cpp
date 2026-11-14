@@ -643,6 +643,39 @@ bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakP
     return true;
 }
 
+void SdLineBatch::reserve() {
+    if (!buf_) buf_ = static_cast<char *>(heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+}
+
+void SdLineBatch::flush() {
+    if (!len_) return;
+    File f = SafeSD::open(path_, FILE_APPEND);
+    const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(buf_), len_) : 0;
+    if (f) f.close();
+    if (wrote != len_) Serial.printf("[SD] Write to %s failed: %u records were not saved\n", path_, (unsigned)lines_);
+    len_ = 0;
+    lines_ = 0;
+}
+
+void SdLineBatch::add(const char *line, size_t len) {
+    if (!buf_ || len + 1 > kBytes) {
+        File f = SafeSD::open(path_, FILE_APPEND);
+        size_t wrote = 0;
+        if (f) {
+            wrote = SafeSD::write(f, reinterpret_cast<const uint8_t *>(line), len);
+            wrote += SafeSD::write(f, reinterpret_cast<const uint8_t *>("\n"), 1);
+            f.close();
+        }
+        if (wrote != len + 1) Serial.printf("[SD] Write to %s failed: 1 record was not saved\n", path_);
+        return;
+    }
+    if (len_ + len + 1 > kBytes) flush();
+    memcpy(buf_ + len_, line, len);
+    len_ += len;
+    buf_[len_++] = '\n';
+    lines_++;
+}
+
 static bool commitConfigFile() {
     return sdCommitStaged(CONFIG_TMP_FILE, CONFIG_FILE, CONFIG_BAK_FILE);
 }
