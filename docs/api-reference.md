@@ -196,8 +196,8 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/probedb/clear` | POST | Clears the probe database |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
 | `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
-| `/api/devicedb` | GET | Device database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
-| `/api/devicedb/clear` | POST | Clears the device database |
+| `/api/devicedb` | GET | Devices held in memory (JSON). Devices moved out when memory ran low are in `/devicedb_archive.jsonl` on the SD card. Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
+| `/api/devicedb/clear` | POST | Clears the device database and its SD archive |
 
 These six logs take query parameters to read the end of a large file: `/api/deauth.jsonl`, `/api/drones.jsonl`, `/api/vibrations.jsonl`, `/api/antihunter.log`, `/api/campaigns.csv`, and `/api/incidents.jsonl`.
 
