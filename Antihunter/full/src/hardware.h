@@ -96,6 +96,22 @@ public:
 // Replaces finalPath with the fully written tmpPath; the old file survives any failure.
 bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath);
 
+// Collects lines in one PSRAM buffer and appends them to an SD file in a single write.
+class SdLineBatch {
+public:
+    explicit SdLineBatch(const char *path) : path_(path) {}
+    void reserve();
+    void add(const char *line, size_t len);
+    void flush();
+    void discard() { len_ = 0; lines_ = 0; }
+private:
+    static constexpr size_t kBytes = 32 * 1024;
+    const char *path_;
+    char *buf_ = nullptr;
+    size_t len_ = 0;
+    uint32_t lines_ = 0;
+};
+
 // Print wrapper so print/println/printf/serializeJson all go through the retrying write
 class SdWriter : public Print {
 public:
