@@ -410,7 +410,16 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     }
 
     if (haveEvictDevice) {
-        writeBaselineDeviceToSD(evictDevice);
+        if (!writeBaselineDeviceToSD(evictDevice)) {
+            static uint32_t evictSaveFailed = 0;
+            static uint32_t lastEvictFailLog = 0;
+            evictSaveFailed++;
+            if (now - lastEvictFailLog >= 30000) {
+                lastEvictFailLog = now;
+                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (SD Device Storage limit reached or write failed)\n",
+                              (unsigned)evictSaveFailed);
+            }
+        }
     }
 
     if (sdAvailable && sdBaselineInitialized && millis() - lastSDFlush >= BASELINE_SD_FLUSH_INTERVAL) {
@@ -801,12 +810,16 @@ void baselineDetectionTask(void *pv) {
                 }
                 baselineRamCacheSize = newLimit;
             }
+            uint32_t notSaved = 0;
             for (size_t ei = 0; ei < evictedDirty.size(); ei++) {
-                writeBaselineDeviceToSD(evictedDirty[ei]);
+                if (!writeBaselineDeviceToSD(evictedDirty[ei])) notSaved++;
                 if ((ei & 15) == 15) {
                     vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
+            if (notSaved)
+                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (SD Device Storage limit reached or write failed)\n",
+                              (unsigned)notSaved);
             nextCacheSizeCheck += 30000;
         }
 

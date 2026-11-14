@@ -638,6 +638,33 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     }
 
     if (announceCopy.uavId[0] != 0) droneMeshAnnounce(announceKey, announceCopy);
+
+    static uint32_t s_lastBleDroneLog = 0;
+    if (millis() - s_lastBleDroneLog >= DRONE_LOG_INTERVAL) {
+        s_lastBleDroneLog = millis();
+        DynamicJsonDocument doc(512);
+        doc["timestamp"] = getEventTimestamp();
+        doc["mac"] = macStr;
+        doc["rssi"] = drone.rssi;
+        doc["uav_id"] = String(announceCopy.uavId);
+        doc["id_type"] = droneIdTypeStr(announceCopy.idType);
+        doc["type"] = announceCopy.uaType;
+        doc["via"] = "ble";
+        if (announceCopy.latitude != 0 || announceCopy.longitude != 0) {
+            doc["lat"] = announceCopy.latitude;
+            doc["lon"] = announceCopy.longitude;
+            doc["alt"] = announceCopy.altitudeMsl;
+            doc["speed"] = announceCopy.speed;
+        }
+        if (announceCopy.operatorLat != 0 || announceCopy.operatorLon != 0) {
+            doc["op_lat"] = announceCopy.operatorLat;
+            doc["op_lon"] = announceCopy.operatorLon;
+        }
+        String jsonStr;
+        serializeJson(doc, jsonStr);
+        logToSD("DRONE: " + jsonStr);
+        logEventToSD("/drones.jsonl", jsonStr);
+    }
 }
 
 static const char *uaTypeStr(uint8_t t) {
