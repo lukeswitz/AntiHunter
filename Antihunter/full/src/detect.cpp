@@ -1201,13 +1201,17 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     uint64_t srcK = packMac(src);
     auto bIt = g_pmkidBursts.find(srcK);
     if (bIt == g_pmkidBursts.end()) {
-        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR) {
+        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR && !g_pmkidBursts.empty()) {
+            auto oldest = g_pmkidBursts.begin();
+            for (auto it = oldest; it != g_pmkidBursts.end(); ++it) {
+                if (it->second.lastSeen < oldest->second.lastSeen) oldest = it;
+            }
+            g_pmkidBursts.erase(oldest);
             static uint32_t s_lastShedLog = 0;
             if (now - s_lastShedLog > 10000) {
                 s_lastShedLog = now;
-                Serial.printf("[DETECT] PSRAM low (%u free): new PMKID sources not tracked\n", (unsigned)ESP.getFreePsram());
+                Serial.println("[DETECT] Memory low: stopped tracking the oldest PMKID source to track a new one");
             }
-            return;
         }
         bIt = g_pmkidBursts.emplace(srcK, PmkidBurst{}).first;
     }
