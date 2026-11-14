@@ -178,6 +178,22 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     }
 }
 
+// Caller holds probeMutex. Moves the oldest non-target device into the probe database before dropping it.
+static void probeEvictOldestToDB()
+{
+    uint32_t oldestTime = UINT32_MAX;
+    auto oldest = probeDevices.end();
+    for (auto it = probeDevices.begin(); it != probeDevices.end(); ++it) {
+        if (!it->second.isTargetHit && it->second.lastSeen < oldestTime) {
+            oldestTime = it->second.lastSeen;
+            oldest = it;
+        }
+    }
+    if (oldest == probeDevices.end()) return;
+    mergeProbeDeviceToDB(oldest->second);
+    probeDevices.erase(oldest);
+}
+
 void probeDetectionTask(void *pv)
 {
     sentinel_kill();
@@ -340,17 +356,7 @@ void probeDetectionTask(void *pv)
                     }
                     if (dstHit) dev.isDstHit = true;
                 } else {
-                    if (probePsramLow()) {
-                        uint32_t oldestTime = UINT32_MAX;
-                        String oldestKey;
-                        for (const auto &p : probeDevices) {
-                            if (!p.second.isTargetHit && p.second.lastSeen < oldestTime) {
-                                oldestTime = p.second.lastSeen;
-                                oldestKey = p.first;
-                            }
-                        }
-                        if (oldestKey.length() > 0) probeDevices.erase(oldestKey);
-                    }
+                    if (probePsramLow()) probeEvictOldestToDB();
 
                     ProbeDevice dev = {};
                     memcpy(dev.mac, event.mac, 6);
@@ -456,7 +462,7 @@ void probeDetectionTask(void *pv)
                         }
                         continue;
                     }
-                    if (probePsramLow()) continue;
+                    if (probePsramLow()) probeEvictOldestToDB();
 
                     ProbeDevice dev = {};
                     memcpy(dev.mac, mac, 6);
@@ -732,18 +738,49 @@ static std::mutex probeDBMutex;
 static const char *PROBE_DB_PATH = "/probedb.jsonl";
 static const char *PROBE_DB_TMP = "/probedb.jsonl.tmp";
 static const char *PROBE_DB_BAK = "/probedb.jsonl.bak";
+static const char *PROBE_DB_ARCHIVE = "/probedb_archive.jsonl";
+// Devices that leave memory are appended here, so the live file's rewrite never loses them.
+static SdLineBatch s_probeArchive(PROBE_DB_ARCHIVE);
+
+static void probeDBFillJson(const ProbeDBEntry &e, JsonDocument &doc)
+{
+    doc["m"] = e.mac;
+    doc["t"] = e.totalSeen;
+    doc["f"] = e.firstEpoch;
+    doc["l"] = e.lastEpoch;
+    doc["s"] = e.sessionCount;
+    doc["r"] = e.bestRssi;
+    doc["v"] = e.vendor;
+    if (e.name[0]) doc["n"] = e.name;
+    doc["rd"] = e.isRandomized ? 1 : 0;
+    doc["ble"] = e.isBLE ? 1 : 0;
+    doc["c"] = e.channel;
+    JsonArray ss = doc.createNestedArray("ss");
+    for (uint8_t i = 0; i < e.ssidCount; i++) ss.add(e.ssids[i]);
+}
+
+static void probeDBArchiveEntry(const ProbeDBEntry &e)
+{
+    DynamicJsonDocument doc(512);
+    probeDBFillJson(e, doc);
+    char line[640];
+    const size_t n = serializeJson(doc, line, sizeof(line));
+    s_probeArchive.add(line, n);
+}
 
 void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDB.clear();
-    for (const char *p : {PROBE_DB_PATH, PROBE_DB_TMP, PROBE_DB_BAK}) SafeSD::remove(p);
+    s_probeArchive.discard();
+    for (const char *p : {PROBE_DB_PATH, PROBE_DB_TMP, PROBE_DB_BAK, PROBE_DB_ARCHIVE}) SafeSD::remove(p);
     Serial.println("[PROBEDB] Database cleared");
 }
 
 void loadProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
+    s_probeArchive.reserve();
     probeDB.clear();
 
     const char *path = SafeSD::exists(PROBE_DB_PATH) ? PROBE_DB_PATH
@@ -815,13 +852,24 @@ void loadProbeDB()
         probeDB[String(mac)] = entry;
         count++;
     }
+    uint32_t kept = 0;
+    while (f.available()) {
+        String line = f.readStringUntil('\n');
+        line.trim();
+        if (line.length() < 10) continue;
+        s_probeArchive.add(line.c_str(), line.length());
+        kept++;
+    }
     f.close();
+    s_probeArchive.flush();
     Serial.printf("[PROBEDB] Loaded %u devices from SD\n", count);
+    if (kept) Serial.printf("[PROBEDB] Memory full: %u devices did not fit and were kept in %s\n", (unsigned)kept, PROBE_DB_ARCHIVE);
 }
 
 void saveProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
+    s_probeArchive.flush();
 
     File f = SafeSD::open(PROBE_DB_TMP, FILE_WRITE);
     SdWriter f_w(f);
@@ -831,25 +879,9 @@ void saveProbeDB()
     }
 
     uint32_t written = 0;
-    for (auto &p : probeDB) {
+    for (const auto &p : probeDB) {
         DynamicJsonDocument doc(512);
-        doc["m"] = p.second.mac;
-        doc["t"] = p.second.totalSeen;
-        doc["f"] = p.second.firstEpoch;
-        doc["l"] = p.second.lastEpoch;
-        doc["s"] = p.second.sessionCount;
-        doc["r"] = p.second.bestRssi;
-        doc["v"] = p.second.vendor;
-        if (p.second.name[0]) doc["n"] = p.second.name;
-        doc["rd"] = p.second.isRandomized ? 1 : 0;
-        doc["ble"] = p.second.isBLE ? 1 : 0;
-        doc["c"] = p.second.channel;
-
-        JsonArray ss = doc.createNestedArray("ss");
-        for (uint8_t i = 0; i < p.second.ssidCount; i++) {
-            ss.add(p.second.ssids[i]);
-        }
-
+        probeDBFillJson(p.second, doc);
         serializeJson(doc, f_w);
         f_w.println();
         written++;
@@ -902,14 +934,17 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
     } else {
         if (probePsramLow()) {
             uint32_t oldestEpoch = UINT32_MAX;
-            String oldestKey;
-            for (const auto &p : probeDB) {
-                if (p.second.lastEpoch < oldestEpoch) {
-                    oldestEpoch = p.second.lastEpoch;
-                    oldestKey = p.first;
+            auto oldest = probeDB.end();
+            for (auto p = probeDB.begin(); p != probeDB.end(); ++p) {
+                if (p->second.lastEpoch < oldestEpoch) {
+                    oldestEpoch = p->second.lastEpoch;
+                    oldest = p;
                 }
             }
-            if (oldestKey.length() > 0) probeDB.erase(oldestKey);
+            if (oldest != probeDB.end()) {
+                probeDBArchiveEntry(oldest->second);
+                probeDB.erase(oldest);
+            }
         }
 
         ProbeDBEntry e = {};

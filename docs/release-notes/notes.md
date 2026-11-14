@@ -195,7 +195,8 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - The randomized MAC tracer stopped at 128 sessions. It now has no fixed limit.
 - The device database held 2,000 devices. It now has no fixed limit.
 - These counts now depend on free memory instead of a fixed cap. The board's extra memory (PSRAM) is 8 MB.
-  - Below a set amount of free memory, the oldest entries are dropped and the tracer skips new devices.
+  - When memory runs low, the oldest devices move to `/devicedb_archive.jsonl` and `/probedb_archive.jsonl` on the SD card instead of being lost.
+  - The randomized MAC tracer still skips new devices when memory is low.
 - The baseline **SD Device Storage** setting now limits how many devices are stored on the SD card.
 - A device that returns during a baseline is now read back from the SD card, instead of being counted as new.
 - Saves now write to a temporary file first, so a power cut can't corrupt them.
