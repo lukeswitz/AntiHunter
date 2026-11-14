@@ -1,6 +1,6 @@
 # AntiHunter v1.0.5
 
-This release shows your erase key at flash, adds Sentinel to Stable, and removes scan limits.
+This release shows your erase key when you flash, adds Sentinel to Stable, and removes the fixed limits on scan results.
 
 | Channel | Version | Board | Previous |
 |---|---|---|---|
@@ -10,270 +10,305 @@ This release shows your erase key at flash, adds Sentinel to Stable, and removes
 
 ## Highlights
 
-- Flashing shows your erase key. Write it down; every remote wipe needs it.
-- Sentinel is in Stable. It stays off until you start it.
-- Scans no longer stop at a fixed device count. They run until memory is low.
-- Headless can schedule scans, watch a baseline, and command other nodes from USB.
+- Every flash method now shows the node's erase key. You need this key for every wipe, so write it down.
+- Sentinel is now in Stable. It stays off until you start it.
+- Scans no longer stop recording at a fixed device count, such as 200 Wi-Fi devices.
+- Headless can now schedule scans, watch a baseline, and send commands to other nodes from its USB port.
 - Scans can hear Bluetooth 5 long range, which some drones use for Remote ID.
-- The web UI has a new Settings area, a login, and cleaner results.
+- The Full web UI has a new Settings area, a login page, and cleaner results.
 
-## Before you upgrade: the erase key
+## Before you upgrade: write down your erase key
 
-The erase key is the password that authorizes a wipe. This applies to every channel.
+The erase key is a password you choose or the node makes for you. A wipe from the web UI or over the mesh only runs with it. This applies to every channel and to both Full and Headless.
 
-- The node makes a key on first start. Every flash method shows it.
-- The node prints the key at each boot until you change it.
-- A normal reflash keeps your key and does not show it again.
-- Lost it? Reflash with **Erase device** checked to get a new one.
-- After that reflash, settings return from SD; access point and web passwords reset.
-- Change the key in the web UI or with `CONFIG_ERASE_PSK:<new>:<current>`.
-- A key is 8 to 64 characters and can't contain `:`.
+### Get the key after you flash
+
+1. Flash v1.0.5 as usual. Leave **Erase device** unchecked if you want to keep your settings and your current key.
+2. Keep the node plugged in. Where the key appears depends on how you flashed:
+   - **Web flasher:** in step 2, press **Show my erase key** and pick the same port. The key appears within a minute.
+   - **Flasher script** (`flashAntihunter.sh`): after flashing, the script waits up to 90 seconds and prints the key in a box.
+   - **PlatformIO** (`pio run -t upload`): after the upload, it waits up to 90 seconds and prints the key.
+3. Write the key down and keep it somewhere safe.
+4. Optional: replace it with a key of your own. A key is 8 to 64 characters and can't contain `:`.
+   - Full web UI: System tab → **Settings** → **Danger zone**.
+   - Over the mesh or USB: `CONFIG_ERASE_PSK:<new key>:<current key>`.
+
+### When the node shows the key
+
+- The node shows the key it made at every boot, on USB serial at 115200 baud, until you set your own.
+  - A Full node also shows it under **Danger zone** → **Your erase key**.
+- Once you set your own key, the node never shows it again. The flashers say the node keeps the key you set.
+- A node upgraded from v1.0.4 keeps its old key. If v1.0.4 made that key, v1.0.5 shows it.
 - The access point password no longer works as the erase key.
 
-Mesh wipe commands now use a one-time answer instead of the key:
+### If you lose the key
 
-1. Send `ERASE_REQUEST`. The node replies with a token.
-2. Answer with the first 8 hex characters of HMAC-SHA256(token, erase key).
-3. **Erase Answer** on the web flasher page works this out for you.
+1. Reflash the node with **Erase device** checked. With the flasher script, add `-e`.
+2. Read the new key as in the steps above.
+3. Your settings come back from the SD card. The access point and web passwords go back to their defaults, so set them again.
 
-- This covers `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `FACTORY_RESET`.
-- A recorded command can't be replayed.
+### Wipe a node over the mesh
+
+Mesh wipe commands no longer carry the key. The node gives you a one-time token, and you send back an answer made from it and your key.
+
+1. Send `@<NODE> ERASE_REQUEST`. The node replies `ERASE_TOKEN:` and a token.
+2. Open **Erase Answer** on the [web flasher page](https://lukeswitz.github.io/AntiHunter/). Paste the token and your key, then press **Get answer**.
+   - The page works out the answer in your browser and sends your key nowhere.
+3. Within 300 seconds, send the command with the answer, such as `@<NODE> ERASE_FORCE:<answer>`.
+
+The same answer works for `ERASE_FORCE`, `ERASE_CANCEL`, `AUTOERASE_ENABLE`, `AUTOERASE_DISABLE`, and `FACTORY_RESET`.
+
+- Each token allows one try. Someone who records the command can't replay it.
 - The node answers one `ERASE_REQUEST` every 20 seconds.
-- A token allows one try and expires after 300 seconds.
-- Five wrong answers lock erase commands for 10 minutes, on web and mesh.
-- The key never goes to the SD card. Logs show it as `***`.
+- Five wrong answers lock erase commands for 10 minutes, on the web UI and the mesh.
+- The key is never written to the SD card. Logs show it as `***`.
+
+The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe).
 
 ## New
+
+### Security
+
+- The Full web UI now asks for a login. The user name is `admin`. The password is the access point password until you set your own.
+  - Set a web password under System tab → **Settings** → **Access point** → **Web login**. It is 8 to 63 characters, with no `:`.
+  - **Require login** in the same place turns the login off. Changing either setting needs the current web password.
+  - Neither setting can be changed over the mesh.
+- Mesh wipe commands now use a one-time answer instead of the erase key. See [Wipe a node over the mesh](#wipe-a-node-over-the-mesh).
 
 ### Mesh and Headless
 
 - Most mesh commands have short aliases, such as `SS` for `SCAN_START` and `X` for `STOP`.
+  - The [mesh command reference](https://github.com/lukeswitz/AntiHunter/blob/main/docs/mesh-commands.md) lists every alias.
 - Command names, node IDs, and `@ALL` are no longer case-sensitive.
-- The [mesh command reference](https://github.com/lukeswitz/AntiHunter/blob/main/docs/mesh-commands.md) lists every alias.
-- `SUMMARY` replies with scan state, device, target, and hit counts, incidents, campaign, and uptime.
-- Full `STATUS` now ends with the last reset reason, like Headless.
-- Device scans pack several devices into each mesh message.
-- Full's Schedule dialog can schedule a scan on another mesh node.
-- `DEVICE_SCAN_START` takes an optional channel list. A split scan sweeps only its channels.
-- Headless can schedule scans and watch a baseline, like Full.
-- Full sends a baseline summary over the mesh when a baseline ends, like Headless.
-- `FLEET_SEND:<node> <command>` on USB sends a command to another node.
-- With it, a Headless node on a laptop can command every node it hears.
-- `FLEET` on Headless USB prints the mesh roster as JSON, like Full.
-- Campaigns tag a node's logs with a name, so you can pull one survey out.
-- Use `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. Campaigns survive a reboot.
-- `scripts/campaign_report.py` summarizes a copied Headless SD card by campaign or date.
-- Clearing probe, baseline, tracer, and Sentinel data now works over the mesh.
-- `PCAP_AUTO` caps Sentinel's capture space. Defaults: 512 MB used, 256 MB kept free.
-- `DETECT_COUNTS` sends Sentinel's tracker counts over the mesh.
-- Headless results show security, target hits, range, signal trend, and probed networks.
-- Beta and C5 can use a MeshCore radio instead of Meshtastic.
-- Switch with `MESHCORE_ON` or `MESHCORE_OFF` on USB, or the Full web switch.
-- With MeshCore on, `meshcore-cli` on the node's USB port reaches the radio.
-- Split MeshCore replies end each continued part with ` +`.
-- See [MeshCore radio setup](https://github.com/lukeswitz/AntiHunter/wiki/MeshCore-radio-setup) on the wiki.
+- `SUMMARY` replies with the scan state, device, target, and hit counts, incidents, the current campaign, and uptime.
+- Full's `STATUS` reply now ends with the reason for the last reset, as Headless does.
+- Device scans now pack several devices into each mesh message, so results reach other radios with fewer messages.
+- Full's Schedule dialog can now schedule a scan on another mesh node, not only on this one.
+- `DEVICE_SCAN_START` takes an optional channel list, such as `CH1,6,11`. In a split scan, each node sweeps only its own channels.
+- Headless can now schedule scans and watch a baseline, as Full does.
+- Full now sends a baseline summary over the mesh when a baseline ends, as Headless does.
+- `FLEET_SEND:<node> <command>`, typed on a node's USB serial port, sends one command to another node over the mesh.
+  - A laptop with a Headless node on USB can command every node it hears. Use `ALL` as the node to reach them all.
+  - See [How to run several nodes](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes) on the wiki.
+- `FLEET` on a Headless node's USB port prints every node and radio it has heard as JSON, as Full does.
+- A campaign tags a node's logs with a name you choose, so you can pull one survey out of the logs later.
+  - Use `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. A campaign keeps running after a reboot.
+  - `scripts/campaign_report.py` summarizes a copied Headless SD card by campaign or by date.
+- `PROBE_DB_CLEAR`, `BASELINE_RESET`, `RANDOMIZATION_RESET`, and `DETECT_CLEAR` now work over the mesh. Before, only the Full web UI could clear this data.
+- `PCAP_AUTO:<budget MB>,<keep free MB>` is a new mesh command for the packet captures that Attack response starts on its own.
+  - When those captures pass the budget, or free SD space drops below the second number, the node deletes the oldest ones.
+  - The defaults are 512 MB and 256 MB. On Full, the same limits are on the Sentinel tab under **Attack response**.
+- `DETECT_COUNTS` replies with how many devices each Sentinel detector is tracking, such as Karma candidates, Pwnagotchis, and handshakes.
+- Headless results now show the same detail as Full: Wi-Fi security, target hits, range, signal trend, and the networks a device probed for.
+- Beta and C5 can use a radio running MeshCore instead of Meshtastic.
+  - Switch with `MESHCORE_ON` or `MESHCORE_OFF` on the USB port, or with the **MeshCore radio** switch in the Full web UI.
+  - A node uses one radio type at a time. Meshtastic and MeshCore radios can't hear each other, so put every node on the same type.
+  - With MeshCore on, `meshcore-cli` on the node's USB port reaches the radio, so you can change its settings without unplugging it.
+  - A MeshCore reply too long for one message is split. Every part but the last ends with ` +`.
+  - See [MeshCore radio setup](https://github.com/lukeswitz/AntiHunter/wiki/MeshCore-radio-setup) on the wiki.
 
 ### Bluetooth
 
-- `BLE_LONGRANGE:1` adds Bluetooth 5 long range to scans. It's off by default.
-- Long range costs listening time: 25 devices per window on, 31 off.
-- `BLE_CLASSIFY:0` turns off the Bluetooth classifier to save processing. It's on by default.
-- The classifier now reads every data block in an advertisement, not just the first.
+- `BLE_LONGRANGE:1` adds Bluetooth 5 long range to scans. It is off by default.
+  - Long range takes listening time from ordinary Bluetooth. In a bench test, a window heard 25 devices with it on, 31 off.
+- `BLE_CLASSIFY:0` turns off the Bluetooth device classifier to save processing time. It is on by default.
+- The classifier now reads every data block in a Bluetooth advertisement, not only the first one.
 
 ### Web UI
 
-- The System tab has one menu for Diagnostics, Fleet, and all settings.
-- Full now asks for a login. User `admin`; password is the access point password.
-- Set a separate web password under **Settings** → **Access point** → **Web login**.
-- **Set RTC from this browser's clock** sets the node's clock.
+- The System tab has one menu for **Diagnostics**, **Fleet**, and every settings section.
+- **Set RTC from this browser's clock** on the System tab sets the node's clock from your browser.
 - Paper dark is the new default theme.
-- Results show Wi-Fi security and list target hits first.
-- One sort menu works on every results list.
+- Results show each network's Wi-Fi security and list target hits first.
+- One sort menu now works on every results list.
 - The Data tab adds a campaign picker, date filters, and summary tiles.
 - The Data tab can start and stop a campaign on several nodes at once.
-- The Sentinel tab adds a Privacy button and a **Mesh Radios Nearby** card.
-- **Clear All Events** on the Sentinel tab clears the mesh command log.
-- The web flasher adds **LoRa Mesh Radios** and **Interference Baseline** settings.
-- **Split across nodes** moved to the Scan tab, under Schedule.
-- The baseline button is now **Compare from now**.
-- Help text and messages are shorter. Bloom Gossip is now Baseline Sharing.
-- Confirm prompts open inside the page and work from the keyboard.
-- Full shows the terms of use once and remembers your answer on SD.
+- The Sentinel tab adds a Privacy button that hides names and addresses, and a **Mesh Radios Nearby** card.
+- **Clear All Events** on the Sentinel tab now also clears the mesh command log.
+- The web flasher's Sentinel settings add switches for the two new detectors: **LoRa Mesh Radios** and **Interference Baseline**.
+- **Split across nodes** moved to the Scan tab. It appears under Schedule when you pick Device Discovery.
+- The baseline button is now called **Compare from now**.
+- Help text and messages are shorter. Bloom Gossip is now called Baseline Sharing.
+- Confirm prompts now open inside the page and work from the keyboard.
+- Full shows the terms of use once and saves your answer on the SD card.
 
 ### Detection
 
-- `CALIBRATE:<mac>:<meters>` calibrates distance from a device at a measured distance.
-- The calibration saves to SD and survives reboots and Erase-device flashes.
-- Sentinel can spot nearby Meshtastic and MeshCore radios. Turn it on with `GROUP:devices:on`.
-- `RADIO_KNOWN_ADD` stops your own radios from raising alerts.
-- Sentinel alerts when a Wi-Fi channel's noise floor jumps.
-- `jam_baseline`, off by default, alerts when a busy channel goes silent.
-- A new Pwnagotchi card. Sightings also count on the Deauth Flood and PMKID cards.
-- Target results show **Getting closer** or **Moving away**. A Movement switch hides them.
-- Malformed Bluetooth alerts record the advert bytes.
+- `CALIBRATE:<mac>:<meters>` calibrates distance estimates from a device you place at a measured distance from the node.
+  - The calibration is saved to the SD card. It survives reboots and flashes with **Erase device** checked.
+- Sentinel can spot Meshtastic and MeshCore radios nearby. It is off by default. Turn it on with `GROUP:devices:on`.
+  - `RADIO_KNOWN_ADD:<mac>:<type>` adds one of your own radios to a list that never raises an alert.
+- Sentinel now alerts when the noise floor on a Wi-Fi channel jumps, which can mean interference.
+  - `jam_baseline`, off by default, also alerts when a busy channel suddenly goes silent. Turn it on with `DETECT_CFG:{"jam_baseline":true}`.
+- The **Recon / Harvest** card on the Sentinel tab now lists Pwnagotchi sightings. They also count on the **Deauth Flood** and **PMKID** cards.
+- Target results show **Getting closer** or **Moving away**. The **Movement** switch hides these labels.
+- Malformed Bluetooth alerts now include the raw advertisement bytes.
 - Each Sentinel incident now records what triggered it.
-- The target list accepts tracer IDs such as `T-00A3`.
-- Vibration alerts record the pulse count and time since the last alert.
-- Packet captures include the radiotap MCS field for 802.11n frames.
+- The target list now accepts tracer IDs, such as `T-00A3`, as well as MAC addresses.
+- Vibration alerts now include the pulse count and the time since the last alert.
+- Packet captures now record the data rate (MCS) of 802.11n frames.
 
 ## Fixed
 
 ### Security and privacy
 
-- The node uses random Wi-Fi and Bluetooth addresses from boot, not factory ones.
-- Karma bait probes use a new random address and name each time.
-- The web UI refuses requests from other websites.
+- The node now uses random Wi-Fi and Bluetooth addresses from boot, instead of its factory addresses.
+- Karma bait probes now use a new random address and network name each time. Before, every probe came from one fixed address.
+- The web UI now refuses requests that come from other websites.
 - The web UI no longer sends the access point password to your browser.
-- The access point password is no longer saved to SD.
-- Over-the-air names can no longer inject a mesh command or HTML.
+- The access point password is no longer saved to the SD card.
+- Device and network names heard over the air can no longer inject a mesh command or HTML into the web UI.
 
 ### Mesh commands
 
-- A command runs only when addressed with `@<NODE>` or `@ALL`.
-- Before, any unaddressed line ran, including others' Meshtastic messages.
-- A command runs only when its name matches exactly.
-- Invalid scan commands now reply `INVALID` instead of staying silent or scanning anyway.
-- `SENTINEL_MODE` and `ATTACKER_TRILAT` reject invalid values instead of changing the setting.
-- `SENTINEL_STATUS` shows Sentinel as on while a scan pauses it.
-- `LIST_SCAN_DONE` and `BASELINE_DONE` report the real number of alerts sent.
-- `CAMPAIGN_START` refuses bad names instead of shortening them.
-- Mesh `CONFIG_TARGETS` separates entries with `|`.
-- Turning off every attack response follow-up now turns attack response off.
+- A command now runs only when it is addressed with `@<NODE>` or `@ALL`.
+  - Before, any unaddressed line ran, including other people's Meshtastic messages on the channel.
+- A command now runs only when its full name matches. Before, some commands ran on any line that began with their name.
+- Scan start commands with an invalid or missing field now reply `INVALID`. Before, they stayed silent or started a scan anyway.
+- `SENTINEL_MODE` and `ATTACKER_TRILAT` now reject invalid values and leave the setting unchanged.
+- `SENTINEL_STATUS` now shows Sentinel as on while a scan has paused it.
+- `LIST_SCAN_DONE` and `BASELINE_DONE` now report the real number of alerts sent.
+- `CAMPAIGN_START` now refuses a name with invalid characters instead of quietly shortening it.
+- `CONFIG_TARGETS` sent over the mesh now separates entries with `|`, because mesh messages can't contain line breaks.
+- Turning off every follow-up action in Attack response now turns Attack response itself off.
 - Bursts of replies no longer lose lines on Meshtastic radios.
-- USB, mesh, and scheduled commands run one at a time.
-- USB commands no longer get lost or merged with earlier ones.
-- STOP cancels a pending attack response.
-- `ERASE_FORCE` replies when the wipe finishes, fails, or is already running.
-- `FACTORY_RESET` reports success or failure over the mesh before rebooting.
-- A huge channel range no longer hangs the node. Ranges are 1 to 255.
-- A device scan with no channel list now uses this node's assigned share.
-- Headless replies `FAILED` when it can't start a scan, instead of `STARTED`.
-- An interrupted Headless scheduled scan now resumes.
-- `VIBSCAN_SET` refuses a packet capture with no duration.
-- Stable drops the CSI command aliases, since only Beta and C5 have CSI.
+- Commands from USB, the mesh, and the scheduler now run one at a time, in order.
+- Commands typed on USB no longer get lost or merged with the line before.
+- `STOP` now cancels an Attack response that is waiting to start.
+- `ERASE_FORCE` now replies when the wipe finishes, fails, or is already running.
+- `FACTORY_RESET` now reports success or failure over the mesh before the node reboots.
+- A Wi-Fi channel range with a huge end, such as `1..2147483647`, no longer hangs the node.
+  - This affects `CONFIG_CHANNELS`, scan commands, and the web UI's Wi-Fi channel field. The node now ignores channels it can't use.
+- A device scan with no channel list now sweeps the share this node got from a channel split.
+- Headless now replies `FAILED` when it can't start a scan. Before, it replied `STARTED`.
+- An interrupted scheduled scan on Headless now resumes.
+- `VIBSCAN_SET` now refuses a packet capture with no duration, which never captured anything.
+- Stable no longer accepts the CSI command aliases, because only Beta and C5 have CSI.
 
 ### Scans and storage
 
-- Device scans kept only 200 Wi-Fi and 200 Bluetooth devices. Now there's no limit.
-- Bluetooth kept 200 devices per window. It now keeps them all.
-- Target scans kept 1,000 hits. Now each target gets one row, with no limit.
-- Probe scans kept 100 devices; the probe database kept 500. Neither has a limit.
-- Deauth detection stopped at 2,000 attacks. It now counts every one.
-- The randomized MAC tracer stopped at 128 sessions. It now has no limit.
-- The device database held 2,000 devices. It now has no limit.
-- Below 512 KB of free PSRAM, probe and tracer scans pause adding entries.
-- The baseline **SD Device Storage** setting now actually limits devices stored on SD.
-- A returning baseline device is read back from SD, not counted as new.
-- Saves write to a temporary file first, so power loss can't corrupt them.
-- The system log now rolls over at 1 MB to `/antihunter_old.log`.
-- Device scans now add devices to the database even with mesh off.
+- Device scans kept only 200 Wi-Fi and 200 Bluetooth devices. They now have no fixed limit.
+- Bluetooth kept 200 devices per scan window. It now keeps every device.
+- Target scans kept 1,000 hits. Each target now gets one row, with no limit.
+- Probe scans kept 100 devices, and the probe database kept 500. Neither has a fixed limit now.
+- Deauth detection stopped counting at 2,000 attacks. It now counts every one.
+- The randomized MAC tracer stopped at 128 sessions. It now has no fixed limit.
+- The device database held 2,000 devices. It now has no fixed limit.
+- These counts now depend on free memory instead of a fixed cap. The board's extra memory (PSRAM) is 8 MB.
+  - Below a set amount of free memory, the oldest entries are dropped and the tracer skips new devices.
+- The baseline **SD Device Storage** setting now limits how many devices are stored on the SD card.
+- A device that returns during a baseline is now read back from the SD card, instead of being counted as new.
+- Saves now write to a temporary file first, so a power cut can't corrupt them.
+- The system log now rolls over to `/antihunter_old.log` when it reaches 1 MB.
+- Device scans now add devices to the device database even with mesh off.
 - Saving a target list that is too large now reports an error.
 - Without a working SD card, scans no longer run far past their set time.
-- Every setting change now saves to SD and survives a reboot.
-- That fixes Sentinel starting again after you turned it off.
-- `FACTORY_RESET:CONFIG` now removes the settings file from SD too.
-- After a memory wipe, the node rebuilds Sentinel settings from SD.
+- Every setting change now saves to the SD card at once and survives a reboot.
+  - This fixes Sentinel starting again at boot after you turned it off.
+- `FACTORY_RESET:CONFIG` now also removes the settings file from the SD card.
+- If the board's built-in memory is wiped, the node now rebuilds its Sentinel settings from the SD card.
 
 ### Sentinel and detectors
 
-- Sentinel no longer reports your own nodes' access points and radios as threats.
-- With the default network name, nodes no longer flag each other as evil twins.
-- A rebooted access point is no longer reported as an evil twin.
-- `EAPOL_BAIT` now needs two disconnects before it fires.
-- Wi-Fi interference detection never alerted. It now alerts on a noise floor rise.
-- In a beacon flood, the detector queue now keeps room for handshake frames.
-- A flood of spoofed PMKID sources can no longer exhaust memory.
+- Sentinel no longer reports your own nodes' access points and mesh radios as threats.
+- Nodes using the default network name no longer flag each other as evil twins.
+- An access point that reboots is no longer reported as an evil twin.
+- `EAPOL_BAIT` now needs two disconnects before it fires. One ordinary disconnect no longer raises the alert.
+- Wi-Fi interference detection never alerted. It now alerts when a channel's noise floor rises.
+- During a beacon flood, the detector queue now keeps room for handshake frames.
+- A flood of fake PMKID sources can no longer use up the node's memory.
 - 16 missing detector cards are back on the Sentinel tab.
 - The raw `/detect` page updates again.
-- Karma and handshake counts now show real numbers.
+- The Karma and handshake cards now show real counts.
 - Every incident type is now logged once, including alerts from other nodes.
 - Sentinel age columns no longer show hundreds of thousands of hours.
-- The tracer links addresses only on device evidence, not signal strength and timing.
+- The tracer now links addresses only on evidence from the device itself, not on signal strength and timing.
 - The tracer no longer hangs the node when a scan stops early.
 
 ### Stability
 
-- The node no longer crashes at the end of a scan with Sentinel on.
-- Battery saver no longer freezes the node by stopping Bluetooth mid-use.
-- Battery saver now lowers the CPU clock to 80 MHz.
-- Battery saver no longer sends false GPS lost and locked alerts.
+- With Sentinel on, the node could reboot at the end of a scan that used Bluetooth. It was rare: 2 times in 28 bench runs.
+  - The node now stops Bluetooth before Sentinel resumes. It passed 40 scans in a row without a reboot.
+- Battery saver no longer freezes the node by turning off Bluetooth while a scan still uses it.
+- Battery saver now lowers the CPU clock to 80 MHz to save power.
+- Battery saver no longer sends false GPS lost and GPS locked alerts.
 - Starting Bluetooth no longer leaks memory.
-- The mesh receive task has twice the stack, so it can't run out.
-- A wrong-key lockout no longer restarts itself after 24.8 days of uptime.
+- The task that receives mesh messages now has twice the memory for its stack, so it can't run out.
+- A wrong-key lockout no longer starts again by itself after 24.8 days of uptime.
 - Stable and Beta no longer reset with a stack error during boot.
 - Headless with Sentinel on no longer fails every Wi-Fi scan.
-- A failed Headless triangulation setup no longer leaves the node stuck.
+- A failed triangulation setup on Headless no longer leaves the node stuck.
 
 ### Triangulation
 
-- A distance calibration is no longer overwritten when the next run starts.
-- Stopping a run while waiting for nodes now cancels it.
-- Helper nodes no longer wait 30 seconds for a stop that never comes.
-- Beta and C5 Headless coordinators now wait for the other nodes' reports.
-- A **Peer link** status replaces the misleading "Clock Sync" line.
-- Spoofed node names can no longer grow the triangulation timing table.
-- On Full, a single-node `TRIANGULATE_START` now accepts a tracer ID target.
+- A distance calibration is no longer overwritten when the next triangulation starts.
+- Stopping a triangulation while it waits for other nodes now cancels it.
+- Helper nodes no longer wait 30 seconds for a stop message that never comes.
+- Headless coordinators on Beta and C5 now wait for the other nodes' reports before working out a position.
+- A **Peer link** status replaces the misleading "Clock Sync" line in triangulation results.
+- Fake node names can no longer fill up the triangulation timing table.
+- On Full, a single-node `TRIANGULATE_START` now accepts a tracer ID as the target.
 
 ### Web UI and data
 
-- Times show in the node's local time zone, set from GPS.
-- System log lines show the time zone after the time.
-- At midnight UTC the clock no longer jumps back a day.
-- The Data tab baseline view no longer always shows 0 devices.
-- Vendor names are short brand names, such as Sony or Nokia.
-- Apple and Microsoft Bluetooth devices are labeled correctly.
-- The results list scrolls inside its own pane.
-- Privacy mode now hides names and addresses on the Data tab.
+- Times now show in the node's local time zone, which it sets from GPS.
+- System log lines now show the time zone after the time.
+- At midnight UTC, the clock no longer jumps back a day.
+- The Data tab's baseline view no longer always shows 0 devices.
+- Vendor names are now short brand names, such as Sony or Nokia.
+- Apple and Microsoft Bluetooth devices are now labeled correctly.
+- The results list now scrolls inside its own pane instead of the whole page.
+- Privacy mode now also hides names and addresses on the Data tab.
 - This node no longer appears twice in node lists.
-- On Beta and C5, Full reports an error when a scan can't start.
+- On Beta and C5, Full now reports an error when a scan can't start.
 
 ### C5 (Experimental)
 
-- With **Band** at 2.4 GHz, scans no longer sweep 5 GHz and find nothing.
-- Scans no longer fail to start under heavy radio traffic.
-- Headless scans no longer drop the 5 GHz channels.
+- With **Band** set to 2.4 GHz, scans also swept 5 GHz, timed out, and found no networks. They now sweep only 2.4 GHz.
+- Scans no longer fail to start when the air is busy with Wi-Fi traffic.
+- Headless no longer drops the 5 GHz channels after its first scan.
 - The boot log no longer shows a memory allocation error.
-- C5 builds use Arduino core 3.3.12, fixing a memory overwrite at Bluetooth start.
-- Building the C5 needs PlatformIO Core 6.2.0 or later.
-- The Wi-Fi hardware now resets at every boot.
+- C5 builds use Arduino core 3.3.12, which fixes a memory overwrite when Bluetooth starts.
+- Building the C5 firmware now needs PlatformIO Core 6.2.0 or later.
+- The firmware now resets the Wi-Fi hardware at every boot, so state left from before a USB reset can't corrupt memory.
 
 ### New in Stable
 
 These fixes come to Stable in this release.
 
-- With mesh off, the node no longer sends mesh messages.
+- With mesh turned off, the node no longer sends mesh messages.
 - The drone scan no longer frees its queue while the radio still uses it.
 - Frame counters no longer lose counts.
 - A slow mesh send no longer holds up the GPS clock sync.
-- Headless drone results refresh every second, like Full.
-- The Full access point sends beacons with 802.11b rates off.
-- Each scan mode in the Full web UI shows a short description.
-- The boot log shows the build ID and free SD space.
+- Headless now updates its drone results every second during a scan, as Full does.
+  - Mesh alerts are unchanged: one `DRONE` alert per drone, and `DRONE_LOST` after 2 minutes without a sighting.
+- The Full access point now sends beacons with the old 802.11b rates off.
+- Each scan mode in the Full web UI now shows a short description.
+- The boot log now shows the build ID and the free SD card space.
 
 ### Flashers
 
-- Both flashers sent auto-erase timings 1,000 times too short.
-- That could make auto-erase wipe within a second of a trigger.
-- **If you set those timings with a flasher, set them again under Danger zone.**
-- The web flasher's custom scan timings now apply, via **RF Preset** → **Custom**.
-- A comma-separated target list now becomes separate targets.
-- The web flasher sends Sentinel settings on Stable too.
+- Both flashers sent auto-erase timings 1,000 times too short, which could make auto-erase wipe within a second of a trigger.
+  - **If you set those timings with a flasher, set them again under Danger zone.**
+- The web flasher's custom scan timings now apply. Choose them under **RF Preset** → **Custom**.
+- A comma-separated target list in either flasher now becomes separate targets.
+- The web flasher now sends Sentinel settings to Stable nodes too.
 
 ## Removed
 
-- Unused HTTP routes. Use `/scan`, `/stop`, and `/results` instead.
-- The OUI reload route and the LittleFS library.
+- HTTP routes that nothing used. Use `/scan`, `/stop`, and `/results` instead.
+- The route that reloaded the vendor (OUI) list, and the LittleFS library.
 - The Bluetooth attack detector, which no build ever included.
 
 ## For developers
 
-- Full stores its web page gzip-compressed, saving about 300 KB.
-- CI runs host tests for the device table, classifier, CSI, and MeshCore.
-- The `[HEAP]` serial line shows the mesh receive task's free stack.
+- Full stores its web page gzip-compressed, which saves about 300 KB of flash.
+- CI runs host tests for the device table, the classifier, CSI, and MeshCore.
+- The `[HEAP]` serial line shows the free stack of the mesh receive task.
 
 ## Firmware size
 
-Full builds shrank because the web page is compressed. Headless grew with new features.
+Full builds are smaller because the web page is compressed. Headless builds are larger because of the new features.
 
 | Build | v1.0.4 | v1.0.5 | Change | App partition used |
 |---|---|---|---|---|
@@ -288,11 +323,9 @@ C5 sizes exclude the 64 KiB bootloader and partition table.
 
 ## Upgrade
 
-Flashing keeps settings, the erase key, and SD files unless you check **Erase device**.
+Flashing keeps your settings, erase key, and SD files unless you check **Erase device**. After flashing, read your erase key as described in [Before you upgrade](#before-you-upgrade-write-down-your-erase-key).
 
-After flashing, use **Show my erase key** and write the key down.
-
-Each build is on the release page with a `SHA256SUMS` file to check downloads.
+Each build is on the release page with a `SHA256SUMS` file to check your downloads.
 
 | | Stable | Beta | Experimental (C5) |
 |---|---|---|---|
@@ -312,7 +345,7 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-PlatformIO (`-t upload` keeps settings and the SD card):
+PlatformIO (`-t upload` keeps your settings and the SD card):
 
 ```bash
 git clone -b main https://github.com/lukeswitz/AntiHunter.git   # or -b beta, or -b feat/c5
