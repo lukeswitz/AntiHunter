@@ -177,7 +177,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
 }
 
 // Caller holds probeMutex. Moves the oldest non-target device into the probe database before dropping it.
-static void probeEvictOldestToDB()
+void probeEvictOldestToDB()
 {
     uint32_t oldestTime = UINT32_MAX;
     auto oldest = probeDevices.end();

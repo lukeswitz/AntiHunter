@@ -11,6 +11,7 @@
 #include <numeric>
 
 #include <SD.h>
+#include <ArduinoJson.h>
 #include <NimBLEAddress.h>
 #include <NimBLEDevice.h>
 #include <NimBLEAdvertisedDevice.h>
@@ -76,6 +77,56 @@ static uint32_t randSessionsShed = 0;
 
 bool isRandomizedMAC(const uint8_t *mac) {
     return (mac[0] & 0x02) && !(mac[0] & 0x01);
+}
+
+static const char kRandArchivePath[] = "/rand_identities_archive.jsonl";
+static SdLineBatch s_randArchive(kRandArchivePath);
+
+// Caller holds randMutex.
+static void archiveIdentity(const DeviceIdentity &id) {
+    DynamicJsonDocument doc(512 + id.macs.size() * 40);
+    doc["identityId"] = id.identityId;
+    JsonArray macs = doc.createNestedArray("macs");
+    for (const auto &m : id.macs) macs.add(macFmt6(m.bytes.data()));
+    doc["firstSeen"] = id.firstSeen;
+    doc["lastSeen"] = id.lastSeen;
+    doc["confidence"] = id.confidence;
+    doc["sessionCount"] = id.sessionCount;
+    doc["isBLE"] = id.isBLE;
+    doc["deviceName"] = id.deviceName;
+    doc["probedSSID"] = id.probedSSID;
+    doc["rssiAvg"] = id.rssiAvg;
+    doc["rssiMin"] = id.rssiMin;
+    doc["rssiMax"] = id.rssiMax;
+    doc["primaryChannel"] = id.primaryChannel;
+    doc["probeCount"] = id.probeCount;
+    if (doc.overflowed()) Serial.printf("[RAND] Archive line for %s truncated (macs:%u)\n", id.identityId, (unsigned)id.macs.size());
+    String line;
+    serializeJson(doc, line);
+    s_randArchive.add(line.c_str(), line.length());
+}
+
+// Caller holds randMutex. Makes room for a new session by dropping the oldest one.
+static void evictOldestSession() {
+    auto oldest = activeSessions.end();
+    for (auto it = activeSessions.begin(); it != activeSessions.end(); ++it) {
+        if (oldest == activeSessions.end() || it->second.lastSeen < oldest->second.lastSeen) oldest = it;
+    }
+    if (oldest == activeSessions.end()) return;
+    const ProbeSession &s = oldest->second;
+    if (!s.linkedToIdentity && isRandomizedMAC(s.mac)) {
+        StaticJsonDocument<256> doc;
+        doc["session"] = macFmt6(s.mac);
+        doc["start"] = s.startTime;
+        doc["last"] = s.lastSeen;
+        doc["probes"] = s.probeCount;
+        doc["ssid"] = s.probedSSID;
+        char line[320];
+        const size_t n = serializeJson(doc, line, sizeof(line));
+        s_randArchive.add(line, n);
+    }
+    activeSessions.erase(oldest);
+    randSessionsShed++;
 }
 
 bool isGlobalMAC(const uint8_t *mac) {
@@ -929,7 +980,9 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 Serial.printf("[RAND] LRU evict %s (age:%lums) to admit new identity\n",
                               deviceIdentities[lruKey].identityId,
                               (unsigned long)(now - oldestSeen));
+                archiveIdentity(deviceIdentities[lruKey]);
                 deviceIdentities.erase(lruKey);
+                s_randArchive.flush();
             } else {
                 return;
             }
@@ -1116,8 +1169,9 @@ void resetRandomizationDetection() {
         activeSessions.clear();
         deviceIdentities.clear();
         identityIdCounter = 0;
+        s_randArchive.discard();
     }
-    for (const char *p : {RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK, RAND_IDENTITIES_TMP}) SafeSD::remove(p);
+    for (const char *p : {RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK, RAND_IDENTITIES_TMP, kRandArchivePath}) SafeSD::remove(p);
     rebuildIdentityMacSnapshot();
     Serial.println("[RAND] Reset: cleared identities + wiped " RAND_IDENTITIES_FILE);
 }
@@ -1477,8 +1531,7 @@ void randomizationDetectionTask(void *pv) {
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
                 
                 if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
-                    randSessionsShed++;
-                    continue;
+                    evictOldestSession();
                 }
                 
                 if (!isSession) {
@@ -1606,8 +1659,7 @@ void randomizationDetectionTask(void *pv) {
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
 
                 if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
-                    randSessionsShed++;
-                    continue;
+                    evictOldestSession();
                 }
 
                 if (!isSession) {
@@ -1869,6 +1921,11 @@ void randomizationDetectionTask(void *pv) {
 void saveDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
 
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        s_randArchive.flush();
+    }
+
     std::vector<DeviceIdentity> snapshot;
     {
         std::lock_guard<std::mutex> lock(randMutex);
@@ -1939,6 +1996,7 @@ void saveDeviceIdentities() {
 
 void loadDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
+    s_randArchive.reserve();
     const char *path = SafeSD::exists(RAND_IDENTITIES_FILE) ? RAND_IDENTITIES_FILE
                      : SafeSD::exists(RAND_IDENTITIES_BAK)  ? RAND_IDENTITIES_BAK : nullptr;
     if (!path) return;

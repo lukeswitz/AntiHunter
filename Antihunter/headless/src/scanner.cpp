@@ -1523,7 +1523,8 @@ void snifferScanTask(void *pv)
                     pd.probeCount++;
                     if (pHasSsid) addProbeSsid(pd, pssid);
                     if (pWildcard) pd.wildcardCount++;
-                } else if (!probePsramLow()) {
+                } else {
+                    if (probePsramLow()) probeEvictOldestToDB();
                     ProbeDevice pd = {};
                     memcpy(pd.mac, pEvt.mac, 6);
                     pd.rssi = pEvt.rssi;
