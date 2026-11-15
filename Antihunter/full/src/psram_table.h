@@ -95,6 +95,30 @@ public:
         return &e;
     }
 
+    // Idle forget: drop entries not seen within maxAge (unit of upsert's lastMs), hook each to SD.
+    size_t eraseOlderThan(uint32_t now, uint32_t maxAge) {
+        const uint32_t n = (uint32_t)count_;
+        uint32_t w = 0;
+        size_t dropped = 0;
+        for (uint32_t r = 0; r < n; r++) {
+            if (now - at(r).lastMs > maxAge) {
+                if (evictFn_) evictFn_(at(r), evictCtx_);
+                dropped++;
+                continue;
+            }
+            if (w != r) at(w) = at(r);
+            w++;
+        }
+        if (dropped == 0) return 0;
+        count_ = w;
+        evicted_ += (uint32_t)dropped;
+        if (count_ == 0) { release(); return dropped; }
+        const uint32_t keep = (uint32_t)(count_ >> kBlockShift) + 1;
+        while (nBlocks_ > keep) heap_caps_free(blocks_[--nBlocks_]);
+        fitIndex();
+        return dropped;
+    }
+
     // Frees the lookup index; find() falls back to a scan and the next upsert rebuilds it.
     void releaseIndex() {
         if (index_) heap_caps_free(index_);
