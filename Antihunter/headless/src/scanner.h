@@ -258,6 +258,7 @@ uint32_t getProbeDBSize();
 void loadDeviceDB();
 void saveDeviceDB();
 void mergeHitToDeviceDB(const Hit &h);
+void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
 void clearDeviceDB();
 void clearProbeDB();
