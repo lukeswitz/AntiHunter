@@ -1558,6 +1558,8 @@ void snifferScanTask(void *pv)
             if (!meshBatchMacs.empty() && millis() - meshBatchStart >= MESH_BATCH_HOLD_MS) flushMeshBatch();
         }
 
+        deviceDBIdleSweep();
+
         if (probeDetectionEnabled && probeRequestQueue) {
             ProbeRequestEvent pEvt;
             int pCount = 0;

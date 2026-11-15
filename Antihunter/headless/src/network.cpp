@@ -2554,9 +2554,10 @@ static void selftestSqueezePsram(uint32_t targetFreeBytes) {
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)g_selftestBlocks.size());
 }
 // Feeds n distinct synthetic APs through apInfoQueue, the promiscuous capture path the device scan drains.
+static uint32_t s_floodSalt = 0;
 static void selftestApFloodTask(void *pv) {
   const uint32_t n = (uint32_t)(uintptr_t)pv;
-  const uint32_t salt = esp_random();
+  const uint32_t salt = s_floodSalt ? s_floodSalt : esp_random();
   uint32_t sent = 0, dropped = 0;
   for (uint32_t i = 0; i < n && apInfoQueue && apCaptureEnabled.load(); i++) {
     ApInfoEvent ev = {};
@@ -2757,7 +2758,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       Serial.printf("[SELFTEST] mesh %d\n", (int)meshEnabled);
   }
   else if (command.startsWith("SELFTEST_APFLOOD:")) {
-      const uint32_t n = (uint32_t)command.substring(17).toInt();
+      const String a = command.substring(17);
+      const int colon = a.indexOf(':');
+      const uint32_t n = (uint32_t)(colon < 0 ? a : a.substring(0, colon)).toInt();
+      s_floodSalt = colon < 0 ? 0 : (uint32_t)strtoul(a.substring(colon + 1).c_str(), nullptr, 0);
       if (!apInfoQueue || !apCaptureEnabled.load()) Serial.println("[SELFTEST] apflood needs a running Wi-Fi device scan");
       else xTaskCreate(selftestApFloodTask, "stapflood", 3072, (void *)(uintptr_t)n, 1, nullptr);
   }
@@ -2772,6 +2776,12 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SELFTEST_BLEPHY:")) {
       extern void selftestBlePhy(uint8_t);
       selftestBlePhy((uint8_t)command.substring(16).toInt());
+  }
+  else if (command.startsWith("SELFTEST_DEVDBSWEEP:")) {
+      extern size_t deviceDBForceSweep(uint32_t maxAgeSecs);
+      const uint32_t secs = (uint32_t)command.substring(20).toInt();
+      Serial.printf("[SELFTEST] devdb sweep: forgot %u idle devices from memory\n",
+                    (unsigned)deviceDBForceSweep(secs));
   }
   else if (command.startsWith("SELFTEST_TX:")) { Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true)); }
   else if (command.startsWith("SELFTEST_DUMP:")) {

@@ -264,10 +264,12 @@ void clearProbeDB();
 void loadDeviceDB();
 void saveDeviceDB();
 void mergeHitToDeviceDB(const Hit &h);
+void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
 struct DeviceDBStream {
     size_t cursor = 0;
     uint8_t phase = 0;
+    uint8_t first = 1;
     uint16_t pendLen = 0;
     uint16_t pendOff = 0;
     char pend[320];

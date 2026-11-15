@@ -1459,6 +1459,8 @@ void snifferScanTask(void *pv)
             if (!meshBatchMacs.empty() && millis() - meshBatchStart >= MESH_BATCH_HOLD_MS) flushMeshBatch();
         }
 
+        deviceDBIdleSweep();
+
         // Drain probeRequestQueue when captureProbes is enabled during device scan
         if (probeDetectionEnabled && probeRequestQueue) {
             ProbeRequestEvent pEvt;
