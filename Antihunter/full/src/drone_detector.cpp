@@ -32,8 +32,6 @@ extern std::atomic<bool> scanning;
 
 static unsigned long lastDroneLog = 0;
 const unsigned long DRONE_LOG_INTERVAL = 1000;
-static unsigned long lastDroneMeshSend = 0;
-static const unsigned long DRONE_MESH_INTERVAL = 3000;
 
 struct DroneAnnounce { uint32_t announcedMs; uint32_t lastMeshMs; bool stale; };
 static std::map<String, DroneAnnounce> droneMeshAnnounced;
