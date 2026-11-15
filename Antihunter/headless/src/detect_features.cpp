@@ -1056,8 +1056,8 @@ void detect_clearIncidents() {
     if (SD.exists("/incidents.jsonl")) {
         SD.remove("/incidents.jsonl");
     }
-    if (SD.exists("/incidents.jsonl_old")) {
-        SD.remove("/incidents.jsonl_old");
+    if (SD.exists("/incidents_old.jsonl")) {
+        SD.remove("/incidents_old.jsonl");
     }
 }
 
