@@ -2878,11 +2878,11 @@ static std::atomic<bool> bleInitStarted{false};
 #define AH_SELFTEST 0
 #endif
 #if AH_SELFTEST
-void selftestInjectDevices(uint32_t count) {
+void selftestInjectDevices(uint32_t count, uint32_t start) {
     uint32_t sentAp = 0, dropAp = 0, sentProbe = 0, dropProbe = 0;
-    Serial.printf("[SELFTEST] inject start count=%u apQ=%d probeQ=%d\n",
-                  (unsigned)count, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
-    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+    Serial.printf("[SELFTEST] inject start count=%u from=%u apQ=%d probeQ=%d\n",
+                  (unsigned)count, (unsigned)start, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
+    for (uint32_t i = start; i < start + count && !stopRequested; i++) {
         if (apInfoQueue) {
             ApInfoEvent ae = {};
             ae.bssid[0] = 0x02; ae.bssid[1] = 0xAB;
@@ -2912,7 +2912,7 @@ void selftestInjectDevices(uint32_t count) {
             pe.payload[25] = ssidLen;
             for (uint8_t k = 0; k < ssidLen; k++) pe.payload[26 + k] = (uint8_t)nm[k];
             pe.payloadLen = (uint16_t)(26 + ssidLen);
-            if (xQueueSend(probeRequestQueue, &pe, 0) == pdTRUE) sentProbe++; else dropProbe++;
+            if (xQueueSend(probeRequestQueue, &pe, pdMS_TO_TICKS(200)) == pdTRUE) sentProbe++; else dropProbe++;
         }
         if ((i & 0x1F) == 0x1F) vTaskDelay(1);
     }
