@@ -1138,6 +1138,8 @@ static void handleSummary(const String &command)
 #endif
   if (n > 0 && n < (int)sizeof(buf) && campaignName()[0])
     n += snprintf(buf + n, sizeof(buf) - n, " Camp:%s", campaignName());
+  if (n > 0 && n < (int)sizeof(buf) && g_sdRecordsNotSaved.load())
+    n += snprintf(buf + n, sizeof(buf) - n, " NotSaved:%u", (unsigned)g_sdRecordsNotSaved.load());
   if (n > 0 && n < (int)sizeof(buf))
     snprintf(buf + n, sizeof(buf) - n, " Up:%02u:%02u:%02u", (unsigned)(up / 3600), (unsigned)(up / 60 % 60), (unsigned)(up % 60));
   sendToSerial1(String(buf), true);

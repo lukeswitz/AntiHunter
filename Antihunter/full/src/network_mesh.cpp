@@ -1049,6 +1049,8 @@ static void handleSummary(const String &command)
 #endif
   if (n > 0 && n < (int)sizeof(buf) && campaignName()[0])
     n += snprintf(buf + n, sizeof(buf) - n, " Camp:%s", campaignName());
+  if (n > 0 && n < (int)sizeof(buf) && g_sdRecordsNotSaved.load())
+    n += snprintf(buf + n, sizeof(buf) - n, " NotSaved:%u", (unsigned)g_sdRecordsNotSaved.load());
   if (n > 0 && n < (int)sizeof(buf))
     snprintf(buf + n, sizeof(buf) - n, " Up:%02u:%02u:%02u", (unsigned)(up / 3600), (unsigned)(up / 60 % 60), (unsigned)(up % 60));
   sendToSerial1(String(buf), true);
@@ -2456,16 +2458,34 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       const uint8_t m[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
       attack_responseArm(m, "SELFTEST");
   }
-  else if (command == "SELFTEST_PROBEDBSTREAM") {
-      // Drains the /api/probedb stream in this task; the loopback HTTP client starves async_tcp on large bodies.
+  else if (command == "SELFTEST_DEVDBSTREAM") {
+      auto st = std::make_unique<DeviceDBStream>();
+      uint8_t buf[1024];
+      size_t total = 0, rows = 0;
+      for (size_t n; (n = deviceDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
+          for (size_t i = 0; i < n; i++) if (buf[i] == '{') rows++;
+          total += n;
+          vTaskDelay(1);
+      }
+      Serial.printf("[SELFTEST] devdb stream bytes=%u rows=%u db=%u psram_free=%u\n", (unsigned)total, (unsigned)rows,
+                    (unsigned)getDeviceDBSize(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  }
+  else if (command.startsWith("SELFTEST_PROBEDBSTREAM")) {
+      // Drains the /api/probedb stream in this task; the loopback HTTP client starves async_tcp on large bodies. Optional ":<MAC>" prints that row.
+      const String want = command.length() > 23 ? command.substring(23) : String();
       auto st = std::make_unique<ProbeDBStream>();
       uint8_t buf[1024];
       size_t total = 0, rows = 0;
       char first = 0, last = 0;
+      String row;
       for (size_t n; (n = probeDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
           if (!total) first = (char)buf[0];
           last = (char)buf[n - 1];
-          for (size_t i = 0; i < n; i++) if (buf[i] == '{') rows++;
+          for (size_t i = 0; i < n; i++) {
+              if (buf[i] == '{') { rows++; row = ""; }
+              if (want.length()) row += (char)buf[i];
+              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0) Serial.printf("[SELFTEST] probedb row %s\n", row.c_str());
+          }
           total += n;
           vTaskDelay(1);
       }

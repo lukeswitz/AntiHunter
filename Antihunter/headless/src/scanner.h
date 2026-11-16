@@ -101,6 +101,8 @@ struct ProbeDevice {
     uint32_t histLastEpoch;
     uint16_t histSessionCount;
     bool histKnown;
+    uint32_t dbMergedProbes;
+    bool dbMerged;
     // Probe response intelligence
     char respondingAP[18];
     char respondingSSID[33];
@@ -243,14 +245,15 @@ String getProbeResults();
 
 // SD probe database
 void loadProbeDB();
-void saveProbeDB();
-void mergeProbeDeviceToDB(const ProbeDevice &dev);
+void saveProbeDB(bool releaseCache = false);
+void mergeProbeDeviceToDB(ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
 
 // SD device database
 void loadDeviceDB();
 void saveDeviceDB();
+void deviceDBRestore(const uint8_t *macs, size_t n);
 void mergeHitToDeviceDB(const Hit &h);
 void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
@@ -302,7 +305,6 @@ extern QueueHandle_t deauthQueue;
 
 // Baseline scan
 extern uint32_t baselineRamCacheSize;
-extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern uint32_t g_curScanEndMs;

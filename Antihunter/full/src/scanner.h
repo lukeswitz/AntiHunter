@@ -100,6 +100,8 @@ struct ProbeDevice {
     uint32_t histLastEpoch;       // last-seen epoch
     uint16_t histSessionCount;    // how many scan sessions this device appeared in
     bool histKnown;               // true if device was in SD database before this scan
+    uint32_t dbMergedProbes;      // probeCount already added to the probe database
+    bool dbMerged;                // this sighting is already counted as a session
     char respondingAP[18];        // BSSID of AP that responded to this device's probe
     char respondingSSID[33];      // SSID from probe response
 };
@@ -244,15 +246,15 @@ void probeDetectionTask(void *pv);
 String getProbeResults();
 
 void loadProbeDB();
-void saveProbeDB();
-void mergeProbeDeviceToDB(const ProbeDevice &dev);
+void saveProbeDB(bool releaseCache = false);
+void mergeProbeDeviceToDB(ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
 // Streams /api/probedb one row at a time, resuming after the last MAC sent.
 struct ProbeDBStream {
     uint8_t phase = 0;
     bool first = true;
-    char lastKey[18] = {0};
+    size_t cursor = 0;
     uint16_t pendLen = 0;
     uint16_t pendOff = 0;
     char pend[768];
@@ -263,6 +265,7 @@ void clearProbeDB();
 
 void loadDeviceDB();
 void saveDeviceDB();
+void deviceDBRestore(const uint8_t *macs, size_t n);
 void mergeHitToDeviceDB(const Hit &h);
 void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
@@ -320,7 +323,6 @@ extern std::atomic<bool> deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 
 extern uint32_t baselineRamCacheSize;
-extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern uint32_t g_curScanEndMs;

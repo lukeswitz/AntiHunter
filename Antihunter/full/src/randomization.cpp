@@ -982,6 +982,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 archiveIdentity(deviceIdentities[lruKey]);
                 deviceIdentities.erase(lruKey);
                 s_randArchive.flush();
+                g_sdRecordsMoved++;
             } else {
                 return;
             }
@@ -1146,13 +1147,20 @@ void cleanupStaleTracks() {
     std::vector<String> toRemove;
     
     for (const auto& entry : deviceIdentities) {
-        if (entry.second.lastSeen != 0 && now - entry.second.lastSeen > TRACK_STALE_TIME) {
+        const uint32_t seen = entry.second.lastSeen;
+        if ((seen != 0 && now - seen > TRACK_STALE_TIME) || (seen == 0 && now > TRACK_STALE_TIME)) {
             toRemove.push_back(entry.first);
         }
     }
 
     for (const auto& key : toRemove) {
+        archiveIdentity(deviceIdentities[key]);
         deviceIdentities.erase(key);
+    }
+    if (!toRemove.empty()) {
+        s_randArchive.flush();
+        g_sdRecordsMoved += (uint32_t)toRemove.size();
+        Serial.printf("[RAND] Moved %u identities not seen for 24 hours to SD\n", (unsigned)toRemove.size());
     }
 }
 

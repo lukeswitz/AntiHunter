@@ -14,6 +14,11 @@ public:
     static constexpr uint32_t kSlots = 4;
     static constexpr uint32_t kMaxKicks = 500;
 
+    CuckooFilter() = default;
+    CuckooFilter(const CuckooFilter &) = delete;
+    CuckooFilter &operator=(const CuckooFilter &) = delete;
+    ~CuckooFilter() { heap_caps_free(table_); }
+
     bool reserve(uint32_t buckets) {
         if (buckets_) return true;
         uint32_t b = 1;

@@ -7,6 +7,7 @@
 #include "detect.h"
 #include "pcap.h"
 #include <Arduino.h>
+#include <algorithm>
 #include <errno.h>
 #include <string.h>
 #include <time.h>
@@ -426,7 +427,6 @@ void initializeHardware()
         prefs.putInt("scanMode", SCAN_BOTH);
         prefs.putULong("meshInterval", 3000);
         prefs.putUInt("blRamSize", 400);
-        prefs.putUInt("blSdMax", 50000);
         prefs.putUInt("absenceThresh", 120000);
         prefs.putUInt("reappearWin", 300000);
         prefs.putInt("rssiChange", 20);
@@ -473,7 +473,6 @@ void initializeHardware()
     bleLongRange = prefs.getBool("bleLongRange", false);
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
-    baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
     deviceAbsenceThreshold = prefs.getUInt("absenceThresh", 120000);
     reappearanceAlertWindow = prefs.getUInt("reappearWin", 300000);
     significantRssiChange = prefs.getInt("rssiChange", 20);
@@ -499,7 +498,6 @@ void syncSettingsToNVS() {
     prefs.putInt("scanMode", currentScanMode);
     prefs.putULong("meshInterval", meshSendInterval);
     prefs.putUInt("blRamSize", getBaselineRamCacheSize());
-    prefs.putUInt("blSdMax", getBaselineSdMaxDevices());
     prefs.putUInt("absenceThresh", getDeviceAbsenceThreshold());
     prefs.putUInt("reappearWin", getReappearanceAlertWindow());
     prefs.putInt("rssiChange", getSignificantRssiChange());
@@ -568,7 +566,6 @@ static void writeConfigJson(Print &w) {
     w.printf(" \"detectionWindow\":%u,\n", detectionWindow);
     w.printf(" \"setupDelay\":%u,\n", setupDelay);
     w.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
-    w.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
     w.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
     w.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
     w.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
@@ -643,6 +640,140 @@ bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakP
     return true;
 }
 
+static uint64_t sdKeyMix(uint64_t k) {
+    k ^= k >> 33;
+    k *= 0xff51afd7ed558ccdULL;
+    k ^= k >> 33;
+    k *= 0xc4ceb9fe1a85ec53ULL;
+    k ^= k >> 33;
+    return k;
+}
+
+static bool sdKeySetInsert(uint64_t *t, uint32_t mask, uint64_t key, uint64_t h) {
+    const uint64_t v = key + 1;
+    uint32_t i = (uint32_t)(h >> 32) & mask;
+    while (t[i]) {
+        if (t[i] == v) return false;
+        i = (i + 1) & mask;
+    }
+    t[i] = v;
+    return true;
+}
+
+int32_t sdCompactNewestPerKey(const char *path, const char *tmpPath, const char *bakPath, size_t recSize,
+                              uint64_t (*keyOf)(uint8_t *rec), const char *tag) {
+    static const uint32_t kMaxSlots = 131072;
+    static const size_t kChunkBytes = 32 * 1024;
+    File in = SafeSD::open(path, FILE_READ);
+    if (!in) return -1;
+    const uint32_t total = (uint32_t)(in.size() / recSize);
+    if (total == 0) { in.close(); return -1; }
+
+    uint32_t slots = 4096;
+    while (slots < total * 2u && slots < kMaxSlots) slots <<= 1;
+    uint64_t *set = nullptr;
+    while (!set && slots >= 4096) {
+        set = static_cast<uint64_t *>(heap_caps_malloc((size_t)slots * sizeof(uint64_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!set) slots >>= 1;
+    }
+    const size_t chunkRecs = kChunkBytes / recSize;
+    uint8_t *rbuf = static_cast<uint8_t *>(heap_caps_malloc(chunkRecs * recSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    uint8_t *wbuf = static_cast<uint8_t *>(heap_caps_malloc(chunkRecs * recSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    File out = (set && rbuf && wbuf) ? SafeSD::open(tmpPath, FILE_WRITE) : File();
+    if (!out) {
+        in.close();
+        heap_caps_free(set);
+        heap_caps_free(rbuf);
+        heap_caps_free(wbuf);
+        Serial.printf("[%s] Compaction skipped: not enough memory or SD unavailable\n", tag);
+        return -1;
+    }
+
+    const uint32_t perPass = slots / 2;
+    const uint32_t passes = (total + perPass - 1) / perPass;
+    const uint32_t mask = slots - 1;
+    const uint32_t t0 = millis();
+    uint32_t kept = 0;
+    size_t wlen = 0;
+    bool ok = true;
+    for (uint32_t p = 0; p < passes && ok; p++) {
+        memset(set, 0, (size_t)slots * sizeof(uint64_t));
+        uint32_t pos = total;
+        while (pos > 0 && ok) {
+            const uint32_t n = pos < chunkRecs ? pos : (uint32_t)chunkRecs;
+            pos -= n;
+            in.seek((size_t)pos * recSize);
+            if (SafeSD::read(in, rbuf, (size_t)n * recSize) != (size_t)n * recSize) { ok = false; break; }
+            for (uint32_t j = n; j-- > 0;) {
+                uint8_t *rec = rbuf + (size_t)j * recSize;
+                const uint64_t key = keyOf(rec);
+                const uint64_t h = sdKeyMix(key);
+                if ((uint32_t)(h % passes) != p) continue;
+                if (!sdKeySetInsert(set, mask, key, h)) continue;
+                memcpy(wbuf + wlen, rec, recSize);
+                wlen += recSize;
+                kept++;
+                if (wlen + recSize > chunkRecs * recSize) {
+                    if (SafeSD::write(out, wbuf, wlen) != wlen) ok = false;
+                    wlen = 0;
+                }
+            }
+            vTaskDelay(1);
+        }
+    }
+    if (ok && wlen && SafeSD::write(out, wbuf, wlen) != wlen) ok = false;
+    in.close();
+    out.close();
+    heap_caps_free(set);
+    heap_caps_free(rbuf);
+    heap_caps_free(wbuf);
+    if (!ok) {
+        SafeSD::remove(tmpPath);
+        Serial.printf("[%s] Compaction stopped because an SD read or write failed. The old record is kept.\n", tag);
+        return -1;
+    }
+    if (!sdCommitStaged(tmpPath, path, bakPath)) return -1;
+    SafeSD::remove(bakPath);
+    Serial.printf("[%s] Compacted %u records to %u devices in %u ms (%u passes)\n",
+                  tag, (unsigned)total, (unsigned)kept, (unsigned)(millis() - t0), (unsigned)passes);
+    return (int32_t)kept;
+}
+
+int32_t sdReadNewestRecords(const char *path, size_t recSize, uint64_t (*keyOf)(uint8_t *rec),
+                            const uint64_t *sortedKeys, size_t n, uint8_t *out, uint8_t *hit) {
+    if (n == 0) return 0;
+    const size_t chunkRecs = (32 * 1024) / recSize;
+    uint8_t *rbuf = static_cast<uint8_t *>(heap_caps_malloc(chunkRecs * recSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    File f = rbuf ? SafeSD::open(path, FILE_READ) : File();
+    if (!f) {
+        heap_caps_free(rbuf);
+        return -1;
+    }
+    int32_t found = 0;
+    uint32_t chunks = 0;
+    for (;;) {
+        const size_t got = SafeSD::read(f, rbuf, chunkRecs * recSize) / recSize;
+        if (got == 0) break;
+        for (size_t r = 0; r < got; r++) {
+            uint8_t *rec = rbuf + r * recSize;
+            const uint64_t key = keyOf(rec);
+            const uint64_t *pos = std::lower_bound(sortedKeys, sortedKeys + n, key);
+            if (pos == sortedKeys + n || *pos != key) continue;
+            const size_t idx = (size_t)(pos - sortedKeys);
+            if (!hit[idx]) found++;
+            memcpy(out + idx * recSize, rec, recSize);
+            hit[idx] = 1;
+        }
+        if ((++chunks & 0x7) == 0) vTaskDelay(1);
+    }
+    f.close();
+    heap_caps_free(rbuf);
+    return found;
+}
+
+std::atomic<uint32_t> g_sdRecordsMoved{0};
+std::atomic<uint32_t> g_sdRecordsNotSaved{0};
+
 void SdLineBatch::reserve() {
     if (!buf_) buf_ = static_cast<char *>(heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 }
@@ -652,7 +783,10 @@ void SdLineBatch::flush() {
     File f = SafeSD::open(path_, FILE_APPEND);
     const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(buf_), len_) : 0;
     if (f) f.close();
-    if (wrote != len_) Serial.printf("[SD] Write to %s failed: %u records were not saved\n", path_, (unsigned)lines_);
+    if (wrote != len_) {
+        Serial.printf("[SD] Write to %s failed: %u records were not saved\n", path_, (unsigned)lines_);
+        g_sdRecordsNotSaved += lines_;
+    }
     len_ = 0;
     lines_ = 0;
 }
@@ -666,7 +800,10 @@ void SdLineBatch::add(const char *line, size_t len) {
             wrote += SafeSD::write(f, reinterpret_cast<const uint8_t *>("\n"), 1);
             f.close();
         }
-        if (wrote != len + 1) Serial.printf("[SD] Write to %s failed: 1 record was not saved\n", path_);
+        if (wrote != len + 1) {
+            Serial.printf("[SD] Write to %s failed: 1 record was not saved\n", path_);
+            g_sdRecordsNotSaved++;
+        }
         return;
     }
     if (len_ + len + 1 > kBytes) flush();
@@ -776,7 +913,6 @@ void loadConfiguration() {
         detectionWindow = prefs.getUInt("detectWindow", 20000);
         setupDelay = prefs.getUInt("setupDelay", 120000);
         setBaselineRamCacheSize(prefs.getUInt("blRamSize", 400));
-        setBaselineSdMaxDevices(prefs.getUInt("blSdMax", 50000));
         setDeviceAbsenceThreshold(prefs.getUInt("absenceThresh", 120000));
         setReappearanceAlertWindow(prefs.getUInt("reappearWin", 300000));
         setSignificantRssiChange(prefs.getInt("rssiChange", 20));
@@ -1023,11 +1159,6 @@ void loadConfiguration() {
         prefs.putUInt("blRamSize", ramSize);
     }
     
-    if (doc.containsKey("baselineSdMax")) {
-        uint32_t sdMax = doc["baselineSdMax"].as<uint32_t>();
-        setBaselineSdMaxDevices(sdMax);
-        prefs.putUInt("blSdMax", sdMax);
-    }
     
     if (doc.containsKey("baselineRssiThreshold")) {
         int8_t rssiThresh = doc["baselineRssiThreshold"].as<int>();
@@ -1454,6 +1585,8 @@ String getDiagnostics() {
     } else {
         s += "SD Card: Not available\n";
     }
+    s += "SD Card records: " + String(g_sdRecordsMoved.load()) + " moved from memory, " +
+         String(g_sdRecordsNotSaved.load()) + " not saved\n";
     
     s += "GPS: ";
     if (gpsValid) {

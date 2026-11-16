@@ -28,6 +28,10 @@ void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse = false)
 bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize, bool *isWildcard = nullptr);
 void probeEvictOldestToDB();
+// Caller holds probeMutex. Merges every device into the probe database, reading earlier history back from SD first.
+void mergeProbeDevicesToDB(ProbeDevicesMap &devs);
+// Caller holds probeMutex. Fills history for devices marked known whose details are still on SD.
+void probeDBResolveHistory(ProbeDevicesMap &devs);
 
 // ---- Shared scanner helpers (defined in scanner.cpp, called from scanner_probe.cpp) ----
 bool matchesMac(const uint8_t *mac);

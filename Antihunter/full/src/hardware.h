@@ -76,6 +76,18 @@ public:
 // Replaces finalPath with the fully written tmpPath; the old file survives any failure.
 bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath);
 
+// Rewrites a file of fixed-size records keeping exactly the newest (last) record per key; returns records kept, or -1 with the file unchanged.
+int32_t sdCompactNewestPerKey(const char *path, const char *tmpPath, const char *bakPath, size_t recSize,
+                              uint64_t (*keyOf)(uint8_t *rec), const char *tag);
+
+// One sequential pass over a fixed-record file: copies the newest record of each key in sortedKeys[n] to out[i] and sets hit[i]; returns records found, or -1 if the file or buffer is unavailable.
+int32_t sdReadNewestRecords(const char *path, size_t recSize, uint64_t (*keyOf)(uint8_t *rec),
+                            const uint64_t *sortedKeys, size_t n, uint8_t *out, uint8_t *hit);
+
+// Records moved from memory to SD, and records that could not be written to SD; reported in /diag, SUMMARY and SCAN_DONE.
+extern std::atomic<uint32_t> g_sdRecordsMoved;
+extern std::atomic<uint32_t> g_sdRecordsNotSaved;
+
 // Collects lines in one PSRAM buffer and appends them to an SD file in a single write.
 class SdLineBatch {
 public:
