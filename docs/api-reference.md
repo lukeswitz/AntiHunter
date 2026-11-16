@@ -196,8 +196,8 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/probedb/clear` | POST | Clears the probe database |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
 | `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
-| `/api/devicedb` | GET | Devices held in memory (JSON). Devices moved out when memory ran low are in `/devicedb_archive.jsonl` on the SD card. Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
-| `/api/devicedb/clear` | POST | Clears the device database and its SD archive |
+| `/api/devicedb` | GET | Every device on the SD card, one row each (JSON). Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
+| `/api/devicedb/clear` | POST | Clears the device database from memory and the SD card |
 
 These six logs take query parameters to read the end of a large file: `/api/deauth.jsonl`, `/api/drones.jsonl`, `/api/vibrations.jsonl`, `/api/antihunter.log`, `/api/campaigns.csv`, and `/api/incidents.jsonl`.
 
@@ -208,7 +208,7 @@ These six logs take query parameters to read the end of a large file: `/api/deau
 
 The reply header `X-Start` gives the offset of the first byte returned, and `X-Size` gives the file size.
 
-`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.jsonl` on the SD card and survives reboots. It has no fixed size. If PSRAM runs low, it drops the least recently seen devices first. The probe database is in `/probedb.jsonl` on the SD card. It has no fixed size either, and it adds no new devices while free PSRAM is under 512 KB.
+`vendor` is the registered company for the first 24 bits of the MAC address. A randomized MAC has no vendor. `name` is the device's advertised BLE name. The device database is in `/devicedb.bin` on the SD card and survives reboots. The probe database is in `/probedb.bin`. Both keep every device on the SD card and have no fixed size. Memory holds only the devices from the current scan.
 
 <details>
 <summary>Sentinel and detector endpoints</summary>
@@ -331,7 +331,6 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 | `rssiThreshold` | Weakest signal the baseline counts | dBm |
 | `baselineDuration` | Length of the learning phase (0-86400; default 300) | seconds |
 | `ramCacheSize` | Devices kept in memory | devices |
-| `sdMaxDevices` | Devices kept on the SD card (1000-100000; default 50000). New devices past it stay in memory only | devices |
 | `absenceThreshold` | Time without a signal before a device counts as gone | seconds |
 | `reappearanceWindow` | A device returning within this time raises a return alert | seconds |
 | `rssiChangeDelta` | Signal change that raises a change alert | dB |
