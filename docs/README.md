@@ -48,11 +48,11 @@ Nothing is soldered and nothing is flashed.
 
 ### Bare XIAO ESP32-S3, no PCB
 
-The firmware expects the full module set: LoRa radio, GPS, clock, SD reader, and vibration sensor. Wire them to the same pins as the PCB. The pinout is in [Operator's Guide Appendix A](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#appendix-a) and [Hardware](../README.md#hardware).
+The firmware expects the full module set: LoRa radio, GPS, clock, SD reader, and vibration sensor. Wire them to the same pins as the PCB. The pinout is in [Operator's Guide Appendix A](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#appendix-a) and [Hardware and BOM](https://github.com/lukeswitz/AntiHunter/wiki/Hardware-and-BOM).
 
 ### Build from source
 
-The PlatformIO environments are under [Build from source](../README.md#build-from-source). Read [CONTRIBUTING](../CONTRIBUTING.md) and the [CLA](../CLA.md) before you open a pull request.
+The PlatformIO environments are under [Build from source](https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source). Read [CONTRIBUTING](../CONTRIBUTING.md) and the [CLA](../CLA.md) before you open a pull request.
 
 ### Several nodes
 
@@ -65,7 +65,7 @@ Give each node its own ID and put all of them on the same encrypted channel. Nod
 | # | Step | Where |
 |---|------|-------|
 | 1 | Fit the antennas: 2.4 GHz on the XIAO, LoRa on the radio, GPS on the GPS module. | [§3](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html#s3) |
-| 2 | Flash AntiHunter. Choose Full first. | [Web flasher](https://lukeswitz.github.io/AntiHunter/), [flasher script](../README.md#flash-from-the-command-line) |
+| 2 | Flash AntiHunter. Choose Full first. | [Web flasher](https://lukeswitz.github.io/AntiHunter/), [flasher script](https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node) |
 | 3 | Change the access point name and password. The defaults are published in this repository. | Web UI: System tab → **Settings** → **Access point** |
 | 4 | Set the radio's LoRa region. Until you do, the radio receives but never transmits. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
 | 5 | Create your own encrypted channel, make it primary, and turn off the public channel. | [Radio Setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) |
@@ -159,7 +159,7 @@ The full symptom table, the factory reset, and what to include in a bug report a
 
 - [Web flasher](https://lukeswitz.github.io/AntiHunter/): flash from Chrome or Edge on a desktop
 - [CLI flasher](../Dist/flashAntihunter.sh): flash from a terminal
-- [Build from source](../README.md#build-from-source)
+- [Build from source](https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source)
 - [Releases](https://github.com/lukeswitz/AntiHunter/releases) and [release notes](release-notes/notes.md)
 
 ### Operating
