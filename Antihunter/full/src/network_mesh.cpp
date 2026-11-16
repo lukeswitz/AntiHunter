@@ -2805,6 +2805,78 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       extern void selftestBlePhy(uint8_t);
       selftestBlePhy((uint8_t)command.substring(16).toInt());
   }
+#if AH_HEAP_TRACE
+  else if (command == "SELFTEST_SMALLARM") { extern void smallArm(); smallArm(); Serial.println("[SELFTEST] smallalloc armed"); }
+  else if (command == "SELFTEST_SMALLDUMP") { extern void smallDump(); smallDump(); Serial.println("[SELFTEST] smallalloc dump end"); }
+#endif
+  else if (command == "SELFTEST_ALLOCWATCH" || command == "SELFTEST_ALLOCFAIL") {
+      struct FailRec { uint32_t ms, size, caps, freeInt; char task[16]; char fn[24]; };
+      static FailRec recs[24];
+      static volatile uint32_t nrec = 0;
+      static volatile uint32_t minFree = UINT32_MAX, minMs = 0, minLargest = 0;
+      static TaskHandle_t sampler = nullptr;
+      struct SizeBin { uint32_t size, count; };
+      static SizeBin bins[48];
+      static volatile uint32_t nbins = 0, snapMs = 0, snapUsed = 0;
+      static volatile bool snapped = false;
+      if (command == "SELFTEST_ALLOCWATCH") {
+          nrec = 0;
+          minFree = UINT32_MAX;
+          if (!sampler) xTaskCreate([](void *) {
+              for (;;) {
+                  const uint32_t f = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+                  if (f < minFree) {
+                      minFree = f;
+                      minMs = millis();
+                      minLargest = (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+                  }
+                  if (f < 1024 && !snapped) {
+                      snapped = true;
+                      snapMs = millis();
+                      nbins = 0;
+                      snapUsed = 0;
+                      heap_caps_walk(MALLOC_CAP_INTERNAL, [](walker_heap_into_t, walker_block_info_t bi, void *) -> bool {
+                          if (!bi.used) return true;
+                          snapUsed += (uint32_t)bi.size;
+                          for (uint32_t i = 0; i < nbins; i++)
+                              if (bins[i].size == bi.size) { bins[i].count++; return true; }
+                          if (nbins < 48) bins[nbins++] = {(uint32_t)bi.size, 1};
+                          return true;
+                      }, nullptr);
+                  }
+                  vTaskDelay(1);
+              }
+          }, "stheapmin", 2048, nullptr, 20, &sampler);
+          heap_caps_register_failed_alloc_callback([](size_t size, uint32_t caps, const char *fn) {
+              const uint32_t i = nrec;
+              if (i >= 24) return;
+              nrec = i + 1;
+              FailRec &r = recs[i];
+              r.ms = millis();
+              r.size = (uint32_t)size;
+              r.caps = caps;
+              r.freeInt = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+              strncpy(r.task, pcTaskGetName(nullptr), sizeof(r.task) - 1);
+              r.task[sizeof(r.task) - 1] = '\0';
+              strncpy(r.fn, fn ? fn : "", sizeof(r.fn) - 1);
+              r.fn[sizeof(r.fn) - 1] = '\0';
+          });
+          Serial.printf("[SELFTEST] allocwatch armed internal_free=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+          return;
+      }
+      const uint32_t n = nrec < 24 ? nrec : 24;
+      Serial.printf("[SELFTEST] allocfail count=%u internal_min=%u sampled_min=%u at_ms=%u largest_then=%u now_ms=%u\n", (unsigned)n,
+                    (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL), (unsigned)minFree, (unsigned)minMs,
+                    (unsigned)minLargest, (unsigned)millis());
+      for (uint32_t i = 0; i < n; i++)
+          Serial.printf("[SELFTEST] allocfail ms=%u size=%u caps=0x%08x int_free=%u task=%s fn=%s\n", (unsigned)recs[i].ms,
+                        (unsigned)recs[i].size, (unsigned)recs[i].caps, (unsigned)recs[i].freeInt, recs[i].task, recs[i].fn);
+      Serial.printf("[SELFTEST] lowsnap taken=%d ms=%u used=%u bins=%u\n", (int)snapped, (unsigned)snapMs, (unsigned)snapUsed, (unsigned)nbins);
+      for (uint32_t i = 0; i < nbins; i++)
+          if (bins[i].size * bins[i].count >= 1024)
+              Serial.printf("[SELFTEST] lowsnap size=%u count=%u bytes=%u\n", (unsigned)bins[i].size, (unsigned)bins[i].count,
+                            (unsigned)(bins[i].size * bins[i].count));
+  }
   else if (command == "SELFTEST_DEVDBSTREAM") {
       auto st = std::make_unique<DeviceDBStream>();
       uint8_t buf[1024];

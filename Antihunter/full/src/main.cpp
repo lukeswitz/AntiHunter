@@ -17,6 +17,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_cpu.h"
+#include "esp_memory_utils.h"
 #include "soc/soc_caps.h"
 #include "esp_mac.h"
 #include "esp_random.h"
@@ -439,7 +440,34 @@ void allocDump() {
                       (unsigned)g_allocRec[i].ptr, (unsigned)g_allocRec[i].size, (unsigned)g_allocRec[i].caps);
 }
 
+struct SmallSite { uintptr_t ra; const char *task; uint32_t n; };
+static SmallSite g_small[64];
+volatile bool g_smallOn = false;
+
+static void IRAM_ATTR smallNote(void *p, size_t size, void *ra) {
+    if (!g_smallOn || !p || size >= 16 || !esp_ptr_internal(p) || xPortInIsrContext()) return;
+    const uintptr_t r = (uintptr_t)ra;
+    uint32_t h = (uint32_t)(r >> 1) & 63;
+    for (int k = 0; k < 64; k++, h = (h + 1) & 63) {
+        if (g_small[h].ra == r) { g_small[h].n++; return; }
+        if (!g_small[h].ra) { g_small[h] = {r, pcTaskGetName(nullptr), 1}; return; }
+    }
+}
+
+void smallDump() {
+    for (int i = 0; i < 64; i++)
+        if (g_small[i].n >= 20)
+            Serial.printf("[SMALLALLOC] ra=%08x task=%s n=%u\n", (unsigned)g_small[i].ra,
+                          g_small[i].task ? g_small[i].task : "?", (unsigned)g_small[i].n);
+}
+
+void smallArm() {
+    memset(g_small, 0, sizeof(g_small));
+    g_smallOn = true;
+}
+
 static void allocNote(void *p, size_t size, uint32_t caps, void *ra) {
+    smallNote(p, size, ra);
     if (size != 796 && (size < 2200 || size > 2232)) return;
     uint32_t i = __atomic_fetch_add(&g_allocRecN, 1, __ATOMIC_RELAXED);
     if (i < 32) g_allocRec[i] = {(uintptr_t)ra, (uintptr_t)p, (uint32_t)size, caps};
