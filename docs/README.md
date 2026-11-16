@@ -1,6 +1,6 @@
 # Start Here
 
-- **[README](../README.md)**: features, settings, mesh, hardware, build.
+- **[README](../README.md)**: what it does, quick start, hardware, build.
 - **[Operator's Guide](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html)** ([PDF](AntiHunter-Operators-Guide.pdf)): the node from the box to the field.
 - **[Assembly Manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)**: soldering, SD card preparation, connectors, printed enclosure.
 - **Tier notes**, the sheet in the box:
@@ -164,7 +164,7 @@ The full symptom table, the factory reset, and what to include in a bug report a
 
 ### Operating
 
-- [What it detects](../README.md#what-it-detects): every feature, with a link to its wiki page
+- [What it detects](https://github.com/lukeswitz/AntiHunter/wiki#what-it-detects): every feature, with a link to its wiki page
 - [Scan presets](https://github.com/lukeswitz/AntiHunter/wiki/Settings)
 - [Web UI](https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour)
 - [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe)

@@ -25,10 +25,8 @@
 
 - [What is AntiHunter?](#what-is-antihunter)
 - [Quick start](#quick-start)
-- [What it detects](#what-it-detects)
-- [Node types](#node-types)
+- [Wiki](#wiki)
 - [Hardware](#hardware)
-- [Documentation](#documentation)
 - [Flash from the command line](#flash-from-the-command-line)
 - [Build from source](#build-from-source)
 - [Contributing](#contributing)
@@ -39,16 +37,18 @@
 
 ## What is AntiHunter?
 
-AntiHunter is a small, battery-powered digital and physical tripwire. Leave it in a home, a vehicle, along a fence line, or at a site with no signal. It watches the Wi-Fi and Bluetooth around it and its own surroundings, and tells you what is there and what changes:
+**Hunt the hunters.**
 
-- **See what is around you.** It lists nearby Wi-Fi networks and devices with their signal, vendor, and security, classifies Bluetooth devices by type, and records the networks that devices search for.
-- **Watch for change.** It learns which devices belong at a site and alerts on new, returning, or moving ones and on devices from your target list. It links the changing random addresses of phones back to one device.
-- **Detect drones.** It decodes drone Remote ID over Wi-Fi and Bluetooth, including Bluetooth long range.
-- **Detect Wi-Fi attacks.** It spots deauthentication, fake access points, handshake capture, jamming, and other attacks, and names the tool when it recognizes one.
-- **Sense movement and tampering.** It senses movement nearby, even through a wall, from Wi-Fi [channel state information (CSI)](https://en.wikipedia.org/wiki/Channel_state_information), and by default it never transmits to do so. It also knows when someone moves the node. It can then start a scan or a recording, or wipe its data.
-- **Locate and record.** Three or more nodes with GPS can put a device on a map. It can capture packets to its SD card, and scans can run on a schedule.
+AntiHunter is a small, battery-powered digital and physical tripwire. It shows you every wireless device around it and flags the ones that do not belong. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It:
 
-Its onboard LoRa radio sends alerts over Meshtastic or MeshCore to the other nodes and radios on your channel and to the [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO), with no internet or subscription. You control it from the web UI (Full build), over the mesh, or over USB. AntiHunter is open source and never jams or attacks anything.
+- Lists nearby Wi-Fi and Bluetooth devices, and flags new arrivals and repeat visitors
+- Picks out the phones and tags on your watchlist
+- Reads drone Remote ID, including the pilot's position if the drone sends it
+- Spots attacks on your Wi-Fi and names the attack tool if it recognizes it
+- Feels the node being moved, and senses people moving nearby
+- Locates a device with three nodes working together
+
+Alerts go out by long-range LoRa radio to your other nodes and to your phone, through any Meshtastic or MeshCore radio on your channel. There is no internet and no subscription. AntiHunter only listens. It never jams or attacks anything.
 
 <p align="center">
   <img width="320" alt="Three AntiHunter nodes on tripods" src="docs/img/ah-hero.png" />
@@ -67,64 +67,21 @@ Its onboard LoRa radio sends alerts over Meshtastic or MeshCore to the other nod
 5. **Lock it down.** Every unit has the same published defaults. Change the access point name and password, the node ID, the Meshtastic channel, and the erase key. See [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup).
 6. **Run a scan.** Scan only where you have permission. See the [legal disclaimer](#legal-disclaimer).
 
-The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers each step in detail.
-
 ---
 
-## What it detects
+## Wiki
 
-Each feature has its own wiki page with settings, mesh commands, and troubleshooting.
+The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) is the manual. Every feature, setting, command, and fix is there.
 
-### Find devices
-
-| Feature | What it does |
-|---|---|
-| [Target scan](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan) | Alerts when it hears a MAC, vendor, or network name on your watchlist. |
-| [Device discovery](https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery) | Lists nearby Wi-Fi access points and Bluetooth devices. |
-| [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) | Reads each Bluetooth advertisement and labels the device, such as AirPods, a Tile tag, a drone, or a tire-pressure sensor. |
-| [Probe request scanner](https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests) | Shows which network names each phone or laptop is looking for. |
-| [Randomized MAC tracer](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer) | Links a phone's changing MAC addresses back to one device, using methods from peer-reviewed research. |
-| [Drone Remote ID](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID) | Reads a drone's ID, position, flight data, and the operator's location. |
-| [Triangulation](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation) | Three or more nodes with GPS estimate where a device is. |
-
-### Watch an area
-
-| Feature | What it does |
-|---|---|
-| [Baseline anomaly](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly) | Learns which devices belong, then reports new, missing, returning, and moving ones. |
-| [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) (Beta) | Detects people moving nearby, even through walls, from changes in Wi-Fi signals. |
-| [Vibration and tamper response](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper) | When the node is moved, it alerts you and can start a scan or packet capture on its own. |
-
-### Detect attacks
-
-| Feature | What it does |
-|---|---|
-| [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Reports Wi-Fi attacks in the background, such as deauth floods, evil twins, and handshake capture. It names the attack tool when it recognizes one, such as Marauder, MDK4, or aireplay-ng. |
-| [Connected client visibility](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Lists the devices that join the node's own access point. |
-| [Mesh radio detection](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) | Finds other Meshtastic and MeshCore radios nearby, and audits the commands sent on your own mesh channel. |
-| [Deauth detection](https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection) | Logs every deauth frame and flags floods. |
-
-### Capture and respond
-
-| Feature | What it does |
-|---|---|
-| [Packet capture](https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture) | Saves Wi-Fi or Bluetooth traffic to SD as a file Wireshark opens. |
-| [Scheduled scans](https://github.com/lukeswitz/AntiHunter/wiki/Scheduled-scans) | Runs a scan at a set time, once or every day. |
-| [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe) | Erases the node's data on command, or on its own if someone tampers with it. |
-
----
-
-## Node types
-
-Every node runs the same detectors and shares one LoRa mesh. They differ in the radio and the sensor.
-
-| Node | Board | Covers | Status |
-|---|---|---|---|
-| [DIGI](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-node) | ESP32-S3 | Wi-Fi and Bluetooth, 2.4 GHz | Stable |
-| [DIGI C5](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-C5) | ESP32-C5 | Wi-Fi and Bluetooth, 2.4 and 5 GHz | Testing |
-| [RadarNode](https://github.com/lukeswitz/AntiHunter/wiki/RadarNode) | ESP32-C5 | 24 GHz radar, then a Wi-Fi and Bluetooth sweep | Experimental |
-| SDR node | ESP32-S3+C5, nRF24, CC1001, M.2 | Wideband radio capture | In development |
-| [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) | Server | A whole fleet on one map | Beta |
+- **Start:** [Start Here](docs/README.md) · [Choose your hardware](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware) · [Full or Headless](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless) · [Flash a node](https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node) · [Meshtastic radio setup](https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup) · [MeshCore radio setup](https://github.com/lukeswitz/AntiHunter/wiki/MeshCore-radio-setup) · [First setup](https://github.com/lukeswitz/AntiHunter/wiki/First-setup) · [Web UI tour](https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour)
+- **Nodes:** [DIGI node](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-node) · [DIGI C5](https://github.com/lukeswitz/AntiHunter/wiki/DIGI-C5) · [RadarNode](https://github.com/lukeswitz/AntiHunter/wiki/RadarNode) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+- **Find devices:** [Target scan](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan) · [Device discovery](https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery) · [Device classifier](https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier) · [Probe requests](https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests) · [Randomized MAC tracer](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer) · [Drone Remote ID](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID) · [Triangulation](https://github.com/lukeswitz/AntiHunter/wiki/Triangulation)
+- **Watch an area:** [Baseline anomaly](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly) · [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) · [Vibration and tamper](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper)
+- **Detect attacks:** [Sentinel](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel) · [Deauth detection](https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection)
+- **Capture and respond:** [Packet capture](https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture) · [Attack response](https://github.com/lukeswitz/AntiHunter/wiki/Attack-response) · [Scheduled scans](https://github.com/lukeswitz/AntiHunter/wiki/Scheduled-scans) · [Campaigns](https://github.com/lukeswitz/AntiHunter/wiki/Campaigns) · [Secure wipe](https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe)
+- **Field exercises:** [Vehicle tripwire](https://github.com/lukeswitz/AntiHunter/wiki/How-to-leave-a-node-in-a-vehicle) · [Locate a device](https://github.com/lukeswitz/AntiHunter/wiki/How-to-locate-a-device) · [Overnight watch](https://github.com/lukeswitz/AntiHunter/wiki/How-to-watch-a-site-overnight) · [Drone overwatch](https://github.com/lukeswitz/AntiHunter/wiki/How-to-watch-for-drones) · [Defend your Wi-Fi](https://github.com/lukeswitz/AntiHunter/wiki/How-to-protect-your-wifi) · [Multi-node perimeter](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes) · [Alerts on your phone](https://github.com/lukeswitz/AntiHunter/wiki/How-to-get-alerts-on-your-phone)
+- **Reference:** [Mesh commands](docs/mesh-commands.md) · [HTTP API](docs/api-reference.md) · [Settings](https://github.com/lukeswitz/AntiHunter/wiki/Settings) · [Troubleshooting](https://github.com/lukeswitz/AntiHunter/wiki/Troubleshooting) · [Build from source](https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source)
+- **Manuals (PDF):** [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) · [Assembly Manual](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Tier 1 Assembled](docs/note-tier1-assembled.pdf) · [Tier 2 Parts Kit](docs/note-tier2-parts-kit.pdf) · [Tier 3 Populated PCB](docs/note-tier3-populated-pcb.pdf) · [Tier 4 Bare PCB](docs/note-tier4-bare-pcb.pdf)
 
 ---
 
@@ -134,28 +91,11 @@ Every node runs the same detectors and shares one LoRa mesh. They differ in the 
 - [Bill of materials](hw/Prototype_STL_Files/BOM-Links.md): the full parts list for one node, with where to buy each part
 - [Assembly Manual (PDF)](hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf): soldering, SD card setup, connectors, and the 3D-printed case
 - [Hardware and BOM](https://github.com/lukeswitz/AntiHunter/wiki/Hardware-and-BOM) on the wiki: the pinout and the case files
+- [Enclosure STL files](hw/Prototype_STL_Files): the 3D-printable case
+- [Welcome letter](hw/Prototype_STL_Files/ahwelcome.txt): first steps for a new node
 
 > [!IMPORTANT]
 > Use a regulated 5 V supply. Unregulated batteries cause voltage instability.
-
----
-
-## Documentation
-
-Start with the [wiki](https://github.com/lukeswitz/AntiHunter/wiki). It covers setup, every feature, and troubleshooting.
-
-- [Start Here](docs/README.md): setup order, common questions, and fixes
-- [Mesh command reference](docs/mesh-commands.md): every command, value, and alert
-- [HTTP API reference](docs/api-reference.md): the Full firmware's endpoints
-- [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf): unboxing to deployment, with a printable quick-reference card
-- [Assembly Manual (PDF)](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf): building the DIGINODE V4, with soldering, SD card setup, connectors, and the 3D-printed case
-- Tier notes (PDF), one per kit:
-  - [Tier 1 Assembled](docs/note-tier1-assembled.pdf)
-  - [Tier 2 Parts Kit](docs/note-tier2-parts-kit.pdf)
-  - [Tier 3 Populated PCB](docs/note-tier3-populated-pcb.pdf)
-  - [Tier 4 Bare PCB](docs/note-tier4-bare-pcb.pdf)
-- [Enclosure STL files](hw/Prototype_STL_Files): the 3D-printable case
-- [Welcome letter](hw/Prototype_STL_Files/ahwelcome.txt): first steps for a new node
 
 ---
 

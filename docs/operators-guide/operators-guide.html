@@ -143,9 +143,9 @@
 
 <div class="sec">
   <h2>Hello, operator</h2>
-  <p class="lead">The DIGI node is a sensor board built around an ESP32 and a Meshtastic LoRa radio. AntiHunter, its firmware, listens to the Wi-Fi and Bluetooth around it and reports what it finds. You control the node from its web UI (Full build), by sending it text commands over LoRa from any Meshtastic radio on your channel, or by typing the same commands on its USB serial port. It needs no internet connection, cloud account or server.</p>
+  <p class="lead">Hunt the hunters. The DIGI node is a digital and physical tripwire you leave in a home, a vehicle, along a fence line, or at a site with no signal. AntiHunter, its firmware, listens to the Wi-Fi and Bluetooth around it and tells you who is there, who is new, and who is attacking. You control the node from its web UI (Full build), with text commands over LoRa from any Meshtastic radio on your channel, or on its USB serial port. It needs no internet connection, cloud account or server.</p>
 
-  <p>This guide takes you from the box to a tuned node in the field. A label marks each section that applies to one tier only.</p>
+  <p>This guide takes you from the box to a tuned node in the field. A label marks each section that applies to one tier only. Every feature has its own page on the wiki at <span class="mono">github.com/lukeswitz/AntiHunter/wiki</span>, and each feature section names the page to read next.</p>
 
   <div class="box warn">
     <span class="t">Read before applying power: three rules</span>
@@ -605,12 +605,12 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
 
 <div class="sec">
   <h2><span class="num">11</span>Using the node</h2>
-  <p class="lead">Every capability runs on the node itself. One scan mode runs at a time.</p>
+  <p class="lead">Each capability below hunts one kind of threat, and each runs on the node itself. One scan runs at a time. This chapter shows how to start each one. The wiki page named under each has every setting, alert and fix.</p>
 
   <figure><img src="../img/scan-tab.jpg" alt=""><figcaption>The Scan tab: scans on top, options left, schedule right.</figcaption></figure>
 
   <h3>11.1 Target Scan</h3>
-  <p>Target Scan watches for the devices on your Targets list and sends an alert when one appears. A target is a full MAC address, an OUI (the first three bytes of a MAC, which matches every device from one maker) or an SSID (a Wi-Fi network name).</p>
+  <p>Target Scan hunts the devices you already know about. Give it a watchlist and it alerts the moment one appears. A target is a full MAC address, an OUI (the first three bytes of a MAC, which matches every device from one maker) or an SSID (a Wi-Fi network name).</p>
   <p>In the web UI: Scan tab → Device Discovery card → <b>Targets</b>, enter one target per line and save. Set <b>Mode</b>, <b>Duration (s)</b> or <b>Forever</b>, and press <b>Start Scan</b>. Over mesh:</p>
   <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
 @ALL SCAN_START:2:300:1..11</pre>
@@ -621,74 +621,47 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
     <tr><td><span class="mono">300</span></td><td>Run time in seconds, 0 to 86400. 0 runs until <span class="mono">STOP</span>.</td></tr>
     <tr><td><span class="mono">1..11</span></td><td>Wi-Fi channels to sweep: a list (<span class="mono">1,6,11</span>) or a range. This field is required. The node rejects <span class="mono">SCAN_START:2:300</span>. Use <span class="mono">FOREVER</span> here instead to run until stopped on channels 1 to 11.</td></tr>
   </table>
-  <p>Alert: <span class="mono">AH01: Target: MAC RSSI:dBm Type:WiFi|BLE [Name:name] [GPS=lat,lon] [V=vendor] [C=class]</span>. <span class="mono">RSSI</span> is signal strength in dBm. <span class="mono">V=</span> is the first word of the maker's name, sent when the MAC is not randomized. <span class="mono">C=</span> is the BLE class (§11.3).</p>
-  <p>With <b>Movement</b> checked, a target card shows <b>Getting closer</b> or <b>Moving away</b> when the signal has clearly risen or fallen over the last minute: at least 6 sightings over 15 s, a change of at least 6 dB, and a t-statistic of at least 3 (a measure that the trend is not noise). Otherwise it shows <b>Measuring</b> or <b>Steady</b>.</p>
+  <p>The node sends <span class="mono">AH01: Target:</span> with the MAC and its signal strength. <b>Wiki:</b> Target scan.</p>
 
   <h3>11.2 Reading the results</h3>
-  <p>Both builds log to the SD card. Appendix C lists the main files. Full also shows results as cards in the Results tab and the device database in the Data tab. Over mesh you receive every alert described in this chapter plus end-of-scan summaries. <span class="mono">SCAN_DONE: W= B= U= H= TX= DUP=</span> reports Wi-Fi devices, BLE devices, unique MACs, hits, devices sent and devices skipped as repeats. <span class="mono">LIST_SCAN_DONE: Hits= Unique= Targets= TX= PEND=</span> is the Target Scan version. <span class="mono">PEND</span> counts targets not yet sent.</p>
+  <p>Both builds log to the SD card. Appendix C lists the main files. Full also shows results as cards in the Results tab and the device database in the Data tab. Over mesh you receive each alert plus a summary when a scan ends. <b>Wiki:</b> Web UI tour.</p>
   <div class="box warn"><span class="t">Exports carry location</span>
     <p>SD logs, exports and mesh alerts can all contain GPS coordinates. Review any file before you post it publicly or attach it to a report. Privacy Mode only redacts the live web UI.</p>
   </div>
 
   <h3>11.3 Device Discovery</h3>
-<p>Lists every Wi-Fi and BLE device nearby with signal strength, channel and name. Run it first at a new site. In the web UI, pick <b>Device Discovery</b> (second card on the Scan tab), set <b>Scan Mode</b> and duration, and press <b>Start</b>. Check <b>Capture Probes</b> to fill the probe database at the same time.</p>
+<p>Shows you everything around you: every Wi-Fi and BLE device with its signal, channel and name, and a label for what each Bluetooth device is, such as AirPods, a Tile tag or a drone. Run it first at a new site. Pick <b>Device Discovery</b> (second card on the Scan tab) and press <b>Start</b>.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE</pre>
-  <p>Mode and run time work as in §11.1. <span class="mono">+PROBE</span> also records probe requests, and <span class="mono">CH1,6,11</span> limits the Wi-Fi channels. The extra fields can come in any order.</p>
-  <p><b>Split across nodes.</b> Scan tab → Device Discovery → <b>Split across nodes</b> runs one scan across the nodes you check. <b>Split by</b> <i>Radio</i> makes nodes alternate Wi-Fi and BLE, and <i>Channel</i> gives each node its share of the channel list. Set <b>Duration (min)</b> and press <b>Start split scan</b>.</p>
-  <p><b>BLE classes.</b> The <b>Classify BLE devices</b> checkbox is on by default. It labels each BLE device by what it advertises: an Apple service (AirDrop, Handoff, AirPods, Find My), or a class and maker such as <span class="mono">Wearable-Garmin</span>, <span class="mono">Tag-Tile</span>, <span class="mono">Vehicle-Tesla</span> or <span class="mono">Drone-RemoteID</span>. Results and mesh messages carry the label as <span class="mono">C=</span>. Turning it off saves processor time and memory. <span class="mono">BLE_CLASSIFY:0</span> turns it off, and <span class="mono">BLE_CLASSIFY:1</span> turns it on.</p>
+  <p>Mode and run time work as in §11.1. <span class="mono">+PROBE</span> also records probe requests. <b>Split across nodes</b> shares one scan between several nodes. <b>Wiki:</b> Device discovery, Device classifier.</p>
 
   <h3>11.4 Probe Request Scanner</h3>
-  <p>Listens for the probe requests devices send while looking for networks they know, and records the network names each device asks for. Pick <b>Probe Request Scanner</b> in the scan list. Check <b>Broadcast All Probes (mesh)</b> to send every probe over the mesh instead of only target hits.</p>
-  <pre>@ALL PROBE_START:2:300:+ALL
-@ALL PROBE_STOP</pre>
-  <p>Mode and run time work as in §11.1, except that a run time of 0 counts as 1 second here. Add <span class="mono">:FOREVER</span> to run until stopped. <span class="mono">+ALL</span> sends every probe over the mesh.</p>
-  <p>Hit: <span class="mono">AH01: PROBE_HIT MAC [Randomized|maker] RSSI=dBm CH=N [SSID="net" [GHOST]]</span>. <span class="mono">CH</span> is the Wi-Fi channel. <b>Ghost SSID detection</b> adds <span class="mono">GHOST</span> when no access point nearby answers for the probed name.</p>
+  <p>Phones and laptops call out the names of networks they have joined before. This scanner records each device and the names it asks for. Pick <b>Probe Request Scanner</b> in the scan list.</p>
+  <pre>@ALL PROBE_START:2:300:+ALL</pre>
+  <p><span class="mono">+ALL</span> sends every probe over the mesh instead of only target hits. <b>Wiki:</b> Probe requests.</p>
 
   <h3>11.5 Randomized MAC Tracer</h3>
-  <p>Modern phones rotate their MAC address to defeat tracking. This experimental mode links rotating MACs to one identity using behavioral signatures, and reports the identity instead of the address. Pick <b>Randomized MAC Tracer</b> in the scan list.</p>
+  <p>Phones change their MAC address to avoid being tracked. This experimental mode links those changing addresses back to one device and reports it as one identity. Treat an identity as a lead, not proof.</p>
   <pre>@ALL RANDOMIZATION_START:2:300</pre>
-  <p>Mode and run time work as in §11.1. The run time defaults to 60 if you leave it out. The node sends <span class="mono">IDENTITY:</span> messages. Treat them as a lead, not proof.</p>
+  <p><b>Wiki:</b> Randomized MAC tracer.</p>
 
   <h3>11.6 Drone RID Detection</h3>
-  <p>Identifies drones that broadcast Remote ID over Wi-Fi beacons, Wi-Fi NAN and BLE. It reads the ODID / ASTM F3411 and French ID formats. It reports the serial or registration number, position, altitude, speed and, when sent, the operator's location. Pick <b>Drone RID Detection</b> in the scan list.</p>
+  <p>Reads the Remote ID that drones broadcast over Wi-Fi and BLE: the drone's ID, position, altitude, speed and, when sent, the pilot's location. Pick <b>Drone RID Detection</b> in the scan list.</p>
   <pre>@ALL DRONE_START:300</pre>
-  <p>The node sends <span class="mono">DRONE:</span> once per appearance. <span class="mono">DRONE_LOST:</span> follows 120 s after its last beacon.</p>
+  <p>The node sends <span class="mono">DRONE:</span> once per appearance, and <span class="mono">DRONE_LOST:</span> 120 s after its last beacon. <b>Wiki:</b> Drone Remote ID, and the Drone overwatch exercise.</p>
 
   <h3>11.7 Triangulation</h3>
-  <p>Several nodes each report the signal strength of one target MAC, and the coordinating node fits a position. It needs at least three nodes with valid GPS fixes and matched antennas. In the web UI, check <b>Triangulate</b> in the Device Discovery card, enter the <b>Target MAC</b>, pick the <b>RF Environment</b>, set <b>Distance Tuning</b> and press <b>Start Scan</b>.</p>
-  <pre>@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0
-@AH01 TRIANGULATE_RESULTS
-@ALL TRIANGULATE_STOP</pre>
-  <table class="tight">
-    <tr><th style="width:30%">Value</th><th>What it means</th></tr>
-    <tr><td><span class="mono">AA:BB:CC:DD:EE:FF</span></td><td>The target MAC, or an identity such as <span class="mono">T-1A2B</span> from the Randomized MAC Tracer.</td></tr>
-    <tr><td><span class="mono">60</span></td><td>Run time in seconds. The node raises values under 10 to 10 and caps them at 3600.</td></tr>
-    <tr><td><span class="mono">2</span></td><td>RF environment (path-loss model): 0 open sky, 1 suburban, 2 indoor (default), 3 indoor dense, 4 industrial. A wrong choice skews every distance.</td></tr>
-    <tr><td><span class="mono">1.0</span>, <span class="mono">1.0</span></td><td>Wi-Fi and BLE distance multipliers, 0.1 to 5.0 (default 1.0). Below 1.0 puts the estimate closer and above 1.0 farther. Use them to correct a known bias.</td></tr>
-  </table>
-  <p>Send <span class="mono">TRIANGULATE_START</span> to one node. That node coordinates and tells the others. <span class="mono">TRIANGULATE_RESULTS</span> asks it for the result, and <span class="mono">TRIANGULATE_STOP</span> ends the run. Results arrive in three messages. <span class="mono">T_D:</span> is one node's data, <span class="mono">T_F:</span> is the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> marks the run complete with a map link. <span class="mono">TRIANGULATE_RESULTS:NO_DATA</span> means no node has reported yet.</p>
-  <p><b>Calibrate each node</b> for better distances. Place a Wi-Fi access point or BLE device a measured distance from the node. Then send the command below to that node, or use System → <b>Settings</b> → <b>Scanning</b> → <b>Distance calibration</b>. The node listens for 30 seconds, replies <span class="mono">CALIBRATE_DONE</span>, and keeps the result after a reboot and an RF environment change. Send <span class="mono">CALIBRATE_RESET</span> when you move the node.</p>
-  <pre>@AH01 CALIBRATE:AA:BB:CC:DD:EE:FF:5
-@AH01 CALIBRATE_RESET</pre>
+  <p>Three or more nodes with GPS fixes and matched antennas each measure one target's signal, and the coordinating node puts the target on a map. In the web UI, check <b>Triangulate</b> in the Device Discovery card, enter the <b>Target MAC</b>, pick the <b>RF Environment</b> and press <b>Start Scan</b>.</p>
+  <pre>@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2
+@AH01 TRIANGULATE_RESULTS</pre>
+  <p><span class="mono">60</span> is the run time in seconds. <span class="mono">2</span> is the RF environment: 0 open sky, 1 suburban, 2 indoor (default), 3 indoor dense, 4 industrial. A wrong choice skews every distance. Send the command to one node, which runs the hunt with the others.</p>
+  <p><b>Calibrate each node</b> for better distances. Place a device a measured distance from the node, then send the command below or use System → <b>Settings</b> → <b>Scanning</b> → <b>Distance calibration</b>. Send <span class="mono">CALIBRATE_RESET</span> when you move the node.</p>
+  <pre>@AH01 CALIBRATE:AA:BB:CC:DD:EE:FF:5</pre>
+  <p><b>Wiki:</b> Triangulation, and the Locate a device exercise.</p>
 
   <h3>11.8 Baseline Anomaly Detection</h3>
-  <p>The node learns which devices belong at a site, then reports what is new, what returns, what changes signal strength and what disappears. In the <b>learning phase</b> the node records devices and sends no alerts. Its length is the <b>Baseline</b> setting: 5, 10 or 15 minutes, with 5 as the default. In the <b>monitoring phase</b> the node alerts on changes. Its length is <b>Monitor (s)</b> in the web UI, or the run time in the mesh command.</p>
-  <pre>@ALL BASELINE_START:900
-@ALL BASELINE_STATUS</pre>
-  <p><span class="mono">900</span> is the monitoring time in seconds, from 60 to 86400. The node raises a shorter value to 60. <span class="mono">:FOREVER</span> or 0 monitors until stopped. The mesh command uses the <b>Baseline</b> learning time stored on the node. <span class="mono">BASELINE_STATUS</span> reports whether it is scanning, whether learning has finished, the device and anomaly counts, and the phase. <span class="mono">Phase1</span> is INACTIVE, ACTIVE or COMPLETE.</p>
-  <p>Options on the Scan tab when you pick <b>Baseline Anomaly Sniffer</b>:</p>
-  <table class="tight">
-    <tr><th style="width:26%">Setting</th><th>What it does</th><th style="width:20%">Range, default</th></tr>
-    <tr><td>RSSI</td><td>Devices weaker than this raise no anomalies.</td><td>−40 to −80 dBm, −60</td></tr>
-    <tr><td>Baseline</td><td>Length of the learning phase.</td><td>5, 10 or 15 min, 5</td></tr>
-    <tr><td>Monitor (s)</td><td>Length of the monitoring phase.</td><td>0 to 86400 s, 300</td></tr>
-    <tr><td>RAM Cache</td><td>Devices kept in memory (1500 without an SD card).</td><td>200 to 500, 400</td></tr>
-    <tr><td>Marked Absent (s)</td><td>Time a device must be unseen before it counts as gone.</td><td>30 to 600 s, 120</td></tr>
-    <tr><td>Seen Reappear (s)</td><td>Window after a disappearance in which a return raises an alert.</td><td>60 to 1800 s, 300</td></tr>
-    <tr><td>RSSI Variation dB</td><td>Signal change that counts as significant.</td><td>5 to 50 dB, 20</td></tr>
-  </table>
-  <p>Alerts: <span class="mono">ANOMALY-NEW</span> (a device not in the baseline), <span class="mono">ANOMALY-RETURN</span> (a gone device came back), <span class="mono">ANOMALY-RSSI</span> (signal moved by the RSSI Variation) and <span class="mono">DEVICE_DISAPPEARED</span>.</p>
-  <p><b>Compare from now.</b> Press this button once monitoring starts, or send <span class="mono">@ALL BASELINE_WATCH</span> over mesh. The reply <span class="mono">BASELINE_ACK:NOT_RUNNING</span> means no baseline is running. The node then tracks what is new, gone, closer or farther. Full shows the result in a <i>Since</i> section in Results. Headless prints the device list to serial and sends <span class="mono">BASELINE_WATCH: New=&lt;n&gt; Gone=&lt;n&gt; Moved=&lt;n&gt; Both=&lt;n&gt;</span> over mesh.</p>
+  <p>The node learns who belongs at a site, then reports who is new, who comes back, whose signal moves and who disappears. It learns for 5 minutes by default and sends no alerts while learning. Then it monitors.</p>
+  <pre>@ALL BASELINE_START:900</pre>
+  <p><span class="mono">900</span> is the monitoring time in seconds, from 60 to 86400. <span class="mono">:FOREVER</span> monitors until stopped. <b>Wiki:</b> Baseline anomaly, and the Overnight watch exercise.</p>
   <div class="row">
     <figure><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results (§11.1).</figcaption></figure>
     <figure><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection results (§11.4).</figcaption></figure>
@@ -696,86 +669,38 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
   </div>
 
   <h3>11.9 CSI Motion Detection <span style="font-size:.7em;opacity:.7">(experimental, Beta and C5 firmware)</span></h3>
-<p>Alerts when someone moves nearby, even through walls. Use it indoors. It detects movement, not someone sitting still. Stable firmware does not include it. The node listens to nearby routers and phones and alerts when several of their signals change at once.</p>
-  <p>Start it from Scan tab → <b>CSI Motion Detection</b> → <b>Start Scan</b>. Over mesh:</p>
+<p>Senses people moving nearby, even through walls, from changes in the Wi-Fi signals of the routers and phones around the node. It detects movement, not someone sitting still. Use it indoors. Stable firmware does not include it. Start it from Scan tab → <b>CSI Motion Detection</b> → <b>Start Scan</b>. Over mesh:</p>
   <pre>@ALL CSI_MOTION_START:0:FOREVER</pre>
-  <p><span class="mono">0</span> is the run time in seconds and <span class="mono">FOREVER</span> runs until stopped. Optional fields go in any order. <span class="mono">CH6</span> pins channel 6, and <span class="mono">CH0</span> or no channel field picks the busiest. <span class="mono">GAP30</span> allows one mesh motion alert per 30 s. <span class="mono">LISTEN_ONLY</span> or <span class="mono">ALLOW_TRANSMIT</span> sets whether the node may transmit. <span class="mono">MGMTONLY</span> uses management frames only, and <span class="mono">MGMTDATA</span> uses management and data frames. The rest are in <span class="mono">docs/mesh-commands.md</span>.</p>
-  <p>Sensitivity: <b>Low</b> (default) gives the fewest false alarms and needs two devices to see the movement. <b>Medium</b> also accepts one device seeing a very strong change (4× the trigger). <b>High</b> is Medium with a lower trigger and a shorter wait, and gives more false alarms. The other settings are on the Scan tab under CSI Motion Detection, most under Advanced:</p>
-  <table>
-    <tr><th>Setting</th><th>What it means</th><th>Default</th></tr>
-    <tr><td>Movement needed before alerting</td><td>How long someone must move before you get an alert</td><td>8 s</td></tr>
-    <tr><td>Stillness before all-clear</td><td>How long it must be quiet before the alert clears</td><td>5 s</td></tr>
-    <tr><td>Devices that must agree</td><td>How many devices must see the movement at the same time</td><td>2</td></tr>
-    <tr><td>Trigger level</td><td>Lower catches smaller movement</td><td>set by sensitivity</td></tr>
-    <tr><td>Listen only, never transmit</td><td>The node never sends probes. Turn off only if it sees too little Wi-Fi</td><td>On</td></tr>
-    <tr><td>Include randomized-MAC devices</td><td>Also listen to phones and watches, not only routers</td><td>On</td></tr>
-    <tr><td>Min. seconds between mesh motion alerts</td><td>Minimum gap between motion alerts sent over mesh</td><td>0 (no limit)</td></tr>
-  </table>
-  <p><b>False alarms in an empty room:</b> turn on "Per-packet score to serial", note the highest <span class="mono">sig</span> score printed while the room is empty, and set Trigger level slightly above it. Over mesh, <span class="mono">CSI_CFG</span> tunes the same settings. <span class="mono">docs/mesh-commands.md</span> in the repository lists them.</p>
+  <p><span class="mono">FOREVER</span> runs until stopped. <b>Wiki:</b> CSI motion.</p>
   <div class="box"><span class="t">Can transmit</span>
     <p>If you turn off "Listen only, never transmit", the node sends Wi-Fi probe requests when there is too little traffic to measure, and anyone nearby can see them. Check local rules first.</p>
   </div>
 
   <h3>11.10 Deauth Detection</h3>
-  <p>Detects deauthentication and disassociation frames, which disconnect a client from an access point, and tracks their source. Pick <b>Deauth Detection</b> in the scan list.</p>
+  <p>Catches the frames that knock clients off a Wi-Fi network, and tracks who sent them. Pick <b>Deauth Detection</b> in the scan list.</p>
   <pre>@ALL DEAUTH_START:300</pre>
-  <p>Alert: <span class="mono">AH01: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. <span class="mono">SRC</span> is the sender, <span class="mono">DST</span> the target, <span class="mono">CH</span> the channel and <span class="mono">R</span> the IEEE reason code. The code is context only: codes 1, 2, 6 and 7 occur in normal traffic.</p>
+  <p><b>Wiki:</b> Deauth detection.</p>
 
   <h3>11.11 Sentinel threat detection</h3>
-  <p>Sentinel is the node's threat detection. It detects Wi-Fi attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. It also detects interference, disruption of the node's Meshtastic channel, attack devices such as a Pwnagotchi, and Meshtastic and MeshCore radios. It names the attack tool when a frame matches a known template. Control it on the Sentinel tab. <b>Start Sentinel</b> in the top bar starts and stops it. Under <b>Listening</b> → <b>Radio</b>, pick <b>Defend this AP</b> or <b>Scan all channels</b>. <b>Start on boot</b> starts it after a reboot.</p>
+  <p>Sentinel watches in the background for attacks: floods that knock clients off Wi-Fi, fake access points, handshake capture, jamming, attack devices such as a Pwnagotchi, and Meshtastic and MeshCore radios nearby. It names the attack tool when a frame matches a known template. Press <b>Start Sentinel</b> on the Sentinel tab.</p>
   <pre>@ALL SENTINEL_ON
-@ALL SENTINEL_MODE:scan
-@ALL SENTINEL_BOOT:1
-@ALL GROUP:dos:on
-@AH01 SENTINEL_STATUS
-@AH01 INCIDENTS:50</pre>
-  <table class="tight">
-    <tr><th style="width:36%">Command</th><th>What it does</th></tr>
-    <tr><td><span class="mono">SENTINEL_ON</span></td><td>Starts Sentinel. <span class="mono">SENTINEL_OFF</span> stops it.</td></tr>
-    <tr><td><span class="mono">SENTINEL_MODE:scan</span></td><td><span class="mono">scan</span> hops the configured channels. <span class="mono">defend</span> stays on the node's own access point channel. Headless has no access point, so use <span class="mono">scan</span>.</td></tr>
-    <tr><td><span class="mono">SENTINEL_BOOT:1</span></td><td>1 starts Sentinel at power-on, 0 does not.</td></tr>
-    <tr><td><span class="mono">GROUP:dos:on</span></td><td>Turns a detector group on or off: <span class="mono">dos</span>, <span class="mono">rogue</span>, <span class="mono">recon</span>, <span class="mono">physical</span>, <span class="mono">mesh</span>, <span class="mono">devices</span> or <span class="mono">all</span>.</td></tr>
-    <tr><td><span class="mono">SENTINEL_STATUS</span></td><td>Reports <span class="mono">en=</span> (you enabled it) and <span class="mono">run=</span> (it is running now).</td></tr>
-    <tr><td><span class="mono">INCIDENTS:50</span></td><td>Prints the newest 50 incidents (1 to 200, default 20) as JSON on USB serial. The mesh reply is only the length. <span class="mono">INCIDENTS_CLEAR</span> deletes the log.</td></tr>
-  </table>
-  <p>Deauth, beacon and auth flood detection are always on. The <span class="mono">mesh_deauth</span>, <span class="mono">mesh_beacon</span> and <span class="mono">mesh_auth</span> switches set only whether the alert goes out over the mesh. Sentinel listens to Wi-Fi, and to Bluetooth while LoRa mesh radio detection is on. <span class="mono">DETECT_CFG</span> changes individual detectors and thresholds with a JSON object of up to 230 characters, for example <span class="mono">DETECT_CFG:{"karma":true,"pmkid_window":5000}</span>. The Sentinel tab sets the same keys. Each key's meaning, range and default are in <span class="mono">docs/mesh-commands.md</span> in the repository.</p>
+@ALL SENTINEL_BOOT:1</pre>
+  <p><span class="mono">SENTINEL_BOOT:1</span> starts it at every power-on. <b>Wiki:</b> Sentinel, and the Defend your Wi-Fi exercise.</p>
   <div class="box"><span class="t">Karma bait</span>
     <p>Karma bait is the only Sentinel detector that transmits Wi-Fi: a probe request every 8 seconds to bait a karma access point into answering. It is off by default. Turn it on with <span class="mono">GROUP:rogue:on</span> or the <b>Karma</b> switch on the Sentinel tab, and only where transmitting is lawful.</p>
   </div>
-  <h4>LoRa mesh radios</h4>
-  <p>This detector finds Meshtastic and MeshCore radios by Bluetooth. It is off by default because it adds a Bluetooth scan. Turn it on with the <b>Meshtastic / MeshCore</b> switch on the <b>Mesh Radios Nearby</b> card or with <span class="mono">DETECT_CFG:{"meshradio":true}</span>.</p>
-  <p>Your own nodes' radios are skipped with no setup. Each node learns a peer's radio name from its mesh traffic, tells the peer its own name with <span class="mono">FLEET_RADIO</span>, and remembers it across reboots. Any other radio of yours still shows on the <b>Mesh Radios Nearby</b> card, and so does a node's own radio when it has no peer. Mark those as known and the node stops alerting on them. In the Command Center, open the <b>Nodes</b> page and click <b>Mark known</b> next to the radio. The Command Center sends it to every node. Over mesh, send <span class="mono">@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic</span>. The card shows a known radio as <b>(known)</b>. A radio that changes its Bluetooth address is matched by its name instead. The rules are in <span class="mono">docs/mesh-commands.md</span> in the repository.</p>
-  <h4>Wi-Fi interference</h4>
-  <p><b>Wi-Fi Interference</b> (on by default) alerts when a channel's noise floor jumps 8 dB. <b>Interference Baseline</b> (off by default) also alerts when a busy channel goes silent in <span class="mono">defend</span> mode. After you move the node, turn Wi-Fi Interference off and on.</p>
-
   <h4>Acting on a confirmed attack</h4>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: detector counters, associated clients, mesh command log and incident log.</figcaption></figure>
-  <p>Sentinel tab → <b>Attack response</b> → <b>On confirmed attack</b> picks what runs when a detector confirms an attack that has a source MAC. The choices are <b>Triangulate attacker</b>, <b>Packet capture to SD</b>, <b>Device discovery</b>, <b>Probe requests</b> and <b>Drone RID</b>. Each has its own duration, from 10 to 3600 s. The default is 120 s for the capture and 60 s for the others. Checked actions run one at a time, top to bottom, when the radio is free. The node drops the queue after 15 minutes without a free radio. Over mesh, <span class="mono">ATTACKER_TRILAT:1</span> turns the triangulation response on and <span class="mono">ATTACKER_TRILAT:0</span> turns it off. It is off by default, and <span class="mono">ATTACKER_TRILAT_STATUS</span> reports it.</p>
-  <p>The same panel sets the auto-capture limits for the <span class="mono">auto_</span> files these actions write. The node deletes the oldest to stay inside the limits and never touches manual captures. §11.12 sets the maximum size of one capture.</p>
-  <table class="tight">
-    <tr><th style="width:28%">Setting</th><th>What it does</th><th style="width:22%">Range, default</th></tr>
-    <tr><td>Auto-capture budget</td><td>Most space all <span class="mono">auto_</span> files may use together.</td><td>16 to 262144 MB, 512</td></tr>
-    <tr><td>Keep free</td><td>Free space the card must keep.</td><td>0 to 262144 MB, 256</td></tr>
-  </table>
-  <p>Over mesh, <span class="mono">PCAP_AUTO:512,256</span> sets budget and keep-free in MB. <span class="mono">PCAP_AUTO</span> alone reads them.</p>
+  <p>When Sentinel confirms an attack and knows the attacker's MAC, the node can hunt back. Sentinel tab → <b>Attack response</b> → <b>On confirmed attack</b> picks what runs: <b>Triangulate attacker</b>, <b>Packet capture to SD</b>, <b>Device discovery</b>, <b>Probe requests</b> or <b>Drone RID</b>. Each runs for 10 to 3600 s, one at a time. Attacker triangulation is off by default. <span class="mono">ATTACKER_TRILAT:1</span> turns it on.</p>
+  <p>The <b>Auto-capture budget</b> (512 MB by default) and <b>Keep free</b> (256 MB) limit the SD space the <span class="mono">auto_</span> captures use. The node deletes the oldest <span class="mono">auto_</span> file to stay inside them and never touches manual captures. <b>Wiki:</b> Attack response.</p>
   <div class="box warn"><span class="t">A response is a scan</span>
     <p>Detection pauses while each action runs, so keep the durations short on a site that trips often.</p>
   </div>
 
   <h3>11.12 Packet Capture</h3>
-  <p>Records raw traffic to SD as a standard pcap. Wi-Fi frames carry a radiotap header with channel, rate and RSSI. The node writes BLE captures as Bluetooth HCI, link type 187, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI, but no RF channel.</p>
-  <p>Scan tab: pick <b>Packet Capture</b>, set <b>Radio</b>, <b>Band</b> and <b>Duration (s)</b>, and press <b>Start Capture</b>. <b>Advanced</b> sets a channel list, <b>Dwell (ms)</b> per channel, <b>Max file size (MB)</b> and <b>Management frames only</b>. A blank channel list uses the Scanning settings. Dwell is 50 to 5000 ms, 250 by default. Files go to <span class="mono">/pcap</span> and list under <b>Captures</b>.</p>
-  <pre>@ALL PCAP_START:0:300:0
-@ALL PCAP_STOP</pre>
-  <table class="tight">
-    <tr><th style="width:22%">Value</th><th>What it means</th></tr>
-    <tr><td><span class="mono">0</span> (radio)</td><td>0 Wi-Fi, 1 BLE. One radio per capture. The node treats any other value, including 2, as Wi-Fi. Here 2 does not mean both.</td></tr>
-    <tr><td><span class="mono">300</span></td><td>Run time in seconds. It is required and must be above 0. The node refuses <span class="mono">FOREVER</span> and 0 with <span class="mono">PCAP_ACK:FAILED</span>.</td></tr>
-    <tr><td><span class="mono">0</span> (band)</td><td>0 is 2.4 GHz, 1 is 5 GHz, 2 is both. 5 GHz needs a C5 board.</td></tr>
-    <tr><td><span class="mono">CH1,6,11</span></td><td>Optional. Wi-Fi channels to visit.</td></tr>
-  </table>
-  <p>The node answers <span class="mono">PCAP_ACK:STARTED</span>, <span class="mono">BUSY</span> when another scan holds the radio, <span class="mono">NOSD</span> when there is no SD card, or <span class="mono">FAILED</span>. It then sends <span class="mono">PCAP_START: WIFI D=300</span> or <span class="mono">PCAP_START: BLE D=300</span> to name the radio that started. A capture started by a vibration trigger or a Sentinel response is always Wi-Fi on 2.4 GHz.</p>
-  <p>A capture ends on its own when the file reaches the size cap or the card stops accepting writes. The summary <span class="mono">PCAP_DONE: F=frames B=bytes D=dropped</span> then adds <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The size cap is 8 to 300 MB, 100 by default. <span class="mono">@ALL PCAP_LIMITS:150</span> sets it to 150 MB, and <span class="mono">PCAP_LIMITS</span> alone reads it.</p>
+  <p>Records the raw traffic around the node to the SD card as a file Wireshark opens. One radio per capture: Wi-Fi or BLE. Scan tab: pick <b>Packet Capture</b>, set <b>Radio</b> and <b>Duration (s)</b>, and press <b>Start Capture</b>. Files go to <span class="mono">/pcap</span>.</p>
+  <pre>@ALL PCAP_START:0:300:0</pre>
+  <p>The first <span class="mono">0</span> is Wi-Fi (<span class="mono">1</span> is BLE). <span class="mono">300</span> is the run time in seconds and must be above 0. The last <span class="mono">0</span> is the 2.4 GHz band. <b>Wiki:</b> Packet capture.</p>
   <div class="box warn"><span class="t">Captures are large and carry everything</span>
     <p>A busy channel fills megabytes per minute. Check free space first, and treat the file as a raw intercept.</p>
   </div>
@@ -789,42 +714,14 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
   </div>
 
   <h3>11.13 Scheduling scans</h3>
-  <p>The Schedule panel on the Scan tab runs a scan at set times. The node runs it, so you can close the web page. Schedules need the clock from §7.3. Without a working RTC, blocks wait until you open the web UI once after boot to give the node the time.</p>
-  <ol>
-    <li>Pick the scan and set its options.</li>
-    <li>Press <b>Schedule this scan</b>.</li>
-    <li>Choose <b>Run on</b> (<i>This node</i> or another node from the Fleet list), set <b>Start</b>, <b>Duration (min)</b> and <b>Repeat</b>, then press <b>Add</b>.</li>
-  </ol>
-  <p>The block keeps the options you set when you added it. To change them, delete the block and add it again.</p>
-  <table class="tight">
-    <tr><th>Setting</th><th>Values</th></tr>
-    <tr><td>Start</td><td>Date and time in the node's local time, shown with its zone, for example MST</td></tr>
-    <tr><td>Duration</td><td>1 to 1440 minutes</td></tr>
-    <tr><td>Repeat</td><td>Once, hourly, every 6 hours, every 12 hours, daily, weekly</td></tr>
-  </table>
-  <ul>
-    <li><b>Time zone.</b> The node picks its zone from the GPS fix as in §7.3, so daily and weekly blocks keep the same clock time through daylight saving.</li>
-    <li><b>Busy radio.</b> A block that comes due while another scan holds the radio runs as soon as the radio frees, and a repeating block then moves to its next slot. If a mesh command takes the radio at the same moment, the block tries again 5 seconds later.</li>
-    <li><b>Vibration and attack scans.</b> By default they wait for a scheduled scan. The node skips a vibration auto-scan, and it runs an attack response when the scan ends. Turn on <b>Interrupt scheduled scans</b> under System tab → <b>Settings</b> → <b>Sensors &amp; power</b>, or under Sentinel tab → <b>Attack response</b>. The trigger then stops the scheduled scan, runs, and resumes the scan for its remaining time. A resumed Baseline starts its learning phase again.</li>
-    <li><b>Battery Saver.</b> Schedules pause while Battery Saver is on. A block that came due runs once when it ends.</li>
-    <li><b>Limits.</b> 8 blocks and 3800 bytes in total. They survive reboots.</li>
-    <li><b>Baseline blocks.</b> Adding one saves the Scan tab's baseline settings to the node, and each run uses the settings saved at that time.</li>
-  </ul>
-  <p><b>Over mesh.</b> <span class="mono">SCHED_ADD:2026-09-30T02:00|86400|/sniffer|detection=device-scan&amp;deviceScanMode=2&amp;secs=600</span> adds a daily block. <span class="mono">SCHED_LIST</span> prints the blocks to serial. <span class="mono">SCHED_DEL:2</span> deletes the second block. A <span class="mono">|</span> separates the fields of <span class="mono">SCHED_ADD</span>:</p>
-  <table class="tight">
-    <tr><th style="width:34%">Field</th><th>What it means</th></tr>
-    <tr><td><span class="mono">2026-09-30T02:00</span></td><td>First start, in the node's local time (UTC without a GPS zone).</td></tr>
-    <tr><td><span class="mono">86400</span></td><td>Seconds between runs. 0 runs once. Otherwise 600 to 2678400.</td></tr>
-    <tr><td><span class="mono">/sniffer</span></td><td>Which scan: <span class="mono">/scan</span> Target Scan, <span class="mono">/sniffer</span> the Scan tab's second card, <span class="mono">/drone</span> Drone RID Detection.</td></tr>
-    <tr><td><span class="mono">detection=…</span></td><td>The scan's options as <span class="mono">name=value</span> pairs joined by <span class="mono">&amp;</span>: <span class="mono">detection</span> (<span class="mono">device-scan</span>, <span class="mono">probe-scan</span>, <span class="mono">randomization-detection</span>, <span class="mono">drone-detection</span>, <span class="mono">baseline</span>, <span class="mono">deauth</span>, <span class="mono">pcap</span>), <span class="mono">secs</span> (run time), a mode field (<span class="mono">mode</span> for <span class="mono">/scan</span>, otherwise <span class="mono">deviceScanMode</span>, <span class="mono">probeScanMode</span>, <span class="mono">droneScanMode</span> or <span class="mono">randomizationMode</span>) and <span class="mono">ch</span> (channels, <span class="mono">/scan</span> only).</td></tr>
-  </table>
+  <p>Runs a scan at set times, on this node or another, once or on a repeat. The node runs the schedule itself, so you can close the web page. It needs the clock from §7.3. Pick the scan on the Scan tab, press <b>Schedule this scan</b>, set <b>Run on</b>, <b>Start</b>, <b>Duration (min)</b> and <b>Repeat</b>, and press <b>Add</b>.</p>
+  <p>By default the node skips a vibration auto-scan while a scheduled scan runs, and holds an attack response until the scan ends. <b>Interrupt scheduled scans</b> (System tab → <b>Settings</b> → <b>Sensors &amp; power</b>, or Sentinel tab → <b>Attack response</b>) lets the trigger stop the scheduled scan, run, and resume it. <b>Wiki:</b> Scheduled scans.</p>
 
   <h3>11.14 Campaigns</h3>
-  <p>A campaign is a name the node attaches to its SD logs between a start and a stop. You can export one campaign as a set. In the web UI, Data tab: type a <b>Campaign name</b>, press <b>Start</b>, and press <b>Stop</b> when done. Pick a campaign or a time range in the dataset filter and press <b>Export campaign</b>. The node records starts and stops in <span class="mono">/campaigns.csv</span>.</p>
+  <p>Tags the SD logs with a name between a start and a stop, so you can export one operation as a set. Data tab: type a <b>Campaign name</b> and press <b>Start</b>, then <b>Stop</b>. The node records starts and stops in <span class="mono">/campaigns.csv</span>.</p>
   <pre>@AH01 CAMPAIGN_START:site-a
-@AH01 CAMPAIGN_STATUS
 @AH01 CAMPAIGN_STOP</pre>
-  <p><span class="mono">site-a</span> is the name: 1 to 23 letters, digits, <span class="mono">-</span> or <span class="mono">_</span>. Starting a new campaign stops the current one. <span class="mono">STATUS</span> and <span class="mono">SUMMARY</span> show the active name as <span class="mono">Camp:</span>.</p>
+  <p><b>Wiki:</b> Campaigns.</p>
 </div>
 
 <div class="sec">
