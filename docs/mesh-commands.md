@@ -33,7 +33,7 @@ Arguments used by many commands:
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
 | `STATUS` | `ST` | Reports radio mode, scan state, hit count, temperature, uptime, last reset reason, campaign, and GPS position | `STATUS: Mode:WiFi+BLE Scan:IDLE Hits:0 Temp:41.5C Up:00:12:03 Rst:<reason> [Camp:<name>] [GPS:<lat>,<lon> HDOP=<n>]` | `@ALL STATUS` |
-| `SUMMARY` | `SUM` | Reports the same state with device and target counts | `SUMMARY: Mode:.. Scan:.. Dev:<devices in the device database> Tgt:<targets> Hits:<n> [Inc:<incidents>] [Camp:<name>] Up:..` | `@ALL SUMMARY` |
+| `SUMMARY` | `SUM` | Reports the same state with device and target counts | `SUMMARY: Mode:.. Scan:.. Dev:<devices in the device database> Tgt:<targets> Hits:<n> [Inc:<incidents>] [Camp:<name>] [NotSaved:<records the SD card could not take>] Up:..` | `@ALL SUMMARY` |
 | `STOP` | `X` | Stops every running scan and cancels pending Sentinel follow-up scans | `STOP_ACK:OK` | `@ALL STOP` |
 | `MESH_TX_CANCEL` | `MTC` | Drops the messages waiting to be sent, except triangulation messages. A running scan continues | `MESH_TX_CANCEL_ACK:EMPTY` if nothing is queued. Otherwise no reply | `@ALL MESH_TX_CANCEL` |
 
@@ -450,7 +450,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | Triangulation result | `NODE: T_F: ... GPS=<lat>,<lon> CONF=<pct> UNC=<m>`, then `NODE: T_C: MAC=<mac> Nodes=<n> [GPS=<lat>,<lon> CONF=<pct> URL=<link>]` |
 | Probe hit | `NODE: PROBE_HIT <mac> [Randomized\|<vendor>] RSSI=<n> CH=<n> [SSID="<x>" [GHOST]] [DST]` |
 | Packet capture | `NODE: PCAP_START: WIFI\|BLE D=<secs>`, then `PCAP_DONE: F=<frames> B=<bytes> D=<dropped> [R=WRITEFAIL\|SIZECAP]` |
-| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats>`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Baseline `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<anomaly alerts sent> PEND=<anomaly alerts unsent>`. Drone `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`. Deauth `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`. Randomization `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`. A probe scan sends no completion line |
+| Scan complete | Device discovery `SCAN_DONE: W=<wifi networks> B=<BLE devices> U=<unique> H=<hits> TX=<sent> DUP=<skipped repeats> [NS=<records not saved to SD>]`. Target scan `LIST_SCAN_DONE: Hits=<n> Unique=<n> Targets=<n> TX=<sent> PEND=<unsent>`. Baseline `BASELINE_DONE: Devices=<n> Anomalies=<n> WiFi=<n> BLE=<n> TX=<anomaly alerts sent> PEND=<anomaly alerts unsent>`. Drone `DRONE_DONE: Detected=<n> Unique=<n> TX=<sent>`. Deauth `DEAUTH_DONE: Total=<n> Deauth=<n> Disassoc=<n> TX=<sent>`. Randomization `RANDOMIZATION_DONE: Identities=<n> Sessions=<n> TX=<sent>`. A probe scan sends no completion line |
 | CSI motion (Beta, C5) | `NODE: CSI_MOTION: CH=<n> N=<transmitters> S=<score>` when movement starts, and `NODE: CSI_CLEAR: CH=<n> D=<s>s` when it ends, with the movement time in seconds. `GAP` limits how often `CSI_MOTION` is sent |
 | Movement | `NODE: VIBRATION: Movement detected at <time>`. During setup mode: `VIBRATION: Movement in setup mode (active in <s>s)` |
 | Tamper | `NODE: TAMPER_DETECTED: Auto-erase in <s>s [GPS:<lat>,<lon>]`, then `TAMPER_CANCELLED` if you cancel |

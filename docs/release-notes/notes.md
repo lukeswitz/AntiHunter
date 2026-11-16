@@ -194,10 +194,13 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Deauth detection stopped counting at 2,000 attacks. It now counts every one.
 - The randomized MAC tracer stopped at 128 sessions. It now has no fixed limit.
 - The device database held 2,000 devices. It now has no fixed limit.
-- These counts now depend on free memory instead of a fixed cap. The board's extra memory (PSRAM) is 8 MB.
-  - When memory runs low, the oldest devices move to `/devicedb_archive.jsonl` and `/probedb_archive.jsonl` on the SD card instead of being lost.
-  - The randomized MAC tracer still skips new devices when memory is low.
-- The baseline **SD Device Storage** setting now limits how many devices are stored on the SD card.
+- The SD card now holds every device. Memory holds only the devices from the current scan.
+  - The device and probe databases are `/devicedb.bin` and `/probedb.bin`. Older files are converted on the first start.
+  - A device that returns in a later scan gets its counts back from the SD card.
+  - The device total is an estimate. It can read about 1% low at 200,000 devices.
+  - When memory runs low, the randomized MAC tracer moves its oldest sessions to the SD card instead of skipping new ones.
+- The baseline stores every device on the SD card. The **SD Device Storage** setting is gone.
+- If a record can't be written to the SD card, the node counts it. The count shows on the System page, as `NotSaved:` in `SUMMARY`, and as `NS=` in `SCAN_DONE`. The web UI also shows a warning.
 - A device that returns during a baseline is now read back from the SD card, instead of being counted as new.
 - Saves now write to a temporary file first, so a power cut can't corrupt them.
 - The system log now rolls over to `/antihunter_old.log` when it reaches 1 MB.
