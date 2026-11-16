@@ -974,11 +974,11 @@ void selftestRelease() {
     Serial.printf("[SELFTEST] released, internal=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
-void selftestInjectDevices(uint32_t count) {
+void selftestInjectDevices(uint32_t count, uint32_t start) {
     uint32_t sentAp = 0, dropAp = 0, sentProbe = 0, dropProbe = 0;
-    Serial.printf("[SELFTEST] inject start count=%u apQ=%d probeQ=%d\n",
-                  (unsigned)count, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
-    for (uint32_t i = 0; i < count && !stopRequested; i++) {
+    Serial.printf("[SELFTEST] inject start count=%u from=%u apQ=%d probeQ=%d\n",
+                  (unsigned)count, (unsigned)start, apInfoQueue ? 1 : 0, probeRequestQueue ? 1 : 0);
+    for (uint32_t i = start; i < start + count && !stopRequested; i++) {
         if (apInfoQueue) {
             ApInfoEvent ae = {};
             ae.bssid[0] = 0x02; ae.bssid[1] = 0xAB;
@@ -1008,7 +1008,7 @@ void selftestInjectDevices(uint32_t count) {
             pe.payload[25] = ssidLen;
             for (uint8_t k = 0; k < ssidLen; k++) pe.payload[26 + k] = (uint8_t)nm[k];
             pe.payloadLen = (uint16_t)(26 + ssidLen);
-            if (xQueueSend(probeRequestQueue, &pe, 0) == pdTRUE) sentProbe++; else dropProbe++;
+            if (xQueueSend(probeRequestQueue, &pe, pdMS_TO_TICKS(200)) == pdTRUE) sentProbe++; else dropProbe++;
         }
         if ((i & 0x1F) == 0x1F) vTaskDelay(1);
     }
@@ -2082,10 +2082,8 @@ void snifferScanTask(void *pv)
     bool hadProbes = probeDetectionEnabled.load();
     if (hadProbes) {
         std::lock_guard<std::mutex> plock(probeMutex);
-        for (const auto &pp : probeDevices) {
-            mergeProbeDeviceToDB(pp.second);
-        }
-        saveProbeDB();
+        mergeProbeDevicesToDB(probeDevices);
+        saveProbeDB(true);
         Serial.printf("[SNIFFER] Saved %u probe devices to DB\n", probeDevices.size());
     }
 
@@ -2210,6 +2208,12 @@ void snifferScanTask(void *pv)
 
         antihunter::lastResults = results;
     }
+    if (hadProbes) {
+        std::lock_guard<std::mutex> plock(probeMutex);
+        probeDevices.clear();
+        uniqueSsids.clear();
+        respondedSsids.clear();
+    }
 
     if (meshEnabled) {
         const uint32_t txBefore = snifferMeshSent;
@@ -2241,6 +2245,7 @@ void snifferScanTask(void *pv)
                             " H=" + String(totalHits) +
                             " TX=" + String(totalTx) +
                             " DUP=" + String(skippedDevices);
+            if (g_sdRecordsNotSaved.load()) summary += " NS=" + String(g_sdRecordsNotSaved.load());
             meshEnqueue(summary);
             Serial.printf("[SNIFFER] Scan complete: total %u/%u devices enqueued (%u from this final pass, %u dedup-skipped)\n",
                          totalTx, totalDevices, enqueuedDevices, skippedDevices);
@@ -2261,6 +2266,13 @@ void snifferScanTask(void *pv)
     {
         std::lock_guard<std::mutex> lock(snifferCacheMutex);
         snifferDevices.releaseIndex();
+        const size_t n = snifferDevices.size();
+        uint8_t *macs = n ? static_cast<uint8_t *>(heap_caps_malloc(n * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) : nullptr;
+        if (macs) {
+            for (size_t i = 0; i < n; i++) memcpy(macs + i * 6, snifferDevices.at(i).val.hit.mac, 6);
+            deviceDBRestore(macs, n);
+            heap_caps_free(macs);
+        }
     }
     for (;;) {
         {
@@ -4536,6 +4548,14 @@ void listScanTask(void *pv) {
         }
     }
 
+    if (!hitsLog.empty()) {
+        uint8_t *macs = static_cast<uint8_t *>(heap_caps_malloc(hitsLog.size() * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (macs) {
+            for (size_t i = 0; i < hitsLog.size(); i++) memcpy(macs + i * 6, hitsLog[i].mac, 6);
+            deviceDBRestore(macs, hitsLog.size());
+            heap_caps_free(macs);
+        }
+    }
     for (const auto &sh : hitsLog) mergeHitToDeviceDB(sh);
     if (!hitsLog.empty()) saveDeviceDB();
 

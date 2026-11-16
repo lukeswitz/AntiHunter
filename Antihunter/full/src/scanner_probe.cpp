@@ -20,6 +20,8 @@
 #include "detect.h"
 #include "main.h"
 #include "scanner_internal.h"
+#include "psram_table.h"
+#include "cuckoo_filter.h"
 
 extern "C"
 {
@@ -497,9 +499,7 @@ void probeDetectionTask(void *pv)
         if ((millis() - lastDBSave) >= 60000) {
             {
                 std::lock_guard<std::mutex> lock(probeMutex);
-                for (const auto &p : probeDevices) {
-                    mergeProbeDeviceToDB(p.second);
-                }
+                mergeProbeDevicesToDB(probeDevices);
             }
             saveProbeDB();
             lastDBSave = millis();
@@ -519,11 +519,9 @@ void probeDetectionTask(void *pv)
     // Merge all devices into SD database and save
     {
         std::lock_guard<std::mutex> lock(probeMutex);
-        for (const auto &p : probeDevices) {
-            mergeProbeDeviceToDB(p.second);
-        }
+        mergeProbeDevicesToDB(probeDevices);
     }
-    saveProbeDB();
+    saveProbeDB(true);
     Serial.printf("[PROBE] Merged %u devices into probe database\n", probeDevices.size());
 
     // Log probe events to /probes.jsonl on SD
@@ -579,6 +577,12 @@ void probeDetectionTask(void *pv)
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = probeRes.c_str();
     }
+    {
+        std::lock_guard<std::mutex> lock(probeMutex);
+        probeDevices.clear();
+        uniqueSsids.clear();
+        respondedSsids.clear();
+    }
     workerTaskHandle = nullptr;
     Serial.println("[PROBE] Probe detection stopped");
     vTaskDelete(nullptr);
@@ -603,6 +607,7 @@ String getProbeResults()
     }
     lastProbeResultsTime = millis();
     std::lock_guard<std::mutex> lock(probeMutex);
+    probeDBResolveHistory(probeDevices);
 
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
@@ -683,7 +688,9 @@ String getProbeResults()
         }
 
         // Historical intelligence from SD database
-        if (dev.histKnown) {
+        if (dev.histKnown && dev.histSessionCount == 0) {
+            results += " [KNOWN]";
+        } else if (dev.histKnown) {
             results += " [KNOWN:seen=" + String(dev.histTotalSeen) +
                        " sessions=" + String(dev.histSessionCount) +
                        " last=" + formatAge(nowEpoch, dev.histLastEpoch) + "]";
@@ -733,253 +740,419 @@ String getProbeResults()
     return results;
 }
 
-// --- SD Probe Device Database ---
-// Stores known devices as JSONL on SD: /probedb.jsonl
-// Each line: {"m":"AA:BB:CC:DD:EE:FF","t":1234,"f":100,"l":200,"s":3,"r":-42,"v":"Apple","rd":0,"ss":["Net1","Net2"]}
+// --- SD Probe Device Database: /probedb.bin is the append-only record (newest last); RAM caches live devices, a fixed cuckoo filter answers "seen before" ---
 
-static std::map<String, ProbeDBEntry> probeDB;
+static PsramTable<ProbeDBEntry> probeDB;
+static CuckooFilter s_probeSeen;
+static PsramSet<uint64_t> s_probeDirty;
 static std::mutex probeDBMutex;
+static bool s_probeLoaded = false;
+static uint8_t *s_probeBuf = nullptr;
+static size_t s_probeBufLen = 0;
+static uint32_t s_probeRecords = 0;
+
+static const char *PROBE_DB_BIN = "/probedb.bin";
+static const char *PROBE_DB_BIN_TMP = "/probedb.bin.tmp";
+static const char *PROBE_DB_BIN_BAK = "/probedb.bin.bak";
 static const char *PROBE_DB_PATH = "/probedb.jsonl";
 static const char *PROBE_DB_TMP = "/probedb.jsonl.tmp";
 static const char *PROBE_DB_BAK = "/probedb.jsonl.bak";
 static const char *PROBE_DB_ARCHIVE = "/probedb_archive.jsonl";
-// Devices that leave memory are appended here, so the live file's rewrite never loses them.
-static SdLineBatch s_probeArchive(PROBE_DB_ARCHIVE);
+static const uint32_t PROBE_DB_IDLE_SECS = 7200;
+static const uint32_t PROBE_DB_SEEN_BUCKETS = 65536;
+static const size_t PREC = sizeof(ProbeDBEntry);
+static const size_t PROBE_BUF_BYTES = 32 * 1024;
 
-static void probeDBFillJson(const ProbeDBEntry &e, JsonDocument &doc)
+static uint64_t probeDBKey(const uint8_t mac[6])
 {
-    doc["m"] = e.mac;
-    doc["t"] = e.totalSeen;
-    doc["f"] = e.firstEpoch;
-    doc["l"] = e.lastEpoch;
-    doc["s"] = e.sessionCount;
-    doc["r"] = e.bestRssi;
-    doc["v"] = e.vendor;
-    if (e.name[0]) doc["n"] = e.name;
-    doc["rd"] = e.isRandomized ? 1 : 0;
-    doc["ble"] = e.isBLE ? 1 : 0;
-    doc["c"] = e.channel;
-    JsonArray ss = doc.createNestedArray("ss");
-    for (uint8_t i = 0; i < e.ssidCount; i++) ss.add(e.ssids[i]);
+    uint64_t k = 0;
+    for (int i = 0; i < 6; i++) k = (k << 8) | mac[i];
+    return k;
 }
 
-static void probeDBArchiveEntry(const ProbeDBEntry &e)
+static uint64_t probeDBKeyStr(const char *macStr)
 {
-    DynamicJsonDocument doc(512);
-    probeDBFillJson(e, doc);
-    char line[640];
-    const size_t n = serializeJson(doc, line, sizeof(line));
-    s_probeArchive.add(line, n);
+    uint8_t mac[6];
+    if (!parseMac6(String(macStr), mac)) return 0;
+    return probeDBKey(mac);
 }
 
+static void probeBufFlush()
+{
+    if (s_probeBufLen == 0) return;
+    File f = SafeSD::open(PROBE_DB_BIN, FILE_APPEND);
+    const size_t wrote = f ? SafeSD::write(f, s_probeBuf, s_probeBufLen) : 0;
+    if (f) f.close();
+    if (wrote != s_probeBufLen) {
+        Serial.printf("[PROBEDB] SD write failed: %u devices not saved\n", (unsigned)(s_probeBufLen / PREC));
+        g_sdRecordsNotSaved += (uint32_t)(s_probeBufLen / PREC);
+    }
+    s_probeBufLen = 0;
+}
+
+static void probeAppend(const ProbeDBEntry &e)
+{
+    if (!s_probeBuf) s_probeBuf = static_cast<uint8_t *>(heap_caps_malloc(PROBE_BUF_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!s_probeBuf) {
+        File f = SafeSD::open(PROBE_DB_BIN, FILE_APPEND);
+        const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(&e), PREC) : 0;
+        if (f) f.close();
+        if (wrote != PREC) {
+            Serial.println("[PROBEDB] SD write failed: 1 device not saved");
+            g_sdRecordsNotSaved++;
+        } else {
+            s_probeRecords++;
+        }
+        return;
+    }
+    if (s_probeBufLen + PREC > PROBE_BUF_BYTES) probeBufFlush();
+    memcpy(s_probeBuf + s_probeBufLen, &e, PREC);
+    s_probeBufLen += PREC;
+    s_probeRecords++;
+}
+
+static void probeDBEvictHook(const PsramTable<ProbeDBEntry>::Entry &e, void *)
+{
+    probeAppend(e.val);
+    s_probeDirty.erase(e.key);
+    g_sdRecordsMoved++;
+}
+
+static void probeDBFlushDirty()
+{
+    for (const uint64_t key : s_probeDirty) {
+        const auto *e = probeDB.find(key);
+        if (e) probeAppend(e->val);
+    }
+    s_probeDirty.clear();
+    probeBufFlush();
+}
+
+static void probeDBInitLocked()
+{
+    probeDB.setEvictHook(probeDBEvictHook, nullptr);
+    s_probeSeen.reserve(PROBE_DB_SEEN_BUCKETS);
+    s_probeSeen.clear();
+    s_probeDirty.clear();
+    probeDB.clear();
+    s_probeBufLen = s_probeRecords = 0;
+}
+
+static void probeDBAddSsid(ProbeDBEntry &e, const char *ss)
+{
+    if (!ss || !ss[0]) return;
+    for (uint8_t j = 0; j < e.ssidCount; j++)
+        if (strcasecmp(e.ssids[j], ss) == 0) return;
+    if (e.ssidCount >= 8) return;
+    strncpy(e.ssids[e.ssidCount], ss, 32);
+    e.ssids[e.ssidCount][32] = '\0';
+    e.ssidCount++;
+}
+
+// Adds a separate earlier record of the same device (old-format import only).
+static void probeDBCombine(ProbeDBEntry &into, const ProbeDBEntry &from)
+{
+    into.totalSeen += from.totalSeen;
+    into.sessionCount += from.sessionCount;
+    if (from.firstEpoch && (!into.firstEpoch || from.firstEpoch < into.firstEpoch)) into.firstEpoch = from.firstEpoch;
+    if (from.lastEpoch > into.lastEpoch) into.lastEpoch = from.lastEpoch;
+    if (from.bestRssi > into.bestRssi) into.bestRssi = from.bestRssi;
+    if (!into.name[0]) memcpy(into.name, from.name, sizeof(into.name));
+    if (!into.vendor[0]) memcpy(into.vendor, from.vendor, sizeof(into.vendor));
+    for (uint8_t i = 0; i < from.ssidCount && i < 8; i++) probeDBAddSsid(into, from.ssids[i]);
+}
+
+static bool probeDBParseLegacy(const String &line, ProbeDBEntry &entry)
+{
+    DynamicJsonDocument doc(1024);
+    if (deserializeJson(doc, line) != DeserializationError::Ok) return false;
+    const char *mac = doc["m"] | "";
+    if (strlen(mac) < 17) return false;
+
+    entry = {};
+    strncpy(entry.mac, mac, 17);
+    entry.mac[17] = '\0';
+    entry.totalSeen = doc["t"].as<uint32_t>();
+    entry.firstEpoch = doc["f"].as<uint32_t>();
+    entry.lastEpoch = doc["l"].as<uint32_t>();
+    entry.sessionCount = doc["s"].as<uint16_t>();
+    entry.bestRssi = doc["r"] | -128;
+    entry.isRandomized = doc["rd"].as<bool>();
+    entry.isBLE = doc["ble"].as<bool>();
+    entry.channel = doc["c"].as<uint8_t>();
+
+    const char *devName = doc["n"] | "";
+    strncpy(entry.name, devName, sizeof(entry.name) - 1);
+
+    uint8_t macBytes[6];
+    const char *ouiVendor = parseMac6(String(mac), macBytes) ? lookupOuiVendor(macBytes) : nullptr;
+    if (ouiVendor) {
+        strncpy(entry.vendor, ouiVendor, sizeof(entry.vendor) - 1);
+    } else if (entry.isBLE && !doc.containsKey("n")) {
+        const char *legacy = doc["v"] | "";
+        if (legacy[0]) strncpy(entry.name, legacy, sizeof(entry.name) - 1);
+    } else {
+        const char *legacy = doc["v"] | "";
+        strncpy(entry.vendor, legacy, sizeof(entry.vendor) - 1);
+    }
+
+    JsonArray ssArr = doc["ss"];
+    if (ssArr) {
+        for (JsonVariant s : ssArr) probeDBAddSsid(entry, s.as<const char *>());
+    }
+    return true;
+}
+
+// One-time import of the old JSON files: the live file (or its backup) plus every archived line, combined per device.
+static void probeDBImportLegacy()
+{
+    const char *live = SafeSD::exists(PROBE_DB_PATH) ? PROBE_DB_PATH : PROBE_DB_BAK;
+    uint32_t n = 0;
+    for (const char *path : {live, PROBE_DB_ARCHIVE}) {
+        if (!SafeSD::exists(path)) continue;
+        File f = SafeSD::open(path, FILE_READ);
+        if (!f) continue;
+        while (f.available()) {
+            String line = f.readStringUntil('\n');
+            line.trim();
+            if (line.length() < 10) continue;
+            ProbeDBEntry in;
+            if (!probeDBParseLegacy(line, in)) continue;
+            const uint64_t key = probeDBKeyStr(in.mac);
+            s_probeSeen.insertIfNew(key);
+            bool isNew = false;
+            auto *te = probeDB.upsert(key, in.lastEpoch, &isNew);
+            if (!te) probeAppend(in);
+            else if (isNew) te->val = in;
+            else probeDBCombine(te->val, in);
+            if ((++n & 0xFF) == 0) vTaskDelay(1);
+        }
+        f.close();
+    }
+    for (size_t i = 0; i < probeDB.size(); i++) probeAppend(probeDB.at(i).val);
+    probeBufFlush();
+    probeDB.clear();
+}
+
+static uint64_t probeDBRecKey(uint8_t *rec)
+{
+    ProbeDBEntry *e = reinterpret_cast<ProbeDBEntry *>(rec);
+    e->mac[17] = '\0';
+    return probeDBKeyStr(e->mac);
+}
+
+// Caller holds probeDBMutex. Reads the newest SD record of each wanted key back into RAM in one pass over the file.
+static void probeDBRestore(const PsramSet<uint64_t> &want)
+{
+    if (want.empty()) return;
+    probeBufFlush();
+    const size_t n = want.size();
+    uint64_t *keys = static_cast<uint64_t *>(heap_caps_malloc(n * sizeof(uint64_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    ProbeDBEntry *found = static_cast<ProbeDBEntry *>(heap_caps_malloc(n * PREC, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    uint8_t *hit = static_cast<uint8_t *>(heap_caps_calloc(n, 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    int32_t got = -1;
+    if (keys && found && hit) {
+        size_t i = 0;
+        for (const uint64_t k : want) keys[i++] = k;
+        got = sdReadNewestRecords(PROBE_DB_BIN, PREC, probeDBRecKey, keys, n, reinterpret_cast<uint8_t *>(found), hit);
+    }
+    if (got > 0) {
+        const uint32_t now = getEventTimestamp();
+        for (size_t k = 0; k < n; k++) {
+            if (!hit[k]) continue;
+            bool isNew = false;
+            auto *te = probeDB.upsert(keys[k], now, &isNew);
+            if (te && isNew) te->val = found[k];
+        }
+    } else if (got < 0 && SafeSD::exists(PROBE_DB_BIN)) {
+        Serial.printf("[PROBEDB] Not enough memory to read the history of %u devices from SD\n", (unsigned)n);
+    }
+    heap_caps_free(keys);
+    heap_caps_free(found);
+    heap_caps_free(hit);
+}
+
+static void probeDBCompact()
+{
+    probeBufFlush();
+    const int32_t kept = sdCompactNewestPerKey(PROBE_DB_BIN, PROBE_DB_BIN_TMP, PROBE_DB_BIN_BAK, PREC, probeDBRecKey, "PROBEDB");
+    if (kept >= 0) s_probeRecords = (uint32_t)kept;
+}
+
+// Builds the "seen before" filter from SD once; later calls (each scan start) keep the live cache.
 void loadProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
-    s_probeArchive.reserve();
-    probeDB.clear();
+    if (s_probeLoaded || !SafeSD::isAvailable()) return;
+    s_probeLoaded = true;
+    probeDBInitLocked();
 
-    const char *path = SafeSD::exists(PROBE_DB_PATH) ? PROBE_DB_PATH
-                     : SafeSD::exists(PROBE_DB_BAK)  ? PROBE_DB_BAK : nullptr;
-    if (!path) {
+    if (!SafeSD::exists(PROBE_DB_BIN) && SafeSD::exists(PROBE_DB_BIN_BAK))
+        SafeSD::rename(PROBE_DB_BIN_BAK, PROBE_DB_BIN);
+    if (!SafeSD::exists(PROBE_DB_BIN)) {
+        if (SafeSD::exists(PROBE_DB_PATH) || SafeSD::exists(PROBE_DB_BAK) || SafeSD::exists(PROBE_DB_ARCHIVE)) {
+            probeDBImportLegacy();
+            Serial.printf("[PROBEDB] Imported %u devices from the old format\n", (unsigned)s_probeSeen.count());
+            return;
+        }
         Serial.println("[PROBEDB] No database file on SD");
         return;
     }
 
-    File f = SafeSD::open(path, FILE_READ);
+    File f = SafeSD::open(PROBE_DB_BIN, FILE_READ);
     if (!f) {
         Serial.println("[PROBEDB] Failed to open database");
         return;
     }
-
-    uint32_t count = 0;
-    while (f.available() && !probePsramLow()) {
-        String line = f.readStringUntil('\n');
-        line.trim();
-        if (line.length() < 10) continue;
-
-        DynamicJsonDocument doc(512);
-        if (deserializeJson(doc, line) != DeserializationError::Ok) continue;
-
-        const char *mac = doc["m"] | "";
-        if (strlen(mac) < 17) continue;
-
-        ProbeDBEntry entry = {};
-        strncpy(entry.mac, mac, 17);
-        entry.mac[17] = '\0';
-        entry.totalSeen = doc["t"].as<uint32_t>();
-        entry.firstEpoch = doc["f"].as<uint32_t>();
-        entry.lastEpoch = doc["l"].as<uint32_t>();
-        entry.sessionCount = doc["s"].as<uint16_t>();
-        entry.bestRssi = doc["r"] | -128;
-        entry.isRandomized = doc["rd"].as<bool>();
-        entry.isBLE = doc["ble"].as<bool>();
-        entry.channel = doc["c"].as<uint8_t>();
-
-        const char *devName = doc["n"] | "";
-        strncpy(entry.name, devName, sizeof(entry.name) - 1);
-
-        uint8_t macBytes[6];
-        const char *ouiVendor = parseMac6(String(mac), macBytes) ? lookupOuiVendor(macBytes) : nullptr;
-        if (ouiVendor) {
-            strncpy(entry.vendor, ouiVendor, sizeof(entry.vendor) - 1);
-        } else if (entry.isBLE && !doc.containsKey("n")) {
-            const char *legacy = doc["v"] | "";
-            if (legacy[0]) strncpy(entry.name, legacy, sizeof(entry.name) - 1);
-        } else {
-            const char *legacy = doc["v"] | "";
-            strncpy(entry.vendor, legacy, sizeof(entry.vendor) - 1);
-        }
-
-        JsonArray ssArr = doc["ss"];
-        entry.ssidCount = 0;
-        if (ssArr) {
-            for (JsonVariant s : ssArr) {
-                if (entry.ssidCount >= 4) break;
-                const char *ss = s.as<const char*>();
-                if (ss && ss[0]) {
-                    strncpy(entry.ssids[entry.ssidCount], ss, 32);
-                    entry.ssids[entry.ssidCount][32] = '\0';
-                    entry.ssidCount++;
-                }
-            }
-        }
-
-        probeDB[String(mac)] = entry;
-        count++;
-    }
-    uint32_t kept = 0;
-    while (f.available()) {
-        String line = f.readStringUntil('\n');
-        line.trim();
-        if (line.length() < 10) continue;
-        s_probeArchive.add(line.c_str(), line.length());
-        kept++;
-    }
-    f.close();
-    s_probeArchive.flush();
-    Serial.printf("[PROBEDB] Loaded %u devices from SD\n", count);
-    if (kept) Serial.printf("[PROBEDB] Memory full: %u devices did not fit and were kept in %s\n", (unsigned)kept, PROBE_DB_ARCHIVE);
-}
-
-void saveProbeDB()
-{
-    std::lock_guard<std::mutex> lock(probeDBMutex);
-    s_probeArchive.flush();
-
-    File f = SafeSD::open(PROBE_DB_TMP, FILE_WRITE);
-    SdWriter f_w(f);
-    if (!f) {
-        Serial.println("[PROBEDB] Failed to write database");
-        return;
-    }
-
-    uint32_t written = 0;
-    for (const auto &p : probeDB) {
-        DynamicJsonDocument doc(512);
-        probeDBFillJson(p.second, doc);
-        serializeJson(doc, f_w);
-        f_w.println();
-        written++;
-    }
-    f.close();
-    if (written == 0) {
-        for (const char *p : {PROBE_DB_TMP, PROBE_DB_PATH, PROBE_DB_BAK}) SafeSD::remove(p);
-        return;
-    }
-    if (!sdCommitStaged(PROBE_DB_TMP, PROBE_DB_PATH, PROBE_DB_BAK)) return;
-    Serial.printf("[PROBEDB] Saved %u devices to SD\n", written);
-}
-
-void mergeProbeDeviceToDB(const ProbeDevice &dev)
-{
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             dev.mac[0], dev.mac[1], dev.mac[2], dev.mac[3], dev.mac[4], dev.mac[5]);
-
-    std::lock_guard<std::mutex> lock(probeDBMutex);
-    uint32_t now = getEventTimestamp();
-
-    auto it = probeDB.find(String(macStr));
-    if (it != probeDB.end()) {
-        ProbeDBEntry &e = it->second;
-        e.totalSeen += dev.probeCount;
-        e.lastEpoch = now;
-        e.sessionCount++;
-        if (dev.rssi > e.bestRssi) e.bestRssi = dev.rssi;
-        if (dev.channel) e.channel = dev.channel;
-        if (dev.vendor[0]) {
-            strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
-            e.vendor[sizeof(e.vendor) - 1] = '\0';
-        }
-        if (dev.name[0] && !e.name[0]) {
-            strncpy(e.name, dev.name, sizeof(e.name) - 1);
-            e.name[sizeof(e.name) - 1] = '\0';
-        }
-        for (uint8_t i = 0; i < dev.ssidCount; i++) {
-            bool found = false;
-            for (uint8_t j = 0; j < e.ssidCount; j++) {
-                if (strcasecmp(e.ssids[j], dev.ssids[i]) == 0) { found = true; break; }
-            }
-            if (!found && e.ssidCount < 8) {
-                strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
-                e.ssids[e.ssidCount][32] = '\0';
-                e.ssidCount++;
-            }
-        }
-    } else {
-        if (probePsramLow()) {
-            uint32_t oldestEpoch = UINT32_MAX;
-            auto oldest = probeDB.end();
-            for (auto p = probeDB.begin(); p != probeDB.end(); ++p) {
-                if (p->second.lastEpoch < oldestEpoch) {
-                    oldestEpoch = p->second.lastEpoch;
-                    oldest = p;
-                }
-            }
-            if (oldest != probeDB.end()) {
-                probeDBArchiveEntry(oldest->second);
-                probeDB.erase(oldest);
-            }
-        }
-
-        ProbeDBEntry e = {};
-        strncpy(e.mac, macStr, 17);
+    ProbeDBEntry e;
+    uint32_t total = 0;
+    while (f.available() >= (int)PREC) {
+        if (SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), PREC) != PREC) break;
         e.mac[17] = '\0';
-        e.totalSeen = dev.probeCount;
+        s_probeSeen.insertIfNew(probeDBKeyStr(e.mac));
+        if ((++total & 0xFF) == 0) vTaskDelay(1);
+    }
+    f.close();
+    s_probeRecords = total;
+    Serial.printf("[PROBEDB] Loaded %u devices from SD\n", (unsigned)s_probeSeen.count());
+}
+
+void saveProbeDB(bool releaseCache)
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    if (!s_probeLoaded) return;
+    probeDB.eraseOlderThan(getEventTimestamp(), PROBE_DB_IDLE_SECS);
+    probeDBFlushDirty();
+    const uint32_t uniq = (uint32_t)s_probeSeen.count();
+    if (uniq > 0 && s_probeRecords > uniq * 2) probeDBCompact();
+    Serial.printf("[PROBEDB] Saved: %u devices on SD (%u live in memory)\n",
+                  (unsigned)s_probeSeen.count(), (unsigned)probeDB.size());
+    if (releaseCache) probeDB.clear();
+}
+
+// Caller holds probeDBMutex. Adds only what this device gained since its last merge, so periodic saves never count twice.
+static void probeDBMergeLocked(ProbeDevice &dev, uint32_t now)
+{
+    const uint64_t key = probeDBKey(dev.mac);
+    const uint32_t newProbes = dev.probeCount - dev.dbMergedProbes;
+    bool isNew = false;
+    auto *te = probeDB.upsert(key, now, &isNew);
+    if (te && !isNew && dev.dbMerged && newProbes == 0) return;
+    ProbeDBEntry fresh = {};
+    ProbeDBEntry &e = te ? te->val : fresh;
+
+    if (!te || isNew) {
+        e = {};
+        snprintf(e.mac, sizeof(e.mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 dev.mac[0], dev.mac[1], dev.mac[2], dev.mac[3], dev.mac[4], dev.mac[5]);
+        e.totalSeen = newProbes;
         e.firstEpoch = now;
-        e.lastEpoch = now;
         e.sessionCount = 1;
         e.bestRssi = dev.rssi;
         e.isRandomized = dev.isRandomized;
         e.isBLE = dev.isBLE;
-        e.channel = dev.channel;
-        strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
         strncpy(e.name, dev.name, sizeof(e.name) - 1);
-        e.ssidCount = 0;
-        for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 8; i++) {
-            strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
-            e.ssids[e.ssidCount][32] = '\0';
-            e.ssidCount++;
+    } else {
+        e.totalSeen += newProbes;
+        if (!dev.dbMerged) e.sessionCount++;
+        if (dev.rssi > e.bestRssi) e.bestRssi = dev.rssi;
+        if (dev.name[0] && !e.name[0]) {
+            strncpy(e.name, dev.name, sizeof(e.name) - 1);
+            e.name[sizeof(e.name) - 1] = '\0';
         }
-        probeDB[String(macStr)] = e;
+    }
+    e.lastEpoch = now;
+    if (dev.channel) e.channel = dev.channel;
+    if (dev.vendor[0]) {
+        strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
+        e.vendor[sizeof(e.vendor) - 1] = '\0';
+    }
+    for (uint8_t i = 0; i < dev.ssidCount && i < 8; i++) probeDBAddSsid(e, dev.ssids[i]);
+
+    dev.dbMergedProbes = dev.probeCount;
+    dev.dbMerged = true;
+    s_probeSeen.insertIfNew(key);
+    if (te) s_probeDirty.insert(key);
+    else probeAppend(e);
+}
+
+// Caller holds probeDBMutex. Reads back from SD every listed device that was seen before but is not in RAM.
+static void probeDBRestoreFor(const ProbeDevicesMap &devs, bool onlyUnresolved)
+{
+    PsramSet<uint64_t> want;
+    for (const auto &p : devs) {
+        const ProbeDevice &d = p.second;
+        if (onlyUnresolved && !(d.histKnown && d.histSessionCount == 0)) continue;
+        const uint64_t key = probeDBKey(d.mac);
+        if (!probeDB.find(key) && s_probeSeen.contains(key)) want.insert(key);
+    }
+    probeDBRestore(want);
+}
+
+// Caller holds probeDBMutex. A device the filter called known but SD does not hold was a filter false match.
+static void probeDBFillHistory(ProbeDevicesMap &devs)
+{
+    for (auto &p : devs) {
+        ProbeDevice &d = p.second;
+        if (!d.histKnown || d.histSessionCount != 0) continue;
+        const auto *e = probeDB.find(probeDBKey(d.mac));
+        if (!e) {
+            d.histKnown = false;
+            continue;
+        }
+        d.histTotalSeen = e->val.totalSeen;
+        d.histFirstEpoch = e->val.firstEpoch;
+        d.histLastEpoch = e->val.lastEpoch;
+        d.histSessionCount = e->val.sessionCount;
     }
 }
 
+void probeDBResolveHistory(ProbeDevicesMap &devs)
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    probeDBRestoreFor(devs, true);
+    probeDBFillHistory(devs);
+}
+
+void mergeProbeDevicesToDB(ProbeDevicesMap &devs)
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    probeDBRestoreFor(devs, false);
+    probeDBFillHistory(devs);
+    const uint32_t now = getEventTimestamp();
+    for (auto &p : devs) probeDBMergeLocked(p.second, now);
+}
+
+void mergeProbeDeviceToDB(ProbeDevice &dev)
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    const uint64_t key = probeDBKey(dev.mac);
+    if (!probeDB.find(key) && s_probeSeen.contains(key)) {
+        PsramSet<uint64_t> want;
+        want.insert(key);
+        probeDBRestore(want);
+    }
+    probeDBMergeLocked(dev, getEventTimestamp());
+}
+
+// A device known only from the filter returns true with zero counts; probeDBResolveHistory fills them from SD.
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out)
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
-    auto it = probeDB.find(String(macStr));
-    if (it != probeDB.end()) {
-        out = it->second;
+    const uint64_t key = probeDBKeyStr(macStr);
+    if (const auto *e = probeDB.find(key)) {
+        out = e->val;
         return true;
     }
-    return false;
+    if (!s_probeSeen.contains(key)) return false;
+    out = {};
+    return true;
 }
 
 uint32_t getProbeDBSize()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
-    return probeDB.size();
+    return (uint32_t)s_probeSeen.count();
 }
 
 static size_t probeDBFormatRow(const ProbeDBEntry &e, bool first, char *out, size_t cap)
@@ -1017,21 +1190,34 @@ size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen)
         }
         st.pendOff = st.pendLen = 0;
         if (st.phase == 0) {
+            std::lock_guard<std::mutex> lock(probeDBMutex);
+            probeDBFlushDirty();
+            probeDBCompact();
             st.pend[0] = '[';
             st.pendLen = 1;
+            st.cursor = 0;
             st.phase = 1;
             continue;
         }
         if (st.phase == 1) {
             std::lock_guard<std::mutex> lock(probeDBMutex);
-            auto it = st.lastKey[0] ? probeDB.upper_bound(String(st.lastKey)) : probeDB.begin();
-            if (it != probeDB.end()) {
-                st.pendLen = (uint16_t)probeDBFormatRow(it->second, st.first, st.pend, sizeof(st.pend));
-                st.first = false;
-                strncpy(st.lastKey, it->first.c_str(), sizeof(st.lastKey) - 1);
-                st.lastKey[sizeof(st.lastKey) - 1] = '\0';
-                continue;
+            ProbeDBEntry e;
+            bool emitted = false;
+            File f = SafeSD::open(PROBE_DB_BIN, FILE_READ);
+            if (f) {
+                if (st.cursor < (size_t)f.size()) {
+                    f.seek(st.cursor);
+                    if (SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), PREC) == PREC) {
+                        e.mac[17] = '\0';
+                        st.pendLen = (uint16_t)probeDBFormatRow(e, st.first, st.pend, sizeof(st.pend));
+                        st.first = false;
+                        st.cursor += PREC;
+                        emitted = true;
+                    }
+                }
+                f.close();
             }
+            if (emitted) continue;
             st.phase = 2;
         }
         if (st.phase == 2) {
@@ -1085,8 +1271,10 @@ PsramJsonString getProbeEventsJsonl()
 void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
-    probeDB.clear();
-    s_probeArchive.discard();
-    for (const char *p : {PROBE_DB_PATH, PROBE_DB_TMP, PROBE_DB_BAK, PROBE_DB_ARCHIVE}) SafeSD::remove(p);
+    probeDBInitLocked();
+    s_probeLoaded = true;
+    for (const char *p : {PROBE_DB_BIN, PROBE_DB_BIN_TMP, PROBE_DB_BIN_BAK, PROBE_DB_PATH, PROBE_DB_TMP,
+                          PROBE_DB_BAK, PROBE_DB_ARCHIVE})
+        SafeSD::remove(p);
     Serial.println("[PROBEDB] Database cleared");
 }

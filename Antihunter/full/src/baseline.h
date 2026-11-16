@@ -73,7 +73,6 @@ struct DeviceHistory {
     uint8_t sightings;
 };
 
-extern std::map<uint64_t, uint32_t, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, uint32_t>>> sdDeviceIndex;
 extern std::map<uint64_t, bool, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, bool>>> sdLookupCache;
 extern std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 extern const uint32_t SD_LOOKUP_CACHE_SIZE;
@@ -101,7 +100,6 @@ extern uint32_t baselineDeviceCount;
 extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 extern uint32_t baselineRamCacheSize;
-extern uint32_t baselineSdMaxDevices;
 using DeviceHistoryMapPsram = std::map<uint64_t, DeviceHistory, std::less<uint64_t>,
     PsramAllocator<std::pair<const uint64_t, DeviceHistory>>>;
 extern DeviceHistoryMapPsram deviceHistory;
@@ -131,8 +129,6 @@ int8_t getBaselineRssiThreshold();
 void setBaselineRssiThreshold(int8_t threshold);
 uint32_t getBaselineRamCacheSize();
 void setBaselineRamCacheSize(uint32_t size);
-uint32_t getBaselineSdMaxDevices();
-void setBaselineSdMaxDevices(uint32_t size);
 uint32_t getDeviceAbsenceThreshold();
 void setDeviceAbsenceThreshold(uint32_t ms);
 uint32_t getReappearanceAlertWindow();
@@ -149,4 +145,3 @@ void loadBaselineFromSD();
 void saveBaselineStatsToSD();
 void loadBaselineStatsFromSD();
 uint8_t calculateDeviceChecksum(BaselineDevice& device);
-void buildSDIndex();

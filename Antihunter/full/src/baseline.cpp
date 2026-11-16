@@ -160,7 +160,6 @@ static void baselineReportWatch() {
 PsramMap<uint64_t, bool> sdLookupCache;
 std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
-PsramMap<uint64_t, uint32_t> sdDeviceIndex;
 
 // Scan intervals from scanner
 extern uint32_t WIFI_SCAN_INTERVAL;
@@ -194,7 +193,6 @@ int8_t baselineRssiThreshold = -60;
 
 
 uint32_t baselineRamCacheSize = 400;
-uint32_t baselineSdMaxDevices = 50000;
 static unsigned long lastBaselineAnomalyMeshSend = 0;
 const unsigned long BASELINE_ANOMALY_MESH_INTERVAL = 5000;
 const uint32_t MIN_FLUSH_INTERVAL = 60000;
@@ -248,7 +246,6 @@ void resetBaselineDetection() {
         baselineTags.clear();
         baselineMarkerMs = 0;
         anomalyLog.clear();
-        sdDeviceIndex.clear();
         lruList.clear();
         lruMap.clear();
         anomalyCount = 0;
@@ -274,6 +271,8 @@ void resetBaselineDetection() {
             Serial.println("[BASELINE] Removed SD stats file");
         }
         SafeSD::remove("/baseline_stats.json.bak");
+        SafeSD::remove("/baseline_data.v1");
+        SafeSD::remove("/baseline_data.bad");
     }
     
     sdBaselineInitialized = false;
@@ -338,6 +337,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
                         Serial.printf("[BASELINE] No SD - RAM limit reached: %d devices (heap: %u)\n",
                                     baselineCache.size(), ESP.getFreeHeap());
                     }
+                    g_sdRecordsNotSaved++;
                     return;
                 }
             }
@@ -410,13 +410,16 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     }
 
     if (haveEvictDevice) {
-        if (!writeBaselineDeviceToSD(evictDevice)) {
+        if (writeBaselineDeviceToSD(evictDevice)) {
+            g_sdRecordsMoved++;
+        } else {
+            g_sdRecordsNotSaved++;
             static uint32_t evictSaveFailed = 0;
             static uint32_t lastEvictFailLog = 0;
             evictSaveFailed++;
             if (now - lastEvictFailLog >= 30000) {
                 lastEvictFailLog = now;
-                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (SD Device Storage limit reached or write failed)\n",
+                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (write failed)\n",
                               (unsigned)evictSaveFailed);
             }
         }
@@ -658,7 +661,7 @@ void baselineDetectionTask(void *pv) {
     }
     
     Serial.printf("[BASELINE] Starting detection - Threshold: %d dBm\n", baselineRssiThreshold);
-    Serial.printf("[BASELINE] RAM cache: %u devices, SD limit: %u devices\n", baselineRamCacheSize, baselineSdMaxDevices);
+    Serial.printf("[BASELINE] RAM cache: %u devices, %u devices on SD\n", baselineRamCacheSize, (unsigned)totalDevicesOnSD);
     Serial.printf("[BASELINE] Phase 1: Establishing baseline for %d seconds\n", baselineDuration / 1000);
     
     stopRequested = false;
@@ -815,13 +818,14 @@ void baselineDetectionTask(void *pv) {
             }
             uint32_t notSaved = 0;
             for (size_t ei = 0; ei < evictedDirty.size(); ei++) {
-                if (!writeBaselineDeviceToSD(evictedDirty[ei])) notSaved++;
+                if (writeBaselineDeviceToSD(evictedDirty[ei])) g_sdRecordsMoved++;
+                else { notSaved++; g_sdRecordsNotSaved++; }
                 if ((ei & 15) == 15) {
                     vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
             if (notSaved)
-                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (SD Device Storage limit reached or write failed)\n",
+                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (write failed)\n",
                               (unsigned)notSaved);
             nextCacheSizeCheck += 30000;
         }
@@ -1296,35 +1300,217 @@ uint8_t calculateDeviceChecksum(BaselineDevice& device) {
     return sum;
 }
 
+// /baseline_data.bin v2: a 512-byte header sector, then a fixed hash table of 512-byte buckets (8 devices each) with overflow buckets chained at the end; no RAM index, no device limit.
+static const char *BL_DATA = "/baseline_data.bin";
+static const char *BL_DATA_V1 = "/baseline_data.v1";
+static const char *BL_DATA_BAD = "/baseline_data.bad";
+static const uint32_t BL_MAGIC = 0xBA5EBA11;
+static const uint16_t BL_VERSION = 2;
+static const uint32_t BL_SECTOR = 512;
+static const uint32_t BL_SLOTS = 8;
+static const uint32_t BL_BUCKETS = 8192;
+static const uint32_t BL_MAX_HOPS = 1u << 20;
+
+struct BlHeader {
+    uint32_t magic;
+    uint16_t version;
+    uint32_t deviceCount;
+    uint32_t buckets;
+    uint8_t pad[BL_SECTOR - 14];
+} __attribute__((packed));
+
+struct BlBucket {
+    uint32_t next;
+    BaselineDevice slot[BL_SLOTS];
+    uint8_t pad[BL_SECTOR - 4 - BL_SLOTS * sizeof(BaselineDevice)];
+} __attribute__((packed));
+
+static_assert(sizeof(BlHeader) == BL_SECTOR, "baseline header must be one sector");
+static_assert(sizeof(BlBucket) == BL_SECTOR, "baseline bucket must be one sector");
+
+static BlBucket s_blBucket;
+static BlBucket s_blOverflow;
+
+static uint32_t blHome(uint64_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdULL;
+    key ^= key >> 33;
+    return (uint32_t)(key % BL_BUCKETS);
+}
+
+static bool blReadBucket(File &f, uint32_t idx, BlBucket &b) {
+    f.seek((size_t)(idx + 1) * BL_SECTOR);
+    return SafeSD::read(f, reinterpret_cast<uint8_t *>(&b), BL_SECTOR) == BL_SECTOR;
+}
+
+static bool blWriteBucket(File &f, uint32_t idx, const BlBucket &b) {
+    f.seek((size_t)(idx + 1) * BL_SECTOR);
+    return SafeSD::write(f, reinterpret_cast<const uint8_t *>(&b), BL_SECTOR) == BL_SECTOR;
+}
+
+static bool blWriteCount(File &f, uint32_t count) {
+    f.seek(offsetof(BlHeader, deviceCount));
+    return SafeSD::write(f, reinterpret_cast<const uint8_t *>(&count), sizeof(count)) == sizeof(count);
+}
+
+// Caller holds baselineSDMutex. Finds mac in its bucket chain.
+static bool blFind(File &f, const uint8_t *mac, BaselineDevice &dev) {
+    uint32_t idx = blHome(blKey(mac));
+    for (uint32_t hops = 0; hops < BL_MAX_HOPS; hops++) {
+        if (!blReadBucket(f, idx, s_blBucket)) return false;
+        for (uint32_t s = 0; s < BL_SLOTS; s++) {
+            const BaselineDevice &d = s_blBucket.slot[s];
+            if (d.hitCount == 0 || memcmp(d.mac, mac, 6) != 0) continue;
+            dev = d;
+            const uint8_t stored = dev.checksum;
+            if (calculateDeviceChecksum(dev) != stored) {
+                Serial.println("[BASELINE_SD] Checksum fail");
+                return false;
+            }
+            return true;
+        }
+        if (!s_blBucket.next) return false;
+        idx = s_blBucket.next;
+    }
+    return false;
+}
+
+// Caller holds baselineSDMutex; f is open "r+". Updates the device in place or stores it in the first free slot of its chain, chaining a new bucket when the chain is full.
+static bool blUpsert(File &f, const BaselineDevice &device, bool &added) {
+    BaselineDevice dev = device;
+    calculateDeviceChecksum(dev);
+    added = false;
+    uint32_t idx = blHome(blKey(dev.mac));
+    uint32_t freeIdx = UINT32_MAX, freeSlot = 0, last = idx;
+    for (uint32_t hops = 0; hops < BL_MAX_HOPS; hops++) {
+        if (!blReadBucket(f, idx, s_blBucket)) return false;
+        for (uint32_t s = 0; s < BL_SLOTS; s++) {
+            const BaselineDevice &d = s_blBucket.slot[s];
+            if (d.hitCount == 0) {
+                if (freeIdx == UINT32_MAX) { freeIdx = idx; freeSlot = s; }
+                continue;
+            }
+            if (memcmp(d.mac, dev.mac, 6) != 0) continue;
+            s_blBucket.slot[s] = dev;
+            return blWriteBucket(f, idx, s_blBucket);
+        }
+        last = idx;
+        if (!s_blBucket.next) break;
+        idx = s_blBucket.next;
+    }
+    if (freeIdx != UINT32_MAX) {
+        if (!blReadBucket(f, freeIdx, s_blBucket)) return false;
+        s_blBucket.slot[freeSlot] = dev;
+        added = blWriteBucket(f, freeIdx, s_blBucket);
+        return added;
+    }
+    const uint32_t newIdx = (uint32_t)(f.size() / BL_SECTOR) - 1;
+    memset(&s_blOverflow, 0, sizeof(s_blOverflow));
+    s_blOverflow.slot[0] = dev;
+    if (!blWriteBucket(f, newIdx, s_blOverflow)) return false;
+    if (!blReadBucket(f, last, s_blBucket)) return false;
+    s_blBucket.next = newIdx;
+    added = blWriteBucket(f, last, s_blBucket);
+    return added;
+}
+
+static bool blCreateFile() {
+    File f = SafeSD::open(BL_DATA, FILE_WRITE);
+    if (!f) return false;
+    const size_t chunk = 32 * 1024;
+    uint8_t *zero = static_cast<uint8_t *>(heap_caps_calloc(chunk, 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!zero) { f.close(); SafeSD::remove(BL_DATA); return false; }
+    BlHeader h = {};
+    h.magic = BL_MAGIC;
+    h.version = BL_VERSION;
+    h.buckets = BL_BUCKETS;
+    bool ok = SafeSD::write(f, reinterpret_cast<const uint8_t *>(&h), sizeof(h)) == sizeof(h);
+    for (size_t left = (size_t)BL_BUCKETS * BL_SECTOR; ok && left > 0;) {
+        const size_t n = left < chunk ? left : chunk;
+        ok = SafeSD::write(f, zero, n) == n;
+        left -= n;
+        vTaskDelay(1);
+    }
+    heap_caps_free(zero);
+    f.close();
+    if (!ok) SafeSD::remove(BL_DATA);
+    return ok;
+}
+
+// Moves a version 1 (append-only) baseline file into the bucket table once.
+static void blMigrateV1() {
+    File in = SafeSD::open(BL_DATA_V1, FILE_READ);
+    File out = SafeSD::open(BL_DATA, "r+");
+    if (!in || !out) {
+        if (in) in.close();
+        if (out) out.close();
+        Serial.println("[BASELINE_SD] Could not open files to convert the old baseline; it is kept in /baseline_data.v1");
+        return;
+    }
+    uint32_t count = 0;
+    out.seek(offsetof(BlHeader, deviceCount));
+    SafeSD::read(out, reinterpret_cast<uint8_t *>(&count), sizeof(count));
+    in.seek(10);
+    BaselineDevice rec;
+    uint32_t moved = 0, failed = 0;
+    while (in.available() >= (int)sizeof(BaselineDevice)) {
+        if (SafeSD::read(in, reinterpret_cast<uint8_t *>(&rec), sizeof(rec)) != sizeof(rec)) break;
+        const uint8_t stored = rec.checksum;
+        if (calculateDeviceChecksum(rec) != stored || rec.hitCount == 0) continue;
+        rec.dirtyFlag = false;
+        bool added = false;
+        if (!blUpsert(out, rec, added)) { failed++; continue; }
+        if (added) moved++;
+        if ((moved & 0x3F) == 0) vTaskDelay(1);
+    }
+    in.close();
+    blWriteCount(out, count + moved);
+    out.close();
+    if (failed == 0) SafeSD::remove(BL_DATA_V1);
+    Serial.printf("[BASELINE_SD] Converted %u devices to the new baseline format%s\n", (unsigned)moved,
+                  failed ? " (some could not be written; the old file is kept)" : "");
+}
+
 bool initializeBaselineSD() {
      if (!SafeSD::isAvailable()) {
         Serial.println("[BASELINE_SD] SD card not available");
         return false;
     }
-    
-    if (!SafeSD::exists("/baseline_data.bin")) {
-        Serial.println("[BASELINE_SD] Creating baseline data file");
-        File dataFile = SafeSD::open("/baseline_data.bin", FILE_WRITE);
-        if (!dataFile) {
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
+
+    BlHeader h = {};
+    if (SafeSD::exists(BL_DATA)) {
+        File f = SafeSD::open(BL_DATA, FILE_READ);
+        if (f) {
+            SafeSD::read(f, reinterpret_cast<uint8_t *>(&h), 10);
+            f.close();
+        }
+    }
+    const bool exists = SafeSD::exists(BL_DATA);
+    if (exists && h.magic == BL_MAGIC && h.version == 1) {
+        SafeSD::rename(BL_DATA, BL_DATA_V1);
+    } else if (exists && (h.magic != BL_MAGIC || h.version != BL_VERSION)) {
+        Serial.println("[BASELINE_SD] Unknown baseline file kept as /baseline_data.bad; starting a new one");
+        SafeSD::rename(BL_DATA, BL_DATA_BAD);
+    }
+    if (!SafeSD::exists(BL_DATA)) {
+        Serial.printf("[BASELINE_SD] Creating baseline data file (%u KB)\n", (unsigned)((BL_BUCKETS + 1) * BL_SECTOR / 1024));
+        if (!blCreateFile()) {
             Serial.println("[BASELINE_SD] Failed to create data file");
             return false;
         }
-        
-        uint32_t magic = 0xBA5EBA11;
-        uint16_t version = 1;
-        uint32_t deviceCount = 0;
-        
-        SdWriter bw(dataFile);
-        bw.write(reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
-        bw.write(reinterpret_cast<uint8_t*>(&version), sizeof(version));
-        bw.write(reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
-        dataFile.close();
-        
         Serial.println("[BASELINE_SD] Data file created");
-    } else {
-        buildSDIndex();
     }
-    
+    if (SafeSD::exists(BL_DATA_V1)) blMigrateV1();
+    {
+        File hf = SafeSD::open(BL_DATA, FILE_READ);
+        BlHeader hh = {};
+        if (hf && SafeSD::read(hf, reinterpret_cast<uint8_t *>(&hh), 14) == 14 && hh.magic == BL_MAGIC)
+            totalDevicesOnSD = hh.deviceCount;
+        if (hf) hf.close();
+        Serial.printf("[BASELINE_SD] %u devices on SD\n", (unsigned)totalDevicesOnSD);
+    }
+
     if (!SafeSD::exists("/baseline_stats.json")) {
         Serial.println("[BASELINE_SD] Creating stats file");
          File statsFile = SafeSD::open("/baseline_stats.json", FILE_WRITE);
@@ -1351,92 +1537,35 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
     if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
-    
-    BaselineDevice writeDevice = device;
-    calculateDeviceChecksum(writeDevice);
-
-    const uint64_t macKey = blKey(device.mac);
-
-    if (sdDeviceIndex.find(macKey) != sdDeviceIndex.end()) {
-        const uint32_t position = sdDeviceIndex[macKey];
-
-        File dataFile = SafeSD::open("/baseline_data.bin", "r+");
-        if (!dataFile) {
-            Serial.println("[BASELINE_SD] Failed to open for update");
-            return false;
-        }
-        
-        dataFile.seek(position);
-        size_t written = SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
-        dataFile.close();
-
-        return (written == sizeof(BaselineDevice));
-    } else {
-        if (totalDevicesOnSD >= baselineSdMaxDevices) return false;
-        File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
-        if (!dataFile) {
-            Serial.println("[BASELINE_SD] Failed to open for append");
-            return false;
-        }
-
-        uint32_t position = dataFile.position();
-        size_t written = SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
-        dataFile.close();
-        
-        if (written == sizeof(BaselineDevice)) {
-            sdDeviceIndex[macKey] = position;
-            totalDevicesOnSD++;
-            
-            File headerFile = SafeSD::open("/baseline_data.bin", "r+");
-            if (headerFile) {
-                headerFile.seek(6);
-                if (SafeSD::write(headerFile, reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD)) != sizeof(totalDevicesOnSD))
-                    Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
-                headerFile.close();
-            }
-
-            return true;
-        }
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
+    File dataFile = SafeSD::open(BL_DATA, "r+");
+    if (!dataFile) {
+        Serial.println("[BASELINE_SD] Failed to open for update");
+        return false;
     }
-    
-    return false;
+    bool added = false;
+    const bool ok = blUpsert(dataFile, device, added);
+    if (ok && added) {
+        totalDevicesOnSD++;
+        if (!blWriteCount(dataFile, totalDevicesOnSD))
+            Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
+    }
+    dataFile.close();
+    return ok;
 }
 
 bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
     if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
-    
-    const uint64_t macKey = blKey(mac);
-
-    if (sdDeviceIndex.find(macKey) == sdDeviceIndex.end()) {
-        return false;
-    }
-
-    const uint32_t position = sdDeviceIndex[macKey];
-
-    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
+    File dataFile = SafeSD::open(BL_DATA, FILE_READ);
     if (!dataFile) {
         return false;
     }
-
-    dataFile.seek(position);
-    const size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&device), sizeof(BaselineDevice));
+    const bool found = blFind(dataFile, mac, device);
     dataFile.close();
-    
-    if (bytesRead != sizeof(BaselineDevice)) {
-        return false;
-    }
-    
-    const uint8_t storedChecksum = device.checksum;
-    const uint8_t calcChecksum = calculateDeviceChecksum(device);
-    
-    if (calcChecksum != storedChecksum) {
-        Serial.println("[BASELINE_SD] Checksum fail");
-        return false;
-    }
-    
-    return true;
+    return found;
 }
 
 bool flushBaselineCacheToSD() {
@@ -1445,113 +1574,52 @@ bool flushBaselineCacheToSD() {
     }
     std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
 
-    // Separate dirty entries into updates (existing on SD) and appends (new)
-    std::vector<std::pair<uint64_t, BaselineDevice>> updates;
-    std::vector<uint32_t> updatePositions;
-    std::vector<std::pair<uint64_t, BaselineDevice>> appends;
-    std::vector<uint64_t> skippedKeys;
-
+    std::vector<std::pair<uint64_t, BaselineDevice>> dirty;
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         if (baselineCache.empty()) {
             return false;
         }
-        const uint32_t room = totalDevicesOnSD < baselineSdMaxDevices ? baselineSdMaxDevices - totalDevicesOnSD : 0;
         for (auto& entry : baselineCache) {
-            if (entry.second.dirtyFlag) {
-                auto idxIt = sdDeviceIndex.find(entry.first);
-                if (idxIt != sdDeviceIndex.end()) {
-                    updates.push_back({entry.first, entry.second});
-                    updatePositions.push_back(idxIt->second);
-                } else if (appends.size() < room) {
-                    appends.push_back({entry.first, entry.second});
-                } else {
-                    skippedKeys.push_back(entry.first);
-                }
-            }
+            if (entry.second.dirtyFlag) dirty.push_back({entry.first, entry.second});
         }
-        for (const auto& key : skippedKeys) baselineCache[key].dirtyFlag = false;
-    }
-    if (!skippedKeys.empty()) {
-        Serial.printf("[BASELINE_SD] SD device storage full (%u/%u): %u new devices kept in RAM only\n",
-                      (unsigned)totalDevicesOnSD, (unsigned)baselineSdMaxDevices, (unsigned)skippedKeys.size());
     }
 
-    const uint32_t total = updates.size() + appends.size();
+    const uint32_t total = dirty.size();
     if (total == 0) {
         return true;
     }
-
-    Serial.printf("[BASELINE_SD] Flushing %d modified devices (%d updates, %d new)\n",
-                  total, updates.size(), appends.size());
 
     uint32_t flushed = 0;
     std::vector<uint64_t> cleanedKeys;
     cleanedKeys.reserve(total);
 
-    // Batch updates: single file open in r+ mode, seek to each position
-    if (!updates.empty()) {
-        File dataFile = SafeSD::open("/baseline_data.bin", "r+");
-        if (dataFile) {
-            for (size_t i = 0; i < updates.size(); i++) {
-                BaselineDevice wd = updates[i].second;
-                calculateDeviceChecksum(wd);
-                dataFile.seek(updatePositions[i]);
-                if (SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    cleanedKeys.push_back(updates[i].first);
-                    flushed++;
-                }
-                if ((i & 15) == 15) {
-                    vTaskDelay(pdMS_TO_TICKS(0));
-                }
+    File dataFile = SafeSD::open(BL_DATA, "r+");
+    if (dataFile) {
+        uint32_t added = 0;
+        for (size_t i = 0; i < dirty.size(); i++) {
+            bool isNew = false;
+            if (blUpsert(dataFile, dirty[i].second, isNew)) {
+                cleanedKeys.push_back(dirty[i].first);
+                flushed++;
+                if (isNew) added++;
             }
-            dataFile.close();
-            vTaskDelay(pdMS_TO_TICKS(10));
+            if ((i & 15) == 15) {
+                vTaskDelay(pdMS_TO_TICKS(0));
+            }
         }
-    }
-
-    // Batch appends: single file open in append mode
-    if (!appends.empty()) {
-        File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
-        if (dataFile) {
-            std::vector<std::pair<uint64_t, uint32_t>> newIndexEntries;
-            newIndexEntries.reserve(appends.size());
-            for (size_t i = 0; i < appends.size(); i++) {
-                BaselineDevice wd = appends[i].second;
-                calculateDeviceChecksum(wd);
-                uint32_t position = dataFile.position();
-                if (SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    newIndexEntries.push_back({appends[i].first, position});
-                    cleanedKeys.push_back(appends[i].first);
-                    flushed++;
-                }
-                if ((i & 15) == 15) {
-                    vTaskDelay(pdMS_TO_TICKS(0));
-                }
-            }
-            dataFile.close();
-
-            uint32_t totalSnapshot;
-            {
-                std::lock_guard<std::mutex> lock(baselineMutex);
-                for (const auto& e : newIndexEntries) {
-                    sdDeviceIndex[e.first] = e.second;
-                }
-                totalDevicesOnSD += newIndexEntries.size();
-                totalSnapshot = totalDevicesOnSD;
-            }
-
-            // Update header device count once
-            File headerFile = SafeSD::open("/baseline_data.bin", "r+");
-            if (headerFile) {
-                headerFile.seek(6);
-                if (SafeSD::write(headerFile, reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot)) != sizeof(totalSnapshot))
-                    Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
-                headerFile.close();
-            }
-            vTaskDelay(pdMS_TO_TICKS(10));
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            totalDevicesOnSD += added;
         }
+        if (added && !blWriteCount(dataFile, totalDevicesOnSD))
+            Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
+        dataFile.close();
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
+    if (flushed < total)
+        Serial.printf("[BASELINE_SD] %u devices could not be written to SD; they stay in memory and are retried\n",
+                      (unsigned)(total - flushed));
 
     if (!cleanedKeys.empty()) {
         std::lock_guard<std::mutex> lock(baselineMutex);
@@ -1575,71 +1643,53 @@ void loadBaselineFromSD() {
     }
     std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
 
-    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
+    File dataFile = SafeSD::open(BL_DATA, FILE_READ);
     if (!dataFile) {
         Serial.println("[BASELINE_SD] No baseline file");
         return;
     }
-    
-    uint32_t magic;
-    uint16_t version;
-    uint32_t deviceCount;
 
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&version), sizeof(version));
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
-    (void)version; // read to advance file position; value unused
-
-    if (magic != 0xBA5EBA11) {
+    BlHeader h = {};
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t *>(&h), sizeof(h));
+    if (h.magic != BL_MAGIC || h.version != BL_VERSION) {
         Serial.println("[BASELINE_SD] Invalid header");
         dataFile.close();
         return;
     }
 
-    Serial.printf("[BASELINE_SD] Loading %d devices\n", deviceCount);
+    Serial.printf("[BASELINE_SD] Loading %u devices\n", (unsigned)h.deviceCount);
 
-    totalDevicesOnSD = deviceCount;
-    baselineDeviceCount = deviceCount;
-    
-    if (deviceCount > 0) {
-        uint32_t toLoad = min(deviceCount, baselineRamCacheSize);
-        uint32_t skipRecords = (deviceCount > toLoad) ? (deviceCount - toLoad) : 0;
-        
-        dataFile.seek(10 + (skipRecords * sizeof(BaselineDevice)));
-        
-        BaselineDevice rec;
+    totalDevicesOnSD = h.deviceCount;
+    baselineDeviceCount = h.deviceCount;
+
+    if (h.deviceCount > 0) {
+        const uint32_t toLoad = min(h.deviceCount, baselineRamCacheSize);
+        const uint32_t buckets = (uint32_t)(dataFile.size() / BL_SECTOR) - 1;
         uint32_t loaded = 0;
-        
-        while (dataFile.available() >= sizeof(BaselineDevice) && loaded < toLoad) {
-            size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&rec), sizeof(BaselineDevice));
-
-            if (bytesRead != sizeof(BaselineDevice)) {
-                break;
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        for (uint32_t b = 0; b < buckets && loaded < toLoad; b++) {
+            if (!blReadBucket(dataFile, b, s_blBucket)) break;
+            for (uint32_t s = 0; s < BL_SLOTS && loaded < toLoad; s++) {
+                BaselineDevice rec = s_blBucket.slot[s];
+                if (rec.hitCount == 0) continue;
+                const uint8_t storedChecksum = rec.checksum;
+                if (calculateDeviceChecksum(rec) != storedChecksum) continue;
+                rec.dirtyFlag = false;
+                const uint64_t recKey = blKey(rec.mac);
+                baselineCache[recKey] = rec;
+                LRUNode node;
+                node.key = recKey;
+                node.lastSeen = rec.lastSeen;
+                lruList.push_back(node);
+                lruMap[recKey] = --lruList.end();
+                loaded++;
             }
-
-            const uint8_t storedChecksum = rec.checksum;
-            const uint8_t calcChecksum = calculateDeviceChecksum(rec);
-
-            if (calcChecksum != storedChecksum) {
-                continue;
-            }
-
-            rec.dirtyFlag = false;
-            uint64_t recKey = blKey(rec.mac);
-            baselineCache[recKey] = rec;
-            LRUNode node;
-            node.key = recKey;
-            node.lastSeen = rec.lastSeen;
-            lruList.push_back(node);
-            lruMap[recKey] = --lruList.end();
-            loaded++;
+            if ((b & 0x3F) == 0x3F) vTaskDelay(1);
         }
-        
-        Serial.printf("[BASELINE_SD] Loaded %d devices into cache\n", loaded);
+        Serial.printf("[BASELINE_SD] Loaded %u devices into cache\n", (unsigned)loaded);
     }
-    
+
     dataFile.close();
-    buildSDIndex();
     loadBaselineStatsFromSD();
 }
 
@@ -1720,18 +1770,6 @@ void setBaselineRamCacheSize(uint32_t size) {
         baselineRamCacheSize = size;
         prefs.putUInt("baselineRamSize", size);
         Serial.printf("[BASELINE] RAM cache size set to %u\n", size);
-    }
-}
-
-uint32_t getBaselineSdMaxDevices() {
-    return baselineSdMaxDevices;
-}
-
-void setBaselineSdMaxDevices(uint32_t size) {
-    if (size >= 1000 && size <= 100000) {
-        baselineSdMaxDevices = size;
-        prefs.putUInt("baselineSdMax", size);
-        Serial.printf("[BASELINE] SD max devices set to %u\n", size);
     }
 }
 
@@ -2002,49 +2040,3 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     history.wasPresent = true;
 }
 
-void buildSDIndex() {
-    sdDeviceIndex.clear();
-    
-    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
-    if (!dataFile) {
-        return;
-    }
-    
-    uint32_t magic, deviceCount;
-    uint16_t version;
-
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&version), sizeof(version));
-    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
-    (void)version; // read to advance file position; value unused
-    (void)deviceCount; // used only to validate header was read completely
-
-    if (magic != 0xBA5EBA11) {
-        dataFile.close();
-        return;
-    }
-
-    BaselineDevice rec;
-    uint32_t position = 10;
-
-    while (dataFile.available() >= sizeof(BaselineDevice)) {
-        size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&rec), sizeof(BaselineDevice));
-        
-        if (bytesRead != sizeof(BaselineDevice)) {
-            break;
-        }
-        
-        const uint8_t storedChecksum = rec.checksum;
-        const uint8_t calcChecksum = calculateDeviceChecksum(rec);
-
-        if (calcChecksum == storedChecksum) {
-            sdDeviceIndex[blKey(rec.mac)] = position;
-        }
-        
-        position += sizeof(BaselineDevice);
-    }
-    
-    dataFile.close();
-    totalDevicesOnSD = sdDeviceIndex.size();
-    Serial.printf("[BASELINE_SD] Index built: %d unique devices\n", totalDevicesOnSD);
-}

@@ -45,3 +45,4 @@ jobs:
         make test-ble
         make test-meshcore
         make test-psram-table
+        make test-cuckoo

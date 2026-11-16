@@ -1837,10 +1837,8 @@ void snifferScanTask(void *pv)
     bool hadProbes = probeDetectionEnabled.load();
     if (hadProbes) {
         std::lock_guard<std::mutex> plock(probeMutex);
-        for (const auto &pp : probeDevices) {
-            mergeProbeDeviceToDB(pp.second);
-        }
-        saveProbeDB();
+        mergeProbeDevicesToDB(probeDevices);
+        saveProbeDB(true);
         Serial.printf("[SNIFFER] Saved %u probe devices to DB\n", probeDevices.size());
     }
 
@@ -1962,6 +1960,12 @@ void snifferScanTask(void *pv)
 
         antihunter::lastResults = results;
     }
+    if (hadProbes) {
+        std::lock_guard<std::mutex> plock(probeMutex);
+        probeDevices.clear();
+        uniqueSsids.clear();
+        respondedSsids.clear();
+    }
 
     if (meshEnabled) {
         const uint32_t txBefore = snifferMeshSent;
@@ -1993,6 +1997,7 @@ void snifferScanTask(void *pv)
                             " H=" + String(totalHits) +
                             " TX=" + String(totalTx) +
                             " DUP=" + String(skippedDevices);
+            if (g_sdRecordsNotSaved.load()) summary += " NS=" + String(g_sdRecordsNotSaved.load());
             meshEnqueue(summary);
             Serial.printf("[SNIFFER] Scan complete: total %u/%u devices enqueued (%u from this final pass, %u dedup-skipped)\n",
                          totalTx, totalDevices, enqueuedDevices, skippedDevices);
@@ -2013,6 +2018,13 @@ void snifferScanTask(void *pv)
     {
         std::lock_guard<std::mutex> lock(snifferCacheMutex);
         snifferDevices.releaseIndex();
+        const size_t n = snifferDevices.size();
+        uint8_t *macs = n ? static_cast<uint8_t *>(heap_caps_malloc(n * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) : nullptr;
+        if (macs) {
+            for (size_t i = 0; i < n; i++) memcpy(macs + i * 6, snifferDevices.at(i).val.hit.mac, 6);
+            deviceDBRestore(macs, n);
+            heap_caps_free(macs);
+        }
     }
     for (;;) {
         {
@@ -4346,6 +4358,14 @@ void listScanTask(void *pv) {
         }
     }
 
+    if (!hitsLog.empty()) {
+        uint8_t *macs = static_cast<uint8_t *>(heap_caps_malloc(hitsLog.size() * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (macs) {
+            for (size_t i = 0; i < hitsLog.size(); i++) memcpy(macs + i * 6, hitsLog[i].mac, 6);
+            deviceDBRestore(macs, hitsLog.size());
+            heap_caps_free(macs);
+        }
+    }
     for (const auto &sh : hitsLog) mergeHitToDeviceDB(sh);
     if (!hitsLog.empty()) saveDeviceDB();
 

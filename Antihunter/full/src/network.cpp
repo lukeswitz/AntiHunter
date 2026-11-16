@@ -643,7 +643,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
     json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
     json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
-    json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
     json += "\"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",";
     json += "\"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",";
     json += "\"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",";
@@ -678,12 +677,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           uint32_t ramSize = req->getParam("ramCacheSize", true)->value().toInt();
           setBaselineRamCacheSize(ramSize);
           prefs.putUInt("blRamSize", ramSize);
-      }
-      
-      if (req->hasParam("sdMaxDevices", true)) {
-          uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
-          setBaselineSdMaxDevices(sdMax);
-          prefs.putUInt("blSdMax", sdMax);
       }
       
       if (req->hasParam("absenceThreshold", true)) {
