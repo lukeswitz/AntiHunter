@@ -194,10 +194,11 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Deauth detection stopped counting at 2,000 attacks. It now counts every one.
 - The randomized MAC tracer stopped at 128 sessions. It now has no fixed limit.
 - The device database held 2,000 devices. It now has no fixed limit.
-- The SD card now holds every device. Memory holds only the devices from the current scan.
+- The SD card now holds every device. While a scan runs, the node keeps the devices it hears in memory. When the scan ends, it saves every device to the SD card and frees that memory.
   - The device and probe databases are `/devicedb.bin` and `/probedb.bin`. The node converts older files the first time it starts.
-  - A device that returns in a later scan gets its counts back from the SD card.
-  - The device total is an estimate. It can read about 1% low at 200,000 devices.
+  - A device the node has seen before picks up where it left off, so its counts keep growing from scan to scan.
+  - An 8 GB card has room for about 40 million devices.
+  - On very large sites the device total is close but not exact.
   - When memory runs low, the randomized MAC tracer moves its oldest sessions to the SD card instead of skipping new ones.
 - The baseline stores every device on the SD card. The **SD Device Storage** setting is gone.
 - If a record can't be written to the SD card, the node counts it. The count shows on the System page, as `NotSaved:` in `SUMMARY`, and as `NS=` in `SCAN_DONE`. The web UI also shows a warning.
