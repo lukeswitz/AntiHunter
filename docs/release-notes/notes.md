@@ -195,7 +195,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - The randomized MAC tracer stopped at 128 sessions. It now has no fixed limit.
 - The device database held 2,000 devices. It now has no fixed limit.
 - The SD card now holds every device. Memory holds only the devices from the current scan.
-  - The device and probe databases are `/devicedb.bin` and `/probedb.bin`. Older files are converted on the first start.
+  - The device and probe databases are `/devicedb.bin` and `/probedb.bin`. The node converts older files the first time it starts.
   - A device that returns in a later scan gets its counts back from the SD card.
   - The device total is an estimate. It can read about 1% low at 200,000 devices.
   - When memory runs low, the randomized MAC tracer moves its oldest sessions to the SD card instead of skipping new ones.
