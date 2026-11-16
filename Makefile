@@ -13,7 +13,7 @@ HEADLESS_SRC := Antihunter/headless/src
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
 
-.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table test-cuckoo clean
 
 test-csi:
 	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_csi_metric.cpp -o /tmp/test_csi_metric
@@ -35,6 +35,12 @@ test-psram-table:
 	for v in $(FULL_SRC) $(HEADLESS_SRC); do \
 		c++ -std=c++17 -O1 -Iscripts/psram_table_stubs -I$$v scripts/test_psram_table.cpp -o /tmp/test_psram_table && \
 		/tmp/test_psram_table || exit 1; \
+	done
+
+test-cuckoo:
+	for v in $(FULL_SRC) $(HEADLESS_SRC); do \
+		c++ -std=c++17 -O1 -Iscripts/psram_table_stubs -I$$v scripts/test_cuckoo.cpp -o /tmp/test_cuckoo && \
+		/tmp/test_cuckoo || exit 1; \
 	done
 
 lint: lint-full lint-headless

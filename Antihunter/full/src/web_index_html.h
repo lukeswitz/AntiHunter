@@ -1042,10 +1042,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     <label style="font-size:11px;">RAM Cache (Non-SD defaults to 1500)</label>
                     <input type="number" id="baselineRamSize" name="ramCacheSize" aria-label="Baseline RAM cache size" min="200" max="500" value="400" style="padding:6px;">
                   </div>
-                  <div>
-                    <label style="font-size:11px;">SD Device Storage</label>
-                    <input type="number" id="baselineSdMax" name="sdMaxDevices" aria-label="Baseline SD device storage" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
-                  </div>
                 </div>
                 
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
@@ -3709,9 +3705,6 @@ R"HTML(
           if (data.ramCacheSize !== undefined) {
             document.getElementById('baselineRamSize').value = data.ramCacheSize;
           }
-          if (data.sdMaxDevices !== undefined) {
-            document.getElementById('baselineSdMax').value = data.sdMaxDevices;
-          }
           if (data.absenceThreshold !== undefined) {
             document.getElementById('absenceThreshold').value = data.absenceThreshold;
           }
@@ -5990,6 +5983,12 @@ R"HTML(
           let hardware = '';
           let network = '';
           sections.forEach(line => {
+            if (line.startsWith('SD Card records:')) {
+              const m = line.match(/(\d+) not saved/);
+              const ns = m ? parseInt(m[1], 10) : 0;
+              if (ns > (window.__sdNotSaved || 0)) toast(`${ns} records could not be saved to the SD card. Check that a card is inserted and has free space.`, 'warning');
+              window.__sdNotSaved = ns;
+            }
             if (line.includes('WiFi Frames')) {
               const match = line.match(/(\d+)/);
               if (match) { document.getElementById('wifiFrames').innerText = match[1]; pushSpark('wifiFrames', parseInt(match[1], 10)); }
@@ -6716,7 +6715,6 @@ R"HTML(
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
           const duration = document.getElementById('baselineDuration').value;
           const ramSize = document.getElementById('baselineRamSize').value;
-          const sdMax = document.getElementById('baselineSdMax').value;
           const absence = document.getElementById('absenceThreshold').value;
           const reappear = document.getElementById('reappearanceWindow').value;
           const rssiDelta = document.getElementById('rssiChangeDelta').value;
@@ -6726,7 +6724,7 @@ R"HTML(
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
           }).then(() => {
             return fetch(endpoint, {
               method: 'POST',
@@ -6917,7 +6915,7 @@ R"HTML(
             await fetch('/baseline/config', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: `rssiThreshold=${v('baselineRssiThreshold')}&baselineDuration=${v('baselineDuration')}&ramCacheSize=${v('baselineRamSize')}&sdMaxDevices=${v('baselineSdMax')}&absenceThreshold=${v('absenceThreshold')}&reappearanceWindow=${v('reappearanceWindow')}&rssiChangeDelta=${v('rssiChangeDelta')}`
+              body: `rssiThreshold=${v('baselineRssiThreshold')}&baselineDuration=${v('baselineDuration')}&ramCacheSize=${v('baselineRamSize')}&absenceThreshold=${v('absenceThreshold')}&reappearanceWindow=${v('reappearanceWindow')}&rssiChangeDelta=${v('rssiChangeDelta')}`
             }).catch(() => {});
           }
         }
@@ -7497,7 +7495,7 @@ R"HTML(
           var t=function(l,v){return '<div class="dn-tile"><small>'+l+'</small><div>'+v+'</div></div>';};
           document.getElementById('dataSummary').innerHTML=t('Status',d.established?'Ready':'Not set')+t('Devices',d.deviceCount||0)+t('Anomalies',d.anomalyCount||0);
           var rows=[['RSSI threshold',d.rssiThreshold+' dBm'],['Baseline time',d.baselineDuration+' s'],['Marked absent after',d.absenceThreshold+' s'],
-            ['Reappear window',d.reappearanceWindow+' s'],['RSSI variation',d.rssiChangeDelta+' dB'],['RAM cache',d.ramCacheSize+' devices'],['SD device storage',d.sdMaxDevices+' devices']];
+            ['Reappear window',d.reappearanceWindow+' s'],['RSSI variation',d.rssiChangeDelta+' dB'],['RAM cache',d.ramCacheSize+' devices']];
           area.innerHTML='<table id="data-table"><thead><tr><th>Setting</th><th>Value</th></tr></thead><tbody>'
             +rows.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';}).join('')+'</tbody></table>';
         }catch(e){area.innerHTML='<div class="data-empty">No baseline data available.</div>';}
