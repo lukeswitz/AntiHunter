@@ -2967,6 +2967,19 @@ void processCommand(const String &commandRaw, const String &targetId = "")
       meshEnabled = command.substring(14).toInt() != 0;
       Serial.printf("[SELFTEST] mesh %d\n", (int)meshEnabled);
   }
+  else if (command.startsWith("SELFTEST_INJECT:")) {
+      static uint32_t s_injArgs[2];
+      const String a = command.substring(16);
+      const int colon = a.indexOf(':');
+      s_injArgs[0] = (uint32_t)(colon < 0 ? a : a.substring(0, colon)).toInt();
+      s_injArgs[1] = colon < 0 ? 0 : (uint32_t)a.substring(colon + 1).toInt();
+      xTaskCreate([](void *pv) {
+          extern void selftestInjectDevices(uint32_t, uint32_t);
+          const uint32_t *args = static_cast<const uint32_t *>(pv);
+          selftestInjectDevices(args[0], args[1]);
+          vTaskDelete(nullptr);
+      }, "stinject", 4096, s_injArgs, 1, nullptr);
+  }
   else if (command.startsWith("SELFTEST_APFLOOD:")) {
       const String a = command.substring(17);
       const int colon = a.indexOf(':');
