@@ -45,7 +45,7 @@ AntiHunter is a small, battery-powered digital and physical tripwire. It shows y
 - Picks out the phones and tags on your watchlist
 - Reads drone Remote ID, including the pilot's position if the drone sends it
 - Spots attacks on your Wi-Fi and names the attack tool if it recognizes it
-- Feels the node being moved, and senses people moving nearby
+- Feels the node being moved, and with the Beta firmware senses people moving nearby
 - Locates a device with three nodes working together
 
 Alerts go out by long-range LoRa radio to your other nodes and to your phone, through any Meshtastic or MeshCore radio on your channel. There is no internet and no subscription. AntiHunter only listens. It never jams or attacks anything.
