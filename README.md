@@ -18,7 +18,7 @@
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
 
-**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual + STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
+**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
 
 </div>
 
