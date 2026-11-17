@@ -18,7 +18,6 @@
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
 
-**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
 
 <a href="https://lectronz.com/stores/antihunter">
   <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
@@ -26,7 +25,6 @@
 
 </div>
 
----
 
 <div align="center">
   
@@ -34,12 +32,13 @@
 
 ***Hunt the hunters:*** _AntiHunter is a compact digital and physical tripwire. It provides detection, defense and awareness for the devices on your airwaves._
 
-
-
 Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
 
 **No internet or subscription required, open source. Defensive by design.** 
 
+---
+
+[Wiki](https://github.com/lukeswitz/AntiHunter/wiki) · [Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Store](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)
 
 
 </div>
@@ -69,7 +68,7 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 </p>
 
 
-### **The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything. Start here:**
+### **The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything, start there:**
 
 - [Choose your hardware](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware)
 - [Flash a node](https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node)
@@ -79,20 +78,21 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 
 ---
 
-## Contributing
+### Contributing
 
-Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues). Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+We welcome your ideas! Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues). Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Acknowledgments
+### Acknowledgments
 
 Hardware design by @TheRealSirHaXalot.
 
 This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright © Intel Corporation and OpenDroneID contributors.
 
-## License
+### License
 
 Firmware: [GNU Affero General Public License v3.0](LICENSE). Hardware and documentation: as stated in their files.
 
 ## Legal disclaimer
 
-AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.
+> [!IMPORTANT]
+> AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.
