@@ -8,10 +8,13 @@
 #include "csi.h"
 #include "pcap.h"
 #include "meshcore_link.h"
+#include "randomization.h"
 #include <Arduino.h>
+#include <atomic>
 #include <algorithm>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include <time.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -146,6 +149,18 @@ uint32_t SafeSD::lastMountLogMs = 0;
 bool sdAutoRepair = false;
 static uint32_t sdMountedHz = SD_SPI_HZ;
 
+static File s_sysLog;
+static const char *const SYS_LOG_PATH = "/antihunter.log";
+
+std::recursive_mutex &SafeSD::fileLock() {
+    static std::recursive_mutex m;
+    return m;
+}
+
+static void sdCloseSysLogIf(const char *path) {
+    if (path && s_sysLog && strcmp(path, SYS_LOG_PATH) == 0) s_sysLog.close();
+}
+
 void setSdAutoRepair(bool on) {
     sdAutoRepair = on;
     Preferences p;
@@ -154,16 +169,23 @@ void setSdAutoRepair(bool on) {
 
 volatile bool sdRepairPending = false;
 
-void serviceSdRepair() {
-    if (!sdRepairPending) return;
-    sdRepairPending = false;
+bool sdRepairNow(const char *from) {
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    if (s_sysLog) s_sysLog.close();
     const bool prev = sdAutoRepair;
     sdAutoRepair = true;
     const bool ok = sdMountOrRepair();
     sdAutoRepair = prev;
     sdAvailable = ok;
     SafeSD::forceRecheck();
-    Serial.printf("[SD] repair from web UI: %s\n", ok ? "mounted" : "failed");
+    Serial.printf("[SD] repair from %s: %s\n", from, ok ? "mounted" : "failed");
+    return ok;
+}
+
+void serviceSdRepair() {
+    if (!sdRepairPending) return;
+    sdRepairPending = false;
+    sdRepairNow("web UI");
 }
 
 void loadSdAutoRepair() {
@@ -228,7 +250,9 @@ bool SafeSD::remove(const char* path) {
         Serial.printf("[SAFE_SD] Cannot remove %s - SD unavailable\n", path);
         return false;
     }
-    
+
+    std::lock_guard<std::recursive_mutex> lock(fileLock());
+    sdCloseSysLogIf(path);
     bool result = SD.remove(path);
     if (!result) {
         Serial.printf("[SAFE_SD] Failed to remove: %s\n", path);
@@ -242,6 +266,9 @@ bool SafeSD::rename(const char* from, const char* to) {
         return false;
     }
 
+    std::lock_guard<std::recursive_mutex> lock(fileLock());
+    sdCloseSysLogIf(from);
+    sdCloseSysLogIf(to);
     SD.remove(to);
     bool result = SD.rename(from, to);
     if (!result) {
@@ -268,7 +295,8 @@ bool SafeSD::rmdir(const char* path) {
         Serial.printf("[SAFE_SD] Cannot rmdir %s - SD unavailable\n", path);
         return false;
     }
-    
+
+    std::lock_guard<std::recursive_mutex> lock(fileLock());
     bool result = SD.rmdir(path);
     if (!result) {
         Serial.printf("[SAFE_SD] Failed to rmdir: %s\n", path);
@@ -335,6 +363,29 @@ uint32_t SafeSD::mountFailureCount() {
 
 uint32_t SafeSD::writeRetryCount() {
     return sdWriteRetries;
+}
+
+size_t SafeSD::readAt(const char *path, size_t offset, uint8_t *buf, size_t len) {
+    std::lock_guard<std::recursive_mutex> lock(fileLock());
+    sdCloseSysLogIf(path);
+    if (!exists(path)) return 0;
+    File f = open(path, FILE_READ);
+    if (!f) return 0;
+    size_t n = 0;
+    if (offset < f.size() && f.seek(offset)) n = f.read(buf, len);
+    f.close();
+    return n;
+}
+
+size_t SafeSD::size(const char *path) {
+    std::lock_guard<std::recursive_mutex> lock(fileLock());
+    sdCloseSysLogIf(path);
+    if (!exists(path)) return 0;
+    File f = open(path, FILE_READ);
+    if (!f) return 0;
+    const size_t sz = f.size();
+    f.close();
+    return sz;
 }
 
 String jsonEscape(const String &in) {
@@ -638,20 +689,24 @@ static uint32_t configSignature() {
     return hp.h;
 }
 
-bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath) {
+bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath, size_t expectedBytes) {
+    std::lock_guard<std::recursive_mutex> lock(SafeSD::fileLock());
     File verify = SafeSD::open(tmpPath, FILE_READ);
     size_t written = verify ? verify.size() : 0;
     if (verify) verify.close();
 
-    if (written == 0) {
-        Serial.printf("[SD] ERROR: staged %s is empty - previous file kept\n", finalPath);
+    if (written == 0 || (expectedBytes && written != expectedBytes)) {
+        Serial.printf("[SD] ERROR: staged %s is %u of %u bytes - previous file kept\n", finalPath, (unsigned)written,
+                      (unsigned)expectedBytes);
         SafeSD::remove(tmpPath);
         return false;
     }
 
     bool hadFile = SafeSD::exists(finalPath);
-    if (hadFile) {
-        SafeSD::rename(finalPath, bakPath);
+    if (hadFile && !SafeSD::rename(finalPath, bakPath)) {
+        Serial.printf("[SD] ERROR: could not back up %s - previous file kept\n", finalPath);
+        SafeSD::remove(tmpPath);
+        return false;
     }
 
     if (!SafeSD::rename(tmpPath, finalPath)) {
@@ -791,9 +846,11 @@ int32_t sdReadNewestRecords(const char *path, size_t recSize, uint64_t (*keyOf)(
         }
         if ((++chunks & 0x7) == 0) vTaskDelay(1);
     }
+    const bool complete = f.size() - f.position() < recSize;
     f.close();
     heap_caps_free(rbuf);
-    return found;
+    if (!complete) Serial.printf("[SD] Read of %s stopped early\n", path);
+    return complete ? found : -1;
 }
 
 std::atomic<uint32_t> g_sdRecordsMoved{0};
@@ -803,21 +860,25 @@ void SdLineBatch::reserve() {
     if (!buf_) buf_ = static_cast<char *>(heap_caps_malloc(kBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 }
 
-void SdLineBatch::flush() {
-    if (!len_) return;
+bool SdLineBatch::flush() {
+    if (!len_) return true;
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
     File f = SafeSD::open(path_, FILE_APPEND);
+    const size_t pos = f ? f.size() : 0;
     const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(buf_), len_) : 0;
     if (f) f.close();
     if (wrote != len_) {
-        Serial.printf("[SD] Write to %s failed: %u records were not saved\n", path_, (unsigned)lines_);
-        g_sdRecordsNotSaved += lines_;
+        if (wrote) truncate((String("/sd") + path_).c_str(), pos);
+        Serial.printf("[SD] Write to %s failed: %u records kept in memory for the next save\n", path_, (unsigned)lines_);
+        return false;
     }
     len_ = 0;
     lines_ = 0;
+    return true;
 }
 
 void SdLineBatch::add(const char *line, size_t len) {
-    if (!buf_ || len + 1 > kBytes) {
+    if (!buf_ || len + 1 > kBytes || (len_ + len + 1 > kBytes && !flush())) {
         File f = SafeSD::open(path_, FILE_APPEND);
         size_t wrote = 0;
         if (f) {
@@ -831,15 +892,14 @@ void SdLineBatch::add(const char *line, size_t len) {
         }
         return;
     }
-    if (len_ + len + 1 > kBytes) flush();
     memcpy(buf_ + len_, line, len);
     len_ += len;
     buf_[len_++] = '\n';
     lines_++;
 }
 
-static bool commitConfigFile() {
-    return sdCommitStaged(CONFIG_TMP_FILE, CONFIG_FILE, CONFIG_BAK_FILE);
+static bool commitConfigFile(size_t expectedBytes) {
+    return sdCommitStaged(CONFIG_TMP_FILE, CONFIG_FILE, CONFIG_BAK_FILE, expectedBytes);
 }
 
 static bool s_saveDeferred = false;
@@ -904,7 +964,13 @@ static void saveConfigurationLocked() {
     configFile.flush();
     configFile.close();
 
-    if (!commitConfigFile()) {
+    if (!configFile_w.ok()) {
+        Serial.println("[CONFIG] ERROR: config write to SD was short - previous file kept");
+        SafeSD::remove(CONFIG_TMP_FILE);
+        sdPending();
+        return;
+    }
+    if (!commitConfigFile(configFile_w.bytes())) {
         sdPending();
         return;
     }
@@ -1003,6 +1069,11 @@ void loadConfiguration() {
             SdWriter badFile_w(badFile);
             badFile_w.print(config);
             badFile.close();
+        }
+        if (strcmp(configPath, CONFIG_FILE) == 0 && SafeSD::exists(CONFIG_BAK_FILE) && SafeSD::remove(CONFIG_FILE)) {
+            Serial.printf("[CONFIG] Unparseable copy saved as %s - loading %s\n", CONFIG_BAD_FILE, CONFIG_BAK_FILE);
+            loadConfiguration();
+            return;
         }
         Serial.printf("[CONFIG] Unparseable copy saved as %s - original kept, using NVS values\n", CONFIG_BAD_FILE);
         return;
@@ -1310,7 +1381,7 @@ bool waitForInitialConfig() {
     }
     
     // Check if config exists
-    bool configExists = SD.exists(CONFIG_FILE);
+    bool configExists = SafeSD::exists(CONFIG_FILE);
 
     if (configExists) {
         bool reconfigRequested = false;
@@ -1461,7 +1532,9 @@ bool waitForInitialConfig() {
     configFile.flush();
     configFile.close();
 
-    if (!commitConfigFile()) {
+    if (!configFile_w.ok() || !commitConfigFile(out.length())) {
+        Serial.println("[CONFIG] ERROR: config was not fully written to SD - previous file kept");
+        SafeSD::remove(CONFIG_TMP_FILE);
         return false;
     }
 
@@ -1692,11 +1765,86 @@ String getDiagnostics() {
     return s;
 }
 
-// FatFS has no power-fail protection (ESP-IDF file-system considerations), so a reset
-// during a write can leave the card unmountable. Try a plain mount, then a bus re-init,
-// then let the library rebuild the filesystem if it reports there isn't one.
+static uint8_t sdBootCmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
+    digitalWrite(SD_CS_PIN, LOW);
+    SPI.transfer(0xFF);
+    SPI.transfer(0x40 | cmd);
+    SPI.transfer((uint8_t)(arg >> 24));
+    SPI.transfer((uint8_t)(arg >> 16));
+    SPI.transfer((uint8_t)(arg >> 8));
+    SPI.transfer((uint8_t)arg);
+    SPI.transfer(crc);
+    if (cmd == 12) SPI.transfer(0xFF);
+    uint8_t r1 = 0xFF;
+    for (int i = 0; i < 10 && (r1 & 0x80); i++) r1 = SPI.transfer(0xFF);
+    return r1;
+}
+
+static void sdBootRelease(uint32_t busyMs) {
+    const uint32_t t0 = millis();
+    while (millis() - t0 < busyMs && SPI.transfer(0xFF) != 0xFF) {}
+    digitalWrite(SD_CS_PIN, HIGH);
+    SPI.transfer(0xFF);
+}
+
+static bool sdBootReadSector0() {
+    sdBootCmd(17, 0, 0xFF);
+    uint8_t tok = 0xFF;
+    const uint32_t t0 = millis();
+    while (millis() - t0 < 500 && (tok = SPI.transfer(0xFF)) == 0xFF) {}
+    if (tok == 0xFE)
+        for (int i = 0; i < 514; i++) SPI.transfer(0xFF);
+    sdBootRelease(0);
+    return tok == 0xFE;
+}
+
+static void sdEndInterruptedTransfer() {
+    SPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
+    digitalWrite(SD_CS_PIN, HIGH);
+    for (int i = 0; i < 10; i++) SPI.transfer(0xFF);
+    digitalWrite(SD_CS_PIN, LOW);
+    const uint8_t first = SPI.transfer(0xFF);
+    sdBootRelease(500);
+    uint8_t r0 = sdBootCmd(0, 0, 0x95);
+    sdBootRelease(0);
+    bool stopped = false;
+    if (r0 != 0x01) {
+        sdBootCmd(12, 0, 0x61);
+        sdBootRelease(500);
+        stopped = true;
+        r0 = sdBootCmd(0, 0, 0x95);
+        sdBootRelease(0);
+    }
+    bool readable = false;
+    if (r0 == 0x01) {
+        sdBootCmd(8, 0x1AA, 0x87);
+        for (int i = 0; i < 4; i++) SPI.transfer(0xFF);
+        sdBootRelease(0);
+        uint8_t r41 = 0xFF;
+        const uint32_t t0 = millis();
+        do {
+            sdBootCmd(55, 0, 0x65);
+            sdBootRelease(0);
+            r41 = sdBootCmd(41, 0x40000000, 0x77);
+            sdBootRelease(0);
+        } while (r41 == 0x01 && millis() - t0 < 3000);
+        readable = sdBootReadSector0();
+        if (!readable) {
+            sdBootCmd(12, 0, 0x61);
+            sdBootRelease(500);
+            stopped = true;
+            readable = sdBootReadSector0();
+        }
+    }
+    SPI.endTransaction();
+    if (first != 0xFF || stopped)
+        Serial.printf("[SD] Card was still in a transfer from before the reset (output 0x%02X); %s\n", first,
+                      readable ? "stopped it, card ready" : "card still not readable");
+}
+
 bool sdMountOrRepair() {
     uint32_t hz = SD_SPI_HZ;
+    if (SD.cardType() == CARD_NONE) sdEndInterruptedTransfer();
     if (SD.begin(SD_CS_PIN, SPI, hz)) { sdMountedHz = hz; return true; }
 
     for (int i = 0; i < 3; i++) {
@@ -1741,6 +1889,168 @@ bool sdMountOrRepair() {
     return false;
 }
 
+#ifndef AH_SD_PROBE
+#define AH_SD_PROBE 0
+#endif
+#if AH_SD_PROBE
+static uint8_t sdpCmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
+    SPI.transfer(0x40 | cmd);
+    SPI.transfer((uint8_t)(arg >> 24));
+    SPI.transfer((uint8_t)(arg >> 16));
+    SPI.transfer((uint8_t)(arg >> 8));
+    SPI.transfer((uint8_t)arg);
+    SPI.transfer(crc);
+    if (cmd == 12) SPI.transfer(0xFF);
+    uint8_t r = 0xFF;
+    for (int i = 0; i < 10; i++) {
+        r = SPI.transfer(0xFF);
+        if (!(r & 0x80)) break;
+    }
+    return r;
+}
+
+static uint32_t sdpBusyMs(uint32_t limitMs) {
+    const uint32_t t0 = millis();
+    while (millis() - t0 < limitMs) {
+        if (SPI.transfer(0xFF) == 0xFF) return millis() - t0;
+    }
+    return limitMs;
+}
+
+static void sdpSelect(bool on) {
+    digitalWrite(SD_CS_PIN, on ? LOW : HIGH);
+    SPI.transfer(0xFF);
+}
+
+static void sdProbe() {
+    SPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
+    digitalWrite(SD_CS_PIN, HIGH);
+    for (int i = 0; i < 10; i++) SPI.transfer(0xFF);
+    digitalWrite(SD_CS_PIN, LOW);
+    char s[64];
+    int n = 0;
+    for (int i = 0; i < 16; i++) n += snprintf(s + n, sizeof(s) - n, "%02X", SPI.transfer(0xFF));
+    const uint32_t busy = sdpBusyMs(1000);
+    uint8_t r = sdpCmd(0, 0, 0x95);
+    sdpSelect(false);
+    Serial.printf("[SDPROBE] miso=%s busy_ms=%lu cmd0=0x%02X\n", s, (unsigned long)busy, r);
+    if (r != 0x01) {
+        delay(20);
+        sdpSelect(true);
+        r = sdpCmd(0, 0, 0x95);
+        sdpSelect(false);
+        Serial.printf("[SDPROBE] cmd0 retry=0x%02X\n", r);
+    }
+    if (r != 0x01) {
+        sdpSelect(true);
+        SPI.transfer(0xFD);
+        for (int i = 0; i < 8; i++) SPI.transfer(0xFF);
+        const uint32_t b = sdpBusyMs(1000);
+        r = sdpCmd(0, 0, 0x95);
+        sdpSelect(false);
+        Serial.printf("[SDPROBE] stoptran busy_ms=%lu cmd0=0x%02X\n", (unsigned long)b, r);
+    }
+    if (r != 0x01) {
+        sdpSelect(true);
+        const uint8_t r12 = sdpCmd(12, 0, 0x61);
+        const uint32_t b = sdpBusyMs(1000);
+        r = sdpCmd(0, 0, 0x95);
+        sdpSelect(false);
+        Serial.printf("[SDPROBE] cmd12=0x%02X busy_ms=%lu cmd0=0x%02X\n", r12, (unsigned long)b, r);
+    }
+    for (int i = 0; i < 10 && r != 0x01; i++) {
+        delay(20);
+        sdpSelect(true);
+        r = sdpCmd(0, 0, 0x95);
+        sdpSelect(false);
+        Serial.printf("[SDPROBE] cmd0 loop %d=0x%02X\n", i, r);
+    }
+    Serial.printf("[SDPROBE] result=%s\n", r == 0x01 ? "IDLE" : "NO_IDLE");
+    if (r == 0x01) {
+        sdpSelect(true);
+        uint8_t r8 = sdpCmd(8, 0x1AA, 0x87);
+        uint8_t e8[4];
+        for (int i = 0; i < 4; i++) e8[i] = SPI.transfer(0xFF);
+        sdpSelect(false);
+        uint8_t r41 = 0xFF;
+        const uint32_t t0 = millis();
+        do {
+            sdpSelect(true);
+            sdpCmd(55, 0, 0x65);
+            r41 = sdpCmd(41, 0x40000000, 0x77);
+            sdpSelect(false);
+        } while (r41 == 0x01 && millis() - t0 < 3000);
+        sdpSelect(true);
+        uint8_t r58 = sdpCmd(58, 0, 0xFD);
+        uint8_t ocr[4];
+        for (int i = 0; i < 4; i++) ocr[i] = SPI.transfer(0xFF);
+        sdpSelect(false);
+        Serial.printf("[SDPROBE] cmd8=0x%02X echo=%02X%02X%02X%02X acmd41=0x%02X after %lums cmd58=0x%02X ocr=%02X%02X%02X%02X\n",
+                      r8, e8[0], e8[1], e8[2], e8[3], r41, (unsigned long)(millis() - t0), r58, ocr[0], ocr[1], ocr[2],
+                      ocr[3]);
+        sdpSelect(true);
+        uint8_t r17 = sdpCmd(17, 0, 0xFF);
+        uint8_t tok = 0xFF;
+        const uint32_t t1 = millis();
+        while (millis() - t1 < 500) {
+            tok = SPI.transfer(0xFF);
+            if (tok != 0xFF) break;
+        }
+        uint8_t blk[512];
+        if (tok == 0xFE) {
+            for (int i = 0; i < 512; i++) blk[i] = SPI.transfer(0xFF);
+            SPI.transfer(0xFF);
+            SPI.transfer(0xFF);
+        }
+        sdpSelect(false);
+        if (tok == 0xFE)
+            Serial.printf("[SDPROBE] cmd17=0x%02X token=0x%02X sector0[0..3]=%02X%02X%02X%02X sig=%02X%02X part0_type=%02X\n",
+                          r17, tok, blk[0], blk[1], blk[2], blk[3], blk[510], blk[511], blk[450]);
+        else
+            Serial.printf("[SDPROBE] cmd17=0x%02X token=0x%02X (no data)\n", r17, tok);
+        auto readTok = [](uint32_t sector, const char *tag) {
+            sdpSelect(true);
+            const uint8_t rr = sdpCmd(17, sector, 0xFF);
+            uint8_t t = 0xFF;
+            const uint32_t ts = millis();
+            while (millis() - ts < 500) {
+                t = SPI.transfer(0xFF);
+                if (t != 0xFF) break;
+            }
+            if (t == 0xFE) {
+                for (int i = 0; i < 514; i++) SPI.transfer(0xFF);
+            }
+            sdpSelect(false);
+            Serial.printf("[SDPROBE] %s: cmd17(%lu)=0x%02X token=0x%02X\n", tag, (unsigned long)sector, rr, t);
+            return t == 0xFE;
+        };
+        if (tok != 0xFE) {
+            sdpSelect(true);
+            const uint8_t r12 = sdpCmd(12, 0, 0x61);
+            const uint32_t b = sdpBusyMs(1000);
+            sdpSelect(false);
+            Serial.printf("[SDPROBE] cmd12=0x%02X busy_ms=%lu\n", r12, (unsigned long)b);
+            readTok(0, "after cmd12");
+            sdpSelect(true);
+            SPI.transfer(0xFD);
+            for (int i = 0; i < 8; i++) SPI.transfer(0xFF);
+            sdpSelect(false);
+            readTok(0, "after stoptran");
+            readTok(1, "sector1");
+            readTok(8192, "sector8192");
+            delay(2000);
+            readTok(0, "after 2s");
+            sdpSelect(true);
+            const uint8_t r13 = sdpCmd(13, 0, 0xFF);
+            const uint8_t r13b = SPI.transfer(0xFF);
+            sdpSelect(false);
+            Serial.printf("[SDPROBE] cmd13 status=0x%02X%02X\n", r13, r13b);
+        }
+    }
+    SPI.endTransaction();
+}
+#endif
+
 void initializeSD()
 {
     loadSdAutoRepair();
@@ -1754,6 +2064,9 @@ void initializeSD()
     gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);
 #endif
     delay(100);
+#if AH_SD_PROBE
+    sdProbe();
+#endif
     if (sdMountOrRepair()) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
         const uint64_t totalMB = SD.totalBytes() / (1024ULL * 1024ULL);
@@ -1763,8 +2076,9 @@ void initializeSD()
                       (unsigned long)sdMountedHz);
         sdAvailable = true;
         SafeSD::forceRecheck();
-        delay(10);        
+        delay(10);
         initializeBaselineSD();
+        sdRegisterRestartSave();
         return;
     }
     Serial.println("[SD] FAILED");
@@ -1892,30 +2206,17 @@ void updateGPSLocation() {
 }
 
 
-static std::mutex g_sdLogMutex;
-
-static std::atomic<bool> g_logReopen{false};
-
-void logToSDReopen() { g_logReopen = true; }
-
 void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
 
-    std::lock_guard<std::mutex> sdLock(g_sdLogMutex);
-
-    static uint32_t totalWrites = 0;
-    static File logFile;
-
-    if (g_logReopen.exchange(false) && logFile) logFile.close();
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    File &logFile = s_sysLog;
 
     if (!logFile) {
-        logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
+        logFile = SafeSD::open(SYS_LOG_PATH, FILE_APPEND);
         if (!logFile) {
-            logFile = SafeSD::open("/antihunter.log", FILE_WRITE);
-            if (!logFile) {
-                Serial.println("[SD] Failed to open log file");
-                return;
-            }
+            Serial.println("[SD] Failed to open log file");
+            return;
         }
     }
 
@@ -1932,33 +2233,66 @@ void logToSD(const String &data) {
     const uint8_t *lineBytes = reinterpret_cast<const uint8_t *>(line.c_str());
     if (SafeSD::write(logFile, lineBytes, line.length()) != line.length()) {
         logFile.close();
-        logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
+        logFile = SafeSD::open(SYS_LOG_PATH, FILE_APPEND);
         if (!logFile) {
             Serial.println("[SD] Failed to open log file");
             return;
         }
-        SafeSD::write(logFile, lineBytes, line.length());
+        if (SafeSD::write(logFile, lineBytes, line.length()) != line.length()) g_sdRecordsNotSaved++;
     }
 
-    // Batch flush every 10 writes
-    if (++totalWrites % 10 == 0) {
+    static uint32_t lastLogSync = 0;
+    if (millis() - lastLogSync >= 1000) {
         logFile.flush();
+        lastLogSync = millis();
     }
-    
+
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
         if (logFile) {
-            logFile.flush();
             const size_t sz = logFile.size();
             Serial.printf("[SD] Log file size: %lu bytes\n", (unsigned long)sz);
             if (sz > 1048576) {
-                logFile.close();
-                SafeSD::rename("/antihunter.log", "/antihunter_old.log");
+                SafeSD::rename(SYS_LOG_PATH, "/antihunter_old.log");
                 Serial.println("[SD] Rotated /antihunter.log -> /antihunter_old.log");
             }
         }
         lastSizeCheck = millis();
     }
+}
+
+void logToSDClose() {
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    if (s_sysLog) s_sysLog.close();
+}
+
+static std::atomic<bool> s_sdSaveOnRestart{true};
+
+static void sdSaveOnRestart() {
+    if (!s_sdSaveOnRestart.load() || !SafeSD::isAvailable()) return;
+    snifferCheckpointToDB();
+    const bool dev = deviceDBFlushPending();
+    const bool probe = probeDBFlushPending();
+    const bool rand = randArchiveFlushPending();
+    saveResultsSnapshot(true);
+    std::unique_lock<std::recursive_mutex> sdLock(SafeSD::fileLock(), std::defer_lock);
+    for (int i = 0; i < 200 && !sdLock.try_lock(); i++) vTaskDelay(pdMS_TO_TICKS(10));
+    if (sdLock.owns_lock() && s_sysLog) s_sysLog.close();
+    Serial.printf("[SD] Saved before restart: devices %s, probes %s, identities %s, log %s\n",
+                  dev ? "ok" : "busy", probe ? "ok" : "busy", rand ? "ok" : "failed",
+                  sdLock.owns_lock() ? "closed" : "busy");
+    Serial.flush();
+}
+
+void sdRegisterRestartSave() {
+    s_sdSaveOnRestart.store(true);
+    const esp_err_t rc = esp_register_shutdown_handler(sdSaveOnRestart);
+    if (rc != ESP_OK && rc != ESP_ERR_INVALID_STATE)
+        Serial.printf("[SD] Save-before-restart not registered: %s\n", esp_err_to_name(rc));
+}
+
+void sdDisableRestartSave() {
+    s_sdSaveOnRestart.store(false);
 }
 // Survives panic/WDT/SW resets (lost on power cycle, which is itself the diagnosis).
 RTC_DATA_ATTR static uint32_t rtcBootMagic = 0;
@@ -2051,14 +2385,15 @@ void saveResultsSnapshot(bool force) {
         SafeSD::remove(RESULTS_SNAPSHOT_TMP);
         return;
     }
-    SafeSD::remove(RESULTS_SNAPSHOT_FILE);
-    if (!SafeSD::rename(RESULTS_SNAPSHOT_TMP, RESULTS_SNAPSHOT_FILE)) return;
+    if (!sdCommitStaged(RESULTS_SNAPSHOT_TMP, RESULTS_SNAPSHOT_FILE, RESULTS_SNAPSHOT_BAK, copy.size())) return;
     lastHash = h;
 }
 
 void loadResultsSnapshot() {
-    if (!SafeSD::isAvailable() || !SafeSD::exists(RESULTS_SNAPSHOT_FILE)) return;
-    File f = SafeSD::open(RESULTS_SNAPSHOT_FILE, FILE_READ);
+    if (!SafeSD::isAvailable()) return;
+    const char *path = SafeSD::exists(RESULTS_SNAPSHOT_FILE) ? RESULTS_SNAPSHOT_FILE : RESULTS_SNAPSHOT_BAK;
+    if (!SafeSD::exists(path)) return;
+    File f = SafeSD::open(path, FILE_READ);
     if (!f) return;
     size_t len = f.size();
     if (len == 0 || len > RESULTS_SNAPSHOT_MAX_BYTES) { f.close(); return; }
@@ -2108,17 +2443,16 @@ void logEventsToSD(const char* path, const String* lines, size_t count) {
             Serial.printf("[HEAP-GUARD] dropping SD log (%s) — free heap %u\n",
                           path, (unsigned)ESP.getFreeHeap());
         }
+        g_sdRecordsNotSaved += (uint32_t)count;
         return;
     }
 
-    std::lock_guard<std::mutex> sdLock(g_sdLogMutex);
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {
-        f = SafeSD::open(path, FILE_WRITE);
-        if (!f) {
-            Serial.printf("[SD] Failed to open %s for event log\n", path);
-            return;
-        }
+        Serial.printf("[SD] Failed to open %s for event log\n", path);
+        g_sdRecordsNotSaved += (uint32_t)count;
+        return;
     }
     SdWriter f_w(f);
     const char *camp = campaignName();
@@ -2132,6 +2466,7 @@ void logEventsToSD(const char* path, const String* lines, size_t count) {
     }
     size_t curSize = f.size();
     f.close();
+    if (!f_w.ok()) Serial.printf("[SD] %s: event lines not fully saved\n", path);
 
     if (curSize > 1048576) {
         String rotated = String(path);
@@ -2141,9 +2476,7 @@ void logEventsToSD(const char* path, const String* lines, size_t count) {
         } else {
             rotated += "_old";
         }
-        SafeSD::remove(rotated.c_str());
-        SD.rename(path, rotated.c_str());
-        Serial.printf("[SD] Rotated %s -> %s\n", path, rotated.c_str());
+        if (SafeSD::rename(path, rotated.c_str())) Serial.printf("[SD] Rotated %s -> %s\n", path, rotated.c_str());
     }
 }
 
@@ -2836,7 +3169,7 @@ void setWebPass(const String &pass) {
 }
 
 void setWebAuthEnabled(bool on) {
-    if (prefs.getBool("webAuth", true) != on) prefs.putBool("webAuth", on);
+    if (prefs.getBool("webAuth", false) != on) prefs.putBool("webAuth", on);
     webAuthApply();
     Serial.printf("[WEB] Login %s\n", on ? "required" : "off");
 }
@@ -2970,7 +3303,9 @@ bool executeSecureErase(const String &reason) {
 
 bool performSecureWipe() {
     Serial.println("[WIPE] Starting secure wipe");
-    
+    sdDisableRestartSave();
+    logToSDClose();
+
     // Close and erase NVS
     prefs.end();
     delay(100);
@@ -3045,8 +3380,8 @@ bool performDataReset() {
         return false;
     }
 
-    deleteAllFiles("/");
-    logToSDReopen();
+    sdDisableRestartSave();
+    deleteAllFiles("/", true);
 
     File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
@@ -3063,7 +3398,7 @@ bool performDataReset() {
     return false;
 }
 
-void deleteAllFiles(const String &dirname) {
+void deleteAllFiles(const String &dirname, bool keepConfig) {
     File root = SafeSD::open(dirname.c_str());
     if (!root) {
         Serial.println("[WIPE] Failed to open directory: " + dirname);
@@ -3081,18 +3416,22 @@ void deleteAllFiles(const String &dirname) {
     while (file) {
         String fileName = file.name();
         String fullPath = dirname + "/" + fileName;
-        
-        if (file.isDirectory()) {
+        const bool isDir = file.isDirectory();
+        file.close();
+        const bool isConfig = fileName == "config.json" || fileName == "config.json.bak" ||
+                              fileName == "config.json.tmp";
+
+        if (isDir) {
             // Recursively delete subdirectory
-            deleteAllFiles(fullPath);
-            
+            deleteAllFiles(fullPath, keepConfig);
+
             // Remove the directory itself
             if (SafeSD::rmdir(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed directory: " + fullPath);
             } else {
                 Serial.println("[WIPE] Failed to remove directory: " + fullPath);
             }
-        } else {
+        } else if (!(keepConfig && isConfig)) {
             // Remove the file
             if (SafeSD::remove(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed file: " + fullPath);
@@ -3101,7 +3440,6 @@ void deleteAllFiles(const String &dirname) {
             }
         }
 
-        file.close();
         file = root.openNextFile();
     }
 

@@ -55,8 +55,8 @@ These commands change settings and save them.
 | `CAMPAIGN_START` | `CS` | Starts a named campaign. Logged events carry the name, and the start and stop are recorded in the campaign log | `CAMPAIGN_ACK:START:<name>` or `:INVALID` | `@ALL CAMPAIGN_START:site-a` |
 | `CAMPAIGN_STOP` | `CX` | Ends the running campaign | `CAMPAIGN_ACK:STOP:<name>` or `:NONE` | `@ALL CAMPAIGN_STOP` |
 | `CAMPAIGN_STATUS` | `CQ` | Reports the running campaign | `CAMPAIGN_STATUS:<name>` or `:NONE` | `@AH01 CAMPAIGN_STATUS` |
-| `DEVICE_DB_CLEAR` | `DBX` | Deletes the device database and its SD archive | `DEVICE_DB_CLEAR_ACK:OK` | `@AH01 DEVICE_DB_CLEAR` |
-| `PROBE_DB_CLEAR` | `PDX` | Deletes the probe database and its SD archive | `PROBE_DB_CLEAR_ACK:OK` | `@AH01 PROBE_DB_CLEAR` |
+| `DEVICE_DB_CLEAR` | `DBX` | Deletes the device database and its SD archive | `DEVICE_DB_CLEAR_ACK:OK` or `:FAILED` | `@AH01 DEVICE_DB_CLEAR` |
+| `PROBE_DB_CLEAR` | `PDX` | Deletes the probe database and its SD archive | `PROBE_DB_CLEAR_ACK:OK` or `:FAILED` | `@AH01 PROBE_DB_CLEAR` |
 
 | Command | Argument | Meaning | Range | Default |
 |---|---|---|---|---|

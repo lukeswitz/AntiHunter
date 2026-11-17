@@ -260,8 +260,8 @@ collect_configuration() {
         read -p "Hide the AP name (stops the beacon, not access control)? (y/N): " AP_HIDDEN_ON
         if [[ "$AP_HIDDEN_ON" =~ ^[Yy]$ ]]; then AP_HIDDEN="true"; else AP_HIDDEN="false"; fi
 
-        read -p "Require a web UI login (user admin)? (Y/n): " WEB_AUTH_ON
-        if [[ "$WEB_AUTH_ON" =~ ^[Nn]$ ]]; then WEB_AUTH="false"; else WEB_AUTH="true"; fi
+        read -p "Require a web UI login (user admin)? (y/N): " WEB_AUTH_ON
+        if [[ "$WEB_AUTH_ON" =~ ^[Yy]$ ]]; then WEB_AUTH="true"; else WEB_AUTH="false"; fi
         WEB_PASS=""
         if [ "$WEB_AUTH" = true ]; then
             read -p "Web UI password (8-63 chars, no ':', empty uses the WiFi password): " WEB_PASS

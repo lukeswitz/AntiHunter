@@ -8,12 +8,16 @@ static char g_name[24] = {0};
 
 static void appendEvent(const char *ev) {
     if (!SafeSD::isAvailable()) return;
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
     File f = SafeSD::open(CAMPAIGN_FILE, FILE_APPEND);
-    if (!f) f = SafeSD::open(CAMPAIGN_FILE, FILE_WRITE);
-    if (!f) return;
+    if (!f) {
+        g_sdRecordsNotSaved++;
+        return;
+    }
     String line = String(ev) + "," + g_name + "," + String((unsigned long)getRTCEpoch()) + "," +
                   String((unsigned long)(millis() / 1000)) + "\n";
-    SafeSD::write(f, reinterpret_cast<const uint8_t *>(line.c_str()), line.length());
+    if (SafeSD::write(f, reinterpret_cast<const uint8_t *>(line.c_str()), line.length()) != line.length())
+        g_sdRecordsNotSaved++;
     f.close();
 }
 

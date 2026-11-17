@@ -302,12 +302,17 @@ void initializeNetwork()
 
 #include "web_index_html_gz.h"
 
+static void sendSdFileLocked(AsyncWebServerRequest *req, const char *path, const char *mime) {
+    const String p(path);
+    req->send(req->beginChunkedResponse(mime, [p](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+        return SafeSD::readAt(p.c_str(), index, buffer, maxLen);
+    }));
+}
+
 static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *mime, int missCode, const char *missMsg) {
-    if (!SD.exists(path)) { req->send(missCode, missCode == 200 ? mime : "text/plain", missMsg); return; }
-    if (!req->hasParam("bytes")) { req->send(SD, path, mime); return; }
-    File f = SD.open(path, FILE_READ);
-    if (!f) { req->send(500, "text/plain", "Open failed"); return; }
-    const size_t size = f.size();
+    if (!SafeSD::exists(path)) { req->send(missCode, missCode == 200 ? mime : "text/plain", missMsg); return; }
+    if (!req->hasParam("bytes")) { sendSdFileLocked(req, path, mime); return; }
+    const size_t size = SafeSD::size(path);
     long want = req->getParam("bytes")->value().toInt();
     if (want < 1024) want = 1024;
     if (want > 65536) want = 65536;
@@ -320,8 +325,7 @@ static void sendSdLog(AsyncWebServerRequest *req, const char *path, const char *
     auto body = std::make_shared<PsramJsonString>();
     body->resize(end - start);
     size_t got = 0;
-    if (end > start && f.seek(start)) got = f.read(reinterpret_cast<uint8_t *>(&(*body)[0]), end - start);
-    f.close();
+    if (end > start) got = SafeSD::readAt(path, start, reinterpret_cast<uint8_t *>(&(*body)[0]), end - start);
     body->resize(got);
     if (start > 0) {
         size_t nl = body->find('\n');
@@ -363,7 +367,7 @@ static const char *WEB_USER = "admin";
 static const char *WEB_REALM = "AntiHunter";
 static std::mutex s_webAuthMutex;
 static String s_webAuthHash;
-static std::atomic<bool> s_webAuthOn{true};
+static std::atomic<bool> s_webAuthOn{false};
 static AsyncAuthenticationMiddleware s_webAuth;
 
 void webAuthApply()
@@ -373,7 +377,7 @@ void webAuthApply()
     std::lock_guard<std::mutex> lock(s_webAuthMutex);
     s_webAuthHash = hash;
   }
-  s_webAuthOn.store(prefs.getBool("webAuth", true));
+  s_webAuthOn.store(prefs.getBool("webAuth", false));
 }
 
 void startWebServer()
@@ -681,6 +685,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+        if (scanning || workerTaskHandle) {
+            req->send(409, "text/plain", "Stop the scan before resetting the baseline");
+            return;
+        }
         resetBaselineDetection();
         req->send(200, "text/plain", "Baseline reset complete"); });
 
@@ -1739,16 +1747,10 @@ void registerRemainingRoutes() {
 
             currentScanMode = (ScanMode)scanMode;
 
-            if (req->hasParam("captureProbes", true)) {
-                probeDetectionEnabled = true;
-                if (probeRequestQueue == nullptr) {
-                    probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                } else {
-                    xQueueReset(probeRequestQueue);
-                }
-            }
+            if (req->hasParam("captureProbes", true)) probeDetectionEnabled = true;
 
             if (!ahStartScanTask(snifferScanTask, "sniffer", 12288, secs, forever, &workerTaskHandle)) {
+                probeDetectionEnabled = false;
                 req->send(500, "text/plain", "Failed to start device scan task");
                 return;
             }
@@ -1968,7 +1970,10 @@ void registerRemainingRoutes() {
           return;
       }
       String name = path.substring(path.lastIndexOf('/') + 1);
-      AsyncWebServerResponse *res = r->beginResponse(SD, path, "application/vnd.tcpdump.pcap", true);
+      AsyncWebServerResponse *res = r->beginChunkedResponse("application/vnd.tcpdump.pcap",
+          [path](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+              return SafeSD::readAt(path.c_str(), index, buffer, maxLen);
+          });
       res->addHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
       r->send(res);
   });
@@ -2225,7 +2230,7 @@ void registerRemainingRoutes() {
     json += "\"auth\":" + String(prefs.getUChar("apAuth", 0)) + ",";
     json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false") + ",";
     json += "\"webPassSet\":" + String(prefsGetString("webPass", "").length() > 0 ? "true" : "false") + ",";
-    json += "\"webAuth\":" + String(prefs.getBool("webAuth", true) ? "true" : "false");
+    json += "\"webAuth\":" + String(prefs.getBool("webAuth", false) ? "true" : "false");
     json += "}";
     req->send(200, "application/json", json);
   });
@@ -2286,8 +2291,8 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      clearProbeDB();
-      req->send(200, "text/plain", "Probe database cleared");
+      if (clearProbeDB()) req->send(200, "text/plain", "Probe database cleared");
+      else req->send(500, "text/plain", "Probe database could not be cleared on SD");
   });
 
   server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2300,12 +2305,12 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/devicedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      clearDeviceDB();
-      req->send(200, "text/plain", "Device database cleared");
+      if (clearDeviceDB()) req->send(200, "text/plain", "Device database cleared");
+      else req->send(500, "text/plain", "Device database could not be cleared on SD");
   });
 
   server->on("/api/probes.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (!SD.exists("/probes.jsonl")) {
+      if (!SafeSD::exists("/probes.jsonl")) {
           req->send(404, "text/plain", "No probe log file");
           return;
       }
@@ -2372,7 +2377,6 @@ void registerRemainingRoutes() {
   server->on("/api/antihunter.log/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
       SafeSD::remove("/antihunter.log");
       SafeSD::remove("/antihunter_old.log");
-      logToSDReopen();
       req->send(200, "text/plain", "System log cleared");
   });
 
@@ -2415,13 +2419,15 @@ void registerRemainingRoutes() {
       saveConfiguration();
       
       req->send(200, "text/plain", "Wi-Fi settings saved. Restarting in 3 s.");
-      esp_timer_handle_t timer;
-      esp_timer_create_args_t timer_args = {
-        .callback = restart_callback,
-        .arg = NULL,
-      };
-      esp_timer_create(&timer_args, &timer);
-      esp_timer_start_once(timer, 3000000);
+      static esp_timer_handle_t timer = nullptr;
+      if (!timer) {
+        esp_timer_create_args_t timer_args = {
+          .callback = restart_callback,
+          .arg = NULL,
+        };
+        esp_timer_create(&timer_args, &timer);
+      }
+      if (timer && !esp_timer_is_active(timer)) esp_timer_start_once(timer, 3000000);
   });
 
   // Onboarding disclaimer — persisted in NVS
@@ -2460,14 +2466,14 @@ void registerRemainingRoutes() {
       r->send(200, "application/x-ndjson", detect_getBleMalformedJsonl());
   });
   server->on("/api/jamming.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/jamming.jsonl")) r->send(SD, "/jamming.jsonl", "application/x-ndjson");
+      if (SafeSD::exists("/jamming.jsonl")) sendSdFileLocked(r, "/jamming.jsonl", "application/x-ndjson");
       else r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/jamming/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       SafeSD::remove("/jamming.jsonl"); r->send(200, "text/plain", "cleared");
   });
   server->on("/api/meshguard.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/meshguard.jsonl")) r->send(SD, "/meshguard.jsonl", "application/x-ndjson");
+      if (SafeSD::exists("/meshguard.jsonl")) sendSdFileLocked(r, "/meshguard.jsonl", "application/x-ndjson");
       else r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/meshguard/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
@@ -2476,23 +2482,23 @@ void registerRemainingRoutes() {
 
   // === tool / tool tool-fingerprint logs (NEW) ===
   server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
+      if (SafeSD::exists("/probe_flood.jsonl"))   sendSdFileLocked(r, "/probe_flood.jsonl",   "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/assoc_sleep.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/assoc_sleep.jsonl"))   r->send(SD, "/assoc_sleep.jsonl",   "application/x-ndjson");
+      if (SafeSD::exists("/assoc_sleep.jsonl"))   sendSdFileLocked(r, "/assoc_sleep.jsonl",   "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/pmkid_forge.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/pmkid_forge.jsonl"))   r->send(SD, "/pmkid_forge.jsonl",   "application/x-ndjson");
+      if (SafeSD::exists("/pmkid_forge.jsonl"))   sendSdFileLocked(r, "/pmkid_forge.jsonl",   "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/eapol_bait.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/eapol_bait.jsonl"))    r->send(SD, "/eapol_bait.jsonl",    "application/x-ndjson");
+      if (SafeSD::exists("/eapol_bait.jsonl"))    sendSdFileLocked(r, "/eapol_bait.jsonl",    "application/x-ndjson");
       else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/deauth_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/deauth_flood.jsonl")) r->send(SD, "/deauth_flood.jsonl", "application/x-ndjson");
+      if (SafeSD::exists("/deauth_flood.jsonl")) sendSdFileLocked(r, "/deauth_flood.jsonl", "application/x-ndjson");
       else                                  r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/apclients.json", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -2524,11 +2530,11 @@ void registerRemainingRoutes() {
       sendSdLog(r, "/incidents.jsonl", "application/x-ndjson", 200, "");
   });
   server->on("/api/mesh_cmd.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/mesh_cmd.jsonl")) r->send(SD, "/mesh_cmd.jsonl", "application/x-ndjson");
+      if (SafeSD::exists("/mesh_cmd.jsonl")) sendSdFileLocked(r, "/mesh_cmd.jsonl", "application/x-ndjson");
       else                              r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/mesh_cmd", HTTP_DELETE, [](AsyncWebServerRequest *r) {
-      if (SD.exists("/mesh_cmd.jsonl")) SD.remove("/mesh_cmd.jsonl");
+      if (SafeSD::exists("/mesh_cmd.jsonl")) SafeSD::remove("/mesh_cmd.jsonl");
       r->send(200, "text/plain", "cleared");
   });
   server->on("/api/incidents", HTTP_DELETE, [](AsyncWebServerRequest *r) {

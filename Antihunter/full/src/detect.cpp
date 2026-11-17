@@ -3634,18 +3634,6 @@ void initializeDetect() {
             p.end();
         }
     }
-    {
-        static const char *kBootClear[] = {
-            "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl",
-            "/sae_dos.jsonl", "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl",
-            "/ssid_confusion.jsonl", "/owe_abuse.jsonl", "/fragattack.jsonl",
-            "/ble_malformed.jsonl", "/ble_attack.jsonl", "/probe_flood.jsonl",
-            "/meshradio.jsonl"
-        };
-        for (const char *pth : kBootClear) {
-            if (SafeSD::exists(pth)) SafeSD::remove(pth);
-        }
-    }
     Serial.println("[DETECT] Initialized");
 }
 

@@ -69,9 +69,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 
 ### Security
 
-- The Full web UI now asks for a login. The user name is `admin`. The password is the access point password until you set your own.
+- The Full web UI can ask for a login. It is off by default. The user name is `admin`. The password is the access point password until you set your own.
   - Set a web password under System tab → **Settings** → **Access point** → **Web login**. It is 8 to 63 characters, with no `:`.
-  - **Require login** in the same place turns the login off. Changing either setting needs the current web password.
+  - **Require login** in the same place turns the login on. Changing either setting needs the current web password.
   - Neither setting can be changed over the mesh.
 - Mesh wipe commands now use a one-time answer instead of the erase key. See [Wipe a node over the mesh](#wipe-a-node-over-the-mesh).
 

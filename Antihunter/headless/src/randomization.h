@@ -218,6 +218,7 @@ void cleanupStaleTracks();
 void resetRandomizationDetection();
 
 void saveDeviceIdentities();
+bool randArchiveFlushPending();
 void loadDeviceIdentities();
 
 String generateTrackId();
