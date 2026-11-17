@@ -18,7 +18,11 @@
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
 
-**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
+
+<a href="https://lectronz.com/stores/antihunter">
+  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
+</a>
+
 
 </div>
 
@@ -28,7 +32,11 @@
 
 **Hunt the hunters.**
 
-AntiHunter is a small, battery-powered digital and physical tripwire. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device around it, flags the ones that do not belong, and sends the alert over its own long-range mesh radio to your phone and your other nodes. It needs no internet or subscription, it is open source, and it never jams or attacks anything.
+AntiHunter is a small, battery-powered digital and physical tripwire. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. 
+
+It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
+
+No internet or subscription required, open source. Defensive by design- it never jams or attacks anything.
 
 <p align="center">
   <img width="320" alt="Three AntiHunter nodes on tripods" src="docs/img/ah-hero.png" />
@@ -45,7 +53,7 @@ AntiHunter is a small, battery-powered digital and physical tripwire. Leave one 
 - **Catch Wi-Fi attacks.** Spots deauth floods, fake access points, and handshake capture, and names the attack tool it recognizes.
 - **Track drones.** Reads each drone's ID, position, altitude, and speed, and its pilot's position if the drone sends it.
 - **Unmask rotating MACs.** Links a phone's changing addresses back to one device.
-- **Guard the node.** Feels anyone moving it and can respond with a scan, a recording, or a wipe. Senses people moving nearby, even through a wall.
+- **Guard the node.** Feels anyone moving it and can respond with a scan, a recording, or a wipe. With the Beta firmware, senses people moving nearby, even through a wall.
 - **Run a fleet.** Start and stop scans on every node from any one of them, split one scan across the mesh, and locate a device with three GPS nodes.
 
 <p align="center">
@@ -78,4 +86,4 @@ Firmware: [GNU Affero General Public License v3.0](LICENSE). Hardware and docume
 
 ## Legal disclaimer
 
-AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.
+AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, and the warranty limitations. Flashing the firmware is acceptance of those terms. If you do not agree, do not build, flash, assemble, deploy, or operate AntiHunter.
