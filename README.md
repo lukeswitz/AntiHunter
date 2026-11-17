@@ -17,6 +17,13 @@
 <div align="center">
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
+
+
+<a href="https://lectronz.com/stores/antihunter">
+  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
+</a>
+
+
 </div>
 
 ---
@@ -25,7 +32,11 @@
 
 **Hunt the hunters.**
 
-AntiHunter is a small, battery-powered digital and physical tripwire. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device around it, flags the ones that do not belong, and sends the alert over its own long-range mesh radio to your phone and your other nodes. It needs no internet or subscription, it is open source, and it never jams or attacks anything.
+AntiHunter is a small, battery-powered digital and physical tripwire. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. 
+
+It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
+
+No internet or subscription required, open source. Defensive by design- it never jams or attacks anything.
 
 <p align="center">
   <img width="320" alt="Three AntiHunter nodes on tripods" src="docs/img/ah-hero.png" />
