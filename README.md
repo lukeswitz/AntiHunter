@@ -17,6 +17,9 @@
 <div align="center">
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
+
+**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual + STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
+
 </div>
 
 ---
@@ -75,4 +78,4 @@ Firmware: [GNU Affero General Public License v3.0](LICENSE). Hardware and docume
 
 ## Legal disclaimer
 
-AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, and the warranty limitations. Flashing the firmware is acceptance of those terms. If you do not agree, do not build, flash, assemble, deploy, or operate AntiHunter.
+AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.

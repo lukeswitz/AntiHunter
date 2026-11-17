@@ -12,8 +12,11 @@
    Thank you for joining the project. AntiHunter is fully open source: write your
    own mesh commands and connect your own IDS.
 
-   OPERATOR'S GUIDE -- unboxing to deployment, every detector, tuning, C2:
-   github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+   START HERE -- assembly manual, case files and wiring:
+   github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files
+
+   SETUP, EVERY FEATURE AND FIXES -- the wiki:
+   github.com/lukeswitz/AntiHunter/wiki
 ==================================================================================
                                   [01]  ANTENNAS
 
@@ -59,7 +62,20 @@
    power rails. We recommend a 2A fast-blow fuse on the battery line. It is
    not supplied.
 ==================================================================================
+                                   [04]  TERMS
+
+   By purchasing or powering this unit you accept the Limited Warranty on the
+   product listing and the Legal Disclaimer:
+   github.com/lukeswitz/AntiHunter/blob/main/docs/legal-disclaimer.md
+
+   You use this unit at your own risk from delivery on, including failure,
+   overheating, fire, property damage, and injury. Beyond the written warranty,
+   the seller is not liable for what the unit does or how it is used. Any power
+   other than regulated 5V is misuse. Lawful use only. Colorado law governs
+   this sale.
+==================================================================================
    DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter
+   DISCORD:  discord.gg/AYFzUurfmh
    COMMAND CENTER PRO, multi-site with TAK, MQTT and ADSB:
    github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
 ==================================================================================
