@@ -28,15 +28,21 @@
 
 ---
 
+<div align="center">
+  
 ## What is AntiHunter?
 
-**Hunt the hunters.**
+***Hunt the hunters:*** _AntiHunter is a compact digital and physical tripwire. It provides detection, defense and awareness for the devices on your airwaves._
 
-AntiHunter is a small, battery-powered digital and physical tripwire. Leave one in a home, a vehicle, along a fence line, or at a site with no signal. 
 
-It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
 
-No internet or subscription required, open source. Defensive by design- it never jams or attacks anything.
+Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
+
+**No internet or subscription required, open source. Defensive by design.** 
+
+
+
+</div>
 
 <p align="center">
   <img width="320" alt="Three AntiHunter nodes on tripods" src="docs/img/ah-hero.png" />
@@ -48,19 +54,22 @@ No internet or subscription required, open source. Defensive by design- it never
 
 ## What it does
 
-- **Hunt your watchlist.** Alerts the moment a MAC, vendor, or network name on your list shows up.
-- **Know who belongs.** Learns a site, then flags new, returning, and moving devices.
-- **Catch Wi-Fi attacks.** Spots deauth floods, fake access points, and handshake capture, and names the attack tool it recognizes.
-- **Track drones.** Reads each drone's ID, position, altitude, and speed, and its pilot's position if the drone sends it.
-- **Unmask rotating MACs.** Links a phone's changing addresses back to one device.
-- **Guard the node.** Feels anyone moving it and can respond with a scan, a recording, or a wipe. With the Beta firmware, senses people moving nearby, even through a wall.
-- **Run a fleet.** Start and stop scans on every node from any one of them, split one scan across the mesh, and locate a device with three GPS nodes.
+- **[Scan your watchlist](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan)** - Alerts the moment a MAC, vendor, or network name on your list shows up.
+- **[Know who belongs](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly)** - Learns a site, then flags new, returning, and moving devices.
+- **[Catch Wi-Fi attacks](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel)** - Spots death floods, fake access points, handshake capture & more.
+- **[Track drones](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID)** - Reads each drone's ID, position, altitude, and speed, and its pilot's position if the drone sends it.
+- **[Unmask rotating MACs](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer)** - Links a phone's changing addresses back to one device.
+- **[Guard the node](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper)** - Feels anyone moving it and can respond with a scan, a recording, or a wipe. With the Beta firmware, senses people moving nearby, even [through a wall](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion).
+- **[Run a fleet](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes)** - Start and stop scans on every node from any one of them, split one scan across the mesh, and locate a device with three GPS nodes.
+
+
 
 <p align="center">
-  <img width="640" alt="Device discovery results" src="docs/img/mesh-screenshot.jpg" />
+  <img width="640" alt="Device discovery results" src="https://www.rootdowndigital.com/assets/img/ah-movement.webp" />
 </p>
 
-The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything else. Start with:
+
+### **The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything. Start here:**
 
 - [Choose your hardware](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware)
 - [Flash a node](https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node)
@@ -76,7 +85,7 @@ Ask questions and share builds in [Discussions](https://github.com/lukeswitz/Ant
 
 ## Acknowledgments
 
-Original concept and hardware design by @TheRealSirHaXalot.
+Hardware design by @TheRealSirHaXalot.
 
 This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright © Intel Corporation and OpenDroneID contributors.
 
