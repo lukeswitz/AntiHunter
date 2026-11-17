@@ -18,21 +18,9 @@
 #define SCAN_CORE 1
 #endif
 
-// ISR-fed queues must stay internal on C5 (ISR runs cache-disabled -> PSRAM fault); S3 keeps proven PSRAM placement.
-#ifdef ARDUINO_XIAO_ESP32C5
-#define AH_ISR_QUEUE_CAPS (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
-#else
 #define AH_ISR_QUEUE_CAPS AH_ALLOC_CAPS
-#endif
-
-// C5 keeps ISR queues in internal SRAM (cache-disabled ISR), where 256 entries costs ~39 KB
-#ifdef ARDUINO_XIAO_ESP32C5
-#define AH_PROBE_QUEUE_LEN 128
-#define AH_MAC_QUEUE_LEN 128
-#else
-#define AH_PROBE_QUEUE_LEN 256
-#define AH_MAC_QUEUE_LEN 512
-#endif
+#define AH_PROBE_QUEUE_LEN 2048
+#define AH_MAC_QUEUE_LEN 2048
 
 // Dual/5GHz has 9+ channels; cap the per-channel WiFi interval so a full sweep is ~seconds.
 #ifndef AH_WIFI_5G_INTERVAL_MS
@@ -305,6 +293,7 @@ String getProbeResults();
 // SD probe database
 void loadProbeDB();
 void saveProbeDB(bool releaseCache = false);
+bool probeDBFlushPending();
 void mergeProbeDeviceToDB(ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
@@ -312,12 +301,14 @@ uint32_t getProbeDBSize();
 // Eviction and cleanup
 void loadDeviceDB();
 void saveDeviceDB();
+bool deviceDBFlushPending();
+void snifferCheckpointToDB();
 void deviceDBRestore(const uint8_t *macs, size_t n);
-void mergeHitToDeviceDB(const Hit &h);
+void mergeHitToDeviceDB(const Hit &h, bool newSession = true);
 void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
-void clearDeviceDB();
-void clearProbeDB();
+bool clearDeviceDB();
+bool clearProbeDB();
 
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
 const uint32_t MAX_MAP_SIZE = 500;                 // Max map entries in RAM
@@ -389,6 +380,8 @@ struct ApInfoEvent {
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
+extern std::atomic<uint32_t> g_apQueueDrops;
+constexpr UBaseType_t AP_INFO_QUEUE_LEN = 2048;
 extern std::atomic<bool> listScanTriMode;
 
 // Functions

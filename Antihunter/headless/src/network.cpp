@@ -519,15 +519,14 @@ static void handleMeshDedupClear()
 
 static void handleDeviceDbClear()
 {
-  clearDeviceDB();
-  Serial.println("[DEVICE] Device database cleared");
-  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:OK", true);
+  const bool ok = clearDeviceDB();
+  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:" + (ok ? "OK" : "FAILED"), true);
 }
 
 static void handleProbeDbClear()
 {
-  clearProbeDB();
-  sendToSerial1(nodeId + ": PROBE_DB_CLEAR_ACK:OK", true);
+  const bool ok = clearProbeDB();
+  sendToSerial1(nodeId + ": PROBE_DB_CLEAR_ACK:" + (ok ? "OK" : "FAILED"), true);
 }
 
 static void handleBaselineReset()
@@ -810,10 +809,7 @@ static void handleSdRepair(const String &command)
     setSdAutoRepair(p == "ON");
     saveConfiguration();
   } else if (p == "NOW") {
-    const bool prev = sdAutoRepair;
-    sdAutoRepair = true;
-    const bool ok = sdMountOrRepair();
-    sdAutoRepair = prev;
+    const bool ok = sdRepairNow("mesh");
     sendToSerial1(getNodeId() + ": SD_REPAIR_ACK:" + (ok ? "REPAIRED" : "FAILED"), true);
     return;
   }
@@ -889,17 +885,7 @@ static void handleDeviceScanStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
-      if (captureProbes) {
-          probeDetectionEnabled = true;
-          if (probeRequestQueue == nullptr) {
-              for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
-                  probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-              if (!probeRequestQueue)
-                  Serial.println("[PROBE] queue alloc failed - probe capture inert");
-          } else {
-              xQueueReset(probeRequestQueue);
-          }
-      }
+      if (captureProbes) probeDetectionEnabled = true;
 
       scanning = true;
       if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1, true) != pdPASS) {

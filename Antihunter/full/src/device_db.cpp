@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <mutex>
 #include <string>
+#include <unistd.h>
 #include "scanner.h"
 #include "hardware.h"
 #include "main.h"
@@ -38,6 +39,8 @@ static uint8_t *s_devBuf = nullptr;
 static size_t s_devBufLen = 0;
 static uint32_t s_devRecords = 0;
 static uint32_t s_lastSweepSecs = 0;
+static bool s_devRestoreOk = true;
+static bool s_devBakPending = false;
 
 static uint64_t deviceDBKey(const uint8_t mac[6])
 {
@@ -58,35 +61,45 @@ static void devBufReserve()
     if (!s_devBuf) s_devBuf = static_cast<uint8_t *>(heap_caps_malloc(DEV_BUF_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 }
 
-static void devBufFlush()
+static bool devWriteWhole(const uint8_t *data, size_t len)
 {
-    if (s_devBufLen == 0) return;
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    if (s_devBakPending) {
+        if (!SafeSD::rename(DEVICE_DB_BIN_BAK, DEVICE_DB_BIN)) return false;
+        s_devBakPending = false;
+    }
     File f = SafeSD::open(DEVICE_DB_BIN, FILE_APPEND);
-    const size_t wrote = f ? SafeSD::write(f, s_devBuf, s_devBufLen) : 0;
+    const size_t pos = f ? f.size() : 0;
+    const size_t wrote = f ? SafeSD::write(f, data, len) : 0;
     if (f) f.close();
-    if (wrote != s_devBufLen) {
-        Serial.printf("[DEVDB] SD write failed: %u devices not saved\n", (unsigned)(s_devBufLen / REC));
-        g_sdRecordsNotSaved += (uint32_t)(s_devBufLen / REC);
+    if (wrote == len) return true;
+    if (wrote) truncate((String("/sd") + DEVICE_DB_BIN).c_str(), pos);
+    return false;
+}
+
+static bool devBufFlush()
+{
+    if (s_devBufLen == 0) return true;
+    if (!devWriteWhole(s_devBuf, s_devBufLen)) {
+        Serial.printf("[DEVDB] SD write failed: %u devices kept in memory for the next save\n", (unsigned)(s_devBufLen / REC));
+        return false;
     }
     s_devBufLen = 0;
+    return true;
 }
 
 static void devAppend(const DeviceDBEntry &e)
 {
     devBufReserve();
-    if (!s_devBuf) {
-        File f = SafeSD::open(DEVICE_DB_BIN, FILE_APPEND);
-        const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(&e), REC) : 0;
-        if (f) f.close();
-        if (wrote != REC) {
+    if (!s_devBuf || (s_devBufLen + REC > DEV_BUF_BYTES && !devBufFlush())) {
+        if (devWriteWhole(reinterpret_cast<const uint8_t *>(&e), REC)) {
+            s_devRecords++;
+        } else {
             Serial.println("[DEVDB] SD write failed: 1 device not saved");
             g_sdRecordsNotSaved++;
-        } else {
-            s_devRecords++;
         }
         return;
     }
-    if (s_devBufLen + REC > DEV_BUF_BYTES) devBufFlush();
     memcpy(s_devBuf + s_devBufLen, &e, REC);
     s_devBufLen += REC;
     s_devRecords++;
@@ -110,10 +123,12 @@ static void deviceDBNewEntry(DeviceDBEntry &e, const Hit &h, uint32_t now, bool 
     if (v) strncpy(e.vendor, v, sizeof(e.vendor) - 1);
 }
 
-static void deviceDBMergeHit(DeviceDBEntry &e, const Hit &h, uint32_t now, bool nameIsReal)
+static void deviceDBMergeHit(DeviceDBEntry &e, const Hit &h, uint32_t now, bool nameIsReal, bool newSession)
 {
-    e.totalSeen++;
-    e.sessionCount++;
+    if (newSession) {
+        e.totalSeen++;
+        e.sessionCount++;
+    }
     e.lastEpoch = now;
     if (h.rssi > e.bestRssi) e.bestRssi = h.rssi;
     if (h.ch) e.channel = h.ch;
@@ -185,9 +200,11 @@ void loadDeviceDB()
     s_devBufLen = s_devRecords = 0;
     Serial.printf("[DEVDB] seen filter %u KB fixed\n", (unsigned)(s_devSeen.bytes() / 1024));
 
-    if (!SafeSD::exists(DEVICE_DB_BIN) && SafeSD::exists(DEVICE_DB_BIN_BAK))
-        SafeSD::rename(DEVICE_DB_BIN_BAK, DEVICE_DB_BIN);
-    if (!SafeSD::exists(DEVICE_DB_BIN)) {
+    s_devBakPending = !SafeSD::exists(DEVICE_DB_BIN) && SafeSD::exists(DEVICE_DB_BIN_BAK) &&
+                      !SafeSD::rename(DEVICE_DB_BIN_BAK, DEVICE_DB_BIN);
+    const char *src = s_devBakPending ? DEVICE_DB_BIN_BAK : DEVICE_DB_BIN;
+    if (s_devBakPending) Serial.printf("[DEVDB] Could not restore %s; reading it in place\n", DEVICE_DB_BIN_BAK);
+    if (!SafeSD::exists(src)) {
         if (SafeSD::exists(DEVICE_DB_JSONL) || SafeSD::exists(DEVICE_DB_JSONL_BAK) || SafeSD::exists(DEVICE_DB_ARCHIVE)) {
             deviceDBImportLegacy();
             Serial.printf("[DEVDB] Imported %u devices from the old format\n", (unsigned)s_devSeen.count());
@@ -197,7 +214,7 @@ void loadDeviceDB()
         return;
     }
 
-    File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
+    File f = SafeSD::open(src, FILE_READ);
     if (!f) {
         Serial.println("[DEVDB] Failed to open database");
         return;
@@ -223,8 +240,16 @@ static uint64_t deviceDBRecKey(uint8_t *rec)
     return deviceDBKeyStr(e->mac);
 }
 
+static std::atomic<int> s_devStreams{0};
+
+DeviceDBStream::~DeviceDBStream()
+{
+    if (holds) s_devStreams--;
+}
+
 static void deviceDBCompact()
 {
+    if (s_devStreams.load() > 0) return;
     devBufFlush();
     const int32_t kept = sdCompactNewestPerKey(DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, REC, deviceDBRecKey, "DEVDB");
     if (kept >= 0) s_devRecords = (uint32_t)kept;
@@ -236,6 +261,7 @@ void deviceDBRestore(const uint8_t *macs, size_t n)
     if (n == 0) return;
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     uint64_t *keys = static_cast<uint64_t *>(heap_caps_malloc(n * sizeof(uint64_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    s_devRestoreOk = keys != nullptr;
     if (!keys) return;
     size_t m = 0;
     for (size_t i = 0; i < n; i++) {
@@ -249,6 +275,7 @@ void deviceDBRestore(const uint8_t *macs, size_t n)
     if (found && hit) {
         devBufFlush();
         const int32_t got = sdReadNewestRecords(DEVICE_DB_BIN, REC, deviceDBRecKey, keys, m, reinterpret_cast<uint8_t *>(found), hit);
+        s_devRestoreOk = got >= 0;
         const uint32_t now = getEventTimestamp();
         for (size_t k = 0; got > 0 && k < m; k++) {
             if (!hit[k]) continue;
@@ -256,16 +283,18 @@ void deviceDBRestore(const uint8_t *macs, size_t n)
             auto *te = deviceDB.upsert(keys[k], now, &isNew);
             if (te && isNew) te->val = found[k];
         }
-        Serial.printf("[DEVDB] Read the history of %d returning devices from SD\n", (int)got);
+        if (got >= 0) Serial.printf("[DEVDB] Read the history of %d returning devices from SD\n", (int)got);
+        else Serial.printf("[DEVDB] Could not read the history of %u returning devices; they are not merged this scan\n", (unsigned)m);
     } else if (m) {
-        Serial.printf("[DEVDB] Not enough memory to read the history of %u devices from SD\n", (unsigned)m);
+        s_devRestoreOk = false;
+        Serial.printf("[DEVDB] Not enough memory to read the history of %u devices from SD; they are not merged this scan\n", (unsigned)m);
     }
     heap_caps_free(keys);
     heap_caps_free(found);
     heap_caps_free(hit);
 }
 
-void mergeHitToDeviceDB(const Hit &h)
+void mergeHitToDeviceDB(const Hit &h, bool newSession)
 {
     bool nameIsReal = h.name[0] &&
                       strcmp(h.name, "Unknown") != 0 &&
@@ -275,6 +304,10 @@ void mergeHitToDeviceDB(const Hit &h)
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     const uint32_t now = getEventTimestamp();
     const uint64_t key = deviceDBKey(h.mac);
+    if (!s_devRestoreOk && !deviceDB.find(key) && s_devSeen.contains(key)) {
+        g_sdRecordsNotSaved++;
+        return;
+    }
 
     bool isNew = false;
     auto *te = deviceDB.upsert(key, now, &isNew);
@@ -287,7 +320,7 @@ void mergeHitToDeviceDB(const Hit &h)
     }
 
     if (!isNew) {
-        deviceDBMergeHit(te->val, h, now, nameIsReal);
+        deviceDBMergeHit(te->val, h, now, nameIsReal, newSession);
         s_devDirty.insert(key);
         return;
     }
@@ -316,6 +349,20 @@ size_t deviceDBForceSweep(uint32_t maxAgeSecs)
     return n;
 }
 #endif
+
+bool deviceDBFlushPending()
+{
+    std::unique_lock<std::mutex> lock(deviceDBMutex, std::defer_lock);
+    for (int i = 0; i < 200 && !lock.try_lock(); i++) vTaskDelay(pdMS_TO_TICKS(10));
+    if (!lock.owns_lock()) return false;
+    for (const uint64_t key : s_devDirty) {
+        const auto *e = deviceDB.find(key);
+        if (e) devAppend(e->val);
+    }
+    s_devDirty.clear();
+    devBufFlush();
+    return true;
+}
 
 void saveDeviceDB()
 {
@@ -374,8 +421,11 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
                 if (e) devAppend(e->val);
             }
             s_devDirty.clear();
-            devBufFlush();
-            deviceDBCompact();
+            if (!devBufFlush()) break;
+            if (s_devRecords > (uint32_t)s_devSeen.count()) deviceDBCompact();
+            st.end = SafeSD::exists(DEVICE_DB_BIN) ? SafeSD::size(DEVICE_DB_BIN) : 0;
+            st.holds = true;
+            s_devStreams++;
             st.pend[0] = '[';
             st.pendLen = 1;
             st.cursor = 0;
@@ -384,25 +434,25 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
             continue;
         }
         if (st.phase == 1) {
-            std::lock_guard<std::mutex> lock(deviceDBMutex);
-            DeviceDBEntry e;
-            bool emitted = false;
-            File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
-            if (f) {
-                if (st.cursor < (size_t)f.size()) {
-                    f.seek(st.cursor);
-                    if (SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), REC) == REC) {
-                        e.mac[17] = '\0';
-                        st.pendLen = (uint16_t)deviceDBFormatRow(e, st.first != 0, st.pend, sizeof(st.pend));
-                        st.first = 0;
-                        st.cursor += REC;
-                        emitted = true;
-                    }
+            if (st.cursor + REC > st.end) {
+                st.phase = 2;
+            } else {
+                std::lock_guard<std::mutex> lock(deviceDBMutex);
+                DeviceDBEntry e;
+                File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
+                const bool ok = f && f.seek(st.cursor) && SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), REC) == REC;
+                if (f) f.close();
+                if (!ok) {
+                    Serial.println("[DEVDB] Read failed while sending the device list");
+                    st.phase = 3;
+                    break;
                 }
-                f.close();
+                e.mac[17] = '\0';
+                st.pendLen = (uint16_t)deviceDBFormatRow(e, st.first != 0, st.pend, sizeof(st.pend));
+                st.first = 0;
+                st.cursor += REC;
+                continue;
             }
-            if (emitted) continue;
-            st.phase = 2;
         }
         if (st.phase == 2) {
             st.pend[0] = ']';
@@ -415,15 +465,17 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
     return written;
 }
 
-void clearDeviceDB()
+bool clearDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     deviceDB.clear();
     s_devSeen.clear();
     s_devDirty.clear();
     s_devBufLen = s_devRecords = 0;
+    bool ok = SafeSD::isAvailable();
     for (const char *p : {DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, DEVICE_DB_JSONL,
                           DEVICE_DB_JSONL_BAK, DEVICE_DB_ARCHIVE})
-        SafeSD::remove(p);
-    Serial.println("[DEVDB] Database cleared");
+        if (SafeSD::exists(p) && !SafeSD::remove(p)) ok = false;
+    Serial.println(ok ? "[DEVDB] Database cleared" : "[DEVDB] Database clear failed on SD");
+    return ok;
 }

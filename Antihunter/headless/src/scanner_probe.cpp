@@ -11,6 +11,7 @@
 #include <string>
 #include <atomic>
 #include <mutex>
+#include <unistd.h>
 #include "scanner.h"
 #include "hardware.h"
 #include "campaign.h"
@@ -219,6 +220,22 @@ void probeDetectionTask(void *pv)
         probeHitCooldowns.clear();
     }
 
+    scanning = true;
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Probe scan - Mode: WiFi (IN PROGRESS)\nDevices: 0 | Probes: 0 | SSIDs: 0 | Saved: 0\n\n(Starting...)\n";
+    }
+
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
     if (probeRequestQueue == nullptr) {
         for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 32; depth /= 2) {
             probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
@@ -238,21 +255,6 @@ void probeDetectionTask(void *pv)
     }
 
     probeDetectionEnabled = true;
-    scanning = true;
-
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = "Probe scan - Mode: WiFi (IN PROGRESS)\nDevices: 0 | Probes: 0 | SSIDs: 0 | Saved: 0\n\n(Starting...)\n";
-    }
-
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartSTA();
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
-        radioStartBLE();
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
 
     uint32_t startTime = millis();
     uint32_t nextResultsUpdate = startTime;
@@ -267,7 +269,8 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (probeRequestQueue && processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
+        const UBaseType_t waiting = probeRequestQueue ? uxQueueMessagesWaiting(probeRequestQueue) : 0;
+        while (probeRequestQueue && (UBaseType_t)processedCount < waiting && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
             processedCount++;
 
             // --- Probe Response (stype 5) ---
@@ -522,15 +525,14 @@ void probeDetectionTask(void *pv)
 
     // Log probe events to /probes.jsonl on SD
     {
-        File logFile = SafeSD::open("/probes.jsonl", FILE_APPEND);
-        if (logFile) {
-            SdWriter logFile_w(logFile);
+        std::vector<String> lines;
+        {
             uint32_t now = getEventTimestamp();
             std::lock_guard<std::mutex> lock(probeMutex);
+            lines.reserve(probeDevices.size());
             for (auto &p : probeDevices) {
                 ProbeDevice &dev = p.second;
                 DynamicJsonDocument doc(512);
-                if (campaignName()[0]) doc["campaign"] = campaignName();
                 doc["t"] = now;
                 doc["mac"] = p.first;
                 doc["rssi"] = dev.rssi;
@@ -548,22 +550,12 @@ void probeDetectionTask(void *pv)
                 }
                 if (dev.respondingAP[0]) doc["ap"] = dev.respondingAP;
                 if (dev.respondingSSID[0]) doc["apssid"] = dev.respondingSSID;
-                serializeJson(doc, logFile_w);
-                logFile_w.println();
-            }
-            logFile.close();
-
-            // Rotate if over 1MB
-            File check = SafeSD::open("/probes.jsonl", FILE_READ);
-            if (check && check.size() > 1048576) {
-                check.close();
-                SD.remove("/probes_old.jsonl");
-                SD.rename("/probes.jsonl", "/probes_old.jsonl");
-                Serial.println("[PROBE] Rotated probes.jsonl");
-            } else if (check) {
-                check.close();
+                String line;
+                serializeJson(doc, line);
+                lines.push_back(line);
             }
         }
+        logEventsToSD("/probes.jsonl", lines.data(), lines.size());
     }
 
     scanning = false;
@@ -743,6 +735,8 @@ static CuckooFilter s_probeSeen;
 static PsramSet<uint64_t> s_probeDirty;
 static std::mutex probeDBMutex;
 static bool s_probeLoaded = false;
+static bool s_probeRestoreOk = true;
+static bool s_probeBakPending = false;
 static uint8_t *s_probeBuf = nullptr;
 static size_t s_probeBufLen = 0;
 static uint32_t s_probeRecords = 0;
@@ -773,35 +767,45 @@ static uint64_t probeDBKeyStr(const char *macStr)
     return probeDBKey(mac);
 }
 
-static void probeBufFlush()
+static bool probeWriteWhole(const uint8_t *data, size_t len)
 {
-    if (s_probeBufLen == 0) return;
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    if (s_probeBakPending) {
+        if (!SafeSD::rename(PROBE_DB_BIN_BAK, PROBE_DB_BIN)) return false;
+        s_probeBakPending = false;
+    }
     File f = SafeSD::open(PROBE_DB_BIN, FILE_APPEND);
-    const size_t wrote = f ? SafeSD::write(f, s_probeBuf, s_probeBufLen) : 0;
+    const size_t pos = f ? f.size() : 0;
+    const size_t wrote = f ? SafeSD::write(f, data, len) : 0;
     if (f) f.close();
-    if (wrote != s_probeBufLen) {
-        Serial.printf("[PROBEDB] SD write failed: %u devices not saved\n", (unsigned)(s_probeBufLen / PREC));
-        g_sdRecordsNotSaved += (uint32_t)(s_probeBufLen / PREC);
+    if (wrote == len) return true;
+    if (wrote) truncate((String("/sd") + PROBE_DB_BIN).c_str(), pos);
+    return false;
+}
+
+static bool probeBufFlush()
+{
+    if (s_probeBufLen == 0) return true;
+    if (!probeWriteWhole(s_probeBuf, s_probeBufLen)) {
+        Serial.printf("[PROBEDB] SD write failed: %u devices kept in memory for the next save\n", (unsigned)(s_probeBufLen / PREC));
+        return false;
     }
     s_probeBufLen = 0;
+    return true;
 }
 
 static void probeAppend(const ProbeDBEntry &e)
 {
     if (!s_probeBuf) s_probeBuf = static_cast<uint8_t *>(heap_caps_malloc(PROBE_BUF_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!s_probeBuf) {
-        File f = SafeSD::open(PROBE_DB_BIN, FILE_APPEND);
-        const size_t wrote = f ? SafeSD::write(f, reinterpret_cast<const uint8_t *>(&e), PREC) : 0;
-        if (f) f.close();
-        if (wrote != PREC) {
+    if (!s_probeBuf || (s_probeBufLen + PREC > PROBE_BUF_BYTES && !probeBufFlush())) {
+        if (probeWriteWhole(reinterpret_cast<const uint8_t *>(&e), PREC)) {
+            s_probeRecords++;
+        } else {
             Serial.println("[PROBEDB] SD write failed: 1 device not saved");
             g_sdRecordsNotSaved++;
-        } else {
-            s_probeRecords++;
         }
         return;
     }
-    if (s_probeBufLen + PREC > PROBE_BUF_BYTES) probeBufFlush();
     memcpy(s_probeBuf + s_probeBufLen, &e, PREC);
     s_probeBufLen += PREC;
     s_probeRecords++;
@@ -952,6 +956,7 @@ static void probeDBRestore(const PsramSet<uint64_t> &want)
         for (const uint64_t k : want) keys[i++] = k;
         got = sdReadNewestRecords(PROBE_DB_BIN, PREC, probeDBRecKey, keys, n, reinterpret_cast<uint8_t *>(found), hit);
     }
+    s_probeRestoreOk = got >= 0 || !SafeSD::exists(PROBE_DB_BIN);
     if (got > 0) {
         const uint32_t now = getEventTimestamp();
         for (size_t k = 0; k < n; k++) {
@@ -960,8 +965,8 @@ static void probeDBRestore(const PsramSet<uint64_t> &want)
             auto *te = probeDB.upsert(keys[k], now, &isNew);
             if (te && isNew) te->val = found[k];
         }
-    } else if (got < 0 && SafeSD::exists(PROBE_DB_BIN)) {
-        Serial.printf("[PROBEDB] Not enough memory to read the history of %u devices from SD\n", (unsigned)n);
+    } else if (!s_probeRestoreOk) {
+        Serial.printf("[PROBEDB] Could not read the history of %u devices from SD; they are merged after the next good read\n", (unsigned)n);
     }
     heap_caps_free(keys);
     heap_caps_free(found);
@@ -975,15 +980,17 @@ static void probeDBCompact()
     if (kept >= 0) s_probeRecords = (uint32_t)kept;
 }
 
-void clearProbeDB()
+bool clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDBInitLocked();
-    s_probeLoaded = true;
+    s_probeLoaded = SafeSD::isAvailable();
+    bool ok = s_probeLoaded;
     for (const char *p : {PROBE_DB_BIN, PROBE_DB_BIN_TMP, PROBE_DB_BIN_BAK, PROBE_DB_PATH, PROBE_DB_TMP,
                           PROBE_DB_BAK, PROBE_DB_ARCHIVE})
-        SafeSD::remove(p);
-    Serial.println("[PROBEDB] Database cleared");
+        if (SafeSD::exists(p) && !SafeSD::remove(p)) ok = false;
+    Serial.println(ok ? "[PROBEDB] Database cleared" : "[PROBEDB] Database clear failed on SD");
+    return ok;
 }
 
 // Builds the "seen before" filter from SD once; later calls (each scan start) keep the live cache.
@@ -994,9 +1001,11 @@ void loadProbeDB()
     s_probeLoaded = true;
     probeDBInitLocked();
 
-    if (!SafeSD::exists(PROBE_DB_BIN) && SafeSD::exists(PROBE_DB_BIN_BAK))
-        SafeSD::rename(PROBE_DB_BIN_BAK, PROBE_DB_BIN);
-    if (!SafeSD::exists(PROBE_DB_BIN)) {
+    s_probeBakPending = !SafeSD::exists(PROBE_DB_BIN) && SafeSD::exists(PROBE_DB_BIN_BAK) &&
+                        !SafeSD::rename(PROBE_DB_BIN_BAK, PROBE_DB_BIN);
+    const char *src = s_probeBakPending ? PROBE_DB_BIN_BAK : PROBE_DB_BIN;
+    if (s_probeBakPending) Serial.printf("[PROBEDB] Could not restore %s; reading it in place\n", PROBE_DB_BIN_BAK);
+    if (!SafeSD::exists(src)) {
         if (SafeSD::exists(PROBE_DB_PATH) || SafeSD::exists(PROBE_DB_BAK) || SafeSD::exists(PROBE_DB_ARCHIVE)) {
             probeDBImportLegacy();
             Serial.printf("[PROBEDB] Imported %u devices from the old format\n", (unsigned)s_probeSeen.count());
@@ -1006,7 +1015,7 @@ void loadProbeDB()
         return;
     }
 
-    File f = SafeSD::open(PROBE_DB_BIN, FILE_READ);
+    File f = SafeSD::open(src, FILE_READ);
     if (!f) {
         Serial.println("[PROBEDB] Failed to open database");
         return;
@@ -1022,6 +1031,15 @@ void loadProbeDB()
     f.close();
     s_probeRecords = total;
     Serial.printf("[PROBEDB] Loaded %u devices from SD\n", (unsigned)s_probeSeen.count());
+}
+
+bool probeDBFlushPending()
+{
+    std::unique_lock<std::mutex> lock(probeDBMutex, std::defer_lock);
+    for (int i = 0; i < 200 && !lock.try_lock(); i++) vTaskDelay(pdMS_TO_TICKS(10));
+    if (!lock.owns_lock()) return false;
+    if (s_probeLoaded) probeDBFlushDirty();
+    return true;
 }
 
 void saveProbeDB(bool releaseCache)
@@ -1041,6 +1059,7 @@ void saveProbeDB(bool releaseCache)
 static void probeDBMergeLocked(ProbeDevice &dev, uint32_t now)
 {
     const uint64_t key = probeDBKey(dev.mac);
+    if (!s_probeRestoreOk && !probeDB.find(key) && s_probeSeen.contains(key)) return;
     const uint32_t newProbes = dev.probeCount - dev.dbMergedProbes;
     bool isNew = false;
     auto *te = probeDB.upsert(key, now, &isNew);

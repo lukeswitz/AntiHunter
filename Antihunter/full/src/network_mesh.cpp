@@ -502,15 +502,14 @@ static void handleMeshDedupClear()
 
 static void handleDeviceDbClear()
 {
-  clearDeviceDB();
-  Serial.println("[DEVICE] Device database cleared");
-  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:OK", true);
+  const bool ok = clearDeviceDB();
+  sendToSerial1(nodeId + ": DEVICE_DB_CLEAR_ACK:" + (ok ? "OK" : "FAILED"), true);
 }
 
 static void handleProbeDbClear()
 {
-  clearProbeDB();
-  sendToSerial1(nodeId + ": PROBE_DB_CLEAR_ACK:OK", true);
+  const bool ok = clearProbeDB();
+  sendToSerial1(nodeId + ": PROBE_DB_CLEAR_ACK:" + (ok ? "OK" : "FAILED"), true);
 }
 
 static void handleBaselineReset()
@@ -798,10 +797,7 @@ static void handleSdRepair(const String &command)
     setSdAutoRepair(p == "ON");
     saveConfiguration();
   } else if (p == "NOW") {
-    const bool prev = sdAutoRepair;
-    sdAutoRepair = true;
-    const bool ok = sdMountOrRepair();
-    sdAutoRepair = prev;
+    const bool ok = sdRepairNow("mesh");
     sendToSerial1(getNodeId() + ": SD_REPAIR_ACK:" + (ok ? "REPAIRED" : "FAILED"), true);
     return;
   }
@@ -877,17 +873,7 @@ static void handleDeviceScanStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
-      if (captureProbes) {
-        probeDetectionEnabled = true;
-        if (probeRequestQueue == nullptr) {
-          for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
-            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-          if (!probeRequestQueue)
-            Serial.println("[PROBE] queue alloc failed - probe capture inert");
-        } else {
-          xQueueReset(probeRequestQueue);
-        }
-      }
+      if (captureProbes) probeDetectionEnabled = true;
 
       scanning = true;
       if (ahCreateTask(snifferScanTask, "sniffer", 12288,
@@ -2877,16 +2863,26 @@ void processCommand(const String &commandRaw, const String &targetId = "")
               Serial.printf("[SELFTEST] lowsnap size=%u count=%u bytes=%u\n", (unsigned)bins[i].size, (unsigned)bins[i].count,
                             (unsigned)(bins[i].size * bins[i].count));
   }
-  else if (command == "SELFTEST_DEVDBSTREAM") {
+  else if (command.startsWith("SELFTEST_DEVDBSTREAM")) {
+      const String want = command.length() > 21 ? command.substring(21) : String();
       auto st = std::make_unique<DeviceDBStream>();
       uint8_t buf[1024];
-      size_t total = 0, rows = 0;
+      size_t total = 0, rows = 0, matched = 0;
+      char first = 0, last = 0;
+      String row;
       for (size_t n; (n = deviceDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
-          for (size_t i = 0; i < n; i++) if (buf[i] == '{') rows++;
+          if (!total) first = (char)buf[0];
+          last = (char)buf[n - 1];
+          for (size_t i = 0; i < n; i++) {
+              if (buf[i] == '{') { rows++; row = ""; }
+              if (want.length()) row += (char)buf[i];
+              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0) matched++;
+          }
           total += n;
           vTaskDelay(1);
       }
-      Serial.printf("[SELFTEST] devdb stream bytes=%u rows=%u db=%u psram_free=%u\n", (unsigned)total, (unsigned)rows,
+      Serial.printf("[SELFTEST] devdb stream bytes=%u rows=%u matched=%u first=%c last=%c db=%u psram_free=%u\n",
+                    (unsigned)total, (unsigned)rows, (unsigned)matched, first ? first : '-', last ? last : '-',
                     (unsigned)getDeviceDBSize(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   }
   else if (command.startsWith("SELFTEST_PROBEDBSTREAM")) {
@@ -2982,6 +2978,41 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   }
   else if (command.startsWith("SELFTEST_TX:")) {
       Serial.printf("[SELFTEST] tx %d\n", (int)sendToSerial1(command.substring(12), true));
+  }
+  else if (command.startsWith("SELFTEST_RESET:")) {
+      static uint32_t s_resetArgs[2];
+      const String a = command.substring(15);
+      const int colon = a.indexOf(':');
+      s_resetArgs[0] = (uint32_t)(colon < 0 ? a : a.substring(0, colon)).toInt();
+      const String mode = colon < 0 ? String("RESTART") : a.substring(colon + 1);
+      s_resetArgs[1] = mode == "PANIC" ? 1 : mode == "WDT" ? 2 : 0;
+      Serial.printf("[SELFTEST] reset in %lu ms mode=%s\n", (unsigned long)s_resetArgs[0], mode.c_str());
+      xTaskCreate([](void *pv) {
+          const uint32_t *args = static_cast<const uint32_t *>(pv);
+          vTaskDelay(pdMS_TO_TICKS(args[0]));
+          if (args[1] == 1) abort();
+          if (args[1] == 2) {
+              portDISABLE_INTERRUPTS();
+              for (;;) {}
+          }
+          esp_restart();
+      }, "streset", 3072, s_resetArgs, 24, nullptr);
+  }
+  else if (command == "SELFTEST_SDREAD") {
+      xTaskCreate([](void *) {
+          uint8_t *buf = static_cast<uint8_t *>(heap_caps_malloc(32768, MALLOC_CAP_SPIRAM));
+          uint32_t passes = 0;
+          while (buf) {
+              File f = SafeSD::open("/devicedb.bin", FILE_READ);
+              if (!f) break;
+              while (f.read(buf, 32768) > 0) {}
+              f.close();
+              if (++passes == 1) Serial.println("[SELFTEST] sdread looping");
+          }
+          Serial.println("[SELFTEST] sdread stopped");
+          heap_caps_free(buf);
+          vTaskDelete(nullptr);
+      }, "stsdread", 4096, nullptr, 1, nullptr);
   }
   else if (command.startsWith("SELFTEST_DUMP:")) {
       String p = command.substring(14);

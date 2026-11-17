@@ -392,6 +392,13 @@ void loop() {
             checkTamperTimeout();
         }
 
+        if (millis() - lastSaveSend > 600000) {
+            saveConfiguration();
+            lastSaveSend = millis();
+        }
+        serviceDeferredSave();
+        saveResultsSnapshot();
+
         // Longer delay in battery saver mode for power saving
         vTaskDelay(pdMS_TO_TICKS(500));
         return;

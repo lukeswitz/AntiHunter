@@ -914,14 +914,18 @@ void persistSnapshot() {
         f_w.write(reinterpret_cast<const uint8_t*>(kv.second.snippet), sizeof(kv.second.snippet));
     }
     f.close();
-    if (SD.exists(SNAP_PATH)) SD.remove(SNAP_PATH);
-    SD.rename(tmpPath, SNAP_PATH);
+    if (!f_w.ok()) {
+        SafeSD::remove(tmpPath);
+        return;
+    }
+    sdCommitStaged(tmpPath, SNAP_PATH, "/detect_state.bak", f_w.bytes());
 }
 
 void loadSnapshot() {
     if (!SafeSD::isAvailable()) return;
-    if (!SD.exists(SNAP_PATH)) return;
-    File f = SafeSD::open(SNAP_PATH, FILE_READ);
+    const char *path = SafeSD::exists(SNAP_PATH) ? SNAP_PATH : "/detect_state.bak";
+    if (!SafeSD::exists(path)) return;
+    File f = SafeSD::open(path, FILE_READ);
     if (!f) return;
     SnapHeader h{};
     if (f.read(reinterpret_cast<uint8_t*>(&h), sizeof(h)) != sizeof(h)) { f.close(); return; }
@@ -1053,11 +1057,11 @@ void detect_clearIncidents() {
         std::lock_guard<std::recursive_mutex> lk(g_incidentMtx);
         g_incidentRing.clear();
     }
-    if (SD.exists("/incidents.jsonl")) {
-        SD.remove("/incidents.jsonl");
+    if (SafeSD::exists("/incidents.jsonl")) {
+        SafeSD::remove("/incidents.jsonl");
     }
-    if (SD.exists("/incidents_old.jsonl")) {
-        SD.remove("/incidents_old.jsonl");
+    if (SafeSD::exists("/incidents_old.jsonl")) {
+        SafeSD::remove("/incidents_old.jsonl");
     }
 }
 

@@ -6,6 +6,7 @@
 #include <TinyGPSPlus.h>
 #include <FS.h>
 #include <SD.h>
+#include <mutex>
 
 #ifndef COUNTRY
 #define COUNTRY "US"
@@ -89,10 +90,12 @@ public:
     static size_t read(fs::File& file, uint8_t* data, size_t len);
     static bool flush(fs::File& file);
     static void forceRecheck();
+    static std::recursive_mutex &fileLock();
+    static size_t size(const char* path);
 };
 
 // Replaces finalPath with the fully written tmpPath; the old file survives any failure.
-bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath);
+bool sdCommitStaged(const char *tmpPath, const char *finalPath, const char *bakPath, size_t expectedBytes = 0);
 
 // Rewrites a file of fixed-size records keeping exactly the newest (last) record per key; returns records kept, or -1 with the file unchanged.
 int32_t sdCompactNewestPerKey(const char *path, const char *tmpPath, const char *bakPath, size_t recSize,
@@ -112,7 +115,7 @@ public:
     explicit SdLineBatch(const char *path) : path_(path) {}
     void reserve();
     void add(const char *line, size_t len);
-    void flush();
+    bool flush();
     void discard() { len_ = 0; lines_ = 0; }
 private:
     static constexpr size_t kBytes = 32 * 1024;
@@ -126,10 +129,19 @@ private:
 class SdWriter : public Print {
 public:
     explicit SdWriter(fs::File &f) : _f(f) {}
-    size_t write(uint8_t c) override { return SafeSD::write(_f, &c, 1); }
-    size_t write(const uint8_t *b, size_t n) override { return SafeSD::write(_f, b, n); }
+    size_t write(uint8_t c) override { return count(SafeSD::write(_f, &c, 1), 1); }
+    size_t write(const uint8_t *b, size_t n) override { return count(SafeSD::write(_f, b, n), n); }
+    bool ok() const { return !_short; }
+    size_t bytes() const { return _bytes; }
 private:
+    size_t count(size_t got, size_t want) {
+        _bytes += got;
+        if (got != want) _short = true;
+        return got;
+    }
     fs::File &_f;
+    size_t _bytes = 0;
+    bool _short = false;
 };
 
 String jsonEscape(const String &in);
@@ -163,6 +175,7 @@ extern bool sdAutoRepair;
 bool sdMountOrRepair();
 void setSdAutoRepair(bool on);
 void loadSdAutoRepair();
+bool sdRepairNow(const char *from);
 extern std::atomic<bool> gpsValid;
 extern float gpsLat, gpsLon;
 extern SemaphoreHandle_t gpsMutex;
@@ -201,12 +214,15 @@ void serviceDeferredSave();
 void loadConfiguration();
 void syncSettingsToNVS();
 void logToSD(const String &data);
-void logToSDReopen();
+void logToSDClose();
+void sdRegisterRestartSave();
+void sdDisableRestartSave();
 void logEventToSD(const char* path, const String& jsonLine);
 void logEventsToSD(const char* path, const String* lines, size_t count);
 
 #define RESULTS_SNAPSHOT_FILE "/last_results.txt"
 #define RESULTS_SNAPSHOT_TMP "/last_results.tmp"
+#define RESULTS_SNAPSHOT_BAK "/last_results.bak"
 #define RESULTS_SNAPSHOT_INTERVAL_MS 60000
 #define RESULTS_SNAPSHOT_MAX_BYTES 16384
 
@@ -244,7 +260,7 @@ bool checkTamperTimeout();
 bool performSecureWipe();
 bool performConfigReset();
 bool performDataReset();
-void deleteAllFiles(const String &dirname);
+void deleteAllFiles(const String &dirname, bool keepConfig = false);
 bool executeSecureErase(const String &reason);
 String generateEraseToken();
 void ensureErasePSK();

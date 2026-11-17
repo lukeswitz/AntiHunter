@@ -53,6 +53,7 @@ static std::atomic<uint16_t> macTargetSnapshotCount{0};
 static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
+std::atomic<uint32_t> g_apQueueDrops{0};
 QueueHandle_t apInfoQueue = nullptr;
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
@@ -142,6 +143,7 @@ struct SniffDev {
 };
 static constexpr uint8_t SNIFF_MESH_SENT = 0x01;
 static constexpr uint8_t SNIFF_TARGET = 0x02;
+static constexpr uint8_t SNIFF_DB_MERGED = 0x04;
 static PsramTable<SniffDev> snifferDevices;
 static std::mutex snifferCacheMutex;
 static uint32_t snifferApSeen = 0;
@@ -210,7 +212,39 @@ static bool snifferAdd(const Hit &h)
 
 static void snifferEvictToDB(const PsramTable<SniffDev>::Entry &e, void *)
 {
-    mergeHitToDeviceDB(e.val.hit);
+    mergeHitToDeviceDB(e.val.hit, !(e.val.flags & SNIFF_DB_MERGED));
+}
+
+void snifferCheckpointToDB()
+{
+    size_t n = 0, pending = 0;
+    uint8_t *macs = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        n = snifferDevices.size();
+        for (size_t i = 0; i < n; i++)
+            if (!(snifferDevices.at(i).val.flags & SNIFF_DB_MERGED)) pending++;
+        if (pending) macs = static_cast<uint8_t *>(heap_caps_malloc(pending * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        size_t k = 0;
+        for (size_t i = 0; macs && i < n && k < pending; i++) {
+            const SniffDev &d = snifferDevices.at(i).val;
+            if (!(d.flags & SNIFF_DB_MERGED)) memcpy(macs + 6 * k++, d.hit.mac, 6);
+        }
+    }
+    if (macs) {
+        deviceDBRestore(macs, pending);
+        heap_caps_free(macs);
+    }
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        n = snifferDevices.size();
+        for (size_t i = 0; i < n; i++) {
+            SniffDev &d = snifferDevices.at(i).val;
+            mergeHitToDeviceDB(d.hit, !(d.flags & SNIFF_DB_MERGED));
+            d.flags |= SNIFF_DB_MERGED;
+        }
+    }
+    deviceDBFlushPending();
 }
 
 static bool hitRanksAbove(const Hit &a, bool aTarget, const Hit &b, bool bTarget)
@@ -1461,9 +1495,10 @@ void snifferScanTask(void *pv)
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         if (apInfoQueue == nullptr) {
-            apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            apInfoQueue = xQueueCreateWithCaps(AP_INFO_QUEUE_LEN, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         }
         if (apInfoQueue) xQueueReset(apInfoQueue);
+        g_apQueueDrops = 0;
         apCaptureEnabled = true;
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -1473,6 +1508,13 @@ void snifferScanTask(void *pv)
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
         memMark("ble radio");
+    }
+
+    if (probeDetectionEnabled) {
+        for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
+            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+        if (probeRequestQueue) xQueueReset(probeRequestQueue);
+        else Serial.println("[PROBE] queue alloc failed - probe capture inert");
     }
 
     uint32_t bleInterval = BLE_SCAN_INTERVAL;
@@ -1514,6 +1556,7 @@ void snifferScanTask(void *pv)
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
+    uint32_t lastDbCheckpoint = millis();
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long lastTotalPrint = 0;
     size_t lastTotalAp = SIZE_MAX, lastTotalBle = SIZE_MAX, lastTotalUniq = SIZE_MAX;
@@ -1702,8 +1745,9 @@ void snifferScanTask(void *pv)
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
-            int apDrained = 0;
-            while (apDrained < 50 && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
+            UBaseType_t apDrained = 0;
+            const UBaseType_t apWaiting = uxQueueMessagesWaiting(apInfoQueue);
+            while (apDrained < apWaiting && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
                 apDrained++;
                 if (!triangulationActive && ae.rssi < rfConfig.globalRssiThreshold) continue;
                 if (snifferTouch(ae.bssid, false, ae.rssi, ae.channel)) continue;
@@ -1862,11 +1906,17 @@ void snifferScanTask(void *pv)
 
         deviceDBIdleSweep();
 
+        if (millis() - lastDbCheckpoint >= 60000) {
+            lastDbCheckpoint = millis();
+            snifferCheckpointToDB();
+        }
+
         // Drain probeRequestQueue when captureProbes is enabled during device scan
         if (probeDetectionEnabled && probeRequestQueue) {
             ProbeRequestEvent pEvt;
             int pCount = 0;
-            while (pCount < 30 && xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE) {
+            const UBaseType_t pWaiting = uxQueueMessagesWaiting(probeRequestQueue);
+            while ((UBaseType_t)pCount < pWaiting && xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE) {
                 pCount++;
 
                 // Handle probe responses — map responding AP to device
@@ -2058,10 +2108,10 @@ void snifferScanTask(void *pv)
                     unstored = snifferDevices.allocFailures();
                     tableBytes = snifferDevices.bytesUsed();
                 }
-                Serial.printf("[SNIFFER] Total: WiFi APs=%u, BLE=%u, Unique=%u, Hits=%d held=%u evicted=%u unstored=%u table=%uB psram_free=%u\n",
+                Serial.printf("[SNIFFER] Total: WiFi APs=%u, BLE=%u, Unique=%u, Hits=%d held=%u evicted=%u unstored=%u qdrop=%u table=%uB psram_free=%u\n",
                               (unsigned)nAp, (unsigned)nBle, (unsigned)nUniq, nHits, (unsigned)held,
-                              (unsigned)evicted, (unsigned)unstored, (unsigned)tableBytes,
-                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                              (unsigned)evicted, (unsigned)unstored, (unsigned)g_apQueueDrops.load(),
+                              (unsigned)tableBytes, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 lastTotalPrint = millis();
                 lastTotalAp = nAp; lastTotalBle = nBle; lastTotalUniq = nUniq; lastTotalHits = nHits;
             }
@@ -2280,7 +2330,10 @@ void snifferScanTask(void *pv)
             const size_t n = snifferDevices.size();
             if (n == 0) break;
             const size_t start = (n - 1) & ~(size_t)(PsramTable<SniffDev>::kBlockLen - 1);
-            for (size_t i = start; i < n; i++) mergeHitToDeviceDB(snifferDevices.at(i).val.hit);
+            for (size_t i = start; i < n; i++) {
+                const SniffDev &d = snifferDevices.at(i).val;
+                mergeHitToDeviceDB(d.hit, !(d.flags & SNIFF_DB_MERGED));
+            }
             snifferDevices.popBack(n - start);
         }
         vTaskDelay(1);
@@ -2916,7 +2969,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             extractSsidFromIE(p, ppkt->rx_ctrl.sig_len, 36, ae.ssid, sizeof(ae.ssid));
             ae.auth = extractAuthFromBeacon(p, ppkt->rx_ctrl.sig_len);
             BaseType_t woken = pdFALSE;
-            xQueueSendFromISR(apInfoQueue, &ae, &woken);
+            if (xQueueSendFromISR(apInfoQueue, &ae, &woken) != pdTRUE) g_apQueueDrops.fetch_add(1, std::memory_order_relaxed);
             if (woken) portYIELD_FROM_ISR();
         }
     }

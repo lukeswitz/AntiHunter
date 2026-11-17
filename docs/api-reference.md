@@ -6,8 +6,8 @@ This page lists the HTTP routes of the Full firmware's web server. The Headless 
 
 > [!IMPORTANT]
 > - Address the node by its own IP (`192.168.4.1` on its access point). A request that uses another host name, comes from another site, or carries a different `Origin` header gets `403`.
-> - Every route needs HTTP Digest login: user `admin`, realm `AntiHunter`, and the web password, or the access point password until you set a web password. A missing login gets `401`. Requests from the node itself (127.0.0.1) skip the login.
-> - You can turn the login off with `/web-auth`, or with `"webAuth":false` in the flasher config. Anyone on the access point can then use the web UI. Neither setting is available over the mesh.
+> - The login is off by default. When it is on, every route needs HTTP Digest login: user `admin`, realm `AntiHunter`, and the web password, or the access point password until you set a web password. A missing login gets `401`. Requests from the node itself (127.0.0.1) skip the login.
+> - You can turn the login on with `/web-auth`, or with `"webAuth":true` in the flasher config. While it is off, anyone on the access point can use the web UI. Neither setting is available over the mesh.
 
 > [!NOTE]
 > Timestamps show local time from the GPS fix, with daylight saving applied. Without a GPS lock they show UTC. Fields named `epoch` are UTC seconds.
@@ -193,11 +193,11 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
 | `/data-cfg` | POST | `bleClassify` (`0` or `1`), `bleLongRange` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
 | `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
-| `/api/probedb/clear` | POST | Clears the probe database |
+| `/api/probedb/clear` | POST | Clears the probe database. `500` if the SD files could not be deleted |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
 | `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
 | `/api/devicedb` | GET | Every device on the SD card, one row each (JSON). Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
-| `/api/devicedb/clear` | POST | Clears the device database from memory and the SD card |
+| `/api/devicedb/clear` | POST | Clears the device database from memory and the SD card. `500` if the SD files could not be deleted |
 
 These six logs take query parameters to read the end of a large file: `/api/deauth.jsonl`, `/api/drones.jsonl`, `/api/vibrations.jsonl`, `/api/antihunter.log`, `/api/campaigns.csv`, and `/api/incidents.jsonl`.
 
@@ -323,7 +323,7 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 | `/baseline/stats` | GET | JSON: scan progress, device counts, anomalies, elapsed and total time |
 | `/baseline/config` | GET | JSON: the settings below plus `enabled`, `established`, `deviceCount`, `anomalyCount` |
 | `/baseline/config` | POST | Sets any of the settings below and saves them |
-| `/baseline/reset` | POST | Resets the baseline |
+| `/baseline/reset` | POST | Resets the baseline. `409` while a scan runs |
 | `/baseline/mark` | POST | Marks this moment in the running baseline. Changes are reported from here on. `409` if no baseline runs |
 
 | Setting | Meaning | Unit |

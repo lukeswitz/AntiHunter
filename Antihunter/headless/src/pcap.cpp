@@ -10,6 +10,7 @@
 #include <esp_heap_caps.h>
 #include <NimBLEDevice.h>
 #include <Preferences.h>
+#include <unistd.h>
 #include <mutex>
 #include <vector>
 
@@ -367,7 +368,7 @@ static void pcapFreeBuffers() {
     g_bufCap = 0;
 }
 
-static bool pcapDrain(fs::File &f) {
+static bool pcapDrain() {
     const uint8_t *src = nullptr;
     uint32_t len = 0;
 
@@ -387,18 +388,21 @@ static bool pcapDrain(fs::File &f) {
 
     g_drains.fetch_add(1);
     const uint32_t t0 = millis();
-    const size_t wrote = SafeSD::write(f, src, len);
+    const String path = getPcapFilePath();
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+    fs::File f = SafeSD::open(path.c_str(), FILE_APPEND);
+    const uint32_t pos = f ? (uint32_t)f.size() : 0;
+    const size_t wrote = f ? SafeSD::write(f, src, len) : 0;
+    if (f) f.close();
     g_bytes.fetch_add((uint32_t)wrote);
 
     if (wrote != len) {
-        // FatFs latches the error on the file object and only f_open clears it, so the handle is
-        // dead from here. Reopen it in append mode and replay this buffer before giving up.
-        const uint32_t pos = (uint32_t)f.size();
-        f.close();
-        f = SafeSD::open(getPcapFilePath().c_str(), FILE_APPEND);
+        if (wrote) truncate((String("/sd") + path).c_str(), pos);
+        f = SafeSD::open(path.c_str(), FILE_APPEND);
         size_t again = 0;
         if (f) {
             again = SafeSD::write(f, src, len);
+            f.close();
             g_bytes.fetch_add((uint32_t)again);
         }
         if (again == len) {
@@ -419,7 +423,6 @@ static bool pcapDrain(fs::File &f) {
         }
     }
 
-    SafeSD::flush(f);
     g_writeFails.store(0);
     g_writeMs.fetch_add(millis() - t0);
     return true;
@@ -618,8 +621,11 @@ static String pcapMakePath() {
         else safe += c;
     }
     if (safe.length() == 0) safe = String(millis());
-    return String(PCAP_DIR) + "/" + (g_radio == PCAP_RADIO_BLE ? "ble_" : "wifi_") +
-           (g_autoTriggered ? "auto_" : "") + safe + ".pcap";
+    const String base = String(PCAP_DIR) + "/" + (g_radio == PCAP_RADIO_BLE ? "ble_" : "wifi_") +
+                        (g_autoTriggered ? "auto_" : "") + safe;
+    String path = base + ".pcap";
+    for (int i = 1; SafeSD::exists(path.c_str()) && i < 1000; i++) path = base + "_" + i + ".pcap";
+    return path;
 }
 
 static bool pcapWriteGlobalHeader(fs::File &f) {
@@ -756,6 +762,7 @@ void pcapCaptureTask(void *pv) {
         pcapAbort("Could not write pcap header");
         return;
     }
+    f.close();
 
     g_frames.store(0);
     g_bytes.store(0);
@@ -787,7 +794,6 @@ void pcapCaptureTask(void *pv) {
 
     if (g_radio == PCAP_RADIO_WIFI) {
         if (!pcapRadioStartWifi()) {
-            f.close();
             pcapAbort("WiFi promiscuous mode failed to start");
             return;
         }
@@ -795,7 +801,6 @@ void pcapCaptureTask(void *pv) {
         pcapBleEnabled.store(true);
         if (!radioStartBLEChecked()) {
             pcapBleEnabled.store(false);
-            f.close();
             pcapAbort("BLE radio unavailable");
             return;
         }
@@ -824,7 +829,7 @@ void pcapCaptureTask(void *pv) {
 
     while ((int)(millis() - g_startMs) < duration * 1000 && !stopRequested) {
 
-        for (int i = 0; i < 2 && pcapDrain(f); i++) {}
+        for (int i = 0; i < 2 && pcapDrain(); i++) {}
 
         const uint32_t now = millis();
 
@@ -838,7 +843,7 @@ void pcapCaptureTask(void *pv) {
         if (now - lastFlush >= 1000) {
             lastFlush = now;
             const uint64_t capB = (uint64_t)g_maxFileMB.load() * 1024ULL * 1024ULL;
-            if ((uint64_t)f.size() >= capB) {
+            if ((uint64_t)SafeSD::size(getPcapFilePath().c_str()) >= capB) {
                 g_stopReasonSize.store(true);
                 stopRequested = true;
                 Serial.printf("[PCAP] stopping: file reached the %u MB cap\n",
@@ -855,8 +860,6 @@ void pcapCaptureTask(void *pv) {
 
         vTaskDelay(pdMS_TO_TICKS(20));
     }
-
-    g_active = false;
 
     if (g_radio == PCAP_RADIO_WIFI) {
         esp_wifi_set_promiscuous(false);
@@ -877,10 +880,9 @@ void pcapCaptureTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    for (int i = 0; i < 2 && pcapDrain(f); i++) {}
-    SafeSD::flush(f);
-    uint32_t fileSize = (uint32_t)f.size();
-    f.close();
+    for (int i = 0; i < 2 && pcapDrain(); i++) {}
+    uint32_t fileSize = (uint32_t)SafeSD::size(getPcapFilePath().c_str());
+    g_active = false;
 
     g_endMs = millis();
     pcapFreeBuffers();
