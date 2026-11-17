@@ -246,9 +246,21 @@ void memMark(const char *what) {
 
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
+#if AH_SD_PROBE
+    const int sdPins[4] = {SD_CS_PIN, SD_CLK_PIN, SD_MOSI_PIN, SD_MISO_PIN};
+    int sdLevels[4];
+    for (int i = 0; i < 4; i++) {
+        gpio_input_enable((gpio_num_t)sdPins[i]);
+        sdLevels[i] = gpio_get_level((gpio_num_t)sdPins[i]);
+    }
+#endif
     delay(1000);
     Serial.begin(115200);
     delay(300);
+#if AH_SD_PROBE
+    Serial.printf("[SDPROBE] pins at first instruction: CS=%d SCK=%d MOSI=%d MISO=%d reset=%d\n", sdLevels[0], sdLevels[1],
+                  sdLevels[2], sdLevels[3], (int)esp_reset_reason());
+#endif
 
     Serial.println("\n=== Antihunter [FULL] Boot ===");
     Serial.printf("[BUILD] sha=%s epoch=%lu\n", AH_GIT_SHA, (unsigned long)AH_BUILD_EPOCH);
@@ -374,6 +386,14 @@ void loop() {
         if (tamperEraseActive) {
             checkTamperTimeout();
         }
+
+        if (millis() - lastSaveSend > 600000) {
+            saveConfiguration();
+            lastSaveSend = millis();
+        }
+        serviceDeferredSave();
+        serviceSdRepair();
+        saveResultsSnapshot();
 
         vTaskDelay(pdMS_TO_TICKS(500));
         return;

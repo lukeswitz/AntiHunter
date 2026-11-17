@@ -982,8 +982,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                               (unsigned long)(now - oldestSeen));
                 archiveIdentity(deviceIdentities[lruKey]);
                 deviceIdentities.erase(lruKey);
-                s_randArchive.flush();
-                g_sdRecordsMoved++;
+                if (s_randArchive.flush()) g_sdRecordsMoved++;
             } else {
                 return;
             }
@@ -1164,8 +1163,7 @@ void cleanupStaleTracks() {
         archiveIdentity(deviceIdentities[key]);
         deviceIdentities.erase(key);
     }
-    if (!toRemove.empty()) {
-        s_randArchive.flush();
+    if (!toRemove.empty() && s_randArchive.flush()) {
         g_sdRecordsMoved += (uint32_t)toRemove.size();
         Serial.printf("[RAND] Moved %u identities not seen for 24 hours to SD\n", (unsigned)toRemove.size());
     }
@@ -1527,8 +1525,9 @@ void randomizationDetectionTask(void *pv) {
         if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
             ProbeRequestEvent event;
             int processedCount = 0;
-            
-            while (processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
+            const UBaseType_t waiting = probeRequestQueue ? uxQueueMessagesWaiting(probeRequestQueue) : 0;
+
+            while (probeRequestQueue && (UBaseType_t)processedCount < waiting && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
                 processedCount++;
                 
                 String macStr = macFmt6(event.mac);
@@ -1926,6 +1925,12 @@ void randomizationDetectionTask(void *pv) {
 }
 
 // Storage
+bool randArchiveFlushPending() {
+    std::unique_lock<std::mutex> lock(randMutex, std::defer_lock);
+    for (int i = 0; i < 200 && !lock.try_lock(); i++) vTaskDelay(pdMS_TO_TICKS(10));
+    return lock.owns_lock() && s_randArchive.flush();
+}
+
 void saveDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
 
@@ -1984,6 +1989,7 @@ void saveDeviceIdentities() {
         append(&id.mfrDataLen, sizeof(id.mfrDataLen));
     }
 
+    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
     File file = SafeSD::open(RAND_IDENTITIES_TMP, FILE_WRITE);
     SdWriter file_w(file);
     if (!file) {
@@ -1998,16 +2004,36 @@ void saveDeviceIdentities() {
         SafeSD::remove(RAND_IDENTITIES_TMP);
         return;
     }
-    if (!sdCommitStaged(RAND_IDENTITIES_TMP, RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK)) return;
+    if (!sdCommitStaged(RAND_IDENTITIES_TMP, RAND_IDENTITIES_FILE, RAND_IDENTITIES_BAK, buf.size())) return;
     Serial.printf("[RAND] Saved %u identities to SD (fmt RAN4, %u bytes)\n", count, (unsigned)written);
+}
+
+static bool identitiesHeaderOk(const char *path) {
+    if (!SafeSD::exists(path)) return false;
+    File f = SafeSD::open(path, FILE_READ);
+    if (!f) return false;
+    uint32_t magic = 0, count = 0;
+    const bool ok = f.read(reinterpret_cast<uint8_t *>(&magic), sizeof(magic)) == sizeof(magic) &&
+                    magic == 0x52414E34 &&
+                    f.read(reinterpret_cast<uint8_t *>(&count), sizeof(count)) == sizeof(count) &&
+                    count <= f.size() / sizeof(BehavioralSignature);
+    f.close();
+    return ok;
 }
 
 void loadDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
     s_randArchive.reserve();
-    const char *path = SafeSD::exists(RAND_IDENTITIES_FILE) ? RAND_IDENTITIES_FILE
-                     : SafeSD::exists(RAND_IDENTITIES_BAK)  ? RAND_IDENTITIES_BAK : nullptr;
-    if (!path) return;
+    const char *path = identitiesHeaderOk(RAND_IDENTITIES_FILE) ? RAND_IDENTITIES_FILE
+                     : identitiesHeaderOk(RAND_IDENTITIES_BAK)  ? RAND_IDENTITIES_BAK : nullptr;
+    if (!path) {
+        if (SafeSD::exists(RAND_IDENTITIES_FILE)) {
+            const String bad = String(RAND_IDENTITIES_FILE) + ".bad";
+            SafeSD::rename(RAND_IDENTITIES_FILE, bad.c_str());
+            Serial.printf("[RAND] %s unreadable and no usable backup, kept as %s\n", RAND_IDENTITIES_FILE, bad.c_str());
+        }
+        return;
+    }
 
     std::lock_guard<std::mutex> lock(randMutex);
 
@@ -2022,9 +2048,8 @@ void loadDeviceIdentities() {
     const uint32_t kFormatMagic = 0x52414E34;
     uint32_t magic = 0;
     if (file.read(reinterpret_cast<uint8_t*>(&magic), sizeof(magic)) != sizeof(magic) || magic != kFormatMagic) {
-        Serial.printf("[RAND] Old/unknown format (magic=0x%08X), wiping %s\n", magic, path);
+        Serial.printf("[RAND] Old/unknown format (magic=0x%08X) in %s, not loaded\n", magic, path);
         file.close();
-        SafeSD::remove(path);
         return;
     }
 

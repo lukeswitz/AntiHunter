@@ -177,6 +177,17 @@ struct LRUNode {
 std::list<LRUNode, PsramAllocator<LRUNode>> lruList;
 PsramMap<uint64_t, std::list<LRUNode, PsramAllocator<LRUNode>>::iterator> lruMap;
 
+static void blRequeueUnsaved(const BaselineDevice &d) {
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    const uint64_t key = blKey(d.mac);
+    if (baselineCache.find(key) != baselineCache.end()) return;
+    BaselineDevice &slot = baselineCache[key];
+    slot = d;
+    slot.dirtyFlag = true;
+    lruList.push_front(LRUNode{key, d.lastSeen});
+    lruMap[key] = lruList.begin();
+}
+
 uint32_t totalDevicesOnSD = 0;
 uint32_t lastSDFlush = 0;
 bool sdBaselineInitialized = false;
@@ -400,13 +411,13 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         if (writeBaselineDeviceToSD(evictDevice)) {
             g_sdRecordsMoved++;
         } else {
-            g_sdRecordsNotSaved++;
+            blRequeueUnsaved(evictDevice);
             static uint32_t evictSaveFailed = 0;
             static uint32_t lastEvictFailLog = 0;
             evictSaveFailed++;
             if (now - lastEvictFailLog >= 30000) {
                 lastEvictFailLog = now;
-                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (write failed)\n",
+                Serial.printf("[BASELINE_SD] %u device writes failed; kept in memory for the next save\n",
                               (unsigned)evictSaveFailed);
             }
         }
@@ -578,8 +589,9 @@ static void baselinePushHit(const Hit &h) {
 static void baselineHarvestWifiPassive() {
     if (!apInfoQueue) return;
     ApInfoEvent ae;
-    int drained = 0;
-    while (drained < 50 && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
+    UBaseType_t drained = 0;
+    const UBaseType_t waiting = uxQueueMessagesWaiting(apInfoQueue);
+    while (drained < waiting && xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE) {
         drained++;
         String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
 
@@ -704,9 +716,10 @@ void baselineDetectionTask(void *pv) {
     }
 
     if (apInfoQueue == nullptr) {
-        apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        apInfoQueue = xQueueCreateWithCaps(AP_INFO_QUEUE_LEN, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
     if (apInfoQueue) xQueueReset(apInfoQueue);
+    g_apQueueDrops = 0;
     apCaptureEnabled = true;
     ScanMode savedBaselineMode = currentScanMode;
     currentScanMode = SCAN_WIFI;
@@ -799,13 +812,13 @@ void baselineDetectionTask(void *pv) {
             uint32_t notSaved = 0;
             for (size_t ei = 0; ei < evictedDirty.size(); ei++) {
                 if (writeBaselineDeviceToSD(evictedDirty[ei])) g_sdRecordsMoved++;
-                else { notSaved++; g_sdRecordsNotSaved++; }
+                else { notSaved++; blRequeueUnsaved(evictedDirty[ei]); }
                 if ((ei & 15) == 15) {
                     vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
             if (notSaved)
-                Serial.printf("[BASELINE_SD] %u devices could not be saved to SD (write failed)\n",
+                Serial.printf("[BASELINE_SD] %u device writes failed; kept in memory for the next save\n",
                               (unsigned)notSaved);
             nextCacheSizeCheck += 30000;
         }
@@ -1228,6 +1241,7 @@ void cleanupBaselineMemory() {
 
     size_t cacheSizeSnapshot;
     size_t anomalySizeSnapshot;
+    std::vector<BaselineDevice> staleDirty;
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         if (baselineEstablished) {
@@ -1235,6 +1249,7 @@ void cleanupBaselineMemory() {
             for (const auto& entry : baselineCache) {
                 if (now - entry.second.lastSeen > BASELINE_DEVICE_TIMEOUT) {
                     toRemove.push_back(entry.first);
+                    if (entry.second.dirtyFlag) staleDirty.push_back(entry.second);
                 }
             }
 
@@ -1260,6 +1275,13 @@ void cleanupBaselineMemory() {
 
         cacheSizeSnapshot = baselineCache.size();
         anomalySizeSnapshot = anomalyLog.size();
+    }
+
+    if (sdAvailable && sdBaselineInitialized) {
+        for (size_t i = 0; i < staleDirty.size(); i++) {
+            if (!writeBaselineDeviceToSD(staleDirty[i])) blRequeueUnsaved(staleDirty[i]);
+            if ((i & 15) == 15) vTaskDelay(pdMS_TO_TICKS(0));
+        }
     }
 
     Serial.printf("[BASELINE] Cache: %d devices, History: %d tracked, Anomalies: %d, Heap: %u\n",
@@ -1426,7 +1448,12 @@ static void blMigrateV1() {
     }
     uint32_t count = 0;
     out.seek(offsetof(BlHeader, deviceCount));
-    SafeSD::read(out, reinterpret_cast<uint8_t *>(&count), sizeof(count));
+    if (SafeSD::read(out, reinterpret_cast<uint8_t *>(&count), sizeof(count)) != sizeof(count)) {
+        in.close();
+        out.close();
+        Serial.println("[BASELINE_SD] Could not read the new baseline header; the old baseline is kept in /baseline_data.v1");
+        return;
+    }
     in.seek(10);
     BaselineDevice rec;
     uint32_t moved = 0, failed = 0;
@@ -1440,9 +1467,11 @@ static void blMigrateV1() {
         if (added) moved++;
         if ((moved & 0x3F) == 0) vTaskDelay(1);
     }
+    const bool readAll = in.available() < (int)sizeof(BaselineDevice);
     in.close();
-    blWriteCount(out, count + moved);
+    if (!blWriteCount(out, count + moved)) failed++;
     out.close();
+    if (!readAll) failed++;
     if (failed == 0) SafeSD::remove(BL_DATA_V1);
     Serial.printf("[BASELINE_SD] Converted %u devices to the new baseline format%s\n", (unsigned)moved,
                   failed ? " (some could not be written; the old file is kept)" : "");
@@ -1467,8 +1496,10 @@ bool initializeBaselineSD() {
     if (exists && h.magic == BL_MAGIC && h.version == 1) {
         SafeSD::rename(BL_DATA, BL_DATA_V1);
     } else if (exists && (h.magic != BL_MAGIC || h.version != BL_VERSION)) {
-        Serial.println("[BASELINE_SD] Unknown baseline file kept as /baseline_data.bad; starting a new one");
-        SafeSD::rename(BL_DATA, BL_DATA_BAD);
+        String bad = BL_DATA_BAD;
+        for (int i = 1; SafeSD::exists(bad.c_str()) && i < 100; i++) bad = String(BL_DATA_BAD) + i;
+        SafeSD::rename(BL_DATA, bad.c_str());
+        Serial.printf("[BASELINE_SD] Unknown baseline file kept as %s; starting a new one\n", bad.c_str());
     }
     if (!SafeSD::exists(BL_DATA)) {
         Serial.printf("[BASELINE_SD] Creating baseline data file (%u KB)\n", (unsigned)((BL_BUCKETS + 1) * BL_SECTOR / 1024));
@@ -1636,8 +1667,11 @@ void loadBaselineFromSD() {
 
     Serial.printf("[BASELINE_SD] Loading %u devices\n", (unsigned)h.deviceCount);
 
-    totalDevicesOnSD = h.deviceCount;
-    baselineDeviceCount = h.deviceCount;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        totalDevicesOnSD = h.deviceCount;
+        baselineDeviceCount = h.deviceCount;
+    }
 
     if (h.deviceCount > 0) {
         const uint32_t toLoad = min(h.deviceCount, baselineRamCacheSize);
@@ -1708,7 +1742,11 @@ void saveBaselineStatsToSD() {
     sw2.println("}");
 
     statsFile.close();
-    sdCommitStaged("/baseline_stats.json.tmp", "/baseline_stats.json", "/baseline_stats.json.bak");
+    if (!sw2.ok()) {
+        SafeSD::remove("/baseline_stats.json.tmp");
+        return;
+    }
+    sdCommitStaged("/baseline_stats.json.tmp", "/baseline_stats.json", "/baseline_stats.json.bak", sw2.bytes());
 }
 
 void loadBaselineStatsFromSD() {

@@ -11,6 +11,10 @@
 #include "randomization.h"
 #include "psram_table.h"
 
+#define AH_ISR_QUEUE_CAPS (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#define AH_PROBE_QUEUE_LEN 2048
+#define AH_MAC_QUEUE_LEN 2048
+
 // Resident tasks only: the PSRAM stack needs vTaskDeleteWithCaps, so never use this for a
 // task that self-deletes with vTaskDelete.
 static inline BaseType_t ahCreateResidentTask(TaskFunction_t fn, const char *name, uint32_t stack,
@@ -246,6 +250,7 @@ String getProbeResults();
 // SD probe database
 void loadProbeDB();
 void saveProbeDB(bool releaseCache = false);
+bool probeDBFlushPending();
 void mergeProbeDeviceToDB(ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
@@ -253,12 +258,14 @@ uint32_t getProbeDBSize();
 // SD device database
 void loadDeviceDB();
 void saveDeviceDB();
+bool deviceDBFlushPending();
+void snifferCheckpointToDB();
 void deviceDBRestore(const uint8_t *macs, size_t n);
-void mergeHitToDeviceDB(const Hit &h);
+void mergeHitToDeviceDB(const Hit &h, bool newSession = true);
 void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
-void clearDeviceDB();
-void clearProbeDB();
+bool clearDeviceDB();
+bool clearProbeDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
@@ -331,6 +338,8 @@ struct ApInfoEvent {
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
+extern std::atomic<uint32_t> g_apQueueDrops;
+constexpr UBaseType_t AP_INFO_QUEUE_LEN = 2048;
 extern std::atomic<bool> listScanTriMode;
 
 // Functions

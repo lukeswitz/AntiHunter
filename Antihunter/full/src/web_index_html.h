@@ -1298,7 +1298,7 @@ R"HTML(
                 </div>
                 <div class="srow tog">
                   <div class="srow-l"><label for="webAuth">Require login</label><p>User name admin. When off, anyone on this Wi-Fi gets in.</p></div>
-                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="webAuth" checked onchange="saveWebAuth()"><span class="dsw-s"></span></label></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="webAuth" onchange="saveWebAuth()"><span class="dsw-s"></span></label></div>
                 </div>
                 <div class="srow">
                   <div class="srow-l"><label for="webPass">New web password</label><p>8 to 63 characters, no colon.</p></div>
@@ -3748,7 +3748,7 @@ R"HTML(
         try {
           const response = await fetch('/baseline/reset', { method: 'POST' });
           const data = await response.text();
-          toast(data, 'success');
+          toast(data, response.ok ? 'success' : 'error');
           await updateBaselineStatus();
         } catch (error) {
           toast('Baseline reset failed: ' + error, 'error');

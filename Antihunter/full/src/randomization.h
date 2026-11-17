@@ -218,6 +218,7 @@ void cleanupStaleSessions();
 void cleanupStaleTracks();
 
 void saveDeviceIdentities();
+bool randArchiveFlushPending();
 void loadDeviceIdentities();
 
 String generateTrackId();
