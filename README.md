@@ -16,17 +16,15 @@
 
 <div align="center">
 
+
+
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
 
-**[Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Buy a node](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)**
 
-<a href="https://lectronz.com/stores/antihunter">
-  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
-</a>
+***[Store](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md) • [Privacy](https://www.rootdowndigital.com/privacy)***
 
 </div>
 
----
 
 <div align="center">
   
@@ -34,11 +32,22 @@
 
 ***Hunt the hunters:*** _AntiHunter is a compact digital and physical tripwire. It provides detection, defense and awareness for the devices on your airwaves._
 
-
-
 Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
 
-**No internet or subscription required, open source. Defensive by design.** 
+**No internet or subscription required, open source. Defensive by design. Extend and collect all node data with the [C2](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
+
+<a href="https://lectronz.com/stores/antihunter">
+  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
+</a>
+
+---
+
+**`Quick Links`**
+
+[Wiki](https://github.com/lukeswitz/AntiHunter/wiki) · [Web Flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly Manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [3D Print Files](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) 
+
+
+
 
 
 
@@ -57,10 +66,10 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 - **[Scan your watchlist](https://github.com/lukeswitz/AntiHunter/wiki/Target-scan)** - Alerts the moment a MAC, vendor, or network name on your list shows up.
 - **[Know who belongs](https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly)** - Learns a site, then flags new, returning, and moving devices.
 - **[Catch Wi-Fi attacks](https://github.com/lukeswitz/AntiHunter/wiki/Sentinel)** - Spots death floods, fake access points, handshake capture & more.
-- **[Track drones](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID)** - Reads each drone's ID, position, altitude, and speed, and its pilot's position if the drone sends it.
+- **[Track drones](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID)** - Reads each drone's ID, position, altitude, and speed, and its pilot's position.
 - **[Unmask rotating MACs](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer)** - Links a phone's changing addresses back to one device.
-- **[Guard the node](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper)** - Feels anyone moving it and can respond with a scan, a recording, or a wipe. With the Beta firmware, senses people moving nearby, even [through a wall](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion).
-- **[Run a fleet](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes)** - Start and stop scans on every node from any one of them, split one scan across the mesh, and locate a device with three GPS nodes.
+- **[Guard the node](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper)** - Feels anyone moving it and can respond. It senses people moving, even [through walls](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion).
+- **[Run a fleet](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes)** - Control nodes from one another, split scans across the mesh, and triangulate devices with 3+ nodes.
 
 
 
@@ -69,7 +78,7 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 </p>
 
 
-### **The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything. Start here:**
+### **The [wiki](https://github.com/lukeswitz/AntiHunter/wiki) covers everything, start there:**
 
 - [Choose your hardware](https://github.com/lukeswitz/AntiHunter/wiki/Choose-your-hardware)
 - [Flash a node](https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node)
@@ -79,20 +88,21 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 
 ---
 
-## Contributing
+### Contributing
 
-Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues). Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+We welcome your ideas! Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues). Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Acknowledgments
+### Acknowledgments
 
 Hardware design by @TheRealSirHaXalot.
 
 This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright © Intel Corporation and OpenDroneID contributors.
 
-## License
+### License
 
 Firmware: [GNU Affero General Public License v3.0](LICENSE). Hardware and documentation: as stated in their files.
 
 ## Legal disclaimer
 
-AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.
+> [!IMPORTANT]
+> AntiHunter is for lawful, authorized defensive use only, on infrastructure, networks, devices, radio spectrum, and datasets that you own or have written permission to assess. The [full disclaimer](docs/legal-disclaimer.md) covers radio and interception law, privacy, drone Remote ID, computer misuse, export rules, hardware risk, and the warranty limitations. Boards, kits, and assembled units are used entirely at your own risk, including failure, fire, property damage, and injury, and the seller is not liable for them beyond the written warranty on the product listing. Buying a unit or flashing the firmware is acceptance of those terms. If you do not agree, do not buy, build, flash, assemble, deploy, or operate AntiHunter.
