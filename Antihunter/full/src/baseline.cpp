@@ -199,7 +199,6 @@ bool sdBaselineInitialized = false;
 std::vector<AnomalyHit> anomalyLog;
 uint32_t anomalyCount = 0;
 uint32_t baselineDeviceCount = 0;
-QueueHandle_t anomalyQueue = nullptr;
 int8_t baselineRssiThreshold = -60;
 
 
@@ -691,23 +690,11 @@ void baselineDetectionTask(void *pv) {
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
-    if (anomalyQueue) vQueueDeleteWithCaps(anomalyQueue);
-    anomalyQueue = xQueueCreateWithCaps(256, sizeof(AnomalyHit), AH_ALLOC_CAPS);
-    if (!anomalyQueue) {
-        Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
-        scanning = false;
-        workerTaskHandle = nullptr;
-        vTaskDelete(NULL);
-        return;
-    }
-
     if (!safeMacQueueCreate(AH_MAC_QUEUE_LEN)) {
         Serial.printf("[BASELINE] FATAL: macQueue creation failed (need=%u internal=%u largest=%u)\n",
                       (unsigned)(64 * sizeof(Hit)),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-        vQueueDeleteWithCaps(anomalyQueue);
-        anomalyQueue = nullptr;
         scanning = false;
         workerTaskHandle = nullptr;
         vTaskDelete(NULL);
@@ -944,10 +931,6 @@ void baselineDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(200));
 
         safeMacQueueDelete();
-        if (anomalyQueue) {
-            vQueueDeleteWithCaps(anomalyQueue);
-            anomalyQueue = nullptr;
-        }
 
         sdLookupCache.clear();
         sdLookupLRU.clear();
@@ -1197,10 +1180,6 @@ void baselineDetectionTask(void *pv) {
     }
 
     safeMacQueueDelete();
-    if (anomalyQueue) {
-        vQueueDeleteWithCaps(anomalyQueue);
-        anomalyQueue = nullptr;
-    }
 
     sdLookupCache.clear();
     sdLookupLRU.clear();
@@ -1943,7 +1922,6 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.reason = "New device (not in baseline)";
         fillAnomalyTag(hit, cls);
 
-        if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
         {
             std::lock_guard<std::mutex> lock(baselineMutex);
             if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
@@ -1996,7 +1974,6 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
             fillAnomalyTag(hit, cls);
 
-            if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
                 if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
@@ -2044,7 +2021,6 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
             fillAnomalyTag(hit, cls);
 
-            if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
                 if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
