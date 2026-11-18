@@ -420,6 +420,17 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
     }
 }
 
+static void droneTrimTo(size_t keep) {
+    while (detectedDrones.size() > keep) {
+        auto oldest = detectedDrones.begin();
+        for (auto it = detectedDrones.begin(); it != detectedDrones.end(); ++it) {
+            if (it->second.lastSeen < oldest->second.lastSeen) oldest = it;
+        }
+        detectedDrones.erase(oldest);
+        if (droneDetectionCount > 0) droneDetectionCount = droneDetectionCount - 1;
+    }
+}
+
 void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     if (!droneDetectionEnabled || length < 24) return;
     
@@ -512,6 +523,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (existingIt != detectedDrones.end()) {
                 mergeDroneTelemetry(existingIt->second, drone);
             } else {
+                droneTrimTo(MAX_DETECTED_DRONES - 1);
                 existingIt = detectedDrones.emplace(macStr, drone).first;
                 droneDetectionCount = droneDetectionCount + 1;
             }
@@ -562,7 +574,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
         }
         
         if (droneQueue) {
-            xQueueSend(droneQueue, &drone, 0);
+            if (xQueueSend(droneQueue, &drone, 0) != pdTRUE) queueDropNote(QDROP_DRONE);
         }
     }
 }
@@ -628,6 +640,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
             existingIt->second.idType = drone.idType;
         }
     } else {
+        droneTrimTo(MAX_DETECTED_DRONES - 1);
         existingIt = detectedDrones.emplace(macStr, drone).first;
         droneDetectionCount = droneDetectionCount + 1;
     }
@@ -788,22 +801,7 @@ void cleanupDroneData() {
         }
     }
 
-    while (detectedDrones.size() > MAX_DETECTED_DRONES) {
-        uint32_t oldestTime = UINT32_MAX;
-        String oldestKey;
-        for (const auto& entry : detectedDrones) {
-            if (entry.second.lastSeen < oldestTime) {
-                oldestTime = entry.second.lastSeen;
-                oldestKey = entry.first;
-            }
-        }
-        if (oldestKey.length() > 0) {
-            detectedDrones.erase(oldestKey);
-            if (droneDetectionCount > 0) droneDetectionCount = droneDetectionCount - 1;
-        } else {
-            break;
-        }
-    }
+    droneTrimTo(MAX_DETECTED_DRONES);
 
     while (droneEventLog.size() > MAX_DRONE_LOG_ENTRIES) {
         droneEventLog.erase(droneEventLog.begin());
@@ -860,7 +858,8 @@ void droneDetectorTask(void *pv)
            (!forever && static_cast<int>(millis() - scanStart) < duration * 1000 && !stopRequested)) {
 
         DroneFrameEvent rawFrame;
-        while (droneFrameQueue && xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
+        UBaseType_t framesWaiting = droneFrameQueue ? uxQueueMessagesWaiting(droneFrameQueue) : 0;
+        while (framesWaiting-- > 0 && xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
             processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
         }
 
