@@ -95,6 +95,9 @@ public:
     static std::recursive_mutex &fileLock();
     static size_t readAt(const char* path, size_t offset, uint8_t* buf, size_t len);
     static size_t size(const char* path);
+#if defined(AH_SELFTEST) && AH_SELFTEST
+    static void faultArm(uint8_t kind, const char* match, uint32_t skip, uint32_t keep);
+#endif
 };
 
 // Replaces finalPath with the fully written tmpPath; the old file survives any failure.

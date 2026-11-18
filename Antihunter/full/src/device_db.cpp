@@ -3,6 +3,8 @@
 #include <NimBLEDevice.h>
 #include <NimBLEScan.h>
 #include <algorithm>
+#include <deque>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <unistd.h>
@@ -54,6 +56,19 @@ static uint64_t deviceDBKeyStr(const char *macStr)
     uint8_t mac[6];
     if (!parseMac6(String(macStr), mac)) return 0;
     return deviceDBKey(mac);
+}
+
+static uint32_t s_devCleanRecords = 0;
+static uint32_t s_devNewKeys = 0;
+
+static void devSeenAdd(uint64_t key)
+{
+    if (s_devSeen.insertIfNew(key)) s_devNewKeys++;
+}
+
+static bool devHasDuplicates()
+{
+    return s_devRecords > s_devCleanRecords + s_devNewKeys;
 }
 
 static void devBufReserve()
@@ -180,7 +195,7 @@ static void deviceDBImportLegacy()
             strncpy(e.name, doc["n"] | "", sizeof(e.name) - 1);
             const char *ov = lookupOuiVendor(mb);
             strncpy(e.vendor, ov ? ov : (doc["v"] | ""), sizeof(e.vendor) - 1);
-            s_devSeen.insertIfNew(deviceDBKey(mb));
+            devSeenAdd(deviceDBKey(mb));
             devAppend(e);
             if ((++n & 0x3FF) == 0) vTaskDelay(1);
         }
@@ -197,7 +212,7 @@ void loadDeviceDB()
     s_devSeen.reserve(DEVICE_DB_SEEN_BUCKETS);
     s_devSeen.clear();
     s_devDirty.clear();
-    s_devBufLen = s_devRecords = 0;
+    s_devBufLen = s_devRecords = s_devCleanRecords = s_devNewKeys = 0;
     Serial.printf("[DEVDB] seen filter %u KB fixed\n", (unsigned)(s_devSeen.bytes() / 1024));
 
     s_devBakPending = !SafeSD::exists(DEVICE_DB_BIN) && SafeSD::exists(DEVICE_DB_BIN_BAK) &&
@@ -224,7 +239,7 @@ void loadDeviceDB()
     while (f.available() >= (int)REC) {
         if (SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), REC) != REC) break;
         e.mac[17] = '\0';
-        s_devSeen.insertIfNew(deviceDBKeyStr(e.mac));
+        if (s_devSeen.insertIfNew(deviceDBKeyStr(e.mac))) s_devCleanRecords++;
         total++;
         if ((total & 0x3FF) == 0) vTaskDelay(1);
     }
@@ -245,6 +260,7 @@ static std::atomic<int> s_devStreams{0};
 DeviceDBStream::~DeviceDBStream()
 {
     if (holds) s_devStreams--;
+    heap_caps_free(blk);
 }
 
 static void deviceDBCompact()
@@ -252,7 +268,85 @@ static void deviceDBCompact()
     if (s_devStreams.load() > 0) return;
     devBufFlush();
     const int32_t kept = sdCompactNewestPerKey(DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, REC, deviceDBRecKey, "DEVDB");
-    if (kept >= 0) s_devRecords = (uint32_t)kept;
+    if (kept < 0) return;
+    s_devRecords = s_devCleanRecords = (uint32_t)kept;
+    s_devNewKeys = 0;
+}
+
+static std::atomic<uint32_t> s_devPrepReq{0};
+static std::atomic<uint32_t> s_devPrepDone{0};
+static std::atomic<bool> s_devPrepOk{true};
+
+static void deviceDBPrepareList()
+{
+    std::lock_guard<std::mutex> lock(deviceDBMutex);
+    for (const uint64_t key : s_devDirty) {
+        const auto *e = deviceDB.find(key);
+        if (e) devAppend(e->val);
+    }
+    s_devDirty.clear();
+    const bool ok = devBufFlush();
+    if (ok && devHasDuplicates()) deviceDBCompact();
+    s_devPrepOk = ok;
+}
+
+void deviceDBServicePrep()
+{
+    const uint32_t want = s_devPrepReq.load();
+    if (want == s_devPrepDone.load()) return;
+    deviceDBPrepareList();
+    s_devPrepDone = want;
+}
+
+static TaskHandle_t s_dbWorker = nullptr;
+static std::mutex s_sdJobsMutex;
+static std::deque<std::function<void()>> s_sdJobs;
+
+static void dbWorkerTask(void *)
+{
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        deviceDBServicePrep();
+        probeDBServicePrep();
+        for (;;) {
+            std::function<void()> job;
+            {
+                std::lock_guard<std::mutex> lock(s_sdJobsMutex);
+                if (s_sdJobs.empty()) break;
+                job = std::move(s_sdJobs.front());
+                s_sdJobs.pop_front();
+            }
+            job();
+        }
+    }
+}
+
+bool sdWorkerRun(std::function<void()> job)
+{
+    {
+        std::lock_guard<std::mutex> lock(s_sdJobsMutex);
+        s_sdJobs.push_back(job);
+    }
+    if (dbWorkerKick()) return true;
+    std::lock_guard<std::mutex> lock(s_sdJobsMutex);
+    s_sdJobs.pop_back();
+    return false;
+}
+
+bool dbWorkerKick()
+{
+    static std::mutex m;
+    std::lock_guard<std::mutex> lock(m);
+    if (!s_dbWorker) {
+#ifdef ARDUINO_XIAO_ESP32C5
+        xTaskCreatePinnedToCoreWithCaps(dbWorkerTask, "dbprep", 6144, nullptr, 1, &s_dbWorker, tskNO_AFFINITY, MALLOC_CAP_SPIRAM);
+#else
+        xTaskCreatePinnedToCore(dbWorkerTask, "dbprep", 6144, nullptr, 1, &s_dbWorker, tskNO_AFFINITY);
+#endif
+        if (!s_dbWorker) return false;
+    }
+    xTaskNotifyGive(s_dbWorker);
+    return true;
 }
 
 // Reads back from SD, in one pass, the newest record of each listed device seen in an earlier scan, so its counts continue.
@@ -314,7 +408,7 @@ void mergeHitToDeviceDB(const Hit &h, bool newSession)
     if (!te) {
         DeviceDBEntry e;
         deviceDBNewEntry(e, h, now, nameIsReal);
-        s_devSeen.insertIfNew(key);
+        devSeenAdd(key);
         devAppend(e);
         return;
     }
@@ -326,7 +420,7 @@ void mergeHitToDeviceDB(const Hit &h, bool newSession)
     }
 
     deviceDBNewEntry(te->val, h, now, nameIsReal);
-    s_devSeen.insertIfNew(key);
+    devSeenAdd(key);
     s_devDirty.insert(key);
 }
 
@@ -372,11 +466,15 @@ void saveDeviceDB()
         if (e) devAppend(e->val);
     }
     s_devDirty.clear();
-    devBufFlush();
+    const bool flushed = devBufFlush();
     const uint32_t uniq = (uint32_t)s_devSeen.count();
-    if (uniq > 0 && s_devRecords > uniq * 2) deviceDBCompact();
-    Serial.printf("[DEVDB] Saved: %u devices on SD (%u live in memory)\n",
-                  (unsigned)s_devSeen.count(), (unsigned)deviceDB.size());
+    if (flushed && uniq > 0 && s_devRecords > uniq * 2) deviceDBCompact();
+    if (flushed)
+        Serial.printf("[DEVDB] Saved: %u devices on SD (%u live in memory)\n",
+                      (unsigned)s_devSeen.count(), (unsigned)deviceDB.size());
+    else
+        Serial.printf("[DEVDB] Save incomplete: %u devices are still waiting for SD\n",
+                      (unsigned)(s_devBufLen / REC));
     deviceDB.clear();
 }
 
@@ -415,14 +513,13 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
         }
         st.pendOff = st.pendLen = 0;
         if (st.phase == 0) {
-            std::lock_guard<std::mutex> lock(deviceDBMutex);
-            for (const uint64_t key : s_devDirty) {
-                const auto *e = deviceDB.find(key);
-                if (e) devAppend(e->val);
+            if (!st.waitGen) {
+                st.waitGen = s_devPrepReq.fetch_add(1) + 1;
+                if (!dbWorkerKick()) deviceDBServicePrep();
             }
-            s_devDirty.clear();
-            if (!devBufFlush()) break;
-            if (s_devRecords > (uint32_t)s_devSeen.count()) deviceDBCompact();
+            if ((int32_t)(s_devPrepDone.load() - st.waitGen) < 0) return DB_STREAM_WAIT;
+            if (!s_devPrepOk.load()) break;
+            std::lock_guard<std::mutex> lock(deviceDBMutex);
             st.end = SafeSD::exists(DEVICE_DB_BIN) ? SafeSD::size(DEVICE_DB_BIN) : 0;
             st.holds = true;
             s_devStreams++;
@@ -437,16 +534,29 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
             if (st.cursor + REC > st.end) {
                 st.phase = 2;
             } else {
-                std::lock_guard<std::mutex> lock(deviceDBMutex);
-                DeviceDBEntry e;
-                File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
-                const bool ok = f && f.seek(st.cursor) && SafeSD::read(f, reinterpret_cast<uint8_t *>(&e), REC) == REC;
-                if (f) f.close();
-                if (!ok) {
-                    Serial.println("[DEVDB] Read failed while sending the device list");
-                    st.phase = 3;
-                    break;
+                if (st.cursor < st.blkStart || st.cursor + REC > st.blkStart + st.blkLen) {
+                    const size_t kBlkRecs = 64;
+                    if (!st.blk) st.blk = static_cast<uint8_t *>(heap_caps_malloc(kBlkRecs * REC, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+                    size_t want = st.end - st.cursor;
+                    if (want > kBlkRecs * REC) want = kBlkRecs * REC;
+                    want -= want % REC;
+                    size_t got = 0;
+                    if (st.blk) {
+                        std::lock_guard<std::mutex> lock(deviceDBMutex);
+                        File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
+                        if (f && f.seek(st.cursor)) got = SafeSD::read(f, st.blk, want);
+                        if (f) f.close();
+                    }
+                    if (got < REC) {
+                        Serial.println("[DEVDB] Read failed while sending the device list");
+                        st.phase = 3;
+                        break;
+                    }
+                    st.blkStart = st.cursor;
+                    st.blkLen = got - got % REC;
                 }
+                DeviceDBEntry e;
+                memcpy(&e, st.blk + (st.cursor - st.blkStart), REC);
                 e.mac[17] = '\0';
                 st.pendLen = (uint16_t)deviceDBFormatRow(e, st.first != 0, st.pend, sizeof(st.pend));
                 st.first = 0;
@@ -471,7 +581,7 @@ bool clearDeviceDB()
     deviceDB.clear();
     s_devSeen.clear();
     s_devDirty.clear();
-    s_devBufLen = s_devRecords = 0;
+    s_devBufLen = s_devRecords = s_devCleanRecords = s_devNewKeys = 0;
     bool ok = SafeSD::isAvailable();
     for (const char *p : {DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, DEVICE_DB_JSONL,
                           DEVICE_DB_JSONL_BAK, DEVICE_DB_ARCHIVE})

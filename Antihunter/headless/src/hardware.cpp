@@ -940,8 +940,13 @@ static void saveConfigurationLocked() {
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
 }
 
+static SemaphoreHandle_t configSaveMutex() {
+    static SemaphoreHandle_t m = xSemaphoreCreateRecursiveMutex();
+    return m;
+}
+
 void saveConfiguration() {
-    static SemaphoreHandle_t mtx = xSemaphoreCreateRecursiveMutex();
+    SemaphoreHandle_t mtx = configSaveMutex();
     if (!mtx || xSemaphoreTakeRecursive(mtx, pdMS_TO_TICKS(5000)) != pdTRUE) {
         s_saveDeferred = true;
         return;
@@ -1790,7 +1795,12 @@ void logToSDClose() {
 static std::atomic<bool> s_sdSaveOnRestart{true};
 
 static void sdSaveOnRestart() {
-    if (!s_sdSaveOnRestart.load() || !SafeSD::isAvailable()) return;
+    if (!s_sdSaveOnRestart.load()) return;
+    if (s_saveDeferred) {
+        lastSaveTime = 0;
+        saveConfiguration();
+    }
+    if (!SafeSD::isAvailable()) return;
     snifferCheckpointToDB();
     const bool dev = deviceDBFlushPending();
     const bool probe = probeDBFlushPending();
@@ -2808,6 +2818,7 @@ bool performSecureWipe() {
 
 bool performConfigReset() {
     Serial.println("[RESET] Config reset - NVS only");
+    s_saveDeferred = false;
     prefs.end();
     delay(100);
 
@@ -2824,9 +2835,12 @@ bool performConfigReset() {
     }
 
     if (SafeSD::isAvailable()) {
+        SemaphoreHandle_t mtx = configSaveMutex();
+        const bool locked = mtx && xSemaphoreTakeRecursive(mtx, pdMS_TO_TICKS(5000)) == pdTRUE;
         for (const char *p : {CONFIG_FILE, CONFIG_BAK_FILE, CONFIG_TMP_FILE})
             if (SafeSD::exists(p)) SafeSD::remove(p);
-        Serial.println("[RESET] SD config removed");
+        if (locked) xSemaphoreGiveRecursive(mtx);
+        Serial.println(locked ? "[RESET] SD config removed" : "[RESET] SD config removed while a save held the lock");
     }
 
     Serial.println("[RESET] NVS cleared - SD data preserved");
