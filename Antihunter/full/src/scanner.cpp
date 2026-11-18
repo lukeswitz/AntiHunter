@@ -55,6 +55,17 @@ std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
 std::atomic<uint32_t> g_apQueueDrops{0};
 std::atomic<uint32_t> g_probeQueueDrops{0};
+std::atomic<uint32_t> g_queueDrops[QDROP_COUNT] = {};
+
+void printQueueDrops()
+{
+    Serial.printf("[QUEUE] Events lost to a full queue: deauth=%u ble=%u droneframe=%u drone=%u auth=%u mac=%u anomaly=%u\n",
+                  (unsigned)g_queueDrops[QDROP_DEAUTH].load(), (unsigned)g_queueDrops[QDROP_BLE_ADV].load(),
+                  (unsigned)g_queueDrops[QDROP_DRONE_FRAME].load(), (unsigned)g_queueDrops[QDROP_DRONE].load(),
+                  (unsigned)g_queueDrops[QDROP_AUTH].load(), (unsigned)g_queueDrops[QDROP_MAC].load(),
+                  (unsigned)g_queueDrops[QDROP_ANOMALY].load());
+}
+
 QueueHandle_t apInfoQueue = nullptr;
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
@@ -1310,7 +1321,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;
-    xQueueSendFromISR(deauthQueue, &hit, &woken);
+    if (xQueueSendFromISR(deauthQueue, &hit, &woken) != pdTRUE) queueDropNote(QDROP_DEAUTH);
     if (woken) portYIELD_FROM_ISR();
 }
 
@@ -1371,7 +1382,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             std::vector<uint8_t> pl = advertisedDevice->getPayload();
             evt.payloadLen = static_cast<uint8_t>(std::min<size_t>(pl.size(), sizeof(evt.payload)));
             if (evt.payloadLen > 0) memcpy(evt.payload, pl.data(), evt.payloadLen);
-            xQueueSend(bleAdvQueue, &evt, 0);
+            if (xQueueSend(bleAdvQueue, &evt, 0) != pdTRUE) queueDropNote(QDROP_BLE_ADV);
         }
 
         if (droneDetectionEnabled) {
@@ -2967,7 +2978,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         droneEvt.len  = copyLen;
         droneEvt.rssi = ppkt->rx_ctrl.rssi;
         BaseType_t woken = pdFALSE;
-        xQueueSendFromISR(droneFrameQueue, &droneEvt, &woken);
+        if (xQueueSendFromISR(droneFrameQueue, &droneEvt, &woken) != pdTRUE) queueDropNote(QDROP_DRONE_FRAME);
         if (woken) portYIELD_FROM_ISR();
     }
 
@@ -3074,7 +3085,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                               : static_cast<uint16_t>(sizeof(authEvt.payload));
                 memcpy(authEvt.payload, payload, authEvt.len);
                 BaseType_t woken = pdFALSE;
-                xQueueSendFromISR(authFrameQueue, &authEvt, &woken);
+                if (xQueueSendFromISR(authFrameQueue, &authEvt, &woken) != pdTRUE) queueDropNote(QDROP_AUTH);
                 if (woken) portYIELD_FROM_ISR();
             }
         }
@@ -3217,7 +3228,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         BaseType_t w = false;
         if (macQueue)
         {
-            xQueueSendFromISR(macQueue, &h, &w);
+            if (xQueueSendFromISR(macQueue, &h, &w) != pdTRUE) queueDropNote(QDROP_MAC);
             if (w)
                 portYIELD_FROM_ISR();
         }
@@ -3244,7 +3255,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         BaseType_t w = false;
         if (macQueue)
         {
-            xQueueSendFromISR(macQueue, &h, &w);
+            if (xQueueSendFromISR(macQueue, &h, &w) != pdTRUE) queueDropNote(QDROP_MAC);
             if (w)
                 portYIELD_FROM_ISR();
         }

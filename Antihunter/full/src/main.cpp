@@ -904,6 +904,7 @@ void loop() {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
             dumpTaskStacks("heap-low");
         }
+        printQueueDrops();
         lastHeapCheck = millis();
     }
 

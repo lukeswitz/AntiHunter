@@ -1943,7 +1943,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.reason = "New device (not in baseline)";
         fillAnomalyTag(hit, cls);
 
-        if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+        if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
         {
             std::lock_guard<std::mutex> lock(baselineMutex);
             if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
@@ -1996,7 +1996,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
             fillAnomalyTag(hit, cls);
 
-            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
                 if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
@@ -2044,7 +2044,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
             fillAnomalyTag(hit, cls);
 
-            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            if (anomalyQueue && xQueueSend(anomalyQueue, &hit, 0) != pdTRUE) queueDropNote(QDROP_ANOMALY);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
                 if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());

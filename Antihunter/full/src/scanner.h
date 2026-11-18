@@ -440,6 +440,13 @@ extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
 extern std::atomic<uint32_t> g_apQueueDrops;
 extern std::atomic<uint32_t> g_probeQueueDrops;
+enum QueueDropId : uint8_t {
+    QDROP_DEAUTH, QDROP_BLE_ADV, QDROP_DRONE_FRAME, QDROP_DRONE,
+    QDROP_AUTH, QDROP_MAC, QDROP_ANOMALY, QDROP_COUNT
+};
+extern std::atomic<uint32_t> g_queueDrops[QDROP_COUNT];
+inline void queueDropNote(QueueDropId id) { g_queueDrops[id].fetch_add(1, std::memory_order_relaxed); }
+void printQueueDrops();
 constexpr UBaseType_t AP_INFO_QUEUE_LEN = 2048;
 
 // Functions
