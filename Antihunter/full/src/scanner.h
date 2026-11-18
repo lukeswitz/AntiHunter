@@ -331,22 +331,30 @@ const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;
 template <typename V> using U64MapPsram =
     std::map<uint64_t, V, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, V>>>;
 
-struct DeauthDstAgg {
-    uint32_t count = 0;
-    uint32_t broadcastCount = 0;
-    uint32_t targetedCount = 0;
-    int8_t lastRssi = -128;
-    uint8_t channel = 0;
-    U64MapPsram<uint32_t> bySrc;
+struct DeauthSrc {
+    uint64_t key;
+    uint32_t count;
 };
 
-// Running totals of every attack frame in the current deauth scan; no record limit.
+struct DeauthDstAgg {
+    uint32_t count;
+    uint32_t broadcastCount;
+    uint32_t targetedCount;
+    uint32_t distinctSrc;
+    int8_t lastRssi;
+    uint8_t channel;
+    uint8_t srcUsed;
+    DeauthSrc topSrc[5];
+};
+
+// Per-scan deauth totals in fixed PSRAM tables that evict oldest and never throw; overflow counts as untracked.
 struct DeauthAgg {
     uint32_t total = 0;
     uint32_t forgeHits = 0;
     uint32_t bcastHits = 0;
-    U64MapPsram<DeauthDstAgg> byDst;
-    U64MapPsram<uint32_t> srcUnicast;
+    uint32_t untracked = 0;
+    PsramTable<DeauthDstAgg> byDst;
+    PsramTable<uint32_t> srcUnicast;
     void add(const DeauthHit &h);
     void clear();
 };

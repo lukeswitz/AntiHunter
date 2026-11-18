@@ -143,6 +143,7 @@ struct SniffDev {
 static constexpr uint8_t SNIFF_MESH_SENT = 0x01;
 static constexpr uint8_t SNIFF_TARGET = 0x02;
 static constexpr uint8_t SNIFF_DB_MERGED = 0x04;
+static constexpr uint8_t SNIFF_DB_LOOKED_UP = 0x08;
 static PsramTable<SniffDev> snifferDevices;
 static std::mutex snifferCacheMutex;
 static uint32_t snifferApSeen = 0;
@@ -226,8 +227,11 @@ void snifferCheckpointToDB()
         if (pending) macs = static_cast<uint8_t *>(heap_caps_malloc(pending * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
         size_t k = 0;
         for (size_t i = 0; macs && i < n && k < pending; i++) {
-            const SniffDev &d = snifferDevices.at(i).val;
-            if (!(d.flags & SNIFF_DB_MERGED)) memcpy(macs + 6 * k++, d.hit.mac, 6);
+            SniffDev &d = snifferDevices.at(i).val;
+            if (!(d.flags & SNIFF_DB_MERGED)) {
+                memcpy(macs + 6 * k++, d.hit.mac, 6);
+                d.flags |= SNIFF_DB_LOOKED_UP;
+            }
         }
     }
     if (macs) {
@@ -239,6 +243,7 @@ void snifferCheckpointToDB()
         n = snifferDevices.size();
         for (size_t i = 0; i < n; i++) {
             SniffDev &d = snifferDevices.at(i).val;
+            if (!(d.flags & (SNIFF_DB_MERGED | SNIFF_DB_LOOKED_UP))) continue;
             mergeHitToDeviceDB(d.hit, !(d.flags & SNIFF_DB_MERGED));
             d.flags |= SNIFF_DB_MERGED;
         }
@@ -495,18 +500,33 @@ void DeauthAgg::add(const DeauthHit &h) {
     total++;
     if (h.toolHint & 0x01) forgeHits++;
     if (h.toolHint & 0x04) bcastHits++;
-    DeauthDstAgg &d = byDst[macKey(h.destMac, false)];
-    if (d.count == 0) d.channel = h.channel;
+    const uint32_t now = millis();
+    bool isNew = false;
+    auto *de = byDst.upsert(macKey(h.destMac, false), now, &isNew);
+    if (!de) { untracked++; return; }
+    DeauthDstAgg &d = de->val;
+    if (isNew) d.channel = h.channel;
     d.count++;
     if (h.isBroadcast) d.broadcastCount++;
     else d.targetedCount++;
     d.lastRssi = h.rssi;
-    d.bySrc[macKey(h.srcMac, false)]++;
-    if (!h.isBroadcast) srcUnicast[macKey(h.srcMac, false)]++;
+    const uint64_t sk = macKey(h.srcMac, false);
+    uint32_t i = 0;
+    for (; i < d.srcUsed; i++) if (d.topSrc[i].key == sk) { d.topSrc[i].count++; break; }
+    if (i == d.srcUsed) {
+        d.distinctSrc++;
+        if (d.srcUsed < 5) { d.topSrc[d.srcUsed].key = sk; d.topSrc[d.srcUsed].count = 1; d.srcUsed++; }
+    }
+    if (!h.isBroadcast) {
+        bool un = false;
+        auto *ue = srcUnicast.upsert(sk, now, &un);
+        if (ue) ue->val++;
+        else untracked++;
+    }
 }
 
 void DeauthAgg::clear() {
-    total = forgeHits = bcastHits = 0;
+    total = forgeHits = bcastHits = untracked = 0;
     byDst.clear();
     srcUnicast.clear();
 }
@@ -2096,60 +2116,56 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     results += "Targets attacked: " + std::to_string(agg.byDst.size()) + "\n";
     if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
     if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
-
+    if (agg.untracked) results += "Frames counted but not itemized (memory): " + std::to_string(agg.untracked) + "\n";
     {
-        uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(agg.srcUnicast.begin(), agg.srcUnicast.end(),
-            [](const auto &kv) { return kv.second == 1; }));
+        uint32_t loneSrcs = 0;
+        for (size_t i = 0; i < agg.srcUnicast.size(); i++)
+            if (agg.srcUnicast.at(i).val == 1) loneSrcs++;
         if (loneSrcs > 0) {
             results += "EAPOL-capture-bait pattern (single targeted deauth, no follow-up): "
                        + std::to_string(loneSrcs) + " srcs\n";
         }
     }
     results += "\n";
-    
-    if (agg.byDst.empty()) {
+
+    if (agg.byDst.size() == 0) {
         results += "No attacks detected.\n";
     } else {
         results += "Attack Targets:\n";
         results += "===============\n\n";
 
-        std::vector<std::pair<uint64_t, const DeauthDstAgg*>> sorted;
-        sorted.reserve(agg.byDst.size());
-        for (const auto& kv : agg.byDst) sorted.emplace_back(kv.first, &kv.second);
-        std::sort(sorted.begin(), sorted.end(),
-            [](const std::pair<uint64_t, const DeauthDstAgg*>& a,
-               const std::pair<uint64_t, const DeauthDstAgg*>& b) {
-                return a.second->count > b.second->count;
-            });
+        std::vector<uint32_t> order;
+        order.reserve(agg.byDst.size());
+        for (size_t i = 0; i < agg.byDst.size(); i++) order.push_back((uint32_t)i);
+        std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
+            return agg.byDst.at(a).val.count > agg.byDst.at(b).val.count;
+        });
 
-        for (size_t i = 0; i < sorted.size() && i < 100; i++) {
-            const auto& stats = *sorted[i].second;
+        for (size_t n = 0; n < order.size() && n < 100; n++) {
+            const auto& e = agg.byDst.at(order[n]);
+            const DeauthDstAgg& stats = e.val;
 
-            results += sorted[i].first == 0xFFFFFFFFFFFFULL ? std::string("[BROADCAST]")
-                                                             : std::string(macFromKey(sorted[i].first).c_str());
+            results += e.key == 0xFFFFFFFFFFFFULL ? std::string("[BROADCAST]")
+                                                  : std::string(macFromKey(e.key).c_str());
             results += " Total=" + std::to_string(stats.count);
             results += " Broadcast=" + std::to_string(stats.broadcastCount);
             results += " Targeted=" + std::to_string(stats.targetedCount);
-            results += " LastRSSI=" + std::to_string(stats.lastRssi) + "dBm CH=" + std::to_string(stats.channel) + "\n";
+            results += " LastRSSI=" + std::to_string((int)stats.lastRssi) + "dBm CH=" + std::to_string((unsigned)stats.channel) + "\n";
 
-            int sourcesShown = 0;
-            for (const auto& source : stats.bySrc) {
-                if (sourcesShown++ >= 5) {
-                    if (stats.bySrc.size() > 5) {
-                        results += "    ... (" + std::to_string(stats.bySrc.size() - 5) + " more attackers)\n";
-                    }
-                    break;
-                }
-                results += "    ← " + std::string(macFromKey(source.first).c_str()) + " (" + std::to_string(source.second) + "x)\n";
+            for (uint32_t s = 0; s < stats.srcUsed && s < 5; s++) {
+                results += "    ← " + std::string(macFromKey(stats.topSrc[s].key).c_str()) + " (" + std::to_string(stats.topSrc[s].count) + "x)\n";
+            }
+            if (stats.distinctSrc > stats.srcUsed) {
+                results += "    ... (" + std::to_string(stats.distinctSrc - stats.srcUsed) + " more attackers)\n";
             }
             results += "\n";
         }
-        
-        if (sorted.size() > 100) {
-            results += "... (" + std::to_string(sorted.size() - 100) + " more targets)\n";
+
+        if (order.size() > 100) {
+            results += "... (" + std::to_string(order.size() - 100) + " more targets)\n";
         }
     }
-    
+
     return results;
 }
 
@@ -2381,7 +2397,7 @@ void blueTeamTask(void *pv) {
 
         uint32_t curDeauthTotal = deauthCount.load() + disassocCount.load();
         if ((int32_t)(millis() - lastResultsUpdate) >= 0 ||
-            (curDeauthTotal != lastWrittenDeauthTotal && millis() - lastResultsBuild >= 250)) {
+            (curDeauthTotal != lastWrittenDeauthTotal && millis() - lastResultsBuild >= 2000)) {
             lastResultsBuild = millis();
             std::string results;
             {
