@@ -57,11 +57,10 @@ std::atomic<uint32_t> g_queueDrops[QDROP_COUNT] = {};
 
 void printQueueDrops()
 {
-    Serial.printf("[QUEUE] Events lost to a full queue: deauth=%u ble=%u droneframe=%u drone=%u auth=%u mac=%u anomaly=%u\n",
+    Serial.printf("[QUEUE] Events lost to a full queue: deauth=%u ble=%u droneframe=%u drone=%u auth=%u mac=%u\n",
                   (unsigned)g_queueDrops[QDROP_DEAUTH].load(), (unsigned)g_queueDrops[QDROP_BLE_ADV].load(),
                   (unsigned)g_queueDrops[QDROP_DRONE_FRAME].load(), (unsigned)g_queueDrops[QDROP_DRONE].load(),
-                  (unsigned)g_queueDrops[QDROP_AUTH].load(), (unsigned)g_queueDrops[QDROP_MAC].load(),
-                  (unsigned)g_queueDrops[QDROP_ANOMALY].load());
+                  (unsigned)g_queueDrops[QDROP_AUTH].load(), (unsigned)g_queueDrops[QDROP_MAC].load());
 }
 
 QueueHandle_t apInfoQueue = nullptr;
