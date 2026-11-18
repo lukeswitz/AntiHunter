@@ -858,9 +858,14 @@ void droneDetectorTask(void *pv)
            (!forever && static_cast<int>(millis() - scanStart) < duration * 1000 && !stopRequested)) {
 
         DroneFrameEvent rawFrame;
-        UBaseType_t framesWaiting = droneFrameQueue ? uxQueueMessagesWaiting(droneFrameQueue) : 0;
-        while (framesWaiting-- > 0 && xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
+        if (!droneFrameQueue) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        } else if (xQueueReceive(droneFrameQueue, &rawFrame, pdMS_TO_TICKS(100)) == pdTRUE) {
             processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
+            UBaseType_t framesWaiting = uxQueueMessagesWaiting(droneFrameQueue);
+            while (framesWaiting-- > 0 && xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
+                processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
+            }
         }
 
         while (droneQueue && xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
@@ -946,8 +951,6 @@ void droneDetectorTask(void *pv)
             cleanupDroneData();
             lastCleanup = millis();
         }
-        
-        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
     droneDetectionEnabled = false;
