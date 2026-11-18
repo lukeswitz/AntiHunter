@@ -1,6 +1,7 @@
 #include "campaign.h"
 #include "hardware.h"
 #include <Preferences.h>
+#include <unistd.h>
 
 extern Preferences prefs;
 
@@ -16,9 +17,13 @@ static void appendEvent(const char *ev) {
     }
     String line = String(ev) + "," + g_name + "," + String((unsigned long)getRTCEpoch()) + "," +
                   String((unsigned long)(millis() / 1000)) + "\n";
-    if (SafeSD::write(f, reinterpret_cast<const uint8_t *>(line.c_str()), line.length()) != line.length())
-        g_sdRecordsNotSaved++;
+    const size_t pos = f.size();
+    const size_t wrote = SafeSD::write(f, reinterpret_cast<const uint8_t *>(line.c_str()), line.length());
     f.close();
+    if (wrote != line.length()) {
+        if (wrote) truncate((String("/sd") + CAMPAIGN_FILE).c_str(), pos);
+        g_sdRecordsNotSaved++;
+    }
 }
 
 void campaignInit() {
