@@ -98,7 +98,6 @@ extern std::map<uint64_t, BaselineDevice, std::less<uint64_t>, PsramAllocator<st
 extern std::vector<AnomalyHit> anomalyLog;
 extern uint32_t anomalyCount;
 extern uint32_t baselineDeviceCount;
-extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 extern uint32_t baselineRamCacheSize;
 using DeviceHistoryMapPsram = std::map<uint64_t, DeviceHistory, std::less<uint64_t>,
