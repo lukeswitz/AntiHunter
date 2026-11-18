@@ -225,21 +225,6 @@ bool sdRepairNow(const char *from) {
     return ok;
 }
 
-#if defined(AH_SELFTEST) && AH_SELFTEST
-bool sdRepairNoFormatSelftest() {
-    std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
-    logToSDClose();
-    const bool prev = sdAutoRepair;
-    sdAutoRepair = false;
-    const bool ok = sdMountOrRepair();
-    sdAutoRepair = prev;
-    sdAvailable = ok;
-    SafeSD::forceRecheck();
-    Serial.printf("[SD] repair (selftest, no format): %s\n", ok ? "mounted" : "failed");
-    return ok;
-}
-#endif
-
 void serviceSdRepair() {
     if (!sdRepairPending) return;
     sdRepairPending = false;
