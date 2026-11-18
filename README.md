@@ -16,12 +16,12 @@
 
 <div align="center">
 
+
+
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
 
 
-<a href="https://lectronz.com/stores/antihunter">
-  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
-</a>
+***[Store](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md) • [Privacy](https://www.rootdowndigital.com/privacy)***
 
 </div>
 
@@ -34,11 +34,21 @@
 
 Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
 
-**No internet or subscription required, open source. Defensive by design.** 
+**No internet or subscription required, open source. Defensive by design. Extend and collect all node data with the [C2](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
+
+<a href="https://lectronz.com/stores/antihunter">
+  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
+</a>
 
 ---
 
-[Wiki](https://github.com/lukeswitz/AntiHunter/wiki) · [Web flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [Case STLs](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide (PDF)](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) · [Store](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md)
+**`Quick Links`**
+
+[Wiki](https://github.com/lukeswitz/AntiHunter/wiki) · [Web Flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly Manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [3D Print Files](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) 
+
+
+
+
 
 
 </div>
