@@ -54,7 +54,7 @@ jobs:
           ${{ runner.os }}-pio-core-release-
 
     - name: Install PlatformIO
-      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.2.0.zip"
 
     - name: Build firmware and collect artifacts
       run: |
