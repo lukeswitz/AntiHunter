@@ -3948,7 +3948,7 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     memcpy(ev.payload, payload, cap);
     ev.len = cap;
     BaseType_t woken = pdFALSE;
-    xQueueSendFromISR(detectFrameQueue, &ev, &woken);
+    if (xQueueSendFromISR(detectFrameQueue, &ev, &woken) != pdTRUE) g_droppedWifi.fetch_add(1);
     if (woken) portYIELD_FROM_ISR();
 }
 
@@ -3972,7 +3972,7 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
     memcpy(ev.payload + 6, payload, cap);
     ev.len = (uint16_t)(6 + cap);
     (void)name;
-    xQueueSend(detectFrameQueue, &ev, 0);
+    if (xQueueSend(detectFrameQueue, &ev, 0) != pdTRUE) g_droppedBle.fetch_add(1);
 }
 
 static const uint8_t kMeshtasticSvcUuid[16] = {0xFD, 0xEA, 0x73, 0xE2, 0xCA, 0x5D, 0xA8, 0x9F,
@@ -4031,7 +4031,7 @@ void detect_onMeshRadioAdv(const uint8_t *addr, uint8_t addrType, int8_t rssi,
     ev.payload[7] = cn;
     if (cn) memcpy(ev.payload + 8, nm, cn);
     ev.len = (uint16_t)(8 + cn);
-    xQueueSend(detectFrameQueue, &ev, 0);
+    if (xQueueSend(detectFrameQueue, &ev, 0) != pdTRUE) g_droppedBle.fetch_add(1);
 }
 
 // PHY-stat hook for jamming detection — called from sniffer_cb for EVERY packet

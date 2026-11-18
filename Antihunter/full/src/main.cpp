@@ -504,6 +504,7 @@ void loop() {
         if (freeHeap < 25000) {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
         }
+        printQueueDrops();
         lastHeapCheck = millis();
     }
 
