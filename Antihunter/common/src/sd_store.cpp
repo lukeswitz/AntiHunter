@@ -83,56 +83,6 @@ bool SafeSD::exists(const char* path) {
     return SD.exists(path);
 }
 
-#if defined(AH_SELFTEST) && AH_SELFTEST
-static std::atomic<uint8_t> s_faultKind{0};
-static char s_faultMatch[48];
-static uint32_t s_faultSkip = 0;
-static uint32_t s_faultKeep = 0;
-
-void SafeSD::faultArm(uint8_t kind, const char *match, uint32_t skip, uint32_t keep) {
-    s_faultKind = 0;
-    strlcpy(s_faultMatch, match, sizeof(s_faultMatch));
-    s_faultSkip = skip;
-    s_faultKeep = keep;
-    s_faultKind = kind;
-    Serial.printf("[SDFAULT] armed kind=%u match=%s skip=%lu keep=%lu\n", (unsigned)kind, s_faultMatch,
-                  (unsigned long)skip, (unsigned long)keep);
-}
-
-static bool sdFaultMatches(const char *p) {
-    if (!p) return false;
-    const size_t n = strlen(s_faultMatch);
-    if (n && s_faultMatch[n - 1] == '*') return strncmp(p, s_faultMatch, n - 1) == 0;
-    return strcmp(p, s_faultMatch) == 0;
-}
-
-static bool sdFaultTake(uint8_t kind, const char *a, const char *b) {
-    if (s_faultKind.load() != kind) return false;
-    if (!sdFaultMatches(a) && !sdFaultMatches(b)) return false;
-    if (s_faultSkip) {
-        s_faultSkip--;
-        return false;
-    }
-    uint8_t expect = kind;
-    return s_faultKind.compare_exchange_strong(expect, 0);
-}
-
-static bool sdFaultWrite(const char *path, size_t len, size_t &allow) {
-    if (s_faultKind.load() != 1 || !sdFaultMatches(path)) return false;
-    if (s_faultSkip) {
-        s_faultSkip--;
-        return false;
-    }
-    if (len <= s_faultKeep) {
-        s_faultKeep -= len;
-        return false;
-    }
-    uint8_t expect = 1;
-    if (!s_faultKind.compare_exchange_strong(expect, 0)) return false;
-    allow = s_faultKeep;
-    return true;
-}
-#endif
 
 bool SafeSD::remove(const char* path) {
     if (!checkAvailability()) {
@@ -156,12 +106,6 @@ bool SafeSD::rename(const char* from, const char* to) {
     }
 
     std::lock_guard<std::recursive_mutex> lock(fileLock());
-#if defined(AH_SELFTEST) && AH_SELFTEST
-    if (sdFaultTake(2, from, to)) {
-        Serial.printf("[SDFAULT] rename failed %s -> %s\n", from, to);
-        return false;
-    }
-#endif
     sdCloseSysLogIf(from);
     sdCloseSysLogIf(to);
     SD.remove(to);
@@ -204,14 +148,6 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
         Serial.println("[SAFE_SD] Write failed - file invalid or SD unavailable");
         return 0;
     }
-#if defined(AH_SELFTEST) && AH_SELFTEST
-    size_t allow = 0;
-    if (sdFaultWrite(file.path(), len, allow)) {
-        const size_t w = allow ? file.write(data, allow) : 0;
-        Serial.printf("[SDFAULT] short write %s %u/%u\n", file.path(), (unsigned)w, (unsigned)len);
-        return w;
-    }
-#endif
 
     errno = 0;
     size_t written = file.write(data, len);
@@ -241,12 +177,6 @@ size_t SafeSD::read(fs::File& file, uint8_t* data, size_t len) {
         return 0;
     }
 
-#if defined(AH_SELFTEST) && AH_SELFTEST
-    if (sdFaultTake(3, file.path(), nullptr)) {
-        Serial.printf("[SDFAULT] read failed %s\n", file.path());
-        return 0;
-    }
-#endif
     size_t bytesRead = file.read(data, len);
     if (bytesRead != len) {
         Serial.printf("[SAFE_SD] Partial read: %d/%d bytes\n", bytesRead, len);
