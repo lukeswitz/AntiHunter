@@ -3440,9 +3440,11 @@ void initializeScanner()
     Serial.printf("Loaded %u discovered devices from DB\n", getDeviceDBSize());
 
     if (!probeRequestQueue) {
-        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        size_t depth = AH_PROBE_QUEUE_LEN;
+        for (; !probeRequestQueue && depth >= 32; depth /= 2)
+            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
         if (probeRequestQueue) {
-            Serial.printf("[INIT] probeRequestQueue PSRAM (256 entries, internal:%u psram:%u)\n",
+            Serial.printf("[INIT] probeRequestQueue PSRAM (%u entries, internal:%u psram:%u)\n", (unsigned)(depth * 2),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         } else {
