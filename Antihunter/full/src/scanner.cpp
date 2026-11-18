@@ -145,6 +145,7 @@ struct SniffDev {
 static constexpr uint8_t SNIFF_MESH_SENT = 0x01;
 static constexpr uint8_t SNIFF_TARGET = 0x02;
 static constexpr uint8_t SNIFF_DB_MERGED = 0x04;
+static constexpr uint8_t SNIFF_DB_LOOKED_UP = 0x08;
 static PsramTable<SniffDev> snifferDevices;
 static std::mutex snifferCacheMutex;
 static uint32_t snifferApSeen = 0;
@@ -228,8 +229,11 @@ void snifferCheckpointToDB()
         if (pending) macs = static_cast<uint8_t *>(heap_caps_malloc(pending * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
         size_t k = 0;
         for (size_t i = 0; macs && i < n && k < pending; i++) {
-            const SniffDev &d = snifferDevices.at(i).val;
-            if (!(d.flags & SNIFF_DB_MERGED)) memcpy(macs + 6 * k++, d.hit.mac, 6);
+            SniffDev &d = snifferDevices.at(i).val;
+            if (!(d.flags & SNIFF_DB_MERGED)) {
+                memcpy(macs + 6 * k++, d.hit.mac, 6);
+                d.flags |= SNIFF_DB_LOOKED_UP;
+            }
         }
     }
     if (macs) {
@@ -241,6 +245,7 @@ void snifferCheckpointToDB()
         n = snifferDevices.size();
         for (size_t i = 0; i < n; i++) {
             SniffDev &d = snifferDevices.at(i).val;
+            if (!(d.flags & (SNIFF_DB_MERGED | SNIFF_DB_LOOKED_UP))) continue;
             mergeHitToDeviceDB(d.hit, !(d.flags & SNIFF_DB_MERGED));
             d.flags |= SNIFF_DB_MERGED;
         }
@@ -2407,7 +2412,6 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     results += "Targets attacked: " + std::to_string(agg.byDst.size()) + "\n";
     if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
     if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
-
     // EAPOL-capture-bait correlation: lone targeted deauth (src sent exactly 1
     // unicast deauth, no follow-up) is the classic "knock-the-client-off and
     // wait for re-auth" PMKID/handshake capture pattern. Count such srcs.

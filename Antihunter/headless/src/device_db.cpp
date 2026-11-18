@@ -275,7 +275,7 @@ void deviceDBRestore(const uint8_t *macs, size_t n)
             auto *te = deviceDB.upsert(keys[k], now, &isNew);
             if (te && isNew) te->val = found[k];
         }
-        if (got >= 0) Serial.printf("[DEVDB] Read the history of %d returning devices from SD\n", (int)got);
+        if (got >= 0) Serial.printf("[DEVDB] Read the history of %d returning devices from SD (%u looked up, %u in this batch)\n", (int)got, (unsigned)m, (unsigned)n);
         else Serial.printf("[DEVDB] Could not read the history of %u returning devices; they are not merged this scan\n", (unsigned)m);
     } else if (m) {
         s_devRestoreOk = false;
