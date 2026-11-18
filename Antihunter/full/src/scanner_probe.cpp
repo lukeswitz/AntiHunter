@@ -253,6 +253,7 @@ void probeDetectionTask(void *pv)
     } else {
         xQueueReset(probeRequestQueue);
     }
+    g_probeQueueDrops = 0;
 
     probeDetectionEnabled = true;
 
@@ -524,6 +525,7 @@ void probeDetectionTask(void *pv)
     }
     saveProbeDB(true);
     Serial.printf("[PROBE] Merged %u devices into probe database\n", probeDevices.size());
+    Serial.printf("[PROBE] Probe events lost to a full queue: %u\n", (unsigned)g_probeQueueDrops.load());
 
     // Log probe events to /probes.jsonl on SD
     {
