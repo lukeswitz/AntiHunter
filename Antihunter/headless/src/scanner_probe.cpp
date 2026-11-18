@@ -818,14 +818,14 @@ static void probeDBEvictHook(const PsramTable<ProbeDBEntry>::Entry &e, void *)
     g_sdRecordsMoved++;
 }
 
-static void probeDBFlushDirty()
+static bool probeDBFlushDirty()
 {
     for (const uint64_t key : s_probeDirty) {
         const auto *e = probeDB.find(key);
         if (e) probeAppend(e->val);
     }
     s_probeDirty.clear();
-    probeBufFlush();
+    return probeBufFlush();
 }
 
 static void probeDBInitLocked()
@@ -1047,11 +1047,15 @@ void saveProbeDB(bool releaseCache)
     std::lock_guard<std::mutex> lock(probeDBMutex);
     if (!s_probeLoaded) return;
     probeDB.eraseOlderThan(getEventTimestamp(), PROBE_DB_IDLE_SECS);
-    probeDBFlushDirty();
+    const bool flushed = probeDBFlushDirty();
     const uint32_t uniq = (uint32_t)s_probeSeen.count();
-    if (uniq > 0 && s_probeRecords > uniq * 2) probeDBCompact();
-    Serial.printf("[PROBEDB] Saved: %u devices on SD (%u live in memory)\n",
-                  (unsigned)s_probeSeen.count(), (unsigned)probeDB.size());
+    if (flushed && uniq > 0 && s_probeRecords > uniq * 2) probeDBCompact();
+    if (flushed)
+        Serial.printf("[PROBEDB] Saved: %u devices on SD (%u live in memory)\n",
+                      (unsigned)s_probeSeen.count(), (unsigned)probeDB.size());
+    else
+        Serial.printf("[PROBEDB] Save incomplete: %u devices are still waiting for SD\n",
+                      (unsigned)(s_probeBufLen / PREC));
     if (releaseCache) probeDB.clear();
 }
 

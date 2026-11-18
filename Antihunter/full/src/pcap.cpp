@@ -394,7 +394,7 @@ static bool pcapDrain() {
     const uint32_t pos = f ? (uint32_t)f.size() : 0;
     const size_t wrote = f ? SafeSD::write(f, src, len) : 0;
     if (f) f.close();
-    g_bytes.fetch_add((uint32_t)wrote);
+    if (wrote == len) g_bytes.fetch_add((uint32_t)wrote);
 
     if (wrote != len) {
         if (wrote) truncate((String("/sd") + path).c_str(), pos);
@@ -403,9 +403,10 @@ static bool pcapDrain() {
         if (f) {
             again = SafeSD::write(f, src, len);
             f.close();
-            g_bytes.fetch_add((uint32_t)again);
         }
+        if (again && again != len) truncate((String("/sd") + path).c_str(), pos);
         if (again == len) {
+            g_bytes.fetch_add((uint32_t)again);
             g_reopens.fetch_add(1);
             Serial.printf("[PCAP] reopened the capture file after a write error at %u bytes\n",
                           (unsigned)pos);

@@ -2866,46 +2866,66 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SELFTEST_DEVDBSTREAM")) {
       const String want = command.length() > 21 ? command.substring(21) : String();
       auto st = std::make_unique<DeviceDBStream>();
-      uint8_t buf[1024];
-      size_t total = 0, rows = 0, matched = 0;
+      auto buf = std::make_unique<uint8_t[]>(1024);
+      size_t total = 0, rows = 0, matched = 0, waits = 0;
       char first = 0, last = 0;
       String row;
-      for (size_t n; (n = deviceDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
+      const uint32_t t0 = millis();
+      uint32_t waitMs = 0;
+      for (size_t n; (n = deviceDBStreamFill(*st, buf.get(), 1024)) > 0; ) {
+          if (n == DB_STREAM_WAIT) {
+              waits++;
+              vTaskDelay(pdMS_TO_TICKS(50));
+              waitMs = millis() - t0;
+              continue;
+          }
           if (!total) first = (char)buf[0];
           last = (char)buf[n - 1];
           for (size_t i = 0; i < n; i++) {
               if (buf[i] == '{') { rows++; row = ""; }
               if (want.length()) row += (char)buf[i];
-              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0) matched++;
+              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0 && ++matched <= 3)
+                  Serial.printf("[SELFTEST] devdb row %s\n", row.c_str());
           }
           total += n;
           vTaskDelay(1);
       }
-      Serial.printf("[SELFTEST] devdb stream bytes=%u rows=%u matched=%u first=%c last=%c db=%u psram_free=%u\n",
+      Serial.printf("[SELFTEST] devdb stream bytes=%u rows=%u matched=%u first=%c last=%c db=%u psram_free=%u waits=%u wait_ms=%u total_ms=%u\n",
                     (unsigned)total, (unsigned)rows, (unsigned)matched, first ? first : '-', last ? last : '-',
-                    (unsigned)getDeviceDBSize(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                    (unsigned)getDeviceDBSize(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                    (unsigned)waits, (unsigned)waitMs, (unsigned)(millis() - t0));
   }
   else if (command.startsWith("SELFTEST_PROBEDBSTREAM")) {
       // Drains the /api/probedb stream in this task; the loopback HTTP client starves async_tcp on large bodies. Optional ":<MAC>" prints that row.
       const String want = command.length() > 23 ? command.substring(23) : String();
       auto st = std::make_unique<ProbeDBStream>();
-      uint8_t buf[1024];
-      size_t total = 0, rows = 0;
+      auto buf = std::make_unique<uint8_t[]>(1024);
+      size_t total = 0, rows = 0, waits = 0, matched = 0;
       char first = 0, last = 0;
       String row;
-      for (size_t n; (n = probeDBStreamFill(*st, buf, sizeof(buf))) > 0; ) {
+      const uint32_t t0 = millis();
+      uint32_t waitMs = 0;
+      for (size_t n; (n = probeDBStreamFill(*st, buf.get(), 1024)) > 0; ) {
+          if (n == DB_STREAM_WAIT) {
+              waits++;
+              vTaskDelay(pdMS_TO_TICKS(50));
+              waitMs = millis() - t0;
+              continue;
+          }
           if (!total) first = (char)buf[0];
           last = (char)buf[n - 1];
           for (size_t i = 0; i < n; i++) {
               if (buf[i] == '{') { rows++; row = ""; }
               if (want.length()) row += (char)buf[i];
-              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0) Serial.printf("[SELFTEST] probedb row %s\n", row.c_str());
+              if (buf[i] == '}' && want.length() && row.indexOf(want) >= 0 && ++matched <= 3)
+                  Serial.printf("[SELFTEST] probedb row %s\n", row.c_str());
           }
           total += n;
           vTaskDelay(1);
       }
-      Serial.printf("[SELFTEST] probedb stream bytes=%u rows=%u first=%c last=%c db=%u\n",
-                    (unsigned)total, (unsigned)rows, first, last, (unsigned)getProbeDBSize());
+      Serial.printf("[SELFTEST] probedb stream bytes=%u rows=%u first=%c last=%c db=%u waits=%u wait_ms=%u total_ms=%u matched=%u\n",
+                    (unsigned)total, (unsigned)rows, first, last, (unsigned)getProbeDBSize(),
+                    (unsigned)waits, (unsigned)waitMs, (unsigned)(millis() - t0), (unsigned)matched);
   }
   else if (command.startsWith("SELFTEST_DEAUTHFLOOD:")) {
       extern void selftestDeauthFlood(uint32_t);
@@ -2997,6 +3017,158 @@ void processCommand(const String &commandRaw, const String &targetId = "")
           }
           esp_restart();
       }, "streset", 3072, s_resetArgs, 24, nullptr);
+  }
+  else if (command.startsWith("SELFTEST_SDFAULT:")) {
+      const String a = command.substring(17);
+      const int c1 = a.indexOf(':'), c2 = a.indexOf(':', c1 + 1), c3 = a.indexOf(':', c2 + 1);
+      if (c1 > 0 && c2 > c1 && c3 > c2) {
+          const String kind = a.substring(0, c1);
+          SafeSD::faultArm(kind == "READ" ? 3 : kind == "RENAME" ? 2 : kind == "WRITE" ? 1 : 0, a.substring(c1 + 1, c2).c_str(),
+                           (uint32_t)a.substring(c2 + 1, c3).toInt(), (uint32_t)a.substring(c3 + 1).toInt());
+      }
+  }
+  else if (command.startsWith("SELFTEST_CFGSAVE:")) {
+      hbInterval = (uint32_t)command.substring(17).toInt() * 60000;
+      lastSaveTime = 0;
+      saveConfiguration();
+      Serial.printf("[SELFTEST] cfgsave hbInterval=%lu min\n", (unsigned long)(hbInterval / 60000));
+  }
+  else if (command.startsWith("SELFTEST_SDGREP:")) {
+      const String a = command.substring(16);
+      const int c = a.indexOf(':');
+      const String p = a.substring(0, c), needle = a.substring(c + 1);
+      String body;
+      uint8_t b[512];
+      for (size_t off = 0, n; (n = SafeSD::readAt(p.c_str(), off, b, sizeof(b))) > 0 && off < 65536; off += n)
+          body.concat(reinterpret_cast<const char *>(b), n);
+      const int at = body.indexOf(needle);
+      String hit = at < 0 ? String() : body.substring(at, body.indexOf('\n', at) < 0 ? body.length() : body.indexOf('\n', at));
+      Serial.printf("[SELFTEST] sdgrep %s len=%u found=%d %s\n", p.c_str(), (unsigned)body.length(), (int)(at >= 0), hit.c_str());
+  }
+  else if (command.startsWith("SELFTEST_SDCAT:")) {
+      const String p = command.substring(15);
+      uint8_t b[600];
+      const size_t n = SafeSD::readAt(p.c_str(), 0, b, sizeof(b));
+      String out;
+      for (size_t i = 0; i < n; i++) out += (b[i] == '\n' || b[i] == '\r') ? ' ' : (char)b[i];
+      Serial.printf("[SELFTEST] sdcat %s n=%u %s\n", p.c_str(), (unsigned)n, out.c_str());
+  }
+  else if (command.startsWith("SELFTEST_LOGSEQ:")) {
+      static uint32_t s_seqArgs[3];
+      static char s_seqPath[48];
+      const String a = command.substring(16);
+      const int c1 = a.indexOf(':'), c2 = a.indexOf(':', c1 + 1), c3 = a.indexOf(':', c2 + 1);
+      s_seqArgs[0] = (uint32_t)a.substring(0, c1).toInt();
+      s_seqArgs[1] = (uint32_t)a.substring(c1 + 1, c2).toInt();
+      s_seqArgs[2] = (uint32_t)a.substring(c2 + 1, c3 < 0 ? a.length() : c3).toInt();
+      strlcpy(s_seqPath, c3 < 0 ? "" : a.substring(c3 + 1).c_str(), sizeof(s_seqPath));
+      xTaskCreate([](void *pv) {
+          const uint32_t *p = static_cast<const uint32_t *>(pv);
+          const uint32_t run = p[0], count = p[1], ms = p[2];
+          for (uint32_t k = 0; k < count; k++) {
+              const String line = "SEQ " + String(run) + " " + String(k);
+              if (s_seqPath[0]) logEventToSD(s_seqPath, line);
+              else logToSD(line);
+              vTaskDelay(pdMS_TO_TICKS(ms));
+          }
+          Serial.printf("[SELFTEST] logseq done run=%lu count=%lu\n", (unsigned long)run, (unsigned long)count);
+          vTaskDelete(nullptr);
+      }, "stlogseq", 4096, s_seqArgs, 1, nullptr);
+  }
+  else if (command == "SELFTEST_SDREPAIR") {
+      extern bool sdRepairNoFormatSelftest();
+      sdRepairNoFormatSelftest();
+  }
+  else if (command.startsWith("SELFTEST_LOGSEQCHECK:")) {
+      const String a = command.substring(21);
+      const int c1 = a.indexOf(':');
+      const String tag = "SEQ " + (c1 < 0 ? a : a.substring(0, c1)) + " ";
+      const String only = c1 < 0 ? String() : a.substring(c1 + 1);
+      std::vector<uint8_t> seen;
+      uint32_t lines = 0, dups = 0, garbled = 0;
+      for (const char *path : {"/antihunter_old.log", "/antihunter.log", only.c_str()}) {
+          if (only.length() ? path != only.c_str() : !path[0]) continue;
+          std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+          logToSDClose();
+          File f = SafeSD::open(path, FILE_READ);
+          if (!f) continue;
+          String line;
+          uint8_t b[512];
+          for (size_t n; (n = f.read(b, sizeof(b))) > 0; ) {
+              for (size_t i = 0; i < n; i++) {
+                  if (b[i] == '\r') continue;
+                  if (b[i] != '\n') { if (line.length() < 200) line += (char)b[i]; continue; }
+                  const int at = line.indexOf(tag);
+                  if (at >= 0) {
+                      const String num = line.substring(at + tag.length());
+                      bool digits = num.length() > 0;
+                      for (size_t j = 0; j < num.length(); j++) if (!isDigit(num[j])) digits = false;
+                      if (!digits) { garbled++; line = ""; continue; }
+                      const uint32_t k = (uint32_t)num.toInt();
+                      if (k >= seen.size()) seen.resize(k + 1, 0);
+                      if (seen[k]) dups++;
+                      seen[k] = 1;
+                      lines++;
+                  }
+                  line = "";
+              }
+          }
+          f.close();
+      }
+      uint32_t missing = 0, firstMissing = UINT32_MAX, lowest = UINT32_MAX;
+      for (size_t k = 0; k < seen.size(); k++) {
+          if (!seen[k]) { missing++; if (firstMissing == UINT32_MAX) firstMissing = k; }
+          else if (lowest == UINT32_MAX) lowest = k;
+      }
+      Serial.printf("[SELFTEST] logseqcheck lines=%lu highest=%u missing=%lu first_missing=%ld dups=%lu garbled=%lu lowest=%ld\n",
+                    (unsigned long)lines, (unsigned)(seen.empty() ? 0 : seen.size() - 1), (unsigned long)missing,
+                    firstMissing == UINT32_MAX ? -1L : (long)firstMissing, (unsigned long)dups, (unsigned long)garbled,
+                    lowest == UINT32_MAX ? -1L : (long)lowest);
+  }
+  else if (command.startsWith("SELFTEST_SDMV:")) {
+      const String a = command.substring(14);
+      const int c = a.indexOf(':');
+      const bool ok = c > 0 && SafeSD::rename(a.substring(0, c).c_str(), a.substring(c + 1).c_str());
+      Serial.printf("[SELFTEST] sdmv %s ok=%d\n", a.c_str(), (int)ok);
+  }
+  else if (command.startsWith("SELFTEST_SDRM:")) {
+      const String p = command.substring(14);
+      Serial.printf("[SELFTEST] sdrm %s ok=%d\n", p.c_str(), (int)SafeSD::remove(p.c_str()));
+  }
+  else if (command == "SELFTEST_PCAPCHECK") {
+      std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
+      String newest;
+      File dir = SafeSD::open("/pcap", FILE_READ);
+      if (dir) {
+          for (File e = dir.openNextFile(); e; e = dir.openNextFile()) {
+              String n = e.name();
+              e.close();
+              if (n.endsWith(".pcap") && n > newest) newest = n;
+          }
+          dir.close();
+      }
+      const String path = "/pcap/" + newest;
+      File f = newest.length() ? SafeSD::open(path.c_str(), FILE_READ) : File();
+      const size_t size = f ? f.size() : 0;
+      uint32_t magic = 0, recs = 0, snap = 0;
+      size_t pos = 24;
+      bool bad = !f || f.read(reinterpret_cast<uint8_t *>(&magic), 4) != 4 || magic != 0xA1B2C3D4;
+      if (!bad && f.seek(16)) f.read(reinterpret_cast<uint8_t *>(&snap), 4);
+      while (!bad && pos + 16 <= size) {
+          uint32_t hdr[4];
+          if (!f.seek(pos) || f.read(reinterpret_cast<uint8_t *>(hdr), 16) != 16) { bad = true; break; }
+          if (hdr[2] == 0 || hdr[2] > snap || hdr[2] > hdr[3]) { bad = true; break; }
+          pos += 16 + hdr[2];
+          recs++;
+      }
+      if (f) f.close();
+      Serial.printf("[SELFTEST] pcapcheck %s size=%u records=%u end=%u ok=%d\n", path.c_str(), (unsigned)size,
+                    (unsigned)recs, (unsigned)pos, (int)(!bad && pos == size));
+  }
+  else if (command.startsWith("SELFTEST_SDSIZE:")) {
+      const String p = command.substring(16);
+      Serial.printf("[SELFTEST] sdsize %s exists=%d size=%u\n", p.c_str(), (int)SafeSD::exists(p.c_str()),
+                    (unsigned)SafeSD::size(p.c_str()));
   }
   else if (command == "SELFTEST_SDREAD") {
       xTaskCreate([](void *) {

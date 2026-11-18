@@ -324,6 +324,15 @@ void initializeNetwork()
 
 #include "web_index_html_gz.h"
 
+static void webSdJob(AsyncWebServerRequest *req, std::function<void(AsyncWebServerRequestPtr)> job) {
+    AsyncWebServerRequestPtr p = req->pause();
+    if (!sdWorkerRun([p, job]() { job(p); })) job(p);
+}
+
+static void webReply(AsyncWebServerRequestPtr p, int code, const char *type, const String &body) {
+    if (auto r = p.lock()) r->send(code, type, body);
+}
+
 static void sendSdFileLocked(AsyncWebServerRequest *req, const char *path, const char *mime) {
     const String p(path);
     req->send(req->beginChunkedResponse(mime, [p](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
@@ -707,12 +716,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-        if (scanning || workerTaskHandle) {
-            req->send(409, "text/plain", "Stop the scan before resetting the baseline");
-            return;
-        }
-        resetBaselineDetection();
-        req->send(200, "text/plain", "Baseline reset complete"); });
+        webSdJob(req, [](AsyncWebServerRequestPtr p) {
+            if (scanning || workerTaskHandle) {
+                webReply(p, 409, "text/plain", "Stop the scan before resetting the baseline");
+                return;
+            }
+            resetBaselineDetection();
+            webReply(p, 200, "text/plain", "Baseline reset complete");
+        }); });
 
   server->on("/baseline/mark", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1972,7 +1983,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/pcap/list", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", getPcapListJson());
+      webSdJob(r, [](AsyncWebServerRequestPtr p) { webReply(p, 200, "application/json", getPcapListJson()); });
   });
 
   server->on("/pcap/download", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -2033,8 +2044,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/pcap/delete-all", HTTP_POST, [](AsyncWebServerRequest *r) {
-      const uint32_t n = pcapDeleteAll();
-      r->send(200, "text/plain", "Deleted " + String(n) + " capture" + (n == 1 ? "" : "s"));
+      webSdJob(r, [](AsyncWebServerRequestPtr p) {
+          const uint32_t n = pcapDeleteAll();
+          webReply(p, 200, "text/plain", "Deleted " + String(n) + " capture" + (n == 1 ? "" : "s"));
+      });
   });
 
   server->on("/csi-json", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -2076,10 +2089,11 @@ void registerRemainingRoutes() {
           removed = toRemove.size();
       }
 
-      saveDeviceIdentities();
-
-      Serial.printf("[RAND] Clear-old removed %u identities\n", (unsigned)removed);
-      req->send(200, "text/plain", "Removed " + String(removed) + " old identities");
+      webSdJob(req, [removed](AsyncWebServerRequestPtr p) {
+          saveDeviceIdentities();
+          Serial.printf("[RAND] Clear-old removed %u identities\n", (unsigned)removed);
+          webReply(p, 200, "text/plain", "Removed " + String(removed) + " old identities");
+      });
   });
 
   server->on("/api/identity-map", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -2312,6 +2326,7 @@ void registerRemainingRoutes() {
       req->send(200, "text/plain", "Results cleared");
   });
 
+  static_assert(DB_STREAM_WAIT == RESPONSE_TRY_AGAIN, "DB stream wait must be the web server's try-again value");
   // Probe database endpoints
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto st = std::make_shared<ProbeDBStream>();
@@ -2323,8 +2338,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (clearProbeDB()) req->send(200, "text/plain", "Probe database cleared");
-      else req->send(500, "text/plain", "Probe database could not be cleared on SD");
+      webSdJob(req, [](AsyncWebServerRequestPtr p) {
+          if (clearProbeDB()) webReply(p, 200, "text/plain", "Probe database cleared");
+          else webReply(p, 500, "text/plain", "Probe database could not be cleared on SD");
+      });
   });
 
   server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2337,8 +2354,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/devicedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (clearDeviceDB()) req->send(200, "text/plain", "Device database cleared");
-      else req->send(500, "text/plain", "Device database could not be cleared on SD");
+      webSdJob(req, [](AsyncWebServerRequestPtr p) {
+          if (clearDeviceDB()) webReply(p, 200, "text/plain", "Device database cleared");
+          else webReply(p, 500, "text/plain", "Device database could not be cleared on SD");
+      });
   });
 
   server->on("/api/probes.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -2346,15 +2365,10 @@ void registerRemainingRoutes() {
           req->send(404, "text/plain", "No probe log file");
           return;
       }
-      auto body = std::make_shared<PsramJsonString>(getProbeEventsJsonl());
+      auto st = std::make_shared<ProbeLogStream>();
       AsyncWebServerResponse *res = req->beginChunkedResponse("application/x-ndjson",
-          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-              size_t total = body->size();
-              if (index >= total) return 0;
-              size_t n = total - index;
-              if (n > maxLen) n = maxLen;
-              memcpy(buffer, body->data() + index, n);
-              return n;
+          [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
+              return probeEventsStreamFill(*st, buffer, maxLen);
           });
       req->send(res);
   });
@@ -2673,8 +2687,10 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "cleared");
   });
   server->on("/api/detect/clear_session", HTTP_POST, [](AsyncWebServerRequest *r) {
-      detect_clearSession();
-      r->send(200, "application/json", detect_getSessionJson());
+      webSdJob(r, [](AsyncWebServerRequestPtr p) {
+          detect_clearSession();
+          webReply(p, 200, "application/json", detect_getSessionJson());
+      });
   });
   server->on("/api/detect/session", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getSessionJson());

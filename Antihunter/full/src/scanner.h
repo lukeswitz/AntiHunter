@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <atomic>
+#include <functional>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
@@ -298,18 +299,31 @@ bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
 // Streams /api/probedb one row at a time, resuming after the last MAC sent.
 struct ProbeDBStream {
+    uint32_t waitGen = 0;
     uint8_t phase = 0;
     bool first = true;
     bool holds = false;
     size_t cursor = 0;
     size_t end = 0;
+    uint8_t *blk = nullptr;
+    size_t blkStart = 0;
+    size_t blkLen = 0;
     ~ProbeDBStream();
     uint16_t pendLen = 0;
     uint16_t pendOff = 0;
     char pend[768];
 };
 size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen);
-PsramJsonString getProbeEventsJsonl();
+struct ProbeLogStream {
+    bool started = false;
+    size_t end = 0;
+    size_t offset = 0;
+    bool eof = false;
+    size_t pendOff = 0;
+    PsramJsonString carry;
+    PsramJsonString pend;
+};
+size_t probeEventsStreamFill(ProbeLogStream &st, uint8_t *buf, size_t maxLen);
 bool clearProbeDB();
 
 // SD device database (every device seen by any scan)
@@ -321,12 +335,21 @@ void deviceDBRestore(const uint8_t *macs, size_t n);
 void mergeHitToDeviceDB(const Hit &h, bool newSession = true);
 void deviceDBIdleSweep();
 uint32_t getDeviceDBSize();
+constexpr size_t DB_STREAM_WAIT = SIZE_MAX;
+bool dbWorkerKick();
+bool sdWorkerRun(std::function<void()> job);
+void deviceDBServicePrep();
+void probeDBServicePrep();
 struct DeviceDBStream {
+    uint32_t waitGen = 0;
     size_t cursor = 0;
     size_t end = 0;
     uint8_t phase = 0;
     uint8_t first = 1;
     bool holds = false;
+    uint8_t *blk = nullptr;
+    size_t blkStart = 0;
+    size_t blkLen = 0;
     ~DeviceDBStream();
     uint16_t pendLen = 0;
     uint16_t pendOff = 0;

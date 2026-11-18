@@ -18,6 +18,14 @@
 #include "esp_heap_caps.h"
 #include "esp_cpu.h"
 #include "esp_memory_utils.h"
+#include "esp_rom_sys.h"
+
+#if defined(AH_SELFTEST) && AH_SELFTEST
+static volatile uint32_t g_loopBeatMs = 0;
+RTC_NOINIT_ATTR static uint32_t s_stallMagic;
+RTC_NOINIT_ATTR static uint32_t s_stallWdTicks;
+RTC_NOINIT_ATTR static uint32_t s_stallMaxLoopGapMs;
+#endif
 #include "soc/soc_caps.h"
 #include "esp_mac.h"
 #include "esp_random.h"
@@ -758,6 +766,26 @@ void setup() {
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
 
     delay(2000);
+#if defined(AH_SELFTEST) && AH_SELFTEST
+    if (s_stallMagic == 0x57A11ED0)
+        Serial.printf("[STALL] previous boot: watchdog ticks=%u, longest loop gap=%u ms\n", (unsigned)s_stallWdTicks,
+                      (unsigned)s_stallMaxLoopGapMs);
+    s_stallMagic = 0x57A11ED0;
+    s_stallWdTicks = 0;
+    s_stallMaxLoopGapMs = 0;
+    xTaskCreate([](void *) {
+        for (;;) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            s_stallWdTicks++;
+            const uint32_t beat = g_loopBeatMs;
+            if (beat && millis() - beat > s_stallMaxLoopGapMs) s_stallMaxLoopGapMs = millis() - beat;
+            if (beat && millis() - beat > 60000) {
+                esp_rom_printf("[STALL] loop silent %u ms, forcing a core dump\n", (unsigned)(millis() - beat));
+                abort();
+            }
+        }
+    }, "stallwd", 3072, nullptr, configMAX_PRIORITIES - 2, nullptr);
+#endif
 }
 
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
@@ -766,6 +794,9 @@ void loop() {
     static unsigned long lastHbSend = 0;
     static unsigned long lastHeapCheck = 0;
 
+#if defined(AH_SELFTEST) && AH_SELFTEST
+    g_loopBeatMs = millis();
+#endif
     markUptimeAlive();
 
 #if AH_HEAP_TRACE

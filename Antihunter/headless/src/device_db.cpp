@@ -364,11 +364,15 @@ void saveDeviceDB()
         if (e) devAppend(e->val);
     }
     s_devDirty.clear();
-    devBufFlush();
+    const bool flushed = devBufFlush();
     const uint32_t uniq = (uint32_t)s_devSeen.count();
-    if (uniq > 0 && s_devRecords > uniq * 2) deviceDBCompact();
-    Serial.printf("[DEVDB] Saved: %u devices on SD (%u live in memory)\n",
-                  (unsigned)s_devSeen.count(), (unsigned)deviceDB.size());
+    if (flushed && uniq > 0 && s_devRecords > uniq * 2) deviceDBCompact();
+    if (flushed)
+        Serial.printf("[DEVDB] Saved: %u devices on SD (%u live in memory)\n",
+                      (unsigned)s_devSeen.count(), (unsigned)deviceDB.size());
+    else
+        Serial.printf("[DEVDB] Save incomplete: %u devices are still waiting for SD\n",
+                      (unsigned)(s_devBufLen / REC));
     deviceDB.clear();
 }
 
