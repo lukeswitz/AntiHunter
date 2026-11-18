@@ -18,6 +18,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <algorithm>
+#include <list>
 #include <numeric>
 #include <deque>
 #include "detect_internal.h"
@@ -389,13 +390,22 @@ QueueHandle_t g_detectFrameQueue = nullptr;
 std::recursive_mutex g_mtx;
 
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
+using PmkidLru = std::list<uint64_t, PsramAllocator<uint64_t>>;
 struct PmkidBurst {
     PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
     PsramMap<uint64_t, uint64_t> hshkKeys;
     PsramSet<uint64_t> kdeBssids;
     uint32_t lastSeen{};
+    PmkidLru::iterator lruPos;
 };
 PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
+static PmkidLru g_pmkidLru;
+
+static void pmkidDropOldest() {
+    auto it = g_pmkidBursts.find(g_pmkidLru.front());
+    g_pmkidLru.pop_front();
+    if (it != g_pmkidBursts.end()) g_pmkidBursts.erase(it);
+}
 static constexpr uint32_t PMKID_PSRAM_FLOOR = 512 * 1024;
 static constexpr uint32_t PMKID_ORPHAN_SETTLE_MS = 1500;
 
@@ -1191,14 +1201,16 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         }
     }
     uint64_t srcK = packMac(src);
+    const uint16_t pmkidWin = g_pmkidWindow.load();
+    while (!g_pmkidLru.empty()) {
+        auto old = g_pmkidBursts.find(g_pmkidLru.front());
+        if (old != g_pmkidBursts.end() && now - old->second.lastSeen <= pmkidWin) break;
+        pmkidDropOldest();
+    }
     auto bIt = g_pmkidBursts.find(srcK);
     if (bIt == g_pmkidBursts.end()) {
-        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR && !g_pmkidBursts.empty()) {
-            auto oldest = g_pmkidBursts.begin();
-            for (auto it = oldest; it != g_pmkidBursts.end(); ++it) {
-                if (it->second.lastSeen < oldest->second.lastSeen) oldest = it;
-            }
-            g_pmkidBursts.erase(oldest);
+        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR && !g_pmkidLru.empty()) {
+            pmkidDropOldest();
             static uint32_t s_lastShedLog = 0;
             if (now - s_lastShedLog > 10000) {
                 s_lastShedLog = now;
@@ -1206,6 +1218,9 @@ static void handleEAPOL(const DetectFrameEvent &e) {
             }
         }
         bIt = g_pmkidBursts.emplace(srcK, PmkidBurst{}).first;
+        bIt->second.lruPos = g_pmkidLru.insert(g_pmkidLru.end(), srcK);
+    } else {
+        g_pmkidLru.splice(g_pmkidLru.end(), g_pmkidLru, bIt->second.lruPos);
     }
     PmkidBurst &b = bIt->second;
     b.lastSeen = now;
@@ -4346,8 +4361,10 @@ void detectTask(void *pv) {
                 else ++it;
             }
             for (auto it = g_pmkidBursts.begin(); it != g_pmkidBursts.end(); ) {
-                if (now - it->second.lastSeen > 300000) it = g_pmkidBursts.erase(it);
-                else ++it;
+                if (now - it->second.lastSeen > 300000) {
+                    g_pmkidLru.erase(it->second.lruPos);
+                    it = g_pmkidBursts.erase(it);
+                } else ++it;
             }
             for (auto it = g_saeCounters.begin(); it != g_saeCounters.end(); ) {
                 if (now - it->second.windowStart > 60000) it = g_saeCounters.erase(it);
@@ -5546,6 +5563,7 @@ void detect_clearAll() {
     g_sessionMarked = false;
     g_pmkidLog.clear();
     g_pmkidBursts.clear();
+    g_pmkidLru.clear();
     g_evilTwinLog.clear();
     g_ssidConfusionLog.clear();
     g_saeDosLog.clear();
