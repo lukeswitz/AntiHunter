@@ -344,6 +344,7 @@ struct ApInfoEvent {
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
 extern std::atomic<uint32_t> g_apQueueDrops;
+extern std::atomic<uint32_t> g_probeQueueDrops;
 constexpr UBaseType_t AP_INFO_QUEUE_LEN = 2048;
 extern std::atomic<bool> listScanTriMode;
 

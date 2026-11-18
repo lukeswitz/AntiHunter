@@ -54,6 +54,7 @@ static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
 std::atomic<uint32_t> g_apQueueDrops{0};
+std::atomic<uint32_t> g_probeQueueDrops{0};
 QueueHandle_t apInfoQueue = nullptr;
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
@@ -1240,6 +1241,7 @@ void snifferScanTask(void *pv)
             probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
         if (probeRequestQueue) xQueueReset(probeRequestQueue);
         else Serial.println("[PROBE] queue alloc failed - probe capture inert");
+        g_probeQueueDrops = 0;
     }
 
     uint32_t bleInterval = BLE_SCAN_INTERVAL;
@@ -1831,9 +1833,10 @@ void snifferScanTask(void *pv)
                     unstored = snifferDevices.allocFailures();
                     tableBytes = snifferDevices.bytesUsed();
                 }
-                Serial.printf("[SNIFFER] Total: WiFi APs=%u, BLE=%u, Unique=%u, Hits=%d held=%u evicted=%u unstored=%u qdrop=%u table=%uB psram_free=%u\n",
+                Serial.printf("[SNIFFER] Total: WiFi APs=%u, BLE=%u, Unique=%u, Hits=%d held=%u evicted=%u unstored=%u qdrop=%u pqdrop=%u table=%uB psram_free=%u\n",
                               (unsigned)nAp, (unsigned)nBle, (unsigned)nUniq, nHits, (unsigned)held,
                               (unsigned)evicted, (unsigned)unstored, (unsigned)g_apQueueDrops.load(),
+                              (unsigned)g_probeQueueDrops.load(),
                               (unsigned)tableBytes, (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 lastTotalPrint = millis();
                 lastTotalAp = nAp; lastTotalBle = nBle; lastTotalUniq = nUniq; lastTotalHits = nHits;
@@ -2717,7 +2720,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 probeEvt.dstMatch = false;
                 probeEvt.isProbeResponse = false;
                 BaseType_t woken = pdFALSE;
-                xQueueSendFromISR(probeRequestQueue, &probeEvt, &woken);
+                if (xQueueSendFromISR(probeRequestQueue, &probeEvt, &woken) != pdTRUE)
+                    g_probeQueueDrops.fetch_add(1, std::memory_order_relaxed);
                 if (woken) portYIELD_FROM_ISR();
             }
         }
@@ -2747,7 +2751,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                     respEvt.dstMatch = false;
                     respEvt.isProbeResponse = true;
                     BaseType_t woken = pdFALSE;
-                    xQueueSendFromISR(probeRequestQueue, &respEvt, &woken);
+                    if (xQueueSendFromISR(probeRequestQueue, &respEvt, &woken) != pdTRUE)
+                        g_probeQueueDrops.fetch_add(1, std::memory_order_relaxed);
                     if (woken) portYIELD_FROM_ISR();
                 }
             }
@@ -2787,7 +2792,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                     dstEvt.dstMatch = true;
                     dstEvt.isProbeResponse = false;
                     BaseType_t woken = pdFALSE;
-                    xQueueSendFromISR(probeRequestQueue, &dstEvt, &woken);
+                    if (xQueueSendFromISR(probeRequestQueue, &dstEvt, &woken) != pdTRUE)
+                        g_probeQueueDrops.fetch_add(1, std::memory_order_relaxed);
                     if (woken) portYIELD_FROM_ISR();
                 }
             }

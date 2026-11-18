@@ -532,7 +532,8 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
     }
     
     BaseType_t higher_prio_woken = pdFALSE;
-    xQueueSendFromISR(probeRequestQueue, &event, &higher_prio_woken);
+    if (xQueueSendFromISR(probeRequestQueue, &event, &higher_prio_woken) != pdTRUE)
+        g_probeQueueDrops.fetch_add(1, std::memory_order_relaxed);
     if (higher_prio_woken) portYIELD_FROM_ISR();
 }
 
@@ -1486,6 +1487,7 @@ void randomizationDetectionTask(void *pv) {
         }
         vTaskDelay(pdMS_TO_TICKS(200));
     }
+    g_probeQueueDrops = 0;
     
     
     Serial.println("[RAND] Enabling detection...");
@@ -1758,9 +1760,10 @@ void randomizationDetectionTask(void *pv) {
 
             {
                 std::lock_guard<std::mutex> lock(randMutex);
-                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu PSRAM:%u Shed:%u\n",
+                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu PSRAM:%u Shed:%u QueueDrops:%u\n",
                             activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap(),
-                            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)randSessionsShed);
+                            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)randSessionsShed,
+                            (unsigned)g_probeQueueDrops.load());
             }
 
             nextStatus += 5000;
