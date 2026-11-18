@@ -10,6 +10,7 @@ CPPCHECK_FLAGS := --enable=warning,style,performance,portability,unusedFunction 
 
 FULL_SRC := Antihunter/full/src
 HEADLESS_SRC := Antihunter/headless/src
+COMMON_SRC := Antihunter/common/src
 TEST_SRC := scripts/test_csi_metric.cpp
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
@@ -47,10 +48,10 @@ test-cuckoo:
 lint: lint-full lint-headless
 
 lint-full:
-	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(FULL_SRC) $(FULL_SRC)/ $(TEST_SRC)
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(FULL_SRC) -I$(COMMON_SRC) $(FULL_SRC)/ $(COMMON_SRC)/ $(TEST_SRC)
 
 lint-headless:
-	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(HEADLESS_SRC) $(HEADLESS_SRC)/ $(TEST_SRC)
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(HEADLESS_SRC) -I$(COMMON_SRC) $(HEADLESS_SRC)/ $(COMMON_SRC)/ $(TEST_SRC)
 
 build: build-full build-headless
 
