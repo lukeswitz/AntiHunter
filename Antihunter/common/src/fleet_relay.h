@@ -17,7 +17,6 @@ constexpr size_t kMaxOut = 8;
 constexpr uint8_t kMaxHops = 3;
 constexpr uint32_t kRosterWindowMs = 3600000;
 constexpr uint32_t kReplyWindowMs = 120000;
-constexpr uint32_t kBackSilenceMs = 600000;
 
 struct Hooks {
     uint32_t (*rand32)();
@@ -27,7 +26,7 @@ struct Hooks {
 };
 
 enum : uint8_t { R_NONE = 0, R_PENDING = 1, R_DONE = 2 };
-enum : uint8_t { WHY_RELAY = 0, WHY_CATCHUP = 1, WHY_ANSWER = 2 };
+enum : uint8_t { WHY_RELAY = 0, WHY_ANSWER = 2 };
 
 struct Cmd {
     bool used;
@@ -41,7 +40,6 @@ struct Cmd {
     uint8_t nReplied;
     char tag[kTagLen];
     char target[kIdLen];
-    char catchNode[kIdLen];
     char cmd[kCmdLen];
     uint32_t heardMs;
     uint32_t copyMs;
@@ -49,7 +47,6 @@ struct Cmd {
     uint32_t relayAtMs;
     uint32_t relaySchedMs;
     uint32_t relayedMs;
-    uint32_t catchupMs;
     char answered[kMaxAnswered][kIdLen];
     uint32_t answeredMs[kMaxAnswered];
     char replied[kMaxAnswered][kIdLen];
@@ -102,7 +99,6 @@ const char *replyPrefixOf(const char *payload);
 bool onCommand(const char *origin, const char *target, const char *cmd, const char *relayTag, uint8_t hops, uint32_t now);
 void onSent(const char *target, const char *cmd, uint32_t now);
 void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now);
-void onNodeBack(const char *node, uint32_t now);
 void onWhat(const char *prefix, uint32_t now);
 bool parseFleetCmd(const char *body, char tag[kTagLen], uint8_t &hops, char target[kIdLen], char *cmd, size_t cmdCap);
 

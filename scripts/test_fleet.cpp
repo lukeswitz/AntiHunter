@@ -148,61 +148,16 @@ static void testReplyCap() {
     assert(line.rfind("AH09: AH05: STATUS:", 0) == 0);
 }
 
-static void testCatchup() {
-    reset({"AH02", "AH03"});
-    assert(fleet::onCommand("AH01", "ALL", "DEVICE_SCAN_START:0:300:CH1,6", nullptr, 0, 1000));
-    fleet::onReply("AH02", "DEVICE_SCAN_ACK:STARTED", false, 2000);
-    fleet::onReply("AH03", "DEVICE_SCAN_ACK:STARTED", false, 2000);
-    assert(next(11000).empty());
-    fleet::onNodeBack("AH02", 61000);
-    assert(next(80000).empty());
-    fleet::onNodeBack("AH04", 61000);
-    std::string line = next(70000);
-    Relayed r = parse(line);
-    assert(r.target == "ALL" && r.cmd == "DEVICE_SCAN_START:0:231:CH1,6");
-    fleet::onNodeBack("AH04", 80000);
-    assert(next(95000).empty());
-    fleet::onNodeBack("AH04", 400000);
-    assert(next(420000).empty());
-}
-
-static void testCatchupSuperseded() {
+static void testNoStaleReplay() {
     reset({"AH02"});
-    assert(fleet::onCommand("AH01", "ALL", "DEVICE_SCAN_START:0:600", nullptr, 0, 1000));
+    assert(fleet::onCommand("AH01", "ALL", "DEVICE_SCAN_START:0:300", nullptr, 0, 1000));
     fleet::onReply("AH02", "DEVICE_SCAN_ACK:STARTED", false, 2000);
-    assert(next(11000).empty());
-    assert(fleet::onCommand("AH01", "ALL", "STOP", nullptr, 0, 20000));
-    fleet::onReply("AH02", "STOP_ACK:OK", false, 21000);
-    assert(next(31000).empty());
-    fleet::onNodeBack("AH04", 40000);
-    std::string line = next(60000);
-    assert(parse(line).cmd == "STOP");
-    assert(next(70000).empty());
-}
-
-static void testCatchupCancelledByAnswer() {
+    assert(next(20000).empty());
+    fleet::onReply("AH04", "STARTUP: System initialized", false, 61000);
+    assert(next(120000).empty());
     reset();
     fleet::onSent("ALL", "DEVICE_SCAN_START:0:300", 1000);
-    fleet::onNodeBack("AH29", 30000);
-    fleet::onReply("AH29", "DEVICE_SCAN_ACK:STARTED", false, 31000);
-    assert(next(45000).empty());
-    fleet::onReply("AH29", "DEVICE_SCAN_ACK:STARTED", false, 46000);
-    assert(next(50000).empty());
-
-    reset();
-    fleet::onSent("ALL", "DEVICE_SCAN_START:0:300", 1000);
-    fleet::onNodeBack("AH29", 30000);
-    std::string line = next(45000);
-    assert(line.rfind("AH09: FLEET_CMD:AH09-", 0) == 0);
-    fleet::onReply("AH29", "DEVICE_SCAN_ACK:STARTED", false, 46000);
-    assert(next(50000).empty());
-}
-
-static void testCatchupNotOrigin() {
-    reset();
-    assert(fleet::onCommand("AH01", "ALL", "DEVICE_SCAN_START:0:600", nullptr, 0, 1000));
-    assert(next(11000).empty());
-    fleet::onNodeBack("AH01", 30000);
+    fleet::onReply("AH29", "STARTUP: System initialized", false, 30000);
     assert(next(60000).empty());
 }
 
@@ -274,9 +229,11 @@ static void testSentNotRelayedByOrigin() {
     fleet::onSent("ALL", "STOP", 1000);
     assert(next(20000).empty());
     fleet::onReply("AH02", "STOP_ACK:OK", false, 2000);
-    fleet::onNodeBack("AH05", 30000);
-    std::string line = next(40000);
-    assert(line.rfind("AH09: FLEET_CMD:AH09-", 0) == 0 && parse(line).cmd == "STOP");
+    const std::string tag = tagFor("AH09", "ALL", "STOP");
+    reset({"AH02"});
+    fleet::onSent("ALL", "STOP", 1000);
+    assert(!fleet::onCommand("", "ALL", "STOP", tag.c_str(), 1, 12000));
+    assert(next(40000).empty());
 }
 
 static void testSendRetry() {
@@ -309,10 +266,7 @@ int main() {
     testRelaySuppressed();
     testRelayTarget();
     testReplyCap();
-    testCatchup();
-    testCatchupSuperseded();
-    testCatchupCancelledByAnswer();
-    testCatchupNotOrigin();
+    testNoStaleReplay();
     testMissedCommand();
     testAnswerWhat();
     testParseFleetCmd();

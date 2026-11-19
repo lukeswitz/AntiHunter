@@ -3273,7 +3273,6 @@ struct MeshFleetEntry {
 
 static std::map<String, MeshFleetEntry> meshFleet;
 static bool s_fleetRosterDirty = false;
-static void fleetNodeBack(const String &node);
 static SemaphoreHandle_t meshFleetMutex = nullptr;
 static const uint32_t MESH_FLEET_TIMEOUT_MS = 900000;
 static const uint32_t MESH_FLEET_ALIVE_MS   = 120000;
@@ -3333,7 +3332,6 @@ void meshFleetObserve(const String &sender, const String &payload, bool direct) 
         e.firstHeard = now;
         if (e.isNode) s_fleetRosterDirty = true;
     }
-    const bool back = e.isNode && direct && e.lastDirect && (now - e.lastDirect) > fleet::kBackSilenceMs;
     e.lastHeard = now;
     if (direct) e.lastDirect = now;
     e.msgs++;
@@ -3391,7 +3389,6 @@ void meshFleetObserve(const String &sender, const String &payload, bool direct) 
 
     meshFleetPruneLocked();
     xSemaphoreGive(meshFleetMutex);
-    if (back) fleetNodeBack(label);
 }
 
 String meshFleetJson() {
@@ -3578,12 +3575,6 @@ void fleetRelayInit() {
     Serial.printf("[FLEET] Command log ready (%u bytes PSRAM)\n", (unsigned)sizeof(fleet::State));
 }
 
-static void fleetNodeBack(const String &node) {
-    std::lock_guard<std::mutex> lk(s_fleetMtx);
-    Serial.printf("[FLEET] %s is back on the mesh\n", node.c_str());
-    fleet::onNodeBack(node.c_str(), millis());
-}
-
 bool fleetUnwrapReply(String &sender, String &payload) {
     if (!meshIsNodeIdToken(sender)) return false;
     const int p = payload.indexOf(": ");
@@ -3601,10 +3592,6 @@ void fleetObserveReply(const String &sender, const String &payload, bool viaRela
     if (!meshIsNodeIdToken(sender) || sender == getNodeId()) return;
     std::lock_guard<std::mutex> lk(s_fleetMtx);
     const uint32_t now = millis();
-    if (!viaRelay && payload.startsWith("STARTUP:")) {
-        Serial.printf("[FLEET] %s restarted\n", sender.c_str());
-        fleet::onNodeBack(sender.c_str(), now);
-    }
     fleet::onReply(sender.c_str(), payload.c_str(), viaRelay, now);
 }
 
