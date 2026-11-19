@@ -12,7 +12,7 @@ constexpr size_t kLineLen = 248;
 constexpr size_t kMaxCmds = 24;
 constexpr size_t kMaxAnswered = 16;
 constexpr size_t kMaxRan = 48;
-constexpr size_t kMaxSeen = 16;
+constexpr size_t kMaxSeen = 32;
 constexpr size_t kMaxOut = 8;
 constexpr uint8_t kMaxHops = 3;
 constexpr uint32_t kRosterWindowMs = 3600000;
@@ -65,6 +65,7 @@ struct Ran {
 struct Seen {
     char node[kIdLen];
     char prefix[kPrefixLen];
+    bool relayed;
     uint32_t atMs;
 };
 
@@ -93,6 +94,7 @@ struct State {
 };
 
 void begin(State *s, const Hooks &h);
+void use(State *s, const Hooks &h);
 
 bool relayable(const char *cmd);
 const char *replyPrefixOf(const char *payload);
