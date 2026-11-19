@@ -110,7 +110,14 @@ static void testRelaySuppressed() {
     reset({"AH03"});
     assert(fleet::onCommand("AH01", "ALL", "STOP", nullptr, 0, 1000));
     assert(!fleet::onCommand("", "ALL", "STOP", tag.c_str(), 1, 3000));
-    assert(next(11000).empty());
+    fleet::onReply("AH03", "STOP_ACK:OK", false, 5000);
+    assert(next(30000).empty());
+
+    reset({"AH03"});
+    assert(fleet::onCommand("AH01", "ALL", "STOP", nullptr, 0, 1000));
+    assert(!fleet::onCommand("", "ALL", "STOP", tag.c_str(), 1, 3000));
+    assert(next(10000).empty());
+    assert(parse(next(11000)).cmd == "STOP");
 }
 
 static void testRelayTarget() {
