@@ -171,13 +171,14 @@ Ran *findRan(const char *tag, uint32_t now) {
     return nullptr;
 }
 
-void markRan(const char *tag, uint32_t life, uint32_t now) {
+void markRan(const char *tag, uint32_t life, uint32_t now, bool relayed) {
     Ran *r = findRan(tag, now);
     if (!r) {
         r = &g_s->ran[g_s->ranNext];
         g_s->ranNext = (uint8_t)((g_s->ranNext + 1) % kMaxRan);
         copyStr(r->tag, kTagLen, tag);
     }
+    r->relayed = relayed;
     r->atMs = now;
     r->lifeMs = life < kMinRanMs ? kMinRanMs : life;
 }
@@ -288,8 +289,8 @@ bool onCommand(const char *origin, const char *target, const char *cmd, const ch
     bool run = false;
     if (forMe) {
         const Ran *r = findRan(id, now);
-        run = !r || (!relayed && (!v->catchup || (uint32_t)(now - r->atMs) > kRepeatGapMs));
-        if (run) markRan(id, life, now);
+        run = !r || (!relayed && (!r->relayed || (uint32_t)(now - r->atMs) > kRepeatGapMs));
+        if (run) markRan(id, life, now, relayed);
     }
 
     if (strcmp(target, me) == 0) return run;
@@ -366,7 +367,7 @@ void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now)
             copyStr(best->answered[i], kIdLen, node);
         }
         if (i >= 0) best->answeredMs[i] = now;
-        if (best->relayedMs && (int32_t)(now - best->relayedMs) > 0 && !replied(*best, node) &&
+        if (!best->mine && best->relayedMs && (int32_t)(now - best->relayedMs) > 0 && !replied(*best, node) &&
             best->nReplied < kMaxAnswered) {
             copyStr(best->replied[best->nReplied++], kIdLen, node);
             char line[kLineLen];
@@ -422,6 +423,7 @@ void onNodeBack(const char *node, uint32_t now) {
         if (strcmp(origin, node) == 0 || answered(c, node) || superseded(c, node)) continue;
         if (c.catchupMs && !expired(now, c.catchupMs, kCatchupRepeatMs)) continue;
         schedule(c, WHY_CATCHUP, backoff(3000, 9000), now);
+        copyStr(c.catchNode, kIdLen, node);
     }
 }
 
@@ -482,7 +484,8 @@ int nextLine(char *buf, size_t cap, uint32_t now) {
         if (c.why == WHY_RELAY) {
             const bool all = strcmp(c.target, "ALL") == 0;
             if (all ? allCovered(c) : answered(c, c.target)) { c.relay = R_DONE; continue; }
-        } else if (expired(now, c.heardMs, c.lifeMs)) {
+        } else if (expired(now, c.heardMs, c.lifeMs) ||
+                   (c.why == WHY_CATCHUP && c.catchNode[0] && answered(c, c.catchNode))) {
             c.relay = R_DONE;
             continue;
         }
