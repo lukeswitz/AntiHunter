@@ -41,6 +41,7 @@ struct Cmd {
     uint8_t nReplied;
     char tag[kTagLen];
     char target[kIdLen];
+    char catchNode[kIdLen];
     char cmd[kCmdLen];
     uint32_t heardMs;
     uint32_t copyMs;
@@ -56,6 +57,7 @@ struct Cmd {
 
 struct Ran {
     char tag[kTagLen];
+    bool relayed;
     uint32_t atMs;
     uint32_t lifeMs;
 };
