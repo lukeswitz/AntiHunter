@@ -2956,11 +2956,17 @@ R"HTML(
         planRowsData.forEach(function(r, i) {
           var kind = PLAN_KINDS.find(function(k) { return k.v === r.kind; }) || PLAN_KINDS[0];
           var nodes = [['', 'This node']].concat(fleetNodeIds(fleetPeers).map(function(id) { return [id, fleetNodeLabel(id)]; }));
-          if (r.node && !nodes.some(function(n) { return n[0] === r.node; })) nodes.push([r.node, r.node]);
+          if (!r.other && r.node && !nodes.some(function(n) { return n[0] === r.node; })) nodes.push([r.node, r.node]);
+          nodes.push(['__other', 'Type a node ID']);
           var tag = 'Plan row ' + (i + 1) + ': ';
           var row = document.createElement('div');
           row.className = 'plan-row';
-          row.appendChild(planField('Node', planSelect(nodes, r.node, tag + 'node', function(v) { r.node = v; })));
+          row.appendChild(planField('Node', planSelect(nodes, r.other ? '__other' : r.node, tag + 'node', function(v) {
+            r.other = v === '__other';
+            r.node = r.other ? '' : v;
+            planRender();
+          })));
+          if (r.other) row.appendChild(planField('Node ID', planInput('text', r.node, tag + 'node ID', function(v) { r.node = v.trim().toUpperCase(); }, { placeholder: '2-5 letters or digits', maxlength: '5' })));
           row.appendChild(planField('Scan', planSelect(PLAN_KINDS.map(function(k) { return [k.v, k.n]; }), r.kind, tag + 'scan', function(v) { r.kind = v; planRender(); })));
           if (kind.radio) row.appendChild(planField('Radio', planSelect([['0', 'Wi-Fi'], ['1', 'Bluetooth'], ['2', 'Both']], r.radio, tag + 'radio', function(v) { r.radio = v; })));
           if (kind.ch) row.appendChild(planField('Wi-Fi channels', planInput('text', r.ch, tag + 'Wi-Fi channels', function(v) { r.ch = v; }, { placeholder: 'Node setting', maxlength: '40' })));
@@ -2999,6 +3005,7 @@ R"HTML(
         var sent = 0;
         for (const r of planRowsData) {
           var ch = r.ch.replace(/\s+/g, '');
+          if (r.other && !/^[A-Z0-9]{2,5}$/.test(r.node)) { r.status = 'Node ID is 2 to 5 letters or digits'; continue; }
           if (!(r.mins >= 1 && r.mins <= 1440)) { r.status = 'Duration must be 1 to 1440 minutes'; continue; }
           if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.at)) { r.status = 'Pick a start date and time'; continue; }
           if (ch && !/^\d{1,3}(,\d{1,3})*$/.test(ch)) { r.status = 'Write channels like 1,6,11'; continue; }
