@@ -11,14 +11,19 @@ CPPCHECK_FLAGS := --enable=warning,style,performance,portability,unusedFunction 
 FULL_SRC := Antihunter/full/src
 HEADLESS_SRC := Antihunter/headless/src
 COMMON_SRC := Antihunter/common/src
+TEST_SRC := scripts/test_fleet_sim.cpp
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
 
-.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table test-cuckoo test-fleet clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table test-cuckoo test-fleet test-fleet-sim clean
 
 test-fleet:
 	c++ -std=c++17 -O1 -Wall -Wextra -I$(COMMON_SRC) scripts/test_fleet.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet
 	/tmp/test_fleet
+
+test-fleet-sim:
+	c++ -std=c++17 -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined -I$(COMMON_SRC) scripts/test_fleet_sim.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet_sim
+	/tmp/test_fleet_sim
 
 test-csi:
 	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_csi_metric.cpp -o /tmp/test_csi_metric
@@ -51,10 +56,10 @@ test-cuckoo:
 lint: lint-full lint-headless
 
 lint-full:
-	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(FULL_SRC) -I$(COMMON_SRC) $(FULL_SRC)/ $(COMMON_SRC)/
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(FULL_SRC) -I$(COMMON_SRC) $(FULL_SRC)/ $(COMMON_SRC)/ $(TEST_SRC)
 
 lint-headless:
-	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(HEADLESS_SRC) -I$(COMMON_SRC) $(HEADLESS_SRC)/ $(COMMON_SRC)/
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(EXCLUDE) -I$(HEADLESS_SRC) -I$(COMMON_SRC) $(HEADLESS_SRC)/ $(COMMON_SRC)/ $(TEST_SRC)
 
 build: build-full build-headless
 

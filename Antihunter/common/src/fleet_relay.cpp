@@ -23,6 +23,8 @@ constexpr uint32_t kForeverMs = 86400000;
 constexpr uint32_t kMinRanMs = 600000;
 constexpr uint32_t kMissWindowMs = 15000;
 constexpr uint32_t kRepeatGapMs = 60000;
+constexpr uint32_t kRelayMinMs = 8000;
+constexpr uint32_t kRelayMaxMs = 16000;
 constexpr uint32_t kWhatRepeatMs = 120000;
 constexpr uint32_t kCatchupRepeatMs = 60000;
 constexpr uint8_t kMaxTries = 3;
@@ -159,6 +161,15 @@ int answerIndex(const Cmd &c, const char *node) {
     return -1;
 }
 
+void addAnswered(Cmd &c, const char *node, uint32_t at) {
+    int i = answerIndex(c, node);
+    if (i < 0 && c.nAnswered < kMaxAnswered) {
+        i = c.nAnswered++;
+        copyStr(c.answered[i], kIdLen, node);
+    }
+    if (i >= 0) c.answeredMs[i] = at;
+}
+
 bool replied(const Cmd &c, const char *node) {
     for (uint8_t i = 0; i < c.nReplied; ++i) if (strcmp(c.replied[i], node) == 0) return true;
     return false;
@@ -261,6 +272,11 @@ void begin(State *s, const Hooks &h) {
     g_s = s;
 }
 
+void use(State *s, const Hooks &h) {
+    g_h = h;
+    g_s = s;
+}
+
 bool relayable(const char *cmd) { return verbOf(cmd) != nullptr; }
 
 const char *replyPrefixOf(const char *payload) {
@@ -290,6 +306,11 @@ bool onCommand(const char *origin, const char *target, const char *cmd, const ch
     if (forMe) {
         const Ran *r = findRan(id, now);
         run = !r || (!relayed && (!r->relayed || (uint32_t)(now - r->atMs) > kRepeatGapMs));
+        if (relayed) {
+            char from[kIdLen];
+            originOf(id, from);
+            if (strcmp(from, me) == 0) run = false;
+        }
         if (run) markRan(id, life, now, relayed);
     }
 
@@ -304,7 +325,10 @@ bool onCommand(const char *origin, const char *target, const char *cmd, const ch
     } else {
         c->copyMs = now;
         if (run) c->ran = true;
-        if (relayed && c->relay == R_PENDING && (int32_t)(now - c->relaySchedMs) > 0) c->relay = R_DONE;
+        if (relayed && c->relay == R_PENDING && (int32_t)(now - c->relaySchedMs) > 0) {
+            if (c->why == WHY_RELAY) c->relayAtMs = now + backoff(kRelayMinMs, kRelayMaxMs);
+            else c->relay = R_DONE;
+        }
         return run;
     }
     {
@@ -316,7 +340,11 @@ bool onCommand(const char *origin, const char *target, const char *cmd, const ch
         c->hops = hops;
         c->ran = run;
         c->copyMs = now;
-        if (hops < kMaxHops) schedule(*c, WHY_RELAY, backoff(4000, 10000), now);
+        for (const Seen &s : g_s->seen) {
+            if (!s.node[0] || strcmp(s.prefix, v->reply) != 0 || expired(now, s.atMs, kMissWindowMs)) continue;
+            if (strcmp(target, "ALL") == 0 || strcmp(target, s.node) == 0) addAnswered(*c, s.node, s.atMs);
+        }
+        if (hops < kMaxHops) schedule(*c, WHY_RELAY, backoff(kRelayMinMs, kRelayMaxMs), now);
         else c->relay = R_DONE;
     }
     return run;
@@ -342,6 +370,7 @@ void onSent(const char *target, const char *cmd, uint32_t now) {
     c->lifeMs = lifeOf(*verbOf(cmd), cmd);
     c->mine = true;
     c->relay = R_DONE;
+    markRan(id, c->lifeMs, now, false);
 }
 
 void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now) {
@@ -361,12 +390,7 @@ void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now)
     }
 
     if (best) {
-        int i = answerIndex(*best, node);
-        if (i < 0 && best->nAnswered < kMaxAnswered) {
-            i = best->nAnswered++;
-            copyStr(best->answered[i], kIdLen, node);
-        }
-        if (i >= 0) best->answeredMs[i] = now;
+        addAnswered(*best, node, now);
         if (!best->mine && best->relayedMs && (int32_t)(now - best->relayedMs) > 0 && !replied(*best, node) &&
             best->nReplied < kMaxAnswered) {
             copyStr(best->replied[best->nReplied++], kIdLen, node);
@@ -383,18 +407,20 @@ void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now)
         return;
     }
 
-    if (viaRelay || !v->catchup) return;
     Seen &s = g_s->seen[g_s->seenNext];
     g_s->seenNext = (uint8_t)((g_s->seenNext + 1) % kMaxSeen);
     copyStr(s.node, kIdLen, node);
     copyStr(s.prefix, kPrefixLen, v->reply);
     s.atMs = now;
+    s.relayed = viaRelay;
+    if (viaRelay || !v->catchup) return;
 
     size_t peers = 0;
     for (const Seen &o : g_s->seen) {
-        if (!o.node[0] || strcmp(o.prefix, v->reply) != 0 || expired(now, o.atMs, kMissWindowMs)) continue;
+        if (!o.node[0] || o.relayed || strcmp(o.prefix, v->reply) != 0 || expired(now, o.atMs, kMissWindowMs)) continue;
         bool dup = false;
         for (const Seen &p : g_s->seen) {
+            if (p.relayed) continue;
             if (&p == &o) break;
             if (p.node[0] && strcmp(p.prefix, v->reply) == 0 && !expired(now, p.atMs, kMissWindowMs) &&
                 strcmp(p.node, o.node) == 0) { dup = true; break; }
@@ -435,7 +461,7 @@ void onWhat(const char *prefix, uint32_t now) {
         if (strcmp(verbOf(c.cmd)->reply, prefix) != 0 || expired(now, c.heardMs, c.lifeMs)) continue;
         if (!best || (int32_t)(c.heardMs - best->heardMs) > 0) best = &c;
     }
-    if (best && best->relay != R_PENDING) schedule(*best, WHY_ANSWER, backoff(1000, 3000), now);
+    if (best) schedule(*best, WHY_ANSWER, backoff(1000, 3000), now);
 }
 
 bool parseFleetCmd(const char *body, char tag[kTagLen], uint8_t &hops, char target[kIdLen], char *cmd, size_t cmdCap) {

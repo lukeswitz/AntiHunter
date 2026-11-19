@@ -43,6 +43,7 @@ jobs:
         make test-psram-table
         make test-cuckoo
         make test-fleet
+        make test-fleet-sim
 
   build:
     runs-on: ubuntu-latest
