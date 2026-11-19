@@ -11,6 +11,7 @@
 #endif
 
 #include "meshcore_link.h"
+#include "fleet_relay.h"
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -868,7 +869,6 @@ static void handleDeviceScanStart(const String &command)
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
       g_sweepHopChannels = false;
-      if (!chans.length()) chans = detect_getMyChannelsCsv();
       if (chans.length()) splitChannelsBegin(chans);
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
@@ -1432,7 +1432,13 @@ static void handleSchedList()
     String ln = s.substring(p, nl);
     p = nl + 1;
     int a = ln.indexOf('|');
-    Serial.printf("[SCHED] %d next=%s %s\n", i++, nodeLocalString((time_t)ln.substring(0, a).toInt()).c_str(), ln.c_str());
+    const String local = nodeLocalString((time_t)ln.substring(0, a).toInt());
+    Serial.printf("[SCHED] %d next=%s %s\n", i, local.c_str(), ln.c_str());
+    String item = nodeId + ": SCHED_ITEM:" + String(i) + ":" + local + ln.substring(a);
+    const int cap = g_meshcoreTransport ? (int)meshcoreTextCap() : MAX_MESH_SIZE;
+    if ((int)item.length() > cap) item = item.substring(0, cap);
+    sendToSerial1(item, true);
+    i++;
   }
   sendToSerial1(nodeId + ": SCHED_LIST:" + String(i - 1), true);
 }
@@ -2700,6 +2706,7 @@ String meshRedactSecrets(const String &line)
 }
 
 static std::recursive_mutex g_cmdMutex;
+static void fleetOnWhat(const String &prefix);
 
 static bool cmdIs(const String &command, const char *verb)
 {
@@ -3066,6 +3073,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SCHED_ADD:"))            handleSchedAdd(command);
   else if (command == "SCHED_LIST")                     handleSchedList();
   else if (command.startsWith("SCHED_DEL:"))            handleSchedDel(command);
+  else if (command.startsWith("FLEET_WHAT:"))           fleetOnWhat(command.substring(11));
   else if (command == "ATTACKER_TRILAT_STATUS")         handleAttackerTrilatStatus(command);
   else if (command.startsWith("ATTACKER_TRILAT:"))      handleAttackerTrilat(command);
   else if (command.startsWith("TRIANGULATE_START:"))    handleTriangulateStart(command, targetId);
@@ -3219,9 +3227,12 @@ struct MeshFleetEntry {
     uint32_t msgs    = 0;
     uint32_t firstHeard = 0;
     uint32_t lastHeard  = 0;
+    uint32_t lastDirect = 0;
 };
 
 static std::map<String, MeshFleetEntry> meshFleet;
+static bool s_fleetRosterDirty = false;
+static void fleetNodeBack(const String &node);
 static SemaphoreHandle_t meshFleetMutex = nullptr;
 static const uint32_t MESH_FLEET_TIMEOUT_MS = 900000;
 static const uint32_t MESH_FLEET_ALIVE_MS   = 120000;
@@ -3230,16 +3241,18 @@ static const size_t   MESH_FLEET_MAX        = 48;
 static void meshFleetPruneLocked() {
     uint32_t now = millis();
     for (auto it = meshFleet.begin(); it != meshFleet.end(); ) {
-        if ((now - it->second.lastHeard) > MESH_FLEET_TIMEOUT_MS) it = meshFleet.erase(it);
+        if (!it->second.isNode && (now - it->second.lastHeard) > MESH_FLEET_TIMEOUT_MS) it = meshFleet.erase(it);
         else ++it;
     }
     while (meshFleet.size() > MESH_FLEET_MAX) {
         auto oldest = std::min_element(meshFleet.begin(), meshFleet.end(),
-            [](const std::pair<const String, MeshFleetEntry> &a,
-               const std::pair<const String, MeshFleetEntry> &b) {
-                return a.second.lastHeard < b.second.lastHeard;
+            [now](const std::pair<const String, MeshFleetEntry> &a,
+                  const std::pair<const String, MeshFleetEntry> &b) {
+                if (a.second.isNode != b.second.isNode) return !a.second.isNode;
+                return (now - a.second.lastHeard) > (now - b.second.lastHeard);
             });
         if (oldest == meshFleet.end()) break;
+        if (oldest->second.isNode) s_fleetRosterDirty = true;
         meshFleet.erase(oldest);
     }
 }
@@ -3263,7 +3276,7 @@ static String meshFleetSanitize(const String &in, size_t maxLen) {
     return out;
 }
 
-void meshFleetObserve(const String &sender, const String &payload) {
+void meshFleetObserve(const String &sender, const String &payload, bool direct) {
     if (sender.length() == 0) return;
     if (sender == getNodeId()) return;
     String label = meshFleetSanitize(sender, 24);
@@ -3277,8 +3290,11 @@ void meshFleetObserve(const String &sender, const String &payload) {
         e.label = label;
         e.isNode = meshIsNodeIdToken(label);
         e.firstHeard = now;
+        if (e.isNode) s_fleetRosterDirty = true;
     }
+    const bool back = e.isNode && direct && e.lastDirect && (now - e.lastDirect) > fleet::kBackSilenceMs;
     e.lastHeard = now;
+    if (direct) e.lastDirect = now;
     e.msgs++;
     e.lastMsg = meshFleetSanitize(payload, 96);
     if (payload.startsWith("@")) e.ctrl = true;
@@ -3334,6 +3350,7 @@ void meshFleetObserve(const String &sender, const String &payload) {
 
     meshFleetPruneLocked();
     xSemaphoreGive(meshFleetMutex);
+    if (back) fleetNodeBack(label);
 }
 
 String meshFleetJson() {
@@ -3405,25 +3422,222 @@ String meshFleetJson() {
     return "{\"node\":\"" + getNodeId() + "\",\"peers\":[" + peers + "],\"radios\":[" + radios + "]}";
 }
 
-std::vector<String> meshFleetAliveNodes() {
-    std::vector<String> out;
-    uint32_t now = millis();
-    if (meshFleetMutex && xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        for (const auto &kv : meshFleet) {
-            if (kv.second.isNode && (now - kv.second.lastHeard) < MESH_FLEET_ALIVE_MS) out.push_back(kv.second.label);
-        }
-        xSemaphoreGive(meshFleetMutex);
-    }
-    return out;
-}
-
 void meshFleetClear() {
     if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
     meshFleet.clear();
+    s_fleetRosterDirty = true;
     xSemaphoreGive(meshFleetMutex);
 }
 
-void processMeshMessage(const String &message) {
+static fleet::State *s_fleetState = nullptr;
+static std::mutex s_fleetMtx;
+
+struct FleetReply {
+    uint32_t ms;
+    char node[fleet::kIdLen];
+    char line[200];
+};
+static constexpr size_t kFleetReplies = 48;
+static FleetReply *s_fleetReplies = nullptr;
+static size_t s_fleetReplyNext = 0;
+
+static uint32_t fleetRand() { return esp_random(); }
+static void fleetSelf(char out[fleet::kIdLen]) { snprintf(out, fleet::kIdLen, "%s", getNodeId().c_str()); }
+static size_t fleetLineCap() { return g_meshcoreTransport ? (size_t)meshcoreTextCap() : (size_t)MAX_MESH_SIZE; }
+
+static size_t fleetExpected(char out[][fleet::kIdLen], size_t max, uint32_t withinMs) {
+    size_t n = 0;
+    const uint32_t now = millis();
+    if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(50)) != pdTRUE) return 0;
+    for (const auto &kv : meshFleet) {
+        const MeshFleetEntry &e = kv.second;
+        if (n == max) break;
+        if (!e.isNode || e.type == "RADAR" || !e.lastDirect || (now - e.lastDirect) > withinMs) continue;
+        snprintf(out[n++], fleet::kIdLen, "%s", e.label.c_str());
+    }
+    xSemaphoreGive(meshFleetMutex);
+    return n;
+}
+
+static void fleetRosterLoad() {
+    String s = prefs.getString("fleetNodes", "");
+    if (!s.length()) return;
+    if (meshFleetMutex == nullptr) meshFleetMutex = xSemaphoreCreateMutex();
+    if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    const uint32_t now = millis();
+    const time_t epoch = getRTCEpoch();
+    int p = 0;
+    size_t loaded = 0;
+    while (p < (int)s.length() && meshFleet.size() < MESH_FLEET_MAX) {
+        int end = s.indexOf(';', p);
+        if (end < 0) end = s.length();
+        String rec = s.substring(p, end);
+        p = end + 1;
+        int a = rec.indexOf(','), b = rec.indexOf(',', a + 1);
+        if (a <= 0 || b <= a) continue;
+        String id = rec.substring(0, a);
+        if (!meshIsNodeIdToken(id) || id == getNodeId() || meshFleet.count(id)) continue;
+        uint32_t ageMs = 86400000u;
+        long seen = rec.substring(b + 1).toInt();
+        if (epoch > 1609459200 && seen > 1609459200 && seen <= epoch && (epoch - seen) < 3456000) ageMs = (uint32_t)(epoch - seen) * 1000u;
+        MeshFleetEntry &e = meshFleet[id];
+        e.label = id;
+        e.isNode = true;
+        e.type = meshFleetSanitize(rec.substring(a + 1, b), 12);
+        e.firstHeard = now - ageMs;
+        e.lastHeard = now - ageMs;
+        loaded++;
+    }
+    xSemaphoreGive(meshFleetMutex);
+    Serial.printf("[FLEET] Known nodes loaded: %u\n", (unsigned)loaded);
+}
+
+static void fleetRosterSave(uint32_t now) {
+    static uint32_t s_savedMs = 0;
+    static bool s_saved = false;
+    const bool due = s_fleetRosterDirty ? (!s_saved || (now - s_savedMs) >= 60000) : (s_saved && (now - s_savedMs) >= 1800000);
+    if (!due || !meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(20)) != pdTRUE) return;
+    const time_t epoch = getRTCEpoch();
+    String s;
+    for (const auto &kv : meshFleet) {
+        const MeshFleetEntry &e = kv.second;
+        if (!e.isNode) continue;
+        const long seen = epoch > 1609459200 ? (long)(epoch - (time_t)((now - e.lastHeard) / 1000u)) : 0;
+        if (s.length()) s += ";";
+        s += e.label + "," + (e.type.length() ? e.type : String("DIGI")) + "," + String(seen);
+    }
+    s_fleetRosterDirty = false;
+    xSemaphoreGive(meshFleetMutex);
+    prefs.putString("fleetNodes", s);
+    s_savedMs = now;
+    s_saved = true;
+}
+
+void fleetRelayInit() {
+    fleetRosterLoad();
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    if (s_fleetState) return;
+    void *mem = heap_caps_malloc(sizeof(fleet::State), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!mem) {
+        Serial.printf("[FLEET] No PSRAM for the command log (%u bytes); relay and catch-up off\n", (unsigned)sizeof(fleet::State));
+        return;
+    }
+    s_fleetState = static_cast<fleet::State *>(mem);
+    fleet::begin(s_fleetState, fleet::Hooks{fleetRand, fleetSelf, fleetLineCap, fleetExpected});
+    s_fleetReplies = static_cast<FleetReply *>(heap_caps_calloc(kFleetReplies, sizeof(FleetReply), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    Serial.printf("[FLEET] Command log ready (%u bytes PSRAM), reply log %s\n", (unsigned)sizeof(fleet::State),
+                  s_fleetReplies ? "ready" : "off (no PSRAM)");
+}
+
+static void fleetNodeBack(const String &node) {
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    Serial.printf("[FLEET] %s is back on the mesh\n", node.c_str());
+    fleet::onNodeBack(node.c_str(), millis());
+}
+
+bool fleetUnwrapReply(String &sender, String &payload) {
+    if (!meshIsNodeIdToken(sender)) return false;
+    const int p = payload.indexOf(": ");
+    if (p < 2 || p > 5) return false;
+    const String inner = payload.substring(0, p);
+    if (!meshIsNodeIdToken(inner) || inner == sender || inner == getNodeId()) return false;
+    const String rest = payload.substring(p + 2);
+    if (!fleet::replyPrefixOf(rest.c_str())) return false;
+    sender = inner;
+    payload = rest;
+    return true;
+}
+
+void fleetObserveReply(const String &sender, const String &payload, bool viaRelay) {
+    if (!meshIsNodeIdToken(sender) || sender == getNodeId()) return;
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    const uint32_t now = millis();
+    if (!viaRelay && payload.startsWith("STARTUP:")) {
+        Serial.printf("[FLEET] %s restarted\n", sender.c_str());
+        fleet::onNodeBack(sender.c_str(), now);
+    }
+    fleet::onReply(sender.c_str(), payload.c_str(), viaRelay, now);
+    if (s_fleetReplies && (fleet::replyPrefixOf(payload.c_str()) || payload.startsWith("SCHED_ITEM:"))) {
+        FleetReply &r = s_fleetReplies[s_fleetReplyNext];
+        s_fleetReplyNext = (s_fleetReplyNext + 1) % kFleetReplies;
+        r.ms = now | 1;
+        snprintf(r.node, sizeof(r.node), "%s", sender.c_str());
+        snprintf(r.line, sizeof(r.line), "%s", payload.c_str());
+    }
+}
+
+String fleetRepliesJson() {
+    String out = "[";
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    if (!s_fleetReplies) return "[]";
+    const uint32_t now = millis();
+    bool first = true;
+    for (size_t k = 0; k < kFleetReplies; ++k) {
+        const FleetReply &r = s_fleetReplies[(s_fleetReplyNext + k) % kFleetReplies];
+        if (!r.ms) continue;
+        String line;
+        for (const char *p = r.line; *p; ++p) {
+            if (*p == '"' || *p == '\\') line += '\\';
+            line += *p;
+        }
+        if (!first) out += ",";
+        first = false;
+        out += "{\"node\":\"" + String(r.node) + "\",\"age_ms\":" + String(now - r.ms) + ",\"line\":\"" + line + "\"}";
+    }
+    return out + "]";
+}
+
+static bool fleetCommandHeard(const String &origin, const String &target, const String &cmd, const char *relayTag, uint8_t hops) {
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    return fleet::onCommand(origin.c_str(), target.c_str(), cmd.c_str(), relayTag, hops, millis());
+}
+
+void fleetNoteSent(const String &target, const String &cmd) {
+    if (!fleet::relayable(cmd.c_str())) return;
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    fleet::onSent(target.c_str(), cmd.c_str(), millis());
+}
+
+static void fleetOnWhat(const String &prefix) {
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    fleet::onWhat(prefix.c_str(), millis());
+}
+
+void fleetRelayTick() {
+    static uint32_t s_lastMs = 0;
+    const uint32_t now = millis();
+    if (now - s_lastMs < 250) return;
+    s_lastMs = now;
+    fleetRosterSave(now);
+    if (!meshEnabled) return;
+    char line[fleet::kLineLen];
+    int h;
+    {
+        std::lock_guard<std::mutex> lk(s_fleetMtx);
+        h = fleet::nextLine(line, sizeof(line), now);
+    }
+    if (h < 0) return;
+    const bool ok = sendToSerial1(String(line), true);
+    Serial.printf("[FLEET] %s: %s\n", ok ? "Sent" : "Send failed, will retry", line);
+    std::lock_guard<std::mutex> lk(s_fleetMtx);
+    fleet::sendResult(h, ok, millis());
+}
+
+String fleetCmdsJson() {
+    const size_t cap = fleet::kMaxCmds * 1024 + 4;
+    char *buf = static_cast<char *>(heap_caps_malloc(cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!buf) return "[]";
+    size_t n;
+    {
+        std::lock_guard<std::mutex> lk(s_fleetMtx);
+        n = fleet::json(buf, cap, millis());
+    }
+    String out = n ? String(buf) : String("[]");
+    heap_caps_free(buf);
+    return out;
+}
+
+void processMeshMessage(const String &message, bool fromRadio) {
     if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
     std::lock_guard<std::recursive_mutex> cmdLock(g_cmdMutex);
 
@@ -3437,6 +3651,13 @@ void processMeshMessage(const String &message) {
 
     String sendingNode, content;
     meshSplitSender(cleanMessage, sendingNode, content);
+    {
+        const int q = content.indexOf(": @");
+        if (q >= 2 && q <= 5 && meshIsNodeIdToken(content.substring(0, q))) {
+            sendingNode = content.substring(0, q);
+            content = content.substring(q + 2);
+        }
+    }
     const bool haveSender = sendingNode.length() > 0;
     if (haveSender && sendingNode == getNodeId()) return;
 
@@ -3860,6 +4081,28 @@ void processMeshMessage(const String &message) {
       }
     }    
 
+    if (haveSender && content.startsWith("FLEET_CMD:")) {
+        if (!fromRadio) return;
+        char tag[fleet::kTagLen], tgt[fleet::kIdLen], cmd[fleet::kCmdLen];
+        uint8_t hops = 0;
+        if (!fleet::parseFleetCmd(content.c_str(), tag, hops, tgt, cmd, sizeof(cmd))) return;
+        String targetId = tgt;
+        if (targetId.equalsIgnoreCase("ALL")) targetId = "ALL";
+        else if (targetId.equalsIgnoreCase(nodeId)) targetId = nodeId;
+        else targetId.toUpperCase();
+        const String command = meshExpandCommand(String(cmd));
+        const bool mine = targetId == "ALL" || targetId == nodeId;
+        const bool run = fleetCommandHeard(String(), targetId, command, tag, hops);
+        if (!mine) return;
+        if (!run) {
+            Serial.printf("[FLEET] Already ran %s (%s), %s's copy skipped\n", command.c_str(), tag, sendingNode.c_str());
+            return;
+        }
+        Serial.printf("[FLEET] Running %s (%s) relayed by %s\n", command.c_str(), tag, sendingNode.c_str());
+        processCommand(command, targetId);
+        return;
+    }
+
     String payload = content;
 
     if (payload.startsWith("@")) {
@@ -3868,8 +4111,19 @@ void processMeshMessage(const String &message) {
           String targetId = payload.substring(1, spaceIndex);
           if (targetId.equalsIgnoreCase("ALL")) targetId = "ALL";
           else if (targetId.equalsIgnoreCase(nodeId)) targetId = nodeId;
-          else return;
+          else if (!fromRadio) return;
+          else targetId.toUpperCase();
           String command = meshExpandCommand(payload.substring(spaceIndex + 1));
+          if (fromRadio) {
+              const bool mine = targetId == "ALL" || targetId == nodeId;
+              const String origin = meshIsNodeIdToken(sendingNode) ? sendingNode : String();
+              const bool run = fleetCommandHeard(origin, targetId, command, nullptr, 0);
+              if (!mine) return;
+              if (!run) {
+                  Serial.printf("[FLEET] Already ran %s from %s, repeat skipped\n", command.c_str(), sendingNode.c_str());
+                  return;
+              }
+          }
           processCommand(command, targetId);
       }
     }
@@ -3902,6 +4156,8 @@ void processUSBToMesh() {
                     }
                 } else if (usbBuffer == "FLEET") {
                     Serial.println(meshFleetJson());
+                } else if (usbBuffer == "FLEET_CMDS") {
+                    Serial.println(fleetCmdsJson());
                 } else if (usbBuffer.startsWith("FLEET_SEND:")) {
                     String p = usbBuffer.substring(11);
                     int sp = p.indexOf(' ');
@@ -3915,7 +4171,7 @@ void processUSBToMesh() {
                     Serial.printf("MESHCORE_ACK:%s\n", on ? "ON" : "OFF");
                 } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     if (!usbBuffer.startsWith("[")) Serial.printf("[USB CMD] %s\n", meshRedactSecrets(usbBuffer).c_str());
-                    processMeshMessage(usbBuffer.c_str());
+                    processMeshMessage(usbBuffer.c_str(), false);
                 } else if (usbBuffer.length() > 0) {
                     Serial.println("[MESH] Ignoring invalid message length");
                 }

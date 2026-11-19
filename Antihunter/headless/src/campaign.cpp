@@ -35,6 +35,7 @@ bool campaignStart(const String &name) {
         char c = name[i];
         if (!isalnum((unsigned char)c) && c != '-' && c != '_') return false;
     }
+    if (name == g_name) return true;
     if (g_name[0]) campaignStop();
     strlcpy(g_name, name.c_str(), sizeof(g_name));
     prefs.putString("campaign", g_name);

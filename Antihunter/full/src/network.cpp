@@ -819,20 +819,21 @@ int fleetSend(String node, String cmd, String &msg) {
   bool nodeOk = node.length() >= 2 && node.length() <= 5 && node != getNodeId();
   for (size_t i = 0; nodeOk && i < node.length(); i++) nodeOk = isalnum((unsigned char)node[i]);
   if (!nodeOk) { msg = "Bad node ID"; return 400; }
-  static const char *const kAllowed[] = {"SCHED_ADD:", "DEVICE_SCAN_START:", "SCAN_START:", "STOP", "STATUS",
-                                          "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS", "BLE_CLASSIFY:",
-                                          "CALIBRATE:", "CALIBRATE_RESET"};
+  static const char *const kAllowed[] = {"SCHED_ADD:", "SCHED_LIST", "SCHED_DEL:", "DEVICE_SCAN_START:", "SCAN_START:",
+                                          "STOP", "STATUS", "CAMPAIGN_START:", "CAMPAIGN_STOP", "CAMPAIGN_STATUS",
+                                          "BLE_CLASSIFY:", "CALIBRATE:", "CALIBRATE_RESET"};
   bool cmdOk = false;
   for (const char *p : kAllowed) {
     size_t n = strlen(p);
     if (p[n - 1] == ':' ? cmd.startsWith(p) : cmd == p) { cmdOk = true; break; }
   }
-  String line = "@" + node + " " + cmd;
+  String line = getNodeId() + ": @" + node + " " + cmd;
   for (size_t i = 0; cmdOk && i < line.length(); i++) cmdOk = line[i] >= 32 && line[i] <= 126;
   if (!cmdOk) { msg = "Command not allowed"; return 400; }
   const int lineCap = g_meshcoreTransport ? (int)meshcoreTextCap() : MAX_MESH_SIZE;
   if ((int)line.length() > lineCap) { msg = "Too long for one mesh message"; return 413; }
   if (!sendToSerial1(line, true)) { msg = "Mesh busy - retry"; return 503; }
+  fleetNoteSent(node, cmd);
   msg = "Sent to " + node;
   return 200;
 }
@@ -902,6 +903,10 @@ int schedAddBlock(const String &at, long period, const String &path, const Strin
   }
   String ln = String((uint32_t)next) + "|" + String(period) + "|" + path + "|" + body + "\n";
   std::lock_guard<std::mutex> lk(s_schedMutex);
+  if (s_sched.startsWith(ln) || s_sched.indexOf("\n" + ln) >= 0) {
+    msg = "Block already scheduled";
+    return 200;
+  }
   int count = 0;
   for (unsigned i = 0; i < s_sched.length(); i++) if (s_sched[i] == '\n') count++;
   if (count >= 8 || s_sched.length() + ln.length() > 3800) {
@@ -1511,6 +1516,14 @@ void registerRemainingRoutes() {
     req->send(code, "text/plain", msg);
   });
 
+  server->on("/api/fleet/cmds", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", fleetCmdsJson());
+  });
+
+  server->on("/api/fleet/replies", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", fleetRepliesJson());
+  });
+
   server->on("/api/mesh/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
     meshFleetClear();
     req->send(200, "application/json", "{\"ok\":true}");
@@ -1688,21 +1701,15 @@ void registerRemainingRoutes() {
         }
 
         g_sweepHopChannels = false;
-        bool chGiven = false;
         if (req->hasParam("ch", true)) {
             String ch = req->getParam("ch", true)->value();
             if (ch.length() > 0) {
-                chGiven = true;
                 if (req->hasParam("split", true)) splitChannelsBegin(ch);
                 else parseChannelsCSV(ch);
             }
         }
 
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
-        if (!chGiven && detection == "device-scan") {
-            String mine = detect_getMyChannelsCsv();
-            if (mine.length()) splitChannelsBegin(mine);
-        }
         int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
         bool forever = req->hasParam("forever", true);
         
@@ -2660,13 +2667,6 @@ void registerRemainingRoutes() {
   server->on("/api/rid_claims", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getRidClaimsJson());
   });
-  server->on("/api/channel_partition", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", detect_getChannelAssignmentJson());
-  });
-  server->on("/api/channel_partition", HTTP_POST, [](AsyncWebServerRequest *r) {
-      detect_assignChannelPartition();
-      r->send(200, "application/json", detect_getChannelAssignmentJson());
-  });
   server->on("/api/pps", HTTP_GET, [](AsyncWebServerRequest *r) {
       String j = String("{\"locked\":") + (ppsLocked() ? "true" : "false") +
                  ",\"last_edge\":" + String(ppsLastEdgeMicros()) +
@@ -2861,7 +2861,6 @@ nav a{color:#ffae00;text-decoration:none;margin-right:1em}
 <div><span class=k>Bloom local bits:</span> <span id=bl class=v>-</span></div>
 <div><span class=k>Bloom neighbor bits:</span> <span id=bn class=v>-</span></div>
 <div><span class=k>Quorum candidates:</span> <span id=qc class=v>-</span></div>
-<button onclick="assignChannels()">Assign channel partition</button>
 <pre id=quorum></pre>
 <h2>Remote ID claims</h2>
 <pre id=rid></pre>
@@ -2901,7 +2900,6 @@ async function tick(){
 }
 const rid_=document.getElementById('rid');
 async function clearAll(){await fetch('/api/detect/clear_all',{method:'POST'});tick()}
-async function assignChannels(){await fetch('/api/channel_partition',{method:'POST'});tick()}
 tick();setInterval(tick,3000);
 </script></body></html>)HTML";
       r->send(200, "text/html", reinterpret_cast<const uint8_t*>(HTML), strlen_P(HTML));
