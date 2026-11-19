@@ -433,7 +433,7 @@
   https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh</pre>
-  <p>The script asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
+  <p>The script first shows the legal disclaimer and continues only after you type <span class="mono">yes</span>. It then asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
 
   <h3>6.6 Method C: build from source</h3>
   <pre>git clone https://github.com/lukeswitz/AntiHunter.git
@@ -600,7 +600,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
     <li><b>Allow list.</b> Scan tab → Device Discovery card → <b>Allow list</b>. Target Scan and Baseline skip the devices on it, so put your own devices there. Other scans ignore it.</li>
     <li><b>Battery Saver.</b> System tab → <b>Settings</b> → <b>Sensors &amp; power</b> → <b>Battery saver</b>, or <span class="mono">BATTERY_SAVER_START</span> from Appendix F. Scanning stops, BLE turns off, the CPU drops to 80 MHz, and the node sends a heartbeat at the interval you pick: 1, 2, 5, 10, 15 or 30 minutes. The mesh and access point stay on, and the node reads GPS once a minute.</li>
     <li><b>Theme and accent colors.</b> System tab → <b>Settings</b> → <b>Appearance</b>. <b>Theme</b>: Paper dark (default), Blue dark or Light. The sun and moon button in the header switches between Light and your dark theme. <b>Stop and clear buttons</b> and <b>Sentinel banners</b> set accent colors. Each browser stores its own choices.</li>
-    <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. <b>Clear</b> empties the list. On Full or Headless, typing <span class="mono">FLEET</span> on USB serial prints the same list as JSON.</li>
+    <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. Each other node has <b>Status</b>, <b>Stop</b> and <b>Schedules</b> buttons. Nodes heard earlier stay in the list until <b>Clear</b> empties it. On Full or Headless, typing <span class="mono">FLEET</span> on USB serial prints the same list as JSON.</li>
     <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>MeshCore radio</b> (Beta and C5) switches the link to a MeshCore radio (§8.3). <b>Alert send interval</b> is the shortest gap between alert messages, 1500 to 30000 ms. <b>Repeat filter</b> skips a MAC already sent within 0 to 3600 seconds. The default is 300. 0 sends every device on every scan. <b>Send only new devices</b> skips devices already sent this session. <b>Clear cache</b> forgets what the node sent. The filters apply to device lists only. Alerts, drone events and triangulation always go out.</li>
   </ul>
 </div>
@@ -634,7 +634,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
   <h3>11.3 Device Discovery</h3>
 <p>Shows you everything around you: every Wi-Fi and BLE device with its signal, channel and name, and a label for what each Bluetooth device is, such as AirPods, a Tile tag or a drone. Run it first at a new site. Pick <b>Device Discovery</b> (second card on the Scan tab) and press <b>Start</b>.</p>
   <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE</pre>
-  <p>Mode and run time work as in §11.1. <span class="mono">+PROBE</span> also records probe requests. <b>Split across nodes</b> shares one scan between several nodes. <b>Wiki:</b> Device discovery, Device classifier.</p>
+  <p>Mode and run time work as in §11.1. <span class="mono">+PROBE</span> also records probe requests. <b>Fleet plan</b> under Schedule sets what each node scans and when, one row per node. <b>Wiki:</b> Device discovery, Device classifier.</p>
 
   <h3>11.4 Probe Request Scanner</h3>
   <p>Phones and laptops call out the names of networks they have joined before. This scanner records each device and the names it asks for. Pick <b>Probe Request Scanner</b> in the scan list.</p>
