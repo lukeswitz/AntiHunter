@@ -84,7 +84,19 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Full's `STATUS` reply now ends with the reason for the last reset, as Headless does.
 - Device scans now pack several devices into each mesh message, so results reach other radios with fewer messages.
 - Full's Schedule dialog can now schedule a scan on another mesh node, not only on this one.
-- `DEVICE_SCAN_START` takes an optional channel list, such as `CH1,6,11`. In a split scan, each node sweeps only its own channels.
+- `DEVICE_SCAN_START` takes an optional channel list, such as `CH1,6,11`, for that scan only.
+- Nodes pass fleet commands on to nodes the sender can't reach.
+  - If the node a command is for doesn't answer within about 10 seconds, a node that heard it sends it on, up to 3 hops. The answer comes back the same way.
+  - A node runs each command once, however many copies reach it.
+  - A node that restarts, or is heard again after 10 minutes of silence, gets the `@ALL` and own commands it missed while they still apply.
+  - A node that hears two others answer a command it never got asks one of them for it.
+  - It works the same with Meshtastic and MeshCore radios.
+- **Fleet plan** on Full's Scan tab sets what each node scans and when, one row per node, and puts each row on that node's schedule.
+  - Each row shows when the node answers. **Schedules on another node** lists and deletes another node's schedule.
+  - Fleet cards have **Status**, **Stop**, and **Schedules** buttons.
+- `SCHED_LIST` now sends each schedule entry over the mesh as `SCHED_ITEM`, and `FLEET_SEND` accepts `SCHED_LIST` and `SCHED_DEL`.
+- The same `SCHED_ADD` sent twice adds one entry. `CAMPAIGN_START` with the running campaign's name no longer restarts it.
+- Nodes heard earlier stay in the Fleet list and node pickers after they go quiet, and after a reboot.
 - Headless can now schedule scans and watch a baseline, as Full does.
 - Full now sends a baseline summary over the mesh when a baseline ends, as Headless does.
 - `FLEET_SEND:<node> <command>`, typed on a node's USB serial port, sends one command to another node over the mesh.
@@ -126,7 +138,6 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - The Sentinel tab adds a Privacy button that hides names and addresses, and a **Mesh Radios Nearby** card.
 - **Clear All Events** on the Sentinel tab now also clears the mesh command log.
 - The web flasher's Sentinel settings add switches for the two new detectors: **LoRa Mesh Radios** and **Interference Baseline**.
-- **Split across nodes** moved to the Scan tab. It appears under Schedule when you pick Device Discovery.
 - The baseline button is now called **Compare from now**.
 - Help text and messages are shorter. Bloom Gossip is now called Baseline Sharing.
 - Confirm prompts now open inside the page and work from the keyboard.
@@ -179,7 +190,6 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - `FACTORY_RESET` now reports success or failure over the mesh before the node reboots.
 - A Wi-Fi channel range with a huge end, such as `1..2147483647`, no longer hangs the node.
   - This affects `CONFIG_CHANNELS`, scan commands, and the web UI's Wi-Fi channel field. The node now ignores channels it can't use.
-- A device scan with no channel list now sweeps the share this node got from a channel split.
 - Headless now replies `FAILED` when it can't start a scan. Before, it replied `STARTED`.
 - An interrupted scheduled scan on Headless now resumes.
 - `VIBSCAN_SET` now refuses a packet capture with no duration, which never captured anything.
@@ -298,9 +308,11 @@ These fixes come to Stable in this release.
 - The web flasher's custom scan timings now apply. Choose them under **RF Preset** → **Custom**.
 - A comma-separated target list in either flasher now becomes separate targets.
 - The web flasher now sends Sentinel settings to Stable nodes too.
+- The shell flasher shows the legal disclaimer and flashes only after you type `yes`.
 
 ## Removed
 
+- **Split across nodes** and Channel Partition, replaced by **Fleet plan**. `/api/channel_partition` and `CHAN_ASSIGN` are gone.
 - HTTP routes that nothing used. Use `/scan`, `/stop`, and `/results` instead.
 - The route that reloaded the vendor (OUI) list, and the LittleFS library.
 - The Bluetooth attack detector, which no build ever included.
@@ -308,7 +320,7 @@ These fixes come to Stable in this release.
 ## For developers
 
 - Full stores its web page gzip-compressed, which saves about 300 KB of flash.
-- CI runs host tests for the device table, the classifier, CSI, and MeshCore.
+- CI runs host tests for the device table, the classifier, CSI, MeshCore, and fleet relay.
 - The `[HEAP]` serial line shows the free stack of the mesh receive task.
 
 ## Firmware size
