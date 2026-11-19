@@ -354,8 +354,27 @@ clear
 cat <<'BANNER'
 ▄▖  ▗ ▘▖▖    ▗     
 ▌▌▛▌▜▘▌▙▌▌▌▛▌▜▘█▌▛▘
-▛▌▌▌▐▖▌▌▌▙▌▌▌▐▖▙▖▌ 
+▛▌▌▌▐▖▌▌▌▙▌▌▌▐▖▙▖▌
 BANNER
+
+cat <<'DISCLAIMER'
+
+LEGAL DISCLAIMER
+AntiHunter is for lawful, authorized defensive use only. Use it only on networks,
+devices and radio spectrum you own or have written permission to assess.
+- You follow every radio rule where you operate, including your LoRa region.
+- Capturing or storing radio data can be regulated by wiretap and privacy law.
+  Check the law before you turn a capture mode on.
+- No targeted surveillance, stalking, or tracking people without their consent.
+- The maintainers are not liable for how you use it.
+Full text: https://github.com/lukeswitz/AntiHunter/blob/main/docs/legal-disclaimer.md
+
+DISCLAIMER
+read -r -p "Type yes to accept and continue: " LEGAL_ACK
+if [ "$(printf '%s' "$LEGAL_ACK" | tr '[:upper:]' '[:lower:]')" != "yes" ]; then
+    echo "Not accepted. Nothing was flashed."
+    exit 1
+fi
 
 PYTHON_CMD=python3
 if ! command -v python3 &> /dev/null; then
