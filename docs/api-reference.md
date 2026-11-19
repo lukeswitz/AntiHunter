@@ -91,7 +91,7 @@ Parameters shared by the start routes:
 | `csiRnd` | Any value includes devices with randomized MAC addresses | | off |
 | `csiRecal` | Any value clears the saved trigger level first | | |
 
-`ch` sets the channel list. With `split` (any value), the list applies to this run only and the earlier list returns afterward. A `device-scan` with no `ch` uses the node's share from `/api/channel_partition`, if it has one.
+`ch` sets the channel list. With `split` (any value), the list applies to this run only and the earlier list returns afterward.
 
 ## Captures
 
@@ -143,7 +143,9 @@ The roster holds 48 entries and drops an entry after 15 minutes of silence. **Pi
 | `/api/mesh` | GET | JSON: `node`, `peers` (this node first, marked `self`), `radios` |
 | `/api/mesh/ping` | POST | Broadcasts `@ALL STATUS`. `409` if the mesh is off |
 | `/api/mesh/clear` | POST | Clears both rosters |
-| `/api/fleet/send` | POST | Sends `@<node> <cmd>`. `node`: 2-5 letters or digits, not this node. `cmd` starts with `SCHED_ADD:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or `CALIBRATE:`, or equals `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, or `CALIBRATE_RESET`. Errors: `400` bad node or command, `409` mesh off, `413` over 230 characters or the MeshCore text limit, `503` mesh busy |
+| `/api/fleet/send` | POST | Sends `<this node>: @<node> <cmd>`. `node`: 2-5 letters or digits, or `ALL`, not this node. `cmd` starts with `SCHED_ADD:`, `SCHED_DEL:`, `DEVICE_SCAN_START:`, `SCAN_START:`, `CAMPAIGN_START:`, `BLE_CLASSIFY:`, or `CALIBRATE:`, or equals `SCHED_LIST`, `STOP`, `STATUS`, `CAMPAIGN_STOP`, `CAMPAIGN_STATUS`, or `CALIBRATE_RESET`. Errors: `400` bad node or command, `409` mesh off, `413` over 230 characters or the MeshCore text limit, `503` mesh busy |
+| `/api/fleet/cmds` | GET | Fleet commands this node holds. JSON array: `tag`, `target`, `cmd`, `age_ms`, `mine`, `ran`, `relayed`, `pending`, `answered` (node IDs) |
+| `/api/fleet/replies` | GET | The last 48 answers heard from other nodes, oldest first. JSON array: `node`, `age_ms`, `line` |
 
 ## Mesh settings
 
@@ -240,8 +242,6 @@ The `/api/sentinel/` routes exist only in firmware built with Sentinel, which is
 | `/api/quorum/config` | POST | `type` and `n` (above 0): peers that must agree before an alert type is raised. `400` if either is missing |
 | `/api/bloom` | GET | Baseline-sharing counts. JSON: `local_bits_set`, `neighbor_bits_set`, `capacity_bits` |
 | `/api/rid_claims` | GET | Drone Remote ID claims (JSON) |
-| `/api/channel_partition` | GET | Channel assignment (JSON) |
-| `/api/channel_partition` | POST | Splits channels 1-14 among this node and the peers it has heard, sends each peer its share, and returns the assignment |
 | `/api/pps` | GET | GPS pulse-per-second state (JSON): `locked`, `last_edge`, `disciplined_us` |
 | `/api/handshakes` | GET | Captured handshakes (JSON) |
 | `/api/handshakes/stats` | GET | JSON: `count`, `krack_events` |
