@@ -69,7 +69,7 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 - **[Track drones](https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID)** - Reads each drone's ID, position, altitude, and speed, and its pilot's position.
 - **[Unmask rotating MACs](https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer)** - Links a phone's changing addresses back to one device.
 - **[Guard the node](https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper)** - Feels anyone moving it and can respond. It senses people moving, even [through walls](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion).
-- **[Run a fleet](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes)** - Control nodes from one another, split scans across the mesh, and triangulate devices with 3+ nodes.
+- **[Run a fleet](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes)** - Control nodes from one another, plan what each node scans and when, reach nodes out of range through the nodes between, and triangulate devices with 3+ nodes.
 
 
 

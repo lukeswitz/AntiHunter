@@ -94,7 +94,7 @@ Each command starts one scan task. `secs` is the run time.
 | `PCAP_AUTO` | `PCA` | Sets, or with no argument reports, the SD space for captures that Sentinel starts after an attack | `PCAP_AUTO_ACK:BUDGET=<n>MB FLOOR=<n>MB` or `:INVALID` | `@AH01 PCAP_AUTO:512,64` |
 | `SD_REPAIR` | `SDR` | Controls whether the node rebuilds an SD card it cannot mount. With no argument it reports the setting | `SD_REPAIR_ACK:ON`, `:OFF`, `:REPAIRED`, or `:FAILED` | `@ALL SD_REPAIR:ON` |
 | `SCHED_ADD` | `SA` | Adds a scheduled scan | `SCHED_ACK:OK`, `SCHED_ACK:ERR <reason>`, or `SCHED_ACK:INVALID` | `@ALL SCHED_ADD:2026-11-30T02:00\|86400\|/scan\|mode=2&secs=600` |
-| `SCHED_LIST` | `SL` | Counts the scheduled scans and prints them on USB serial | `SCHED_LIST:<count>` | `@AH01 SCHED_LIST` |
+| `SCHED_LIST` | `SL` | Sends each scheduled scan, then the count. Also prints them on USB serial | `SCHED_ITEM:<n>:<next start>\|<repeat>\|<scan>\|<options>` per entry, then `SCHED_LIST:<count>` | `@AH01 SCHED_LIST` |
 | `SCHED_DEL` | `SD` | Deletes one scheduled scan | `SCHED_ACK:DELETED` or `:NOT_FOUND` | `@AH01 SCHED_DEL:1` |
 
 | Command | Argument | Meaning | Range | Default |
@@ -103,7 +103,7 @@ Each command starts one scan task. `secs` is the run time.
 | `SCAN_START` | channels | Third field: a list (`1,6,11`) or range (`1..11`). Add `:FOREVER` after it to run until `STOP`. To skip the list, write `FOREVER` in the third field, or leave it empty (`SCAN_START:2:300:`) | 1-14 | 1-11 |
 | `DEVICE_SCAN_START` | `mode`, `secs` | Required first, in that order | | `secs` 60 |
 | `DEVICE_SCAN_START` | `+PROBE` | Also collects probe requests | | off |
-| `DEVICE_SCAN_START` | `CH<list>` | Channels to hop. Left out, the node uses the share it got from a channel split, or its channel list | 1-14 | |
+| `DEVICE_SCAN_START` | `CH<list>` | Channels to hop for this scan only. Left out, the node uses its channel list | 1-14 | |
 | `BASELINE_START` | `secs` | Monitoring time after the learning phase. A value from 1 to 59 becomes 60, and `0` monitors until `STOP`. The learning phase lasts as long as the baseline duration setting in the web UI (default 300 seconds) | 60-86400, or 0 | |
 | `DRONE_START` | `secs` | Run time | 0-86400 | |
 | `DEAUTH_START` | `secs` | Run time | 0-86400 | |
@@ -420,6 +420,7 @@ These commands work only when typed on the node's USB serial port, on Full and H
 | Command | What it does | Reply | Example |
 |---|---|---|---|
 | `FLEET` | Prints the other nodes this node has heard, as JSON | JSON on USB | `FLEET` |
+| `FLEET_CMDS` | Prints the fleet commands this node holds, with the nodes that answered each, as JSON | JSON on USB | `FLEET_CMDS` |
 | `FLEET_SEND:<node> <command>` | Sends one command over the mesh to another node. It accepts the same commands as `/api/fleet/send` in the [API reference](api-reference.md) | `FLEET_SEND:<code> <message>`: `200` sent, `400` bad node or command, `409` mesh off, `413` too long, `503` mesh busy | `FLEET_SEND:AH02 STATUS` |
 
 ### Branch-only
@@ -484,6 +485,9 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `RADIO_DETECTED:<radio>:<mac>:<rssi>:<name>` | `Meshtastic` `MeshCore`. `name` is empty if the radio has not sent one yet |
 | `FLEET_AP:<mac>` | A Full node sends its own access point MAC about 10 seconds after boot, then every 10 minutes. It also sends it on hearing a new node's `FLEET_AP` or a known node's changed MAC, at least 30 seconds after its last send. Receivers do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
 | `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 10 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
+| `FLEET_CMD:<origin>-<id>:<hops>:@<node> <command>` | A node passes on a fleet command when `<node>` did not answer within about 10 seconds, up to 3 hops. It also sends one to a node that restarted or was silent 10 minutes and missed an `@ALL` or own command that still applies, with a scan's seconds set to the time left. Each node runs a command once, however many copies arrive. Only the `FLEET_SEND` commands are passed on |
+| `@<node> FLEET_WHAT:<reply>` | A node that hears two others answer with `<reply>`, such as `DEVICE_SCAN_ACK`, to a command it never got, asks one of them. That node answers with `FLEET_CMD` for its latest matching `@ALL` command |
+| `<relay>: <node>: <reply>` | A node that passed on a command sends `<node>`'s answer back the same way |
 | `CSI_PEER:<mac>` | Beta and C5. At its first CSI motion start after boot, a node sends its access point MAC and its probe source MAC. Other nodes stop using those MACs as CSI links and answer with their own |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
