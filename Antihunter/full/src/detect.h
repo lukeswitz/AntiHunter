@@ -409,9 +409,7 @@ uint64_t getDisciplinedMicros();   // sub-µs epoch if PPS locked; else esp_time
 bool ppsLocked();
 uint32_t ppsLastEdgeMicros();
 
-void detect_assignChannelPartition();
-String detect_getChannelAssignmentJson();
-String detect_getMyChannelsCsv();
+// Channel partition (coordinator-side)
 
 String detect_getPmkidJsonl();
 String detect_getEvilTwinJsonl();

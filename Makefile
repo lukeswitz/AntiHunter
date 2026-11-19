@@ -15,7 +15,11 @@ EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c \
 	--suppress=*:*/opendroneid.h --suppress=*:*/odid_wifi.h
 
-.PHONY: lint lint-full lint-headless build build-full build-headless test-ble test-psram-table test-cuckoo clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-ble test-psram-table test-cuckoo test-fleet clean
+
+test-fleet:
+	c++ -std=c++17 -O1 -Wall -Wextra -I$(COMMON_SRC) scripts/test_fleet.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet
+	/tmp/test_fleet
 
 test-ble:
 	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_ble_class.cpp $(FULL_SRC)/ble_class.cpp -o /tmp/test_ble_class

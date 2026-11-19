@@ -598,9 +598,6 @@ volatile uint32_t g_ppsAnchorEpoch = 0;
 volatile uint32_t g_ppsLastEdge = 0;
 std::atomic<bool> g_ppsLocked{false};
 
-// Channel partition (per-node assigned set; coordinator drives via mesh)
-std::vector<uint8_t> g_myChannels;
-PsramMap<String, std::vector<uint8_t>> g_chanAssignments;
 
 // OUI category table
 struct OuiTableEntry {
@@ -4740,28 +4737,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
                 dst[i] |= b;
             }
         }
-    } else if (msg.startsWith("CHAN_ASSIGN:")) {
-        // CHAN_ASSIGN:nodeId:1,2,3
-        int p1 = msg.indexOf(':', 12);
-        if (p1 < 0) return;
-        String tgt = msg.substring(12, p1);
-        String csv = msg.substring(p1 + 1);
-        std::lock_guard<std::recursive_mutex> lk(g_mtx);
-        std::vector<uint8_t> chans;
-        int s = 0;
-        while (s < (int)csv.length()) {
-            int e = csv.indexOf(',', s);
-            String tok = (e < 0) ? csv.substring(s) : csv.substring(s, e);
-            int v = tok.toInt();
-            if (v > 0 && v < 256) chans.push_back((uint8_t)v);
-            if (e < 0) break;
-            s = e + 1;
-        }
-        static constexpr size_t MAX_CHAN_ASSIGN = 64;
-        if (g_chanAssignments.find(tgt) == g_chanAssignments.end() && g_chanAssignments.size() >= MAX_CHAN_ASSIGN)
-            g_chanAssignments.erase(g_chanAssignments.begin());
-        g_chanAssignments[tgt] = chans;
-        if (tgt == getNodeId()) g_myChannels = chans;
     }
 }
 
@@ -4794,16 +4769,6 @@ size_t detect_meshPeerCount() {
     uint32_t now = millis();
     return static_cast<size_t>(std::count_if(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
         [now](const auto &kv) { return (now - kv.second) < MESH_PEER_TIMEOUT_MS; }));
-}
-
-String detect_getMyChannelsCsv() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String csv;
-    for (size_t i = 0; i < g_myChannels.size(); ++i) {
-        if (i) csv += ",";
-        csv += String(g_myChannels[i]);
-    }
-    return csv;
 }
 
 std::atomic<bool> g_detectVerbose{false};

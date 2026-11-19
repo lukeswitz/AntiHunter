@@ -577,8 +577,6 @@ volatile uint32_t g_ppsAnchorEpoch = 0;
 volatile uint32_t g_ppsLastEdge = 0;
 std::atomic<bool> g_ppsLocked{false};
 
-std::vector<uint8_t> g_myChannels;
-PsramMap<String, std::vector<uint8_t>> g_chanAssignments;
 
 struct OuiTableEntry {
     uint8_t oui[3];
@@ -4671,27 +4669,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
                 dst[i] |= b;
             }
         }
-    } else if (msg.startsWith("CHAN_ASSIGN:")) {
-        int p1 = msg.indexOf(':', 12);
-        if (p1 < 0) return;
-        String tgt = msg.substring(12, p1);
-        String csv = msg.substring(p1 + 1);
-        std::lock_guard<std::recursive_mutex> lk(g_mtx);
-        std::vector<uint8_t> chans;
-        int s = 0;
-        while (s < (int)csv.length()) {
-            int e = csv.indexOf(',', s);
-            String tok = (e < 0) ? csv.substring(s) : csv.substring(s, e);
-            int v = tok.toInt();
-            if (v > 0 && v < 256) chans.push_back((uint8_t)v);
-            if (e < 0) break;
-            s = e + 1;
-        }
-        static constexpr size_t MAX_CHAN_ASSIGN = 64;
-        if (g_chanAssignments.find(tgt) == g_chanAssignments.end() && g_chanAssignments.size() >= MAX_CHAN_ASSIGN)
-            g_chanAssignments.erase(g_chanAssignments.begin());
-        g_chanAssignments[tgt] = chans;
-        if (tgt == getNodeId()) g_myChannels = chans;
     }
 }
 
@@ -4884,63 +4861,6 @@ bool ppsLocked() { return g_ppsLocked.load(); }
 uint32_t ppsLastEdgeMicros() { return g_ppsLastEdge; }
 uint64_t getDisciplinedMicros() { return ah_detect::getDisciplinedMicros(); }
 
-void detect_assignChannelPartition() {
-    std::vector<String> fleet = meshFleetAliveNodes();
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    std::set<String> peers;
-    peers.insert(getNodeId());
-    for (auto &n : fleet) peers.insert(n);
-    for (auto &kv : g_alerts) for (auto &r : kv.second.reports) peers.insert(r.nodeId);
-    if (peers.empty()) return;
-    std::vector<String> peerList(peers.begin(), peers.end());
-    g_chanAssignments.clear();
-    const uint8_t allCh[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14};
-    size_t per = (sizeof(allCh) / peerList.size());
-    if (per == 0) per = 1;
-    size_t k = 0;
-    for (size_t i = 0; i < peerList.size(); ++i) {
-        std::vector<uint8_t> mine;
-        size_t end = (i + 1 == peerList.size()) ? sizeof(allCh) : k + per;
-        if (end > sizeof(allCh)) end = sizeof(allCh);
-        for (; k < end; ++k) mine.push_back(allCh[k]);
-        g_chanAssignments[peerList[i]] = mine;
-        if (peerList[i] == getNodeId()) g_myChannels = mine;
-        if (meshEnabled && peerList[i] != getNodeId()) {
-            String csv;
-            for (size_t j = 0; j < mine.size(); ++j) {
-                if (j) csv += ",";
-                csv += String(mine[j]);
-            }
-            sendToSerial1(getNodeId() + ": CHAN_ASSIGN:" + peerList[i] + ":" + csv, true);
-        }
-    }
-}
-String detect_getChannelAssignmentJson() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String out = "{";
-    bool first = true;
-    for (auto &kv : g_chanAssignments) {
-        if (!first) out += ",";
-        first = false;
-        out += "\"" + jsonEscape(kv.first) + "\":[";
-        for (size_t i = 0; i < kv.second.size(); ++i) {
-            if (i) out += ",";
-            out += String(kv.second[i]);
-        }
-        out += "]";
-    }
-    out += "}";
-    return out;
-}
-String detect_getMyChannelsCsv() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String csv;
-    for (size_t i = 0; i < g_myChannels.size(); ++i) {
-        if (i) csv += ",";
-        csv += String(g_myChannels[i]);
-    }
-    return csv;
-}
 template<class V, class Fmt>
 static String jsonlOf(const PsramVec<V> &v, Fmt fmt) {
     String out;

@@ -325,11 +325,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .sched-row b{font-size:13px;min-width:0}
       .sched-row small{grid-column:2;color:var(--mut);font-size:12px}
       .sched-row .btn{grid-row:1/3;grid-column:3}
-      .split-run{border-top:1px solid var(--bord);padding-top:12px}
-      .split-run>summary{cursor:pointer;user-select:none;color:var(--txt);margin:0;padding:0;font-size:15px}
-      .split-run>summary .collapse-icon{margin-left:auto}
-      .split-run[open]>summary .collapse-icon{transform:rotate(90deg)}
-      .split-nodes{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+      .fleet-run{border-top:1px solid var(--bord);padding-top:12px}
+      .fleet-run>summary{cursor:pointer;user-select:none;color:var(--txt);margin:0;padding:0;font-size:15px}
+      .fleet-run>summary .collapse-icon{margin-left:auto}
+      .fleet-run[open]>summary .collapse-icon{transform:rotate(90deg)}
+      .plan-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;border:1px solid var(--bord);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--surf)}
+      .plan-row .plan-st{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut)}
+      .plan-row .plan-st span{flex:1}
+      .fl-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
       .scan-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 4px}
       .scan-head .scan-title{margin:0}
       .sw-lbl{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:600;color:var(--mut);text-transform:none;letter-spacing:0;cursor:pointer}
@@ -1018,15 +1021,20 @@ R"HTML(
             </div>
             <div class="sched-lbl">Scheduled</div>
             <div id="schedList"><div class="sched-empty">Nothing scheduled.</div></div>
-            <details class="split-run" id="splitRun" ontoggle="if(this.open)fleetPoll()">
-              <summary class="sched-head"><span class="card-ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 6h3l4 6M8.5 18h3l4-6"/></svg></span><b>Split across nodes</b><span class="collapse-icon">&#9654;</span></summary>
-              <div class="det-desc" style="margin:10px 0;">Runs one device scan across the checked nodes. By radio: nodes alternate Wi-Fi and BLE, so no node loses Wi-Fi time to BLE. By channel: each node sweeps its share of the Wi-Fi channel list.</div>
-              <div id="fleetSplitNodes" class="split-nodes"></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
-                <div><label style="font-size:11px;">Split by</label><select id="fleetSplitBy" aria-label="Split by"><option value="radio">Radio</option><option value="channel">Channel</option></select></div>
-                <div><label style="font-size:11px;">Duration (min)</label><input type="number" id="fleetSplitMin" aria-label="Split duration (min)" min="1" max="1440" value="10"></div>
+            <details class="fleet-run" id="fleetPlan" ontoggle="if(this.open)planRefresh()">
+              <summary class="sched-head"><span class="card-ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 6h3l4 6M8.5 18h3l4-6"/></svg></span><b>Fleet plan</b><span class="collapse-icon">&#9654;</span></summary>
+              <div class="det-desc" style="margin:10px 0;">Pick what each node scans and when. Each row goes onto that node's schedule. A node this one can't reach gets its row through the nodes in between.</div>
+              <div id="planRows"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button class="btn" type="button" onclick="planAddRow()">Add row</button>
+                <button class="btn primary" type="button" onclick="planSend()">Send plan</button>
               </div>
-              <button class="btn primary" type="button" onclick="fleetSplit()" style="width:100%;margin-top:8px;">Start split scan</button>
+              <div class="sched-lbl" style="margin-top:12px;">Schedules on another node</div>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+                <div><label style="font-size:11px;">Node</label><select id="planListNode" aria-label="Fleet plan: node to list"><option value="">Pick a node</option></select></div>
+                <button class="btn" type="button" onclick="planList()">Show</button>
+              </div>
+              <div id="planRemote"><div class="sched-empty">Pick a node and press Show.</div></div>
             </details>
           </div>
         </div>
@@ -2161,11 +2169,6 @@ R"HTML(
               </div>
               <pre id="d-quorum" class="log-pre">--</pre>
             </details>
-            <details style="margin-top:6px;">
-              <summary><span>▶</span> Channel Partition</summary>
-              <button class="btn alt" onclick="detectAssignChannels()" style="margin-bottom:6px;">Reassign</button>
-              <pre id="d-chan" class="log-pre">--</pre>
-            </details>
           </div>
         </div>
 
@@ -2812,6 +2815,14 @@ R"HTML(
         if (p.alms) h += fleetStat('Alarms', p.alms);
         h += '</div>';
         if (p.gps) h += '<div class="res-note"><span class="res-note-lab">Position</span><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--acc);">' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</span></div>';
+        if (!p.self && /^[A-Za-z0-9]{2,5}$/.test(p.id)) {
+          var nid = fleetEsc(p.id);
+          h += '<div class="fl-acts">';
+          h += '<button type="button" class="btn" data-fleet-node="' + nid + '" data-fleet-act="STATUS">Status</button>';
+          h += '<button type="button" class="btn" data-fleet-node="' + nid + '" data-fleet-act="STOP">Stop</button>';
+          h += '<button type="button" class="btn" data-fleet-node="' + nid + '" data-fleet-act="sched">Schedules</button>';
+          h += '</div>';
+        }
         h += '</div>';
         return h;
       }
@@ -2856,89 +2867,260 @@ R"HTML(
                   'No non-node senders heard.');
         fleetFill(document.getElementById('detRadios'), radios, fleetRadioCard,
                   'No non-node senders heard.');
-        fleetSplitNodesRender(peers);
+        fleetPeers = peers;
       }
-      function fleetAliveIds(peers) {
-        return (peers || []).filter(function(p) { return p.alive && !p.self && /^[A-Za-z0-9]{2,5}$/.test(p.id); }).map(function(p) { return p.id; });
+      var fleetPeers = [];
+      function fleetNodeIds(peers) {
+        return (peers || []).filter(function(p) { return !p.self && /^[A-Za-z0-9]{2,5}$/.test(p.id); })
+          .sort(function(a, b) { return (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || (a.age_ms - b.age_ms); })
+          .map(function(p) { return p.id; });
       }
-      function fleetSplitNodesRender(peers) {
-        var box = document.getElementById('fleetSplitNodes');
-        if (!box) return;
-        var keep = {};
-        box.querySelectorAll('input:checked').forEach(function(c) { keep[c.value] = 1; });
-        var ids = [''].concat(fleetAliveIds(peers));
-        var had = box.childElementCount > 0;
-        box.innerHTML = '';
-        ids.forEach(function(id) {
-          var l = document.createElement('label');
-          l.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;';
-          var c = document.createElement('input');
-          c.type = 'checkbox';
-          c.value = id;
-          c.checked = had ? !!keep[id] : true;
-          l.appendChild(c);
-          l.appendChild(document.createTextNode(id || 'This node'));
-          box.appendChild(l);
+      function fleetNodeLabel(id) {
+        var p = fleetPeers.find(function(x) { return x.id === id; });
+        return id + (p && !p.alive ? ' (heard ' + fleetAge(p.age_ms) + ' ago)' : '');
+      }
+      function fleetFillSelect(sel, firstLabel) {
+        if (!sel) return;
+        var cur = sel.value;
+        sel.innerHTML = '';
+        [''].concat(fleetNodeIds(fleetPeers)).forEach(function(id) {
+          var o = document.createElement('option');
+          o.value = id;
+          o.textContent = id ? fleetNodeLabel(id) : firstLabel;
+          sel.appendChild(o);
         });
+        sel.value = cur;
+        if (sel.value !== cur) sel.value = '';
       }
       function fleetNodeOptions(sel, firstLabel) {
         if (!sel) return;
         fetch('/api/mesh').then(function(r) { return r.json(); }).then(function(d) {
-          var cur = sel.value;
-          sel.innerHTML = '';
-          [''].concat(fleetAliveIds(d && d.peers)).forEach(function(id) {
-            var o = document.createElement('option');
-            o.value = id;
-            o.textContent = id || firstLabel;
-            sel.appendChild(o);
-          });
-          sel.value = cur;
-          if (sel.value !== cur) sel.value = '';
+          fleetPeers = (d && d.peers) || [];
+          fleetFillSelect(sel, firstLabel);
         }).catch(fleetFetchFailed);
       }
-      function fleetChannelList() {
-        var wc = document.getElementById('wifiChannels');
-        var s = (wc && wc.value.trim()) || '1..11';
-        var out = [];
-        s.split(',').forEach(function(t) {
-          var m = /^\s*(\d+)\s*\.\.\s*(\d+)\s*$/.exec(t);
-          if (m) { for (var i = +m[1]; i <= +m[2]; i++) out.push(i); }
-          else if (+t > 0) out.push(+t);
+      var PLAN_KINDS = [
+        { v: 'device-scan', n: 'Device discovery', radio: true, ch: true },
+        { v: 'target', n: 'Target scan', radio: true, ch: false },
+        { v: 'drone', n: 'Drone RID', radio: false, ch: false }
+      ];
+      var planRowsData = [];
+      function planRefresh() {
+        fetch('/api/mesh').then(function(r) { return r.json(); }).then(function(d) {
+          fleetPeers = (d && d.peers) || [];
+          fleetFillSelect(document.getElementById('planListNode'), 'Pick a node');
+          if (!planRowsData.length) planAddRow();
+          else planRender();
+        }).catch(fleetFetchFailed);
+      }
+      function planAddRow() {
+        planRowsData.push({ node: '', kind: 'device-scan', radio: '0', ch: '', at: (schedNodeNow || '').slice(0, 16), mins: 60, rep: '86400', status: '' });
+        planRender();
+      }
+      function planField(label, el) {
+        var d = document.createElement('div');
+        var l = document.createElement('label');
+        l.style.fontSize = '11px';
+        l.textContent = label;
+        d.appendChild(l);
+        d.appendChild(el);
+        return d;
+      }
+      function planSelect(opts, val, aria, onch) {
+        var s = document.createElement('select');
+        s.setAttribute('aria-label', aria);
+        opts.forEach(function(o) {
+          var e = document.createElement('option');
+          e.value = o[0];
+          e.textContent = o[1];
+          s.appendChild(e);
         });
-        return out;
+        s.value = val;
+        s.addEventListener('change', function() { onch(s.value); });
+        return s;
       }
-      async function fleetSplit() {
-        var ids = [];
-        document.querySelectorAll('#fleetSplitNodes input:checked').forEach(function(c) { ids.push(c.value); });
-        var mins = parseInt(document.getElementById('fleetSplitMin').value, 10);
-        var by = document.getElementById('fleetSplitBy').value;
-        if (ids.length < 2) { toast('Check at least two nodes', 'error'); return; }
-        if (!(mins >= 1 && mins <= 1440)) { toast('Duration must be 1 to 1440 minutes', 'error'); return; }
-        var chans = fleetChannelList();
-        if (by === 'channel' && chans.length < ids.length) { toast('More nodes than channels', 'error'); return; }
-        var secs = mins * 60, done = [], failed = [];
-        for (var i = 0; i < ids.length; i++) {
-          var mode = by === 'radio' ? (i % 2) : 0;
-          var ch = '';
-          if (by === 'channel') {
-            var a = Math.floor(i * chans.length / ids.length), b = Math.floor((i + 1) * chans.length / ids.length);
-            ch = chans.slice(a, b).join(',');
-          }
-          var r;
+      function planInput(type, val, aria, onch, attrs) {
+        var i = document.createElement('input');
+        i.type = type;
+        i.value = val;
+        i.setAttribute('aria-label', aria);
+        Object.keys(attrs || {}).forEach(function(k) { i.setAttribute(k, attrs[k]); });
+        i.addEventListener('input', function() { onch(i.value); });
+        return i;
+      }
+      function planRender() {
+        var box = document.getElementById('planRows');
+        if (!box) return;
+        box.innerHTML = '';
+        var reps = [...document.getElementById('schRep').options].map(function(o) { return [o.value, o.textContent]; });
+        planRowsData.forEach(function(r, i) {
+          var kind = PLAN_KINDS.find(function(k) { return k.v === r.kind; }) || PLAN_KINDS[0];
+          var nodes = [['', 'This node']].concat(fleetNodeIds(fleetPeers).map(function(id) { return [id, fleetNodeLabel(id)]; }));
+          if (r.node && !nodes.some(function(n) { return n[0] === r.node; })) nodes.push([r.node, r.node]);
+          var tag = 'Plan row ' + (i + 1) + ': ';
+          var row = document.createElement('div');
+          row.className = 'plan-row';
+          row.appendChild(planField('Node', planSelect(nodes, r.node, tag + 'node', function(v) { r.node = v; })));
+          row.appendChild(planField('Scan', planSelect(PLAN_KINDS.map(function(k) { return [k.v, k.n]; }), r.kind, tag + 'scan', function(v) { r.kind = v; planRender(); })));
+          if (kind.radio) row.appendChild(planField('Radio', planSelect([['0', 'Wi-Fi'], ['1', 'Bluetooth'], ['2', 'Both']], r.radio, tag + 'radio', function(v) { r.radio = v; })));
+          if (kind.ch) row.appendChild(planField('Wi-Fi channels', planInput('text', r.ch, tag + 'Wi-Fi channels', function(v) { r.ch = v; }, { placeholder: 'Node setting', maxlength: '40' })));
+          row.appendChild(planField('Start (node time)', planInput('datetime-local', r.at, tag + 'start', function(v) { r.at = v; })));
+          row.appendChild(planField('Duration (min)', planInput('number', r.mins, tag + 'duration', function(v) { r.mins = parseInt(v, 10); }, { min: '1', max: '1440' })));
+          row.appendChild(planField('Repeat', planSelect(reps, r.rep, tag + 'repeat', function(v) { r.rep = v; })));
+          var st = document.createElement('div');
+          st.className = 'plan-st';
+          var msg = document.createElement('span');
+          msg.textContent = r.status || 'Not sent yet';
+          st.appendChild(msg);
+          var del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'btn icon-btn';
+          del.title = 'Remove row';
+          del.setAttribute('aria-label', 'Remove row ' + (i + 1));
+          del.innerHTML = SCHED_TRASH;
+          del.addEventListener('click', function() { planRowsData.splice(i, 1); planRender(); });
+          st.appendChild(del);
+          row.appendChild(st);
+          box.appendChild(row);
+        });
+        if (!planRowsData.length) box.innerHTML = '<div class="sched-empty">No rows. Add one for each node and scan.</div>';
+      }
+      function planRequest(r) {
+        var secs = Math.round(r.mins * 60);
+        if (r.kind === 'drone') return { path: '/drone', body: 'secs=' + secs };
+        if (r.kind === 'target') return { path: '/scan', body: 'mode=' + r.radio + '&secs=' + secs };
+        var b = 'detection=device-scan&deviceScanMode=' + r.radio + '&secs=' + secs;
+        var ch = r.ch.replace(/\s+/g, '');
+        if (ch) b += '&ch=' + encodeURIComponent(ch) + '&split=1';
+        return { path: '/sniffer', body: b };
+      }
+      async function planSend() {
+        if (!planRowsData.length) { toast('Add a row first', 'error'); return; }
+        var sent = 0;
+        for (const r of planRowsData) {
+          var ch = r.ch.replace(/\s+/g, '');
+          if (!(r.mins >= 1 && r.mins <= 1440)) { r.status = 'Duration must be 1 to 1440 minutes'; continue; }
+          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r.at)) { r.status = 'Pick a start date and time'; continue; }
+          if (ch && !/^\d{1,3}(,\d{1,3})*$/.test(ch)) { r.status = 'Write channels like 1,6,11'; continue; }
+          var q = planRequest(r);
           try {
-            if (!ids[i]) {
-              var p = { detection: 'device-scan', deviceScanMode: String(mode), secs: String(secs) };
-              if (ch) { p.ch = ch; p.split = '1'; }
-              r = await fetch('/sniffer', { method: 'POST', body: new URLSearchParams(p) });
-            } else {
-              r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: ids[i], cmd: 'DEVICE_SCAN_START:' + mode + ':' + secs + (ch ? ':CH' + ch : '') }) });
-            }
-          } catch (e) { r = null; }
-          var label = (ids[i] || 'This node') + ' ' + (mode ? 'BLE' : 'Wi-Fi') + (ch ? ' ch ' + ch : '');
-          (r && r.ok ? done : failed).push(label + (r && !r.ok ? ' (' + (await r.text()) + ')' : ''));
+            var resp = r.node
+              ? await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: r.node, cmd: 'SCHED_ADD:' + r.at + '|' + r.rep + '|' + q.path + '|' + q.body }) })
+              : await fetch('/schedule', { method: 'POST', body: new URLSearchParams({ now: Math.floor(Date.now() / 1000), at: r.at, period: r.rep, path: q.path, body: q.body }) });
+            var t = await resp.text();
+            r.pending = resp.ok && !!r.node;
+            r.sentAt = Date.now();
+            r.status = !resp.ok ? 'Not sent: ' + t : r.node ? 'Sent. Waiting for ' + r.node + ' to answer.' : t;
+            if (resp.ok) sent++;
+          } catch (e) {
+            r.status = 'Not sent: this node did not answer';
+          }
         }
-        toast((done.length ? 'Started: ' + done.join('; ') : '') + (failed.length ? (done.length ? '. ' : '') + 'Failed: ' + failed.join('; ') : ''), failed.length ? 'error' : 'success');
+        planRender();
+        schedLoad();
+        if (sent) toast('Plan sent: ' + sent + ' of ' + planRowsData.length + ' rows', 'success');
+        planWatch(0);
       }
+      function planWatch(n) {
+        if (!planRowsData.some(function(r) { return r.pending; })) return;
+        fetch('/api/fleet/replies').then(function(x) { return x.json(); }).then(function(rows) {
+          planRowsData.forEach(function(r) {
+            if (!r.pending) return;
+            var since = Date.now() - r.sentAt;
+            var hit = rows.filter(function(x) { return x.node === r.node && x.age_ms <= since && x.line.indexOf('SCHED_ACK:') === 0; }).pop();
+            if (hit) {
+              r.pending = false;
+              r.status = hit.line.indexOf('SCHED_ACK:OK') === 0 ? 'On ' + r.node + '\'s schedule' : r.node + ' refused: ' + hit.line.slice(10);
+            } else if (n >= 60) {
+              r.pending = false;
+              r.status = 'No answer from ' + r.node + ' yet. Check its schedule later with Show.';
+            }
+          });
+          planRender();
+          if (n < 60) setTimeout(function() { planWatch(n + 1); }, 3000);
+        }).catch(fleetFetchFailed);
+      }
+      async function planList(nodeArg) {
+        var sel = document.getElementById('planListNode');
+        if (nodeArg) {
+          fleetFillSelect(sel, 'Pick a node');
+          if (![...sel.options].some(function(o) { return o.value === nodeArg; })) {
+            var o = document.createElement('option');
+            o.value = nodeArg;
+            o.textContent = nodeArg;
+            sel.appendChild(o);
+          }
+          sel.value = nodeArg;
+        }
+        var node = sel.value;
+        var box = document.getElementById('planRemote');
+        if (!node) { box.innerHTML = '<div class="sched-empty">Pick a node first. This node\'s schedule is listed above.</div>'; return; }
+        var t0 = Date.now();
+        var r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: node, cmd: 'SCHED_LIST' }) });
+        box.innerHTML = '<div class="sched-empty"></div>';
+        if (!r.ok) { box.firstChild.textContent = 'Not sent: ' + (await r.text()); return; }
+        box.firstChild.textContent = 'Asking ' + node + '...';
+        planListWait(node, t0, 0);
+      }
+      function planListWait(node, t0, n) {
+        fetch('/api/fleet/replies').then(function(x) { return x.json(); }).then(function(rows) {
+          var since = Date.now() - t0;
+          var mine = rows.filter(function(x) { return x.node === node && x.age_ms <= since; });
+          var done = mine.some(function(x) { return x.line.indexOf('SCHED_LIST:') === 0; });
+          if (!done && n < 30) { setTimeout(function() { planListWait(node, t0, n + 1); }, 2000); return; }
+          planShowRemote(node, mine, done);
+        }).catch(fleetFetchFailed);
+      }
+      function planShowRemote(node, rows, done) {
+        var box = document.getElementById('planRemote');
+        box.innerHTML = '';
+        var items = rows.filter(function(x) { return x.line.indexOf('SCHED_ITEM:') === 0; });
+        if (!items.length) {
+          box.innerHTML = '<div class="sched-empty"></div>';
+          box.firstChild.textContent = done ? 'Nothing scheduled on ' + node + '.' : 'No answer from ' + node + ' in 60 seconds.';
+          return;
+        }
+        items.forEach(function(x) {
+          var rest = x.line.slice(11);
+          var c = rest.indexOf(':');
+          var idx = rest.slice(0, c);
+          var p = rest.slice(c + 1).split('|');
+          var q = new URLSearchParams(p[3] || '');
+          var key = p[2] === '/scan' ? 'target' : p[2] === '/drone' ? 'drone-detection' : q.get('detection');
+          var row = document.createElement('div');
+          row.className = 'sched-row';
+          row.innerHTML = '<span class="card-ico"><svg viewBox="0 0 24 24">' + (TILE_ICONS[key] || '') + '</svg></span><b></b><small></small>' +
+            '<button type="button" class="btn icon-btn" title="Remove" aria-label="Remove">' + SCHED_TRASH + '</button>';
+          row.querySelector('b').textContent = schedLabel(p[2], q) + ' · ' + Math.round((+q.get('secs') || 0) / 60) + ' min';
+          row.querySelector('small').textContent = (SCHED_REP[p[1]] || ('Every ' + Math.round(+p[1] / 3600) + ' hours')) + ' · ' + String(p[0] || '').replace('T', ' ');
+          row.querySelector('button').addEventListener('click', function() { planDel(node, idx); });
+          box.appendChild(row);
+        });
+      }
+      async function planDel(node, idx) {
+        var r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: node, cmd: 'SCHED_DEL:' + idx }) });
+        toast(r.ok ? 'Delete sent to ' + node : await r.text(), r.ok ? 'success' : 'error');
+        if (r.ok) setTimeout(function() { planList(node); }, 4000);
+      }
+      async function fleetQuick(node, cmd) {
+        var r = await fetch('/api/fleet/send', { method: 'POST', body: new URLSearchParams({ node: node, cmd: cmd }) });
+        toast(r.ok ? (cmd === 'STOP' ? 'Stop sent to ' : 'Status asked of ') + node : await r.text(), r.ok ? 'success' : 'error');
+        if (r.ok) setTimeout(fleetPoll, 4000);
+      }
+      function fleetShowSchedules(node) {
+        switchPage('scan');
+        var d = document.getElementById('fleetPlan');
+        if (d) d.open = true;
+        planList(node);
+        if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      document.addEventListener('click', function(e) {
+        var b = e.target.closest('[data-fleet-node]');
+        if (!b) return;
+        var node = b.getAttribute('data-fleet-node'), act = b.getAttribute('data-fleet-act');
+        if (act === 'sched') fleetShowSchedules(node);
+        else fleetQuick(node, act);
+      });
       async function fleetCampaign(start) {
         var ids = [];
         document.querySelectorAll('#campNodes input:checked').forEach(function(c) { ids.push(c.value); });
@@ -2993,11 +3175,11 @@ R"HTML(
           console.warn('fleet: clear failed', e);
         }).then(fleetPoll);
       }
-      function splitOpen() {
-        var s = document.getElementById('splitRun');
-        return !!(s && s.open && s.style.display !== 'none' && pageActive('scan'));
+      function planOpen() {
+        var s = document.getElementById('fleetPlan');
+        return !!(s && s.open && pageActive('scan'));
       }
-      setInterval(function() { if (pageActive('system') || pageActive('detect') || splitOpen()) fleetPoll(); }, 5000);
+      setInterval(function() { if (pageActive('system') || pageActive('detect') || planOpen()) fleetPoll(); }, 5000);
 
       function setSec(b) {
         document.querySelectorAll('.set-nav-b').forEach(function(x) {
@@ -6469,7 +6651,6 @@ R"HTML(
         const tgt = v === 'target';
         document.getElementById('paneTarget').style.display = tgt ? '' : 'none';
         document.getElementById('paneRecon').style.display = tgt ? 'none' : '';
-        document.getElementById('splitRun').style.display = v === 'device-scan' ? '' : 'none';
         if (!tgt) {
           const dm = document.getElementById('detectionMode');
           if (dm.value !== v) { dm.value = v; dm.dispatchEvent(new Event('change')); }
@@ -6841,7 +7022,7 @@ R"HTML(
       }
       function campNodesRender(peers){
         var box=document.getElementById('campNodes');if(!box) return;
-        var ids=fleetAliveIds(peers);
+        var ids=fleetNodeIds(peers);
         if(!ids.length){box.innerHTML='';box.style.display='none';return;}
         var keep={'':1},had=box.childElementCount>0;
         if(had){keep={};box.querySelectorAll('input:checked').forEach(function(c){keep[c.value]=1;});}
@@ -7365,14 +7546,14 @@ R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,df,q,b,p,rid,rc,ch,sess]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,df,q,b,p,rid,rc,sess]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
           _jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
           _jj('/api/rid_claims'),_jj('/api/recon'),
-          _jj('/api/channel_partition'),_jj('/api/detect/session')
+          _jj('/api/detect/session')
         ]);
         _sessMark=sess||null;
         const dEl = document.getElementById('d-dauth');
@@ -7390,8 +7571,6 @@ R"HTML(
         document.getElementById('d-qc').textContent=q?((q.candidates||[]).length):0;
         document.getElementById('d-quorum').textContent=q?JSON.stringify(q,null,2):'--';
         privacyApply(document.getElementById('d-quorum'));
-        document.getElementById('d-chan').textContent=ch?JSON.stringify(ch,null,2):'--';
-        privacyApply(document.getElementById('d-chan'));
         {const _e=document.getElementById('d-rid');if(_e){_e.textContent=rid?JSON.stringify(rid,null,2):'[]';privacyApply(_e);}}
         detRenderTable('d-recpre',rc||[],[
           {key:'id',label:'TrackId'},{key:'score',label:'Score'},
@@ -8138,7 +8317,6 @@ R"HTML(
         if(a.length>0)detMarkActive('assocsleep');
       }
       async function asClear(){await fetch('/api/assoc_sleep/clear',{method:'POST'});asTick();}
-      async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
       async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
       detLoadCfg();
       setInterval(()=>{ if(pageActive('detect')) detAllTicks(); },5000);
