@@ -45,7 +45,9 @@ static void meshRxProcessLine(const String &line, uint32_t lastRxMicros) {
   meshSplitSender(line, senderId, toProcess);
 
   mesh_observeInbound(senderId, toProcess);
-  meshFleetObserve(senderId, toProcess);
+  const bool viaRelay = fleetUnwrapReply(senderId, toProcess);
+  meshFleetObserve(senderId, toProcess, !viaRelay);
+  fleetObserveReply(senderId, toProcess, viaRelay);
   detect_fleetObserve(senderId, line);
 
   if (toProcess.startsWith("TIME_SYNC_REQ:")) {
@@ -64,7 +66,6 @@ static void meshRxProcessLine(const String &line, uint32_t lastRxMicros) {
              toProcess.startsWith("RID_CLAIM:") ||
              toProcess.startsWith("RID_RX:") ||
              toProcess.startsWith("BLOOM:") ||
-             toProcess.startsWith("CHAN_ASSIGN:") ||
              toProcess.startsWith("FRAG:") ||
              toProcess.startsWith("IDHASH:") ||
              toProcess.startsWith("HSHK:") ||
@@ -324,6 +325,7 @@ void setup() {
     initializeGPS();
     delay(1000);
     initializeRTC();
+    fleetRelayInit();
     delay(500);
     memMark("gps+rtc");
 
@@ -432,6 +434,7 @@ void loop() {
     }
     s_scanWasBusy = scanBusyNow;
     scheduleTick();
+    fleetRelayTick();
     attack_responsePump();
 
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {

@@ -14,7 +14,11 @@ COMMON_SRC := Antihunter/common/src
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
 
-.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table test-cuckoo clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-csi test-ble test-meshcore test-psram-table test-cuckoo test-fleet clean
+
+test-fleet:
+	c++ -std=c++17 -O1 -Wall -Wextra -I$(COMMON_SRC) scripts/test_fleet.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet
+	/tmp/test_fleet
 
 test-csi:
 	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_csi_metric.cpp -o /tmp/test_csi_metric

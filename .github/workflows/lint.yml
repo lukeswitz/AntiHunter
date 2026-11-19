@@ -42,6 +42,7 @@ jobs:
         make test-meshcore
         make test-psram-table
         make test-cuckoo
+        make test-fleet
 
   build:
     runs-on: ubuntu-latest
