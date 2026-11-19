@@ -14,7 +14,6 @@ struct Verb {
     bool exact;
     const char *reply;
     bool catchup;
-    uint8_t group;
     uint32_t lifeMs;
 };
 
@@ -26,23 +25,22 @@ constexpr uint32_t kRepeatGapMs = 60000;
 constexpr uint32_t kRelayMinMs = 8000;
 constexpr uint32_t kRelayMaxMs = 16000;
 constexpr uint32_t kWhatRepeatMs = 120000;
-constexpr uint32_t kCatchupRepeatMs = 60000;
 constexpr uint8_t kMaxTries = 3;
 
 const Verb kVerbs[] = {
-    {"STATUS", true, "STATUS:", false, 0, 120000},
-    {"STOP", true, "STOP_ACK", true, 1, 1800000},
-    {"DEVICE_SCAN_START:", false, "DEVICE_SCAN_ACK", true, 1, kScanLife},
-    {"SCAN_START:", false, "SCAN_ACK", true, 1, kScanLife},
-    {"SCHED_ADD:", false, "SCHED_ACK", true, 0, 3600000},
-    {"SCHED_LIST", true, "SCHED_LIST:", false, 0, 120000},
-    {"SCHED_DEL:", false, "SCHED_ACK", false, 0, 120000},
-    {"CAMPAIGN_START:", false, "CAMPAIGN_ACK", true, 2, 3600000},
-    {"CAMPAIGN_STOP", true, "CAMPAIGN_ACK", true, 2, 3600000},
-    {"CAMPAIGN_STATUS", true, "CAMPAIGN_STATUS:", false, 0, 120000},
-    {"BLE_CLASSIFY:", false, "CONFIG_ACK:BLE_CLASSIFY", true, 3, 3600000},
-    {"CALIBRATE:", false, "CALIBRATE_ACK", false, 0, 120000},
-    {"CALIBRATE_RESET", true, "CALIBRATE_ACK", false, 0, 120000},
+    {"STATUS", true, "STATUS:", false, 120000},
+    {"STOP", true, "STOP_ACK", true, 1800000},
+    {"DEVICE_SCAN_START:", false, "DEVICE_SCAN_ACK", true, kScanLife},
+    {"SCAN_START:", false, "SCAN_ACK", true, kScanLife},
+    {"SCHED_ADD:", false, "SCHED_ACK", true, 3600000},
+    {"SCHED_LIST", true, "SCHED_LIST:", false, 120000},
+    {"SCHED_DEL:", false, "SCHED_ACK", false, 120000},
+    {"CAMPAIGN_START:", false, "CAMPAIGN_ACK", true, 3600000},
+    {"CAMPAIGN_STOP", true, "CAMPAIGN_ACK", true, 3600000},
+    {"CAMPAIGN_STATUS", true, "CAMPAIGN_STATUS:", false, 120000},
+    {"BLE_CLASSIFY:", false, "CONFIG_ACK:BLE_CLASSIFY", true, 3600000},
+    {"CALIBRATE:", false, "CALIBRATE_ACK", false, 120000},
+    {"CALIBRATE_RESET", true, "CALIBRATE_ACK", false, 120000},
 };
 
 State *g_s = nullptr;
@@ -200,19 +198,6 @@ void schedule(Cmd &c, uint8_t why, uint32_t delayMs, uint32_t now) {
     c.tries = 0;
     c.relaySchedMs = now;
     c.relayAtMs = now + delayMs;
-}
-
-bool superseded(const Cmd &c, const char *node) {
-    const Verb *v = verbOf(c.cmd);
-    if (!v || !v->group) return false;
-    for (const Cmd &o : g_s->cmds) {
-        if (!o.used || &o == &c) continue;
-        if ((int32_t)(o.heardMs - c.heardMs) <= 0) continue;
-        if (strcmp(o.target, "ALL") != 0 && strcmp(o.target, node) != 0) continue;
-        const Verb *ov = verbOf(o.cmd);
-        if (ov && ov->group == v->group) return true;
-    }
-    return false;
 }
 
 bool pendingQuerySuppressedBy(const char *prefix) {
@@ -437,22 +422,6 @@ void onReply(const char *node, const char *payload, bool viaRelay, uint32_t now)
     g_s->whatAtMs = now + backoff(2000, 6000);
 }
 
-void onNodeBack(const char *node, uint32_t now) {
-    if (!g_s) return;
-    for (Cmd &c : g_s->cmds) {
-        if (!c.used || c.relay == R_PENDING) continue;
-        if (strcmp(c.target, "ALL") != 0 && strcmp(c.target, node) != 0) continue;
-        const Verb *v = verbOf(c.cmd);
-        if (!v || !v->catchup || expired(now, c.heardMs, c.lifeMs)) continue;
-        char origin[kIdLen];
-        originOf(c.tag, origin);
-        if (strcmp(origin, node) == 0 || answered(c, node) || superseded(c, node)) continue;
-        if (c.catchupMs && !expired(now, c.catchupMs, kCatchupRepeatMs)) continue;
-        schedule(c, WHY_CATCHUP, backoff(3000, 9000), now);
-        copyStr(c.catchNode, kIdLen, node);
-    }
-}
-
 void onWhat(const char *prefix, uint32_t now) {
     if (!g_s) return;
     Cmd *best = nullptr;
@@ -510,8 +479,7 @@ int nextLine(char *buf, size_t cap, uint32_t now) {
         if (c.why == WHY_RELAY) {
             const bool all = strcmp(c.target, "ALL") == 0;
             if (all ? allCovered(c) : answered(c, c.target)) { c.relay = R_DONE; continue; }
-        } else if (expired(now, c.heardMs, c.lifeMs) ||
-                   (c.why == WHY_CATCHUP && c.catchNode[0] && answered(c, c.catchNode))) {
+        } else if (expired(now, c.heardMs, c.lifeMs)) {
             c.relay = R_DONE;
             continue;
         }
@@ -552,7 +520,6 @@ void sendResult(int handle, bool ok, uint32_t now) {
         c.relay = R_DONE;
         c.relayedMs = now;
         c.copyMs = now;
-        if (c.why == WHY_CATCHUP) c.catchupMs = now;
     } else if (++c.tries >= kMaxTries) {
         c.relay = R_DONE;
     } else {

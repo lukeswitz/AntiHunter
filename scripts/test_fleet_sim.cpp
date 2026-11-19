@@ -73,7 +73,6 @@ struct Node {
     fleet::State st;
     bool up = true;
     int epoch = 0;
-    int backCalls = 0;
     int whatCalls = 0;
     std::mt19937 rng;
     std::map<std::string, uint32_t> lastDirect;
@@ -367,21 +366,11 @@ struct Sim {
 
     static void observe(Node &nd, const std::string &sender, bool direct) {
         if (sender.empty() || sender == nd.id || !isNodeTok(sender)) return;
-        const auto it = nd.lastDirect.find(sender);
-        const bool back = direct && it != nd.lastDirect.end() && (uint32_t)(g_now - it->second) > fleet::kBackSilenceMs;
         if (direct) nd.lastDirect[sender] = g_now;
-        if (back) {
-            nd.backCalls++;
-            fleet::onNodeBack(sender.c_str(), g_now);
-        }
     }
 
     static void observeReply(Node &nd, const std::string &sender, const std::string &payload, bool viaRelay) {
         if (!isNodeTok(sender) || sender == nd.id) return;
-        if (!viaRelay && starts(payload, "STARTUP:")) {
-            nd.backCalls++;
-            fleet::onNodeBack(sender.c_str(), g_now);
-        }
         fleet::onReply(sender.c_str(), payload.c_str(), viaRelay, g_now);
         if (fleet::replyPrefixOf(payload.c_str())) nd.replies.emplace_back(sender, payload);
     }
@@ -616,8 +605,6 @@ void scenFullMeshStop() {
 
 void scenNodeDownThenBack() {
     Report rep;
-    long minSecs = 1000000;
-    long maxSecs = 0;
     int maxTx = 0;
     for (int seed = 1; seed <= kFixedSeeds; ++seed) {
         if (!want('d', seed)) continue;
@@ -629,20 +616,14 @@ void scenNodeDownThenBack() {
         const std::string tag = s.send(0, "ALL", "DEVICE_SCAN_START:0:600");
         s.bringUp(rel(190000), 2);
         s.runTo(rel(400000));
-        CHECK(s.runCount(2, tag) == 1, "seed %d C runs=%d", seed, s.runCount(2, tag));
-        for (const Run &r : s.runs) {
-            if (r.node != 2 || r.tag != tag) continue;
-            CHECK(r.secs < 600 && r.secs >= 10, "seed %d C secs=%ld", seed, r.secs);
-            minSecs = std::min(minSecs, r.secs);
-            maxSecs = std::max(maxSecs, r.secs);
-        }
+        CHECK(s.runCount(2, tag) == 0, "seed %d node that was off ran a stale command %d times", seed, s.runCount(2, tag));
         for (int i = 1; i < 5; ++i) {
             if (i != 2) CHECK(s.runCount(i, tag) == 1, "seed %d node %d runs=%d", seed, i, s.runCount(i, tag));
         }
-        CHECK(s.runCount(0, tag) <= 1, "seed %d origin runs=%d", seed, s.runCount(0, tag));
+        CHECK(s.runCount(0, tag) == 0, "seed %d origin runs=%d", seed, s.runCount(0, tag));
         maxTx = std::max(maxTx, s.cmdTxOf(tag));
     }
-    printf("d node down then STARTUP   %s seeds=%d catchupSecs=%ld..%ld maxCmdTx=%d\n", rep.label(), kFixedSeeds, minSecs, maxSecs, maxTx);
+    printf("d node off, no stale replay %s seeds=%d maxCmdTx=%d\n", rep.label(), kFixedSeeds, maxTx);
 }
 
 void scenMissedCommand() {
@@ -740,7 +721,7 @@ void analyze(Sim &s, Stats &st, bool clean, uint32_t seed, bool rebooted) {
             const Node &nd = *s.nodes[(size_t)i];
             const auto it = s.relayTx.find(std::make_pair(i, in.tag));
             const int got = it == s.relayTx.end() ? 0 : it->second;
-            const int bound = (nd.epoch + 1) + nd.backCalls + nd.whatCalls;
+            const int bound = (nd.epoch + 1) + nd.whatCalls;
             CHECK(got <= bound, "seed %u node %d relayed %s %d times, bound %d", seed, i, in.tag.c_str(), got, bound);
             st.maxRelayPerNodeTag = std::max(st.maxRelayPerNodeTag, got);
             sumBound += bound;

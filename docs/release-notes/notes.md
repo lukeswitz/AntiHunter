@@ -86,9 +86,8 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Full's Schedule dialog can now schedule a scan on another mesh node, not only on this one.
 - `DEVICE_SCAN_START` takes an optional channel list, such as `CH1,6,11`, for that scan only.
 - Nodes pass fleet commands on to nodes the sender can't reach.
-  - If the node a command is for doesn't answer within about 10 seconds, a node that heard it sends it on, up to 3 hops. The answer comes back the same way.
+  - If the node a command is for doesn't answer within 8 to 16 seconds, a node that heard it sends it on, up to 3 hops. The answer comes back the same way.
   - A node runs each command once, however many copies reach it.
-  - A node that restarts, or is heard again after 10 minutes of silence, gets the `@ALL` and own commands it missed while they still apply.
   - A node that hears two others answer a command it never got asks one of them for it.
   - It works the same with Meshtastic and MeshCore radios.
 - **Fleet plan** on Full's Scan tab sets what each node scans and when, one row per node, and puts each row on that node's schedule.
