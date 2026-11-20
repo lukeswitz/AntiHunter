@@ -7,6 +7,7 @@
 #include "main.h"
 #include "triangulation.h"
 #include "pcap.h"
+#include "cache_shed.h"
 #include <SD.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
@@ -432,14 +433,10 @@ void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     s.lastSeen = now;
     pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
 
-    static PsramMap<uint64_t, uint32_t> s_pwnaEmit;
+    static CacheMap<uint64_t, uint32_t> s_pwnaEmit;
     auto eit = s_pwnaEmit.find(k);
     if (eit != s_pwnaEmit.end() && (now - eit->second) < 30000) return;
-    if (eit == s_pwnaEmit.end() && s_pwnaEmit.size() >= MAX_PWNA) {
-        uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-        for (const auto &kv : s_pwnaEmit) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
-        s_pwnaEmit.erase(oldestK);
-    }
+    if (eit == s_pwnaEmit.end()) cacheMakeRoomFor(s_pwnaEmit, now, [](uint32_t t) { return t; });
     s_pwnaEmit[k] = now;
 
     Serial.printf("[DETECT] PWNAGOTCHI src=%s rssi=%d obs=%u name=%s\n",

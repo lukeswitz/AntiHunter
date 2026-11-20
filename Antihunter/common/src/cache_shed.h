@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "cache_heap.h"
+
 // Erases about the oldest eighth of a map by last-seen age, calling onEvict before each erase; no allocation.
 template <class Map, class LastSeenOf, class OnEvict>
 size_t shedOldestEighth(Map &m, uint32_t now, LastSeenOf lastSeenOf, OnEvict onEvict)
@@ -43,4 +45,24 @@ size_t shedOldestEighth(Map &m, uint32_t now, LastSeenOf lastSeenOf, OnEvict onE
         dropped++;
     }
     return dropped;
+}
+
+// Caller holds the map's lock and is about to insert a new key: frees room in the cache region,
+// first from other caches and then the oldest eighth of this map by lastSeenOf.
+template <class Map, class LastSeenOf>
+void cacheMakeRoomFor(Map &m, uint32_t now, LastSeenOf lastSeenOf)
+{
+    struct Ctx {
+        Map *m;
+        uint32_t now;
+        LastSeenOf lastSeenOf;
+    };
+    Ctx ctx{&m, now, lastSeenOf};
+    cacheHeapMakeRoom(sizeof(typename Map::value_type) + 4 * sizeof(void *), &m,
+                      [](void *c) -> size_t {
+                          auto *x = static_cast<Ctx *>(c);
+                          return shedOldestEighth(*x->m, x->now, x->lastSeenOf,
+                                                  [](const typename Map::value_type &) {});
+                      },
+                      &ctx);
 }
