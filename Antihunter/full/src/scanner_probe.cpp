@@ -182,7 +182,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
 }
 
 // Caller holds probeMutex. Moves the oldest non-target device into the probe database before dropping it.
-void probeEvictOldestToDB()
+static size_t probeEvictOldestToDB(void *)
 {
     uint32_t oldestTime = UINT32_MAX;
     auto oldest = probeDevices.end();
@@ -192,9 +192,16 @@ void probeEvictOldestToDB()
             oldest = it;
         }
     }
-    if (oldest == probeDevices.end()) return;
+    if (oldest == probeDevices.end()) return 0;
     mergeProbeDeviceToDB(oldest->second);
     probeDevices.erase(oldest);
+    return 1;
+}
+
+void probeMakeRoom()
+{
+    cacheHeapMakeRoom(sizeof(ProbeDevicesMap::value_type) + 4 * sizeof(void *), &probeDevices, probeEvictOldestToDB,
+                      nullptr);
 }
 
 void probeDetectionTask(void *pv)
@@ -354,7 +361,7 @@ void probeDetectionTask(void *pv)
                     }
                     if (dstHit) dev.isDstHit = true;
                 } else {
-                    if (probePsramLow()) probeEvictOldestToDB();
+                    probeMakeRoom();
 
                     ProbeDevice dev = {};
                     memcpy(dev.mac, event.mac, 6);
@@ -460,7 +467,7 @@ void probeDetectionTask(void *pv)
                         }
                         continue;
                     }
-                    if (probePsramLow()) probeEvictOldestToDB();
+                    probeMakeRoom();
 
                     ProbeDevice dev = {};
                     memcpy(dev.mac, mac, 6);
@@ -823,6 +830,14 @@ static void probeDBEvictHook(const PsramTable<ProbeDBEntry>::Entry &e, void *)
     g_sdRecordsMoved++;
 }
 
+static size_t probeDBShedForOtherCache(void *)
+{
+    if (!probeDBMutex.try_lock()) return 0;
+    const size_t n = probeDB.shed(getEventTimestamp());
+    probeDBMutex.unlock();
+    return n;
+}
+
 static bool probeDBFlushDirty()
 {
     for (const uint64_t key : s_probeDirty) {
@@ -836,6 +851,7 @@ static bool probeDBFlushDirty()
 static void probeDBInitLocked()
 {
     probeDB.setEvictHook(probeDBEvictHook, nullptr);
+    cacheHeapAddShedder(&probeDB, probeDBShedForOtherCache, nullptr);
     s_probeSeen.reserve(PROBE_DB_SEEN_BUCKETS);
     s_probeSeen.clear();
     s_probeDirty.clear();

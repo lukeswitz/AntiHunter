@@ -9,13 +9,10 @@
 
 // ---- Probe-subsystem shared types ----
 using ProbeDevicesMap = std::map<String, ProbeDevice, std::less<String>,
-    PsramAllocator<std::pair<const String, ProbeDevice>>>;
+    CacheAllocator<std::pair<const String, ProbeDevice>>>;
 using StringSetPsram = std::set<String, std::less<String>, PsramAllocator<String>>;
 
-// Probe devices have no count limit; new ones wait only while free PSRAM is below this.
-constexpr uint32_t PROBE_PSRAM_FLOOR = 512 * 1024;
 constexpr size_t PROBE_RESULTS_SHOW = 200;
-inline bool probePsramLow() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < PROBE_PSRAM_FLOOR; }
 
 // ---- Probe-subsystem globals (defined in scanner.cpp) ----
 extern ProbeDevicesMap probeDevices;
@@ -27,7 +24,8 @@ extern StringSetPsram respondedSsids;
 void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse = false);
 bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize, bool *isWildcard = nullptr);
-void probeEvictOldestToDB();
+// Caller holds probeMutex. Makes room in the cache region for one more probe device.
+void probeMakeRoom();
 // Caller holds probeMutex. Merges every device into the probe database, reading earlier history back from SD first.
 void mergeProbeDevicesToDB(ProbeDevicesMap &devs);
 // Caller holds probeMutex. Fills history for devices marked known whose details are still on SD.

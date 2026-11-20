@@ -381,15 +381,15 @@ QueueHandle_t g_detectFrameQueue = nullptr;
 std::recursive_mutex g_mtx;
 
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
-using PmkidLru = std::list<uint64_t, PsramAllocator<uint64_t>>;
+using PmkidLru = std::list<uint64_t, CacheAllocator<uint64_t>>;
 struct PmkidBurst {
-    PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
-    PsramMap<uint64_t, uint64_t> hshkKeys;
-    PsramSet<uint64_t> kdeBssids;
+    CacheMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
+    CacheMap<uint64_t, uint64_t> hshkKeys;
+    CacheSet<uint64_t> kdeBssids;
     uint32_t lastSeen{};
     PmkidLru::iterator lruPos;
 };
-PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
+CacheMap<uint64_t, PmkidBurst> g_pmkidBursts;
 static PmkidLru g_pmkidLru;
 
 static void pmkidDropOldest() {
@@ -397,7 +397,17 @@ static void pmkidDropOldest() {
     g_pmkidLru.pop_front();
     if (it != g_pmkidBursts.end()) g_pmkidBursts.erase(it);
 }
-static constexpr uint32_t PMKID_PSRAM_FLOOR = 512 * 1024;
+static constexpr size_t kPmkidSourceBytes = sizeof(CacheMap<uint64_t, PmkidBurst>::value_type) + 8 * sizeof(void *);
+static uint32_t s_pmkidSourcesDropped = 0;
+
+// Caller holds g_mtx; stops tracking about the oldest eighth of sources.
+static size_t pmkidShed(void *) {
+    size_t n = g_pmkidLru.size() / 8;
+    if (n == 0 && !g_pmkidLru.empty()) n = 1;
+    for (size_t i = 0; i < n; i++) pmkidDropOldest();
+    s_pmkidSourcesDropped += (uint32_t)n;
+    return n;
+}
 static constexpr uint32_t PMKID_ORPHAN_SETTLE_MS = 1500;
 
 static uint64_t eapolSessionKey(const uint8_t *bssid, const uint8_t *sta) {
@@ -1197,12 +1207,14 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     }
     auto bIt = g_pmkidBursts.find(srcK);
     if (bIt == g_pmkidBursts.end()) {
-        if (ESP.getFreePsram() < PMKID_PSRAM_FLOOR && !g_pmkidLru.empty()) {
-            pmkidDropOldest();
+        const uint32_t droppedBefore = s_pmkidSourcesDropped;
+        cacheHeapMakeRoom(kPmkidSourceBytes, &g_pmkidBursts, pmkidShed, nullptr);
+        if (s_pmkidSourcesDropped != droppedBefore) {
             static uint32_t s_lastShedLog = 0;
             if (now - s_lastShedLog > 10000) {
                 s_lastShedLog = now;
-                Serial.println("[DETECT] Memory low: stopped tracking the oldest PMKID source to track a new one");
+                Serial.printf("[DETECT] Cache region full: stopped tracking %u oldest PMKID sources\n",
+                              (unsigned)s_pmkidSourcesDropped);
             }
         }
         bIt = g_pmkidBursts.emplace(srcK, PmkidBurst{}).first;

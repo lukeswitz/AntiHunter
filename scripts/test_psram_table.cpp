@@ -1,8 +1,13 @@
 #include <cassert>
 #include <cstdio>
+#include <map>
 #include <random>
 #include <unordered_set>
 
+#include "cache_heap.h"
+#include "cache_shed.h"
+#include "esp_heap_caps.h"
+#include "multi_heap.h"
 #include "psram_table.h"
 
 struct Payload {
@@ -40,7 +45,7 @@ static bool consistent(const T &t)
 
 static void testUnboundedInsert()
 {
-    g_psramTotal = 256u * 1024 * 1024;
+    g_regionBudget = 256u * 1024 * 1024;
     PsramTable<Payload> t;
     const uint32_t N = 200000;
     for (uint32_t i = 0; i < N; i++) {
@@ -63,13 +68,12 @@ static void testUnboundedInsert()
     CHECK(t.find(0xDEADBEEFULL) == nullptr);
     CHECK(consistent(t));
     t.clear();
-    CHECK(t.size() == 0 && g_psramUsed == 0);
+    CHECK(t.size() == 0 && g_regionUsed == 0);
 }
 
-static void testEvictionUnderPressure()
+static void testEvictionWhenRegionFull()
 {
-    g_psramTotal = 512u * 1024 + 1536u * 1024;
-    g_psramPeak = 0;
+    g_regionBudget = 1536u * 1024;
     std::unordered_set<uint64_t> ref;
     g_ref = &ref;
     g_hookCalls = 0;
@@ -88,7 +92,7 @@ static void testEvictionUnderPressure()
             continue;
         }
         if (isNew) ref.insert(key);
-        CHECK(g_psramUsed <= g_psramTotal - t.reserve() + 4096);
+        CHECK(g_regionUsed <= g_regionBudget);
     }
     CHECK(nulls == 0);
     CHECK(t.evicted() > 0);
@@ -97,16 +101,16 @@ static void testEvictionUnderPressure()
     CHECK(t.inserted() == t.size() + t.evicted());
     for (uint64_t k : ref) CHECK(t.find(k) != nullptr);
     CHECK(consistent(t));
-    std::printf("  pressure: held=%zu evicted=%u peak=%zu budget=%zu\n", t.size(), t.evicted(), g_psramPeak,
-                g_psramTotal);
+    std::printf("  region full: held=%zu evicted=%u used=%zu budget=%zu\n", t.size(), t.evicted(), g_regionUsed,
+                g_regionBudget);
     g_ref = nullptr;
     t.clear();
-    CHECK(g_psramUsed == 0);
+    CHECK(g_regionUsed == 0);
 }
 
 static void testOutlierAgeEvictsOnlyAnEighth()
 {
-    g_psramTotal = 512u * 1024 + 600u * 1024;
+    g_regionBudget = 600u * 1024;
     PsramTable<Payload> t;
     bool isNew = false;
     t.upsert(1, 0, &isNew);
@@ -130,10 +134,9 @@ static void testOutlierAgeEvictsOnlyAnEighth()
     t.clear();
 }
 
-static void testNoPsram()
+static void testEmptyRegion()
 {
-    g_psramTotal = 0;
-    g_psramUsed = 0;
+    g_regionBudget = 0;
     PsramTable<Payload> t;
     bool isNew = true;
     CHECK(t.upsert(7, 1, &isNew) == nullptr);
@@ -142,7 +145,7 @@ static void testNoPsram()
 
 static void testWrapAges()
 {
-    g_psramTotal = 512u * 1024 + 300u * 1024;
+    g_regionBudget = 300u * 1024;
     PsramTable<Payload> t;
     bool isNew = false;
     uint32_t now = 0xFFFFFF00u;
@@ -158,49 +161,129 @@ static void testWrapAges()
 }
 
 static PsramTable<Payload> *g_durable = nullptr;
-static void spillToDurable(const PsramTable<Payload>::Entry &e, void *)
+static std::unordered_set<uint64_t> *g_sd = nullptr;
+static uint32_t g_durableNow = 0;
+
+static void durableToSd(const PsramTable<Payload>::Entry &e, void *)
 {
-    bool isNew = false;
-    if (g_durable) g_durable->upsert(e.key, e.lastMs, &isNew);
+    if (g_sd) g_sd->insert(e.key);
 }
 
-static void testWorkingTableYieldsToDurable()
+static void workingToDurable(const PsramTable<Payload>::Entry &e, void *)
 {
-    g_psramTotal = 4u * 1024 * 1024;
-    g_psramUsed = 0;
+    bool isNew = false;
+    if (g_durable && !g_durable->upsert(e.key, e.lastMs, &isNew) && g_sd) g_sd->insert(e.key);
+}
+
+static size_t shedDurable(void *)
+{
+    return g_durable ? g_durable->shed(g_durableNow) : 0;
+}
+
+// A full region makes the other registered caches give memory back; every key ends up in RAM or on "SD".
+static void testOtherCachesShedAndNothingIsLost()
+{
+    g_regionBudget = 4u * 1024 * 1024;
     PsramTable<Payload> durable;
     PsramTable<Payload> working;
-    working.setReserve(PsramTable<Payload>::reserveFraction(2, 1024 * 1024));
-    working.setEvictHook(spillToDurable, nullptr);
+    std::unordered_set<uint64_t> sd;
+    durable.setEvictHook(durableToSd, nullptr);
+    working.setEvictHook(workingToDurable, nullptr);
     g_durable = &durable;
-    const uint32_t N = 46000;
+    g_sd = &sd;
+    cacheHeapAddShedder(&durable, shedDurable, nullptr);
+
     bool isNew = false;
-    for (uint32_t i = 0; i < N; i++) CHECK(working.upsert(0x5000000000ULL + i, i, &isNew) != nullptr);
-    const size_t workingHeld = working.size();
-    const uint32_t workingEvicted = working.evicted();
+    const uint32_t D = 20000;
+    for (uint32_t i = 0; i < D; i++) CHECK(durable.upsert(0x7000000000ULL + i, i, &isNew) != nullptr);
+    g_durableNow = D;
+    const size_t durableBefore = durable.size();
+
+    const uint32_t N = 46000;
+    for (uint32_t i = 0; i < N; i++) CHECK(working.upsert(0x5000000000ULL + i, D + i, &isNew) != nullptr);
+    CHECK(durable.size() < durableBefore);
+    CHECK(!sd.empty());
+
     working.releaseIndex();
     while (working.size()) {
         const size_t n = working.size();
         const size_t start = (n - 1) & ~(size_t)(PsramTable<Payload>::kBlockLen - 1);
-        for (size_t i = start; i < n; i++) durable.upsert(working.at(i).key, working.at(i).lastMs, &isNew);
+        for (size_t i = start; i < n; i++) workingToDurable(working.at(i), nullptr);
         working.popBack(n - start);
     }
-    CHECK(workingEvicted > 0);
-    CHECK(workingHeld < N);
-    CHECK(durable.evicted() == 0);
-    CHECK(durable.size() == N);
+    size_t lost = 0;
+    for (uint32_t i = 0; i < D; i++)
+        if (!durable.find(0x7000000000ULL + i) && !sd.count(0x7000000000ULL + i)) lost++;
+    for (uint32_t i = 0; i < N; i++)
+        if (!durable.find(0x5000000000ULL + i) && !sd.count(0x5000000000ULL + i)) lost++;
+    CHECK(lost == 0);
     CHECK(consistent(durable));
-    std::printf("  priority: working held=%zu evicted=%u durable=%zu\n", workingHeld, workingEvicted,
-                durable.size());
+    std::printf("  shed others: durable %zu -> held %zu, on sd %zu, lost %zu\n", durableBefore, durable.size(),
+                sd.size(), lost);
     g_durable = nullptr;
+    g_sd = nullptr;
     working.clear();
     durable.clear();
-    CHECK(g_psramUsed == 0);
+    CHECK(g_regionUsed == 0);
+}
+
+static size_t g_nestedResult = 99;
+static size_t nestedShedder(void *)
+{
+    g_nestedResult = cacheHeapShedOthers(nullptr);
+    return 0;
+}
+
+static void testShedIsNotReentrant()
+{
+    static int owner;
+    cacheHeapAddShedder(&owner, nestedShedder, nullptr);
+    cacheHeapShedOthers(nullptr);
+    CHECK(g_nestedResult == 0);
+}
+
+static void testMakeRoomShedsSelfThenGivesUp()
+{
+    g_regionBudget = 64u * 1024;
+    std::map<uint32_t, uint32_t> m;
+    std::unordered_set<uint32_t> moved;
+    struct Ctx {
+        std::map<uint32_t, uint32_t> *m;
+        std::unordered_set<uint32_t> *moved;
+    } ctx{&m, &moved};
+    auto shedSelf = [](void *c) -> size_t {
+        auto *x = static_cast<Ctx *>(c);
+        return shedOldestEighth(*x->m, 100000u, [](uint32_t seen) { return seen; },
+                                [x](const std::pair<const uint32_t, uint32_t> &kv) { x->moved->insert(kv.first); });
+    };
+    void *held = cacheHeapAlloc(60u * 1024);
+    CHECK(held != nullptr);
+    for (uint32_t i = 0; i < 64; i++) m[i] = i;
+    static int self;
+    CHECK(cacheHeapMakeRoom(8u * 1024, &self, shedSelf, &ctx) == false);
+    CHECK(m.empty());
+    CHECK(moved.size() == 64);
+    cacheHeapRelease(held);
+    CHECK(cacheHeapMakeRoom(8u * 1024, &self, shedSelf, &ctx) == true);
+    CHECK(g_regionUsed == 0);
+}
+
+static void testShedOldestEighthTakesTheOldest()
+{
+    std::map<uint32_t, uint32_t> m;
+    for (uint32_t i = 0; i < 800; i++) m[i] = 1000 + i;
+    std::unordered_set<uint32_t> moved;
+    const size_t n = shedOldestEighth(m, 5000u, [](uint32_t seen) { return seen; },
+                                      [&](const std::pair<const uint32_t, uint32_t> &kv) { moved.insert(kv.first); });
+    CHECK(n == 100);
+    CHECK(m.size() == 700);
+    for (uint32_t i = 0; i < 100; i++) CHECK(moved.count(i) == 1);
+    for (uint32_t i = 100; i < 800; i++) CHECK(m.count(i) == 1);
 }
 
 static void testIndexReleaseAndRegrow()
 {
-    g_psramTotal = 64u * 1024 * 1024;
+    g_regionBudget = 64u * 1024 * 1024;
     PsramTable<Payload> t;
     bool isNew = false;
     for (uint64_t k = 1; k <= 10000; k++) t.upsert(k, 1, &isNew);
@@ -216,18 +299,24 @@ static void testIndexReleaseAndRegrow()
     CHECK(t.size() == 5000 && t.find(4999) && !t.find(5001));
     CHECK(consistent(t));
     t.clear();
-    CHECK(g_psramUsed == 0);
+    CHECK(g_regionUsed == 0);
 }
 
 int main()
 {
+    g_psramTotal = 512u * 1024 * 1024;
+    CHECK(cacheHeapInit(1024 * 1024));
+    CHECK(cacheHeapSize() > 0);
     testIndexReleaseAndRegrow();
-    testWorkingTableYieldsToDurable();
     testUnboundedInsert();
-    testEvictionUnderPressure();
+    testEvictionWhenRegionFull();
     testOutlierAgeEvictsOnlyAnEighth();
-    testNoPsram();
+    testEmptyRegion();
     testWrapAges();
+    testShedOldestEighthTakesTheOldest();
+    testMakeRoomShedsSelfThenGivesUp();
+    testOtherCachesShedAndNothingIsLost();
+    testShedIsNotReentrant();
     if (failures) {
         std::printf("psram_table: %d failure(s)\n", failures);
         return 1;

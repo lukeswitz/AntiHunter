@@ -165,6 +165,14 @@ static void deviceDBEvictHook(const PsramTable<DeviceDBEntry>::Entry &e, void *)
     g_sdRecordsMoved++;
 }
 
+static size_t deviceDBShedForOtherCache(void *)
+{
+    if (!deviceDBMutex.try_lock()) return 0;
+    const size_t n = deviceDB.shed(getEventTimestamp());
+    deviceDBMutex.unlock();
+    return n;
+}
+
 static void deviceDBImportLegacy()
 {
     for (const char *path : {DEVICE_DB_JSONL, DEVICE_DB_JSONL_BAK, DEVICE_DB_ARCHIVE}) {
@@ -208,6 +216,7 @@ void loadDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
     deviceDB.setEvictHook(deviceDBEvictHook, nullptr);
+    cacheHeapAddShedder(&deviceDB, deviceDBShedForOtherCache, nullptr);
     devBufReserve();
     s_devSeen.reserve(DEVICE_DB_SEEN_BUCKETS);
     s_devSeen.clear();
