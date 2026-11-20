@@ -209,7 +209,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
   - A device the node has seen before picks up where it left off, so its counts keep growing from scan to scan.
   - An 8 GB card has room for about 40 million devices.
   - On very large sites the device total is close but not exact.
-  - When memory runs low, the randomized MAC tracer moves its oldest sessions to the SD card instead of skipping new ones.
+  - At boot the node sets aside one block of memory for scan data. The rest stays free for Wi-Fi and the mesh.
+  - When that block is full, scans move their oldest devices and tracer sessions to the SD card. New devices go straight to the SD card.
+  - USB serial shows how full the block is in a `[CACHE]` line every 30 seconds.
 - The baseline stores every device on the SD card. The **SD Device Storage** setting is gone.
 - If a record can't be written to the SD card, the node counts it. The count shows on the System page, as `NotSaved:` in `SUMMARY`, and as `NS=` in `SCAN_DONE`. The web UI also shows a warning.
 - A device that returns during a baseline is now read back from the SD card, instead of being counted as new.
@@ -232,6 +234,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Wi-Fi interference detection never alerted. It now alerts when a channel's noise floor rises.
 - During a beacon flood, the detector queue now keeps room for handshake frames.
 - A flood of fake PMKID sources can no longer use up the node's memory.
+- Detectors tracked a fixed number of senders, such as 64 for deauth floods. They now track as many as the scan memory block holds, and forget the oldest when it is full.
+- The known radio list held 32 radios, and the lists of your own nodes' radios and access points held 16 each. They have no fixed limit now.
+- Drone detection no longer cuts its list to 10 drones when internal memory runs low.
 - 16 missing detector cards are back on the Sentinel tab.
 - The raw `/detect` page updates again.
 - The Karma and handshake cards now show real counts.
