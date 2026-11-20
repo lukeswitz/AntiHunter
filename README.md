@@ -7,10 +7,13 @@
 [![Stable](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?filter=!*-beta*&label=stable&color=2ea44f)](https://github.com/lukeswitz/AntiHunter/releases/latest)
 [![Beta](https://img.shields.io/github/v/tag/lukeswitz/AntiHunter?filter=*-beta*&label=beta&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![C5](https://img.shields.io/github/v/tag/lukeswitz/AntiHunter?filter=*-c5exp*&label=c5&color=purple)](https://github.com/lukeswitz/AntiHunter/releases)
-[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/AYFzUurfmh)</br>
 [![Code Quality](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml)
 [![PlatformIO CI](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml)
 [![CodeQL](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql)
+
+[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/AYFzUurfmh)</br>
+
+
 
 </div>
 
@@ -19,10 +22,7 @@
 
 
   <a href="https://github.com/lukeswitz/AntiHunter/wiki"><img src="docs/img/wiki-button.png" alt="AntiHunter Wiki" width="320" /></a>
-
-
-***[Store](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md) • [Privacy](https://www.rootdowndigital.com/privacy)***
-
+  
 </div>
 
 
@@ -30,22 +30,27 @@
   
 ## What is AntiHunter?
 
-***Hunt the hunters:*** _AntiHunter is a compact digital and physical tripwire. It provides detection, defense and awareness for the devices on your airwaves._
 
-Leave one in a home, a vehicle, along a fence line, or at a site with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong, and sends the alert over its own long-range mesh radio or Wi-Fi. 
 
-**No internet or subscription required, open source. Defensive by design. Extend and collect all node data with the [C2](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
 
-<a href="https://lectronz.com/stores/antihunter">
-  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
-</a>
+***Hunt the hunters:*** _AntiHunter is a compact digital and physical tripwire. It provides detection, defense and awareness for the devices around you._
+
+Leave one in a home, a vehicle, along a fence line, or around an event with no signal. It watches every wireless device and the activity around it, flags what doesn’t belong. Schedule scans, control other nodes and receive alerts over its long-range LoRa radio or onboard Wi-Fi (supports both Meshtastic & MeshCore).
+
+**Defensive by design**. **No internet or subscription required, open source.** Links up to TAK, MQTT and more with the additional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) software.
+
 
 ---
 
 **`Quick Links`**
 
-[Wiki](https://github.com/lukeswitz/AntiHunter/wiki) · [Web Flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly Manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [3D Print Files](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) 
+[Shop](https://lectronz.com/stores/antihunter) · [Website](https://rootdowndigital.com/antihunter) · [Legal](docs/legal-disclaimer.md) · [Privacy](https://www.rootdowndigital.com/privacy) · [Wiki](https://github.com/lukeswitz/AntiHunter/wiki)
 
+[Web Flasher](https://lukeswitz.github.io/AntiHunter/) · [Assembly Manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) · [3D Print Files](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) · [Operator's Guide](docs/AntiHunter-Operators-Guide.pdf) · [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) 
+
+<a href="https://lectronz.com/stores/antihunter">
+  <img alt="I sell on Lectronz" src="https://lectronz.com/static/badges/i-sell-on-lectronz-medium.png" />
+</a>
 
 
 
@@ -88,17 +93,19 @@ Leave one in a home, a vehicle, along a fence line, or at a site with no signal.
 
 ---
 
-### Contributing
+#### Contributing
 
-We welcome your ideas! Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues). Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+**We welcome your ideas!** Ask questions and share builds in [Discussions](https://github.com/lukeswitz/AntiHunter/discussions) or on [Discord](https://discord.gg/AYFzUurfmh). 
+- Report bugs in [Issues](https://github.com/lukeswitz/AntiHunter/issues).
+- Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Acknowledgments
+#### Acknowledgments
 
 Hardware design by @TheRealSirHaXalot.
 
 This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright © Intel Corporation and OpenDroneID contributors.
 
-### License
+#### License
 
 Firmware: [GNU Affero General Public License v3.0](LICENSE). Hardware and documentation: as stated in their files.
 
