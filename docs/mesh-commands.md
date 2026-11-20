@@ -286,7 +286,7 @@ Sentinel is the node's threat detection, in both builds. It watches for Wi-Fi at
 | `INCIDENTS` | `IN` | Prints the most recent incidents on USB serial | `INCIDENTS_LEN:<n> (see serial)` | `@AH01 INCIDENTS:50` |
 | `INCIDENTS_CLEAR` | `INX` | Deletes the incident log | `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
 | `DETECT_CLEAR` | `DCX` | Clears all detector state and deletes the detector logs on SD | `DETECT_CLEAR_ACK:OK` | `@AH01 DETECT_CLEAR` |
-| `RADIO_KNOWN_ADD` | `RKA` | Marks a Meshtastic or MeshCore radio as known. The node stops alerting on it | `RADIO_KNOWN_ACK:OK:<count>`, `:INVALID`, or `:FAILED:FULL` | `@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic` |
+| `RADIO_KNOWN_ADD` | `RKA` | Marks a Meshtastic or MeshCore radio as known. The node stops alerting on it | `RADIO_KNOWN_ACK:OK:<count>`, `:INVALID`, or `:FAILED:FULL` when the node's settings storage is full | `@ALL RADIO_KNOWN_ADD:AA:BB:CC:DD:EE:FF:Meshtastic` |
 | `RADIO_KNOWN_DEL` | `RKD` | Removes a radio from the known list | `RADIO_KNOWN_ACK:OK:<count>` or `:INVALID` | `@ALL RADIO_KNOWN_DEL:AA:BB:CC:DD:EE:FF` |
 | `RADIO_KNOWN_CLEAR` | `RKX` | Empties the known list | `RADIO_KNOWN_ACK:OK:0` | `@AH01 RADIO_KNOWN_CLEAR` |
 | `SELF_RADIO_SET` | `SRS` | Sets the Bluetooth name prefix of the node's own radio. The node stops alerting on a radio whose name starts with that prefix. Use it when no other node is nearby to identify the radio | `SELF_RADIO_ACK:OK` or `:INVALID` | `@AH01 SELF_RADIO_SET:Meshtastic` |

@@ -6,6 +6,7 @@
 #include "drone_detector.h"
 #include "main.h"
 #include "triangulation.h"
+#include "cache_shed.h"
 #include <SD.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
@@ -18,6 +19,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <algorithm>
+#include <memory>
 #include <list>
 #include <numeric>
 #include <deque>
@@ -59,7 +61,6 @@ bool detect_isSelfApMac(const uint8_t *mac) { return isSelfMac(mac); }
 static constexpr uint32_t FLEET_REPEAT_MS = 600000;
 static constexpr uint32_t FLEET_AP_GRACE_MS = 60000;
 static constexpr uint32_t FLEET_AP_ANSWER_MS = 30000;
-static constexpr size_t MAX_FLEET = 16;
 static constexpr size_t FLEET_PREFIX_MAX = 12;
 
 struct FleetRadio {
@@ -112,13 +113,35 @@ static FleetRadio &fleetRadioUpsert(const char *prefix, const char *id) {
         }
         return r;
     }
-    if (g_fleetRadios.size() >= MAX_FLEET) g_fleetRadios.erase(g_fleetRadios.begin());
     FleetRadio r{};
     snprintf(r.prefix, sizeof(r.prefix), "%s", prefix);
     snprintf(r.id, sizeof(r.id), "%s", id);
     g_fleetRadios.push_back(r);
     g_fleetDirty = true;
     return g_fleetRadios.back();
+}
+
+// Lists go to NVS as blobs: an NVS string stops at 4000 bytes, a blob only at the partition's free space.
+static bool nvsSaveList(const char *strKey, const char *blobKey, const String &txt) {
+    Preferences p;
+    if (!p.begin("ahdetect", false)) return false;
+    const bool ok = txt.length() == 0 ? (!p.isKey(blobKey) || p.remove(blobKey))
+                                      : p.putBytes(blobKey, txt.c_str(), txt.length()) == txt.length();
+    if (ok && p.isKey(strKey)) p.remove(strKey);
+    p.end();
+    if (!ok) Serial.printf("[DETECT] NVS has no room to save %s (%u bytes)\n", blobKey, (unsigned)txt.length());
+    return ok;
+}
+
+// Reads a list saved by nvsSaveList, or the older string form of it.
+static String nvsListText(Preferences &p, const char *strKey, const char *blobKey) {
+    const size_t n = p.isKey(blobKey) ? p.getBytesLength(blobKey) : 0;
+    if (n == 0) return p.isKey(strKey) ? p.getString(strKey, "") : String();
+    std::unique_ptr<char[]> buf(new (std::nothrow) char[n]);
+    if (!buf || p.getBytes(blobKey, buf.get(), n) != n) return String();
+    String txt;
+    txt.concat(buf.get(), n);
+    return txt;
 }
 
 static void fleetSaveIfDirty() {
@@ -130,8 +153,7 @@ static void fleetSaveIfDirty() {
         txt = String(g_selfRadioPrefix) + "\n";
         for (const auto &r : g_fleetRadios) txt += String(r.prefix) + "," + r.id + "\n";
     }
-    Preferences p;
-    if (p.begin("ahdetect", false)) { p.putString("fleetRad", txt); p.end(); }
+    nvsSaveList("fleetRad", "fleetRadB", txt);
 }
 
 void fleet_load(const String &txt) {
@@ -224,7 +246,6 @@ static void fleetProcessMsg(const String &fromNode, const String &msg) {
             memcpy(a.mac, mac, 6);
             return;
         }
-        if (g_fleetAps.size() >= MAX_FLEET) g_fleetAps.erase(g_fleetAps.begin());
         FleetAp a{};
         snprintf(a.id, sizeof(a.id), "%s", fromNode.c_str());
         memcpy(a.mac, mac, 6);
@@ -283,7 +304,16 @@ static bool fleetSendAp() {
     return sendToSerial1(getNodeId() + ": FLEET_AP:" + macStr(g_selfApMac), true);
 }
 
-// key() returns a millis() stamp; age is taken modulo 2^32 so the order survives the 49.7-day wrap.
+// Before inserting a new key: makes room in the cache region, shedding this map's oldest eighth by key()
+// (a millis() stamp; ages are taken modulo 2^32 so the order survives the 49.7-day wrap).
+template <typename M, typename K, typename F> static void cacheRoomBy(M &m, const K &k, F key) {
+    if (m.find(k) != m.end()) return;
+    cacheMakeRoomFor(m, millis(), [key](const typename M::mapped_type &v) { return (uint32_t)key(v); });
+}
+template <typename M, typename K> static void cacheRoomTs(M &m, const K &k) {
+    cacheRoomBy(m, k, [](const typename M::mapped_type &v) { return v; });
+}
+// For tables a web getter serializes whole into one String: a count bound keeps that String finite.
 template <typename M, typename F> static void evictOldestBy(M &m, F key) {
     if (m.empty()) return;
     const uint32_t now = millis();
@@ -294,15 +324,6 @@ template <typename M, typename F> static void evictOldestBy(M &m, F key) {
         if (age > oldestAge) { oldest = it; oldestAge = age; }
     }
     m.erase(oldest);
-}
-template <typename M> static void evictOldestTs(M &m) {
-    evictOldestBy(m, [](const typename M::mapped_type &v) { return v; });
-}
-template <typename M> static void evictLowestCount(M &m) {
-    if (m.empty()) return;
-    auto low = m.begin();
-    for (auto it = m.begin(); it != m.end(); ++it) if (it->second < low->second) low = it;
-    m.erase(low);
 }
 
 static constexpr uint8_t EV_MAX_SRCS = 8;
@@ -465,7 +486,7 @@ struct SaeCounter {
     uint8_t nSrc;
     uint16_t otherSrcCommits;
 };
-PsramMap<uint64_t, SaeCounter> g_saeCounters;
+CacheMap<uint64_t, SaeCounter> g_saeCounters;
 PsramVec<SaeDosEvent> g_saeDosLog;
 
 // Auth-frame flood (mdk4 mode a / Auth-DoS): open-system Auth (algo=0) flooded
@@ -479,8 +500,7 @@ struct AuthFloodWindow {
     uint8_t  channel{};
     bool     alerted{};
 };
-PsramMap<uint64_t, AuthFloodWindow> g_authFlood;
-static constexpr size_t   MAX_AUTH_FLOOD_MAP = 32;
+CacheMap<uint64_t, AuthFloodWindow> g_authFlood;
 static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
 static constexpr uint16_t AUTH_FLOOD_FRAMES  = 60;        // raw rate floor in window
@@ -496,7 +516,7 @@ struct FragMsdu {
     bool     firstProtected;
     uint32_t lastSeen;
 };
-PsramMap<uint64_t, FragMsdu> g_fragMsdu;
+CacheMap<uint64_t, FragMsdu> g_fragMsdu;
 PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 
@@ -638,7 +658,7 @@ static constexpr size_t MAX_BLEM_LOG = 100;
 // Helpers
 // =============================================================================
 
-static PsramMap<String, uint32_t> g_meshRateMap;
+static CacheMap<String, uint32_t> g_meshRateMap;
 static std::atomic<uint32_t> g_droppedWifi{0};
 static std::atomic<uint32_t> g_droppedBle{0};
 static std::atomic<uint32_t> g_meshGated{0};
@@ -649,13 +669,8 @@ bool meshRateGate(const String &type, uint32_t minIntervalMs) {
         g_meshGated.fetch_add(1);
         return false;
     }
+    cacheRoomTs(g_meshRateMap, type);
     g_meshRateMap[type] = now;
-    if (g_meshRateMap.size() > 256) {
-        String oldestK;
-        uint32_t oldestT = UINT32_MAX;
-        for (const auto &kv : g_meshRateMap) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
-        g_meshRateMap.erase(oldestK);
-    }
     return true;
 }
 
@@ -807,14 +822,16 @@ struct DeauthWitness {
     uint8_t src[6];
     uint8_t dst[6];
     uint32_t ts;
+    uint32_t firstMs;
     int8_t rssi;
     uint8_t channel;
     uint8_t deauthCount;  // increments on repeat from same src
     bool forged;
     bool alerted;
 };
-static PsramVec<DeauthWitness> g_deauthWitness;
-static constexpr size_t MAX_DEAUTH_WITNESS = 32;
+using DeauthWitnessBySrc = CacheMap<uint64_t, DeauthWitness>;
+static CacheMap<uint64_t, DeauthWitnessBySrc> g_deauthWitness;  // dst -> src -> witness
+static constexpr uint64_t BROADCAST_KEY = 0xFFFFFFFFFFFFULL;
 static constexpr uint32_t EAPOL_BAIT_WINDOW_MS = 30000;
 static constexpr uint32_t EAPOL_BAIT_FAST_MS = 1000;
 static constexpr uint32_t EAPOL_BAIT_HIGH_MS = 2000;
@@ -825,54 +842,57 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
     if (!src || !dst) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    // Age out + look for existing entry from same src
-    for (auto it = g_deauthWitness.begin(); it != g_deauthWitness.end(); ) {
-        if (now - it->ts > EAPOL_BAIT_WINDOW_MS) { it = g_deauthWitness.erase(it); continue; }
-        if (memcmp(it->src, src, 6) == 0 && memcmp(it->dst, dst, 6) == 0) {
-            it->ts = now;
-            if (forged) it->forged = true;
-            if (it->deauthCount < 255) it->deauthCount++;
-            return;
-        }
-        ++it;
+    const uint64_t dk = packMac(dst), sk = packMac(src);
+    cacheRoomBy(g_deauthWitness, dk, [](const DeauthWitnessBySrc &bySrc) {
+        uint32_t last = 0;
+        for (const auto &kv : bySrc) last = std::max(last, kv.second.ts);
+        return last;
+    });
+    DeauthWitnessBySrc &bySrc = g_deauthWitness[dk];
+    auto it = bySrc.find(sk);
+    if (it != bySrc.end() && now - it->second.ts <= EAPOL_BAIT_WINDOW_MS) {
+        it->second.ts = now;
+        if (forged) it->second.forged = true;
+        if (it->second.deauthCount < 255) it->second.deauthCount++;
+        return;
     }
-    if (g_deauthWitness.size() >= MAX_DEAUTH_WITNESS) {
-        // evict oldest
-        size_t oldestIdx = 0; uint32_t oldestTs = UINT32_MAX;
-        for (size_t i = 0; i < g_deauthWitness.size(); ++i) {
-            if (g_deauthWitness[i].ts < oldestTs) { oldestTs = g_deauthWitness[i].ts; oldestIdx = i; }
-        }
-        g_deauthWitness.erase(g_deauthWitness.begin() + oldestIdx);
-    }
-    DeauthWitness w{};
+    cacheRoomBy(bySrc, sk, [](const DeauthWitness &x) { return x.ts; });
+    DeauthWitness &w = bySrc[sk];
+    w = DeauthWitness{};
     memcpy(w.src, src, 6);
     memcpy(w.dst, dst, 6);
     w.ts = now;
+    w.firstMs = now;
     w.rssi = rssi;
     w.channel = channel;
     w.deauthCount = 1;
     w.forged = forged;
     w.alerted = false;
-    g_deauthWitness.push_back(w);
 }
 
 void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_t rssi, uint8_t channel) {
     if (!sta) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    for (auto &w : g_deauthWitness) {
-        if (now - w.ts > EAPOL_BAIT_WINDOW_MS) continue;
-        bool dstMatch = memcmp(w.dst, sta, 6) == 0;
-        bool wDstBcast = (w.dst[0] & w.dst[1] & w.dst[2] & w.dst[3] & w.dst[4] & w.dst[5]) == 0xFF;
-        bool bcastBait = wDstBcast && apBssid && memcmp(w.src, apBssid, 6) == 0;
-        if (!dstMatch && !bcastBait) continue;
-        // Bait pattern: 1-3 deauths total from src X to STA Y, then EAPOL from Y.
-        // >3 deauths = ongoing DoS attack, not bait sniff.
-        if (w.deauthCount > 3) continue;
-        if (w.alerted) continue;
+    DeauthWitness *pick = nullptr;
+    // Bait pattern: 1-3 deauths total from src X to STA Y, then EAPOL from Y.
+    // >3 deauths = ongoing DoS attack, not bait sniff. Oldest qualifying witness wins.
+    auto consider = [&](DeauthWitness &c) {
+        if (now - c.ts > EAPOL_BAIT_WINDOW_MS || c.deauthCount > 3 || c.alerted) return;
+        if (!c.forged && (now - c.ts > EAPOL_BAIT_FAST_MS || c.deauthCount < 2)) return;
+        if (!pick || now - c.firstMs > now - pick->firstMs) pick = &c;
+    };
+    auto toSta = g_deauthWitness.find(packMac(sta));
+    if (toSta != g_deauthWitness.end())
+        for (auto &kv : toSta->second) consider(kv.second);
+    auto toAll = apBssid ? g_deauthWitness.find(BROADCAST_KEY) : g_deauthWitness.end();
+    if (toAll != g_deauthWitness.end()) {
+        auto fromAp = toAll->second.find(packMac(apBssid));
+        if (fromAp != toAll->second.end()) consider(fromAp->second);
+    }
+    if (pick) {
+        DeauthWitness &w = *pick;
         uint32_t latencyMs = now - w.ts;
-        if (!w.forged && latencyMs > EAPOL_BAIT_FAST_MS) continue;
-        if (!w.forged && w.deauthCount < 2) continue;
         w.alerted = true;
         const char *confidence = (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) ? "high" : "medium";
         char srcBuf[18], dstBuf[18];
@@ -909,7 +929,6 @@ void detect_correlateEapolBait(const uint8_t *sta, const uint8_t *apBssid, int8_
         // Only fire attacker-trilateration on HIGH confidence to avoid kicking
         // legit gear that did a normal deauth+reconnect.
         if (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) attacker_kick(w.src, "EAPOL_BAIT");
-        return;
     }
 }
 
@@ -928,23 +947,16 @@ static LastDeauthFrame g_lastRealDeauth{};
 static portMUX_TYPE g_lastRealDeauthMux = portMUX_INITIALIZER_UNLOCKED;
 
 struct DeauthPeerMark { uint32_t lastMs; uint32_t lastBurstMs; };
-static PsramMap<uint64_t, DeauthPeerMark> g_deauthPeerTs;
-static constexpr size_t MAX_DEAUTH_PEER_MAP = 96;
+static CacheMap<uint64_t, DeauthPeerMark> g_deauthPeerTs;
 static constexpr uint32_t DEAUTH_ATTRIB_WIN_MS = 8000;
 
 struct DeauthPairEntry { uint32_t winStartMs; uint16_t count; };
-static PsramMap<uint64_t, DeauthPairEntry> g_deauthPair;
-static constexpr size_t MAX_DEAUTH_PAIR_MAP = 96;
+static CacheMap<uint64_t, DeauthPairEntry> g_deauthPair;
 static constexpr uint32_t DEAUTH_PAIR_WIN_MS = 1000;
 static constexpr uint16_t DEAUTH_PAIR_THRESH = 12;
 
 static void deauthNotePeer(uint64_t k, uint32_t now, bool burst) {
-    if (g_deauthPeerTs.size() >= MAX_DEAUTH_PEER_MAP && g_deauthPeerTs.find(k) == g_deauthPeerTs.end()) {
-        uint32_t oldest = UINT32_MAX;
-        uint64_t oldestK = 0;
-        for (const auto &kv : g_deauthPeerTs) if (kv.second.lastMs < oldest) { oldest = kv.second.lastMs; oldestK = kv.first; }
-        g_deauthPeerTs.erase(oldestK);
-    }
+    cacheRoomBy(g_deauthPeerTs, k, [](const DeauthPeerMark &p) { return p.lastMs; });
     DeauthPeerMark &m = g_deauthPeerTs[k];
     m.lastMs = now;
     if (burst) m.lastBurstMs = now;
@@ -1067,11 +1079,11 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         for (int n = eapolOff + 17; n < eapolOff + 49; ++n) { if (e.payload[n] != 0) { zeroNonce = false; break; } }
         if (zeroNonce) {
             const uint8_t *src = e.payload + 10;
-            static PsramMap<uint64_t, uint32_t> s_fakeM1;
+            static CacheMap<uint64_t, uint32_t> s_fakeM1;
             uint64_t fk = packMac(src); uint32_t nowm = millis();
             auto fit = s_fakeM1.find(fk);
             if (fit == s_fakeM1.end() || (nowm - fit->second) > 30000) {
-                if (s_fakeM1.size() >= 32) evictOldestTs(s_fakeM1);
+                cacheRoomTs(s_fakeM1, fk);
                 s_fakeM1[fk] = nowm;
                 char sb[18];
                 snprintf(sb, sizeof(sb), "%02X:%02X:%02X:%02X:%02X:%02X", src[0],src[1],src[2],src[3],src[4],src[5]);
@@ -1125,11 +1137,11 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                           macStr(bssid).c_str(), macStr(sta).c_str());
         }
         if (pair && forced) {
-            static PsramMap<uint64_t,uint32_t> s_hshkInc;
+            static CacheMap<uint64_t, uint32_t> s_hshkInc;
             uint64_t hk = eapolSessionKey(bssid, sta);
             auto hit = s_hshkInc.find(hk);
             if (hit == s_hshkInc.end() || (now - hit->second) > 30000) {
-                if (s_hshkInc.size() >= 32) evictOldestTs(s_hshkInc);
+                cacheRoomTs(s_hshkInc, hk);
                 s_hshkInc[hk] = now;
                 Serial.printf("[DETECT] HSHK bssid=%s sta=%s pair=%s %s (deauth-forced)\n",
                               macStr(bssid).c_str(), macStr(sta).c_str(), pair,
@@ -1164,11 +1176,11 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     // hcxdumptool M1 replay counter (hcxdumptool.c:5237)
     if (replayCtr >= 0xF000ULL && replayCtr <= 0xFFFEULL) {
         const uint8_t *ap = e.payload + 10;
-        static PsramMap<uint64_t, uint32_t> s_hcxM1;
+        static CacheMap<uint64_t, uint32_t> s_hcxM1;
         uint64_t hcxK = packMac(ap);
         auto hcxIt = s_hcxM1.find(hcxK);
         if (hcxIt == s_hcxM1.end() || (now - hcxIt->second) > 30000) {
-            if (s_hcxM1.size() >= 32) evictOldestTs(s_hcxM1);
+            cacheRoomTs(s_hcxM1, hcxK);
             s_hcxM1[hcxK] = now;
             char hb[18];
             snprintf(hb, sizeof(hb), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1314,8 +1326,8 @@ static void handleEAPOL(const DetectFrameEvent &e) {
 static const uint8_t BEACON_FORGERY_TSF[8] = {0x83, 0x51, 0xF7, 0x8F, 0x0F, 0x00, 0x00, 0x00};
 // Bruce karma_attack.cpp:1285 sendBeaconFrameHelper — hardcoded rogue BSSID
 static const uint8_t KARMA_BRUCE_BSSID[6] = {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC};
-static PsramMap<uint64_t, uint32_t> g_beaconForgeFired;  // bssid -> reason mask seen
-static constexpr size_t MAX_BEACON_FORGE_MAP = 64;
+struct BeaconForgeSeen { uint32_t mask; uint32_t lastMs; };
+static CacheMap<uint64_t, BeaconForgeSeen> g_beaconForgeFired;  // bssid -> reason mask seen
 
 // Beacon-flood detector: counts DISTINCT BSSIDs seen in a rolling window.
 // Real environments have a handful of APs; spam tools spew dozens of new
@@ -1517,7 +1529,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint16_t ieLen = e.len - 36;
 
     if (wantCsaQuiet) {
-        static PsramMap<uint64_t, uint32_t> s_csaQuietEmit;
+        static CacheMap<uint64_t, uint32_t> s_csaQuietEmit;
         uint16_t coff = 0;
         const char *cqReason = nullptr;
         unsigned cqVal = 0;
@@ -1540,7 +1552,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
             uint32_t cqnow = millis();
             auto cqit = s_csaQuietEmit.find(cqk);
             if (cqit == s_csaQuietEmit.end() || (cqnow - cqit->second) > 30000) {
-                if (s_csaQuietEmit.size() >= 32) evictOldestTs(s_csaQuietEmit);
+                cacheRoomTs(s_csaQuietEmit, cqk);
                 s_csaQuietEmit[cqk] = cqnow;
                 char cqb[18];
                 snprintf(cqb, sizeof(cqb), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1568,13 +1580,13 @@ static void handleBeacon(const DetectFrameEvent &e) {
         char ssidSelf[33] = {0};
         extractSSID(ie, ieLen, ssidSelf, sizeof(ssidSelf));
         if (ssidSelf[0] && isSelfSsid(ssidSelf) && !isSelfMac(bssid) && !isSelfMac(p + 10) && !fleetApSkip(bssid)) {
-            static PsramMap<uint64_t, uint32_t> s_selfCloneSeen;
-            static PsramMap<uint64_t, uint32_t> s_selfCloneFirst;
+            static CacheMap<uint64_t, uint32_t> s_selfCloneSeen;
+            static CacheMap<uint64_t, uint32_t> s_selfCloneFirst;
             uint64_t ck = packMac(bssid);
             uint32_t nowc = millis();
             auto fit = s_selfCloneFirst.find(ck);
             if (fit == s_selfCloneFirst.end()) {
-                if (s_selfCloneFirst.size() >= 32) evictOldestTs(s_selfCloneFirst);
+                cacheRoomTs(s_selfCloneFirst, ck);
                 fit = s_selfCloneFirst.emplace(ck, nowc).first;
             }
             bool graceOver = (nowc - fit->second) >= FLEET_AP_GRACE_MS;
@@ -1582,12 +1594,12 @@ static void handleBeacon(const DetectFrameEvent &e) {
             bool defaultSsidAp = !hasOpenAuth(ie, ieLen) && strcmp(ssidSelf, AP_SSID) == 0;
             if (defaultSsidAp) {
                 if (sit == s_selfCloneSeen.end() || (nowc - sit->second) >= FLEET_REPEAT_MS) {
-                    if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
+                    cacheRoomTs(s_selfCloneSeen, ck);
                     s_selfCloneSeen[ck] = nowc;
                     Serial.printf("[DETECT] EVILTWIN %s uses the default SSID with encryption - skipped\n", macStr(bssid).c_str());
                 }
             } else if (graceOver && (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000)) {
-                if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
+                cacheRoomTs(s_selfCloneSeen, ck);
                 s_selfCloneSeen[ck] = nowc;
                 const char *rsn = hasOpenAuth(ie, ieLen) ? "SELF_CLONE_OPEN" : "SELF_CLONE";
                 char bb[18];
@@ -1645,8 +1657,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         //
         // Skip if Multi-BSSID IE (tag 71) is present — 802.11v/ax feature lets
         // one AP advertise multiple SSIDs from one BSSID legitimately.
-        static PsramMap<uint64_t, std::pair<uint32_t, PsramSet<String>>> g_beaconSsidRotate;
-        static constexpr size_t MAX_BEACON_ROTATE_MAP = 64;
+        static CacheMap<uint64_t, std::pair<uint32_t, PsramSet<String>>> g_beaconSsidRotate;
         static constexpr uint32_t BEACON_ROTATE_WIN_MS = 5000;
         static constexpr uint8_t  BEACON_ROTATE_THRESH = 12;
         bool hasMBSSID = false;
@@ -1668,9 +1679,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
             std::lock_guard<std::recursive_mutex> lkR(g_mtx);
             auto rit = g_beaconSsidRotate.find(srcK);
             if (rit == g_beaconSsidRotate.end() || (now2 - rit->second.first) > BEACON_ROTATE_WIN_MS) {
-                if (g_beaconSsidRotate.size() >= MAX_BEACON_ROTATE_MAP) {
-                    evictOldestBy(g_beaconSsidRotate, [](const auto &v) { return v.first; });
-                }
+                cacheRoomBy(g_beaconSsidRotate, srcK, [](const auto &v) { return v.first; });
                 g_beaconSsidRotate[srcK] = {now2, PsramSet<String>{String(ssidLocal2)}};
             } else {
                 rit->second.second.insert(String(ssidLocal2));
@@ -1800,14 +1809,12 @@ static void handleBeacon(const DetectFrameEvent &e) {
         PsramSet<uint64_t> bssids;
         uint32_t lastFiredMs{};
     };
-    static PsramMap<uint64_t, SsidWatch> g_ssidWatch;
-    static constexpr size_t MAX_SSID_TRACK = 48;
+    static CacheMap<uint64_t, SsidWatch> g_ssidWatch;
     static constexpr uint32_t SSID_COLLISION_WIN_MS = 60000;
     static constexpr uint32_t SSID_FIRE_COOLDOWN_MS = 600000;
     static constexpr uint8_t  SSID_PERSIST_STREAK = 2;
     static constexpr size_t   MAX_TWIN_BSSIDS = 4;
     static constexpr uint32_t SSID_LEARN_MS = 300000;
-    static constexpr size_t   MAX_BASE_OUIS = 8;
 
     bool ssidCollision = false;
     uint32_t collisionOuiCount = 0;
@@ -1824,14 +1831,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         uint64_t ssidHash = fnv1a(reinterpret_cast<const uint8_t*>(ssid), strlen(ssid));
         auto sit = g_ssidWatch.find(ssidHash);
         if (sit == g_ssidWatch.end()) {
-            if (g_ssidWatch.size() >= MAX_SSID_TRACK) {
-                uint32_t oldestTs = UINT32_MAX;
-                uint64_t oldestK = 0;
-                for (const auto &kv : g_ssidWatch) {
-                    if (kv.second.winStartMs < oldestTs) { oldestTs = kv.second.winStartMs; oldestK = kv.first; }
-                }
-                if (oldestK) g_ssidWatch.erase(oldestK);
-            }
+            cacheRoomBy(g_ssidWatch, ssidHash, [](const SsidWatch &w) { return w.winStartMs; });
             SsidWatch sw{};
             sw.winStartMs = now;
             sw.firstSeenMs = now;
@@ -1852,7 +1852,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
             sw.bssids.insert(k);
             collisionOuiCount = sw.ouis.size();
             if ((now - sw.firstSeenMs) < SSID_LEARN_MS) {
-                if (sw.baseOuis.size() < MAX_BASE_OUIS) sw.baseOuis.insert(bssidOui);
+                sw.baseOuis.insert(bssidOui);
                 sw.streak = 0;
             } else {
                 bool newVendor = sw.baseOuis.find(bssidOui) == sw.baseOuis.end();
@@ -1876,7 +1876,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                         };
                         twinEv = String(",") + evSrcSet(sw.bssids, "bssids") + ",\"ouis\":[" + ouiList(sw.ouis) +
                                  "],\"learned_ouis\":[" + ouiList(sw.baseOuis) + "]";
-                        if (sw.baseOuis.size() < MAX_BASE_OUIS) sw.baseOuis.insert(bssidOui);
+                        sw.baseOuis.insert(bssidOui);
                     }
                 } else if (!ouiMismatch) {
                     sw.streak = 0;
@@ -2029,12 +2029,11 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
     if (s_lastEmitMs[reasonIdx] != 0 && (nowMs - s_lastEmitMs[reasonIdx]) < 5000) return;
 
     auto it = g_beaconForgeFired.find(k);
-    if (it != g_beaconForgeFired.end() && (it->second & reasonBit)) return;  // already reported
-    if (g_beaconForgeFired.size() >= MAX_BEACON_FORGE_MAP) {
-        // Evict an arbitrary entry; this set is bounded for memory safety only.
-        g_beaconForgeFired.erase(g_beaconForgeFired.begin());
-    }
-    g_beaconForgeFired[k] |= reasonBit;
+    if (it != g_beaconForgeFired.end() && (it->second.mask & reasonBit)) return;  // already reported
+    cacheRoomBy(g_beaconForgeFired, k, [](const BeaconForgeSeen &s) { return s.lastMs; });
+    BeaconForgeSeen &seen = g_beaconForgeFired[k];
+    seen.mask |= reasonBit;
+    seen.lastMs = nowMs;
     s_lastEmitMs[reasonIdx] = nowMs;
 
     EvilTwinEvent ev{};
@@ -2087,8 +2086,7 @@ struct AssocSleepWindow {
     uint8_t channel{};
     bool alerted{};
 };
-static PsramMap<uint64_t, AssocSleepWindow> g_assocSleep;
-static constexpr size_t MAX_ASSOC_SLEEP_MAP = 32;
+static CacheMap<uint64_t, AssocSleepWindow> g_assocSleep;
 static constexpr uint16_t ASSOC_SLEEP_WIN_MS = 5000;
 static constexpr uint8_t  ASSOC_SLEEP_THRESH = 4;   // distinct spoofed src (multi-client)
 static constexpr uint16_t ASSOC_SLEEP_FRAMES = 8;   // PM-bit assoc-req rate (catches 1-MAC flood)
@@ -2112,8 +2110,7 @@ struct DeauthRateEntry {
     uint32_t gapSumMs;
     uint16_t gapSamples;
 };
-static PsramMap<uint64_t, DeauthRateEntry> g_deauthRate;
-static constexpr size_t MAX_DEAUTH_RATE_MAP = 64;
+static CacheMap<uint64_t, DeauthRateEntry> g_deauthRate;
 static constexpr uint32_t DEAUTH_FLOOD_WIN_MS = 10000;
 static constexpr uint16_t DEAUTH_FLOOD_THRESH = 20;
 static constexpr uint32_t DEAUTH_RATE_GAP_MS = 150;   // slowest verified injector sends every 40ms
@@ -2176,12 +2173,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         uint64_t pairK = packMac(src) ^ (packMac(dst) * 0x9E3779B97F4A7C15ULL);
         auto pit = g_deauthPair.find(pairK);
         if (pit == g_deauthPair.end() || (now - pit->second.winStartMs) > DEAUTH_PAIR_WIN_MS) {
-            if (g_deauthPair.size() >= MAX_DEAUTH_PAIR_MAP) {
-                uint32_t oldest = UINT32_MAX;
-                uint64_t oldestK = 0;
-                for (const auto &kv : g_deauthPair) if (kv.second.winStartMs < oldest) { oldest = kv.second.winStartMs; oldestK = kv.first; }
-                g_deauthPair.erase(oldestK);
-            }
+            cacheRoomBy(g_deauthPair, pairK, [](const DeauthPairEntry &p) { return p.winStartMs; });
             DeauthPairEntry ne{};
             ne.winStartMs = now;
             ne.count = 1;
@@ -2202,11 +2194,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
     uint64_t k = packMac(src);
     auto it = g_deauthRate.find(k);
     if (it == g_deauthRate.end() || (now - it->second.winStartMs) > DEAUTH_FLOOD_WIN_MS) {
-        if (g_deauthRate.size() >= MAX_DEAUTH_RATE_MAP) {
-            uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
-            for (const auto &kv : g_deauthRate) if (kv.second.winStartMs < oldest) { oldest = kv.second.winStartMs; oldestK = kv.first; }
-            g_deauthRate.erase(oldestK);
-        }
+        cacheRoomBy(g_deauthRate, k, [](const DeauthRateEntry &r) { return r.winStartMs; });
         DeauthRateEntry ne{};
         ne.winStartMs = now;
         ne.count = 1;
@@ -2286,12 +2274,12 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         bool suppressSelfBurst = selfSrc && sentinelHop && !forgeFingerprint &&
                                  (r.count < (DEAUTH_FLOOD_THRESH * 2));
         bool bcastAttack = isBroadcast && pairBurst && !selfSrc;
-        static PsramMap<uint64_t, uint32_t> g_deauthFloodEmit;
+        static CacheMap<uint64_t, uint32_t> g_deauthFloodEmit;
         auto fem = g_deauthFloodEmit.find(k);
         bool floodEmitOk = (fem == g_deauthFloodEmit.end()) || ((now - fem->second) >= DEAUTH_ALERT_COOLDOWN_MS);
         if (!r.alerted && (floodRate || bcastAttack) && !suppressSelfBurst && floodEmitOk) {
             r.alerted = true;
-            if (g_deauthFloodEmit.size() >= MAX_DEAUTH_RATE_MAP) evictOldestTs(g_deauthFloodEmit);
+            cacheRoomTs(g_deauthFloodEmit, k);
             g_deauthFloodEmit[k] = now;
             char srcBuf[18];
             snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -2326,13 +2314,12 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         }
     }
     if (forgeFingerprint) {
-        static PsramMap<uint64_t, uint32_t> g_forgeLastEmit;
-        static constexpr size_t MAX_FORGE_EMIT_MAP = 64;
+        static CacheMap<uint64_t, uint32_t> g_forgeLastEmit;
         uint64_t fk = packMac(src);
         auto fit = g_forgeLastEmit.find(fk);
         bool emitOk = (fit == g_forgeLastEmit.end()) || ((now - fit->second) > 10000);
         if (emitOk) {
-            if (g_forgeLastEmit.size() >= MAX_FORGE_EMIT_MAP) evictOldestTs(g_forgeLastEmit);
+            cacheRoomTs(g_forgeLastEmit, fk);
             g_forgeLastEmit[fk] = now;
             char srcBuf[18];
             snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -2375,7 +2362,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_assocSleep.find(bssK);
     if (it == g_assocSleep.end() || (now - it->second.windowStartMs) > ASSOC_SLEEP_WIN_MS) {
-        if (g_assocSleep.size() >= MAX_ASSOC_SLEEP_MAP) evictOldestBy(g_assocSleep, [](const auto &w) { return w.windowStartMs; });
+        cacheRoomBy(g_assocSleep, bssK, [](const auto &w) { return w.windowStartMs; });
         AssocSleepWindow w{};
         w.windowStartMs = now;
         w.bestRssi = e.rssi;
@@ -2436,8 +2423,7 @@ struct ProbeFloodWindow {
     uint8_t  nSrc;
     uint16_t otherSrcFrames;
 };
-static PsramMap<uint64_t, ProbeFloodWindow> g_probeFlood;  // key = packMac(srcMac & 0xFEFFFFFFFFFF) — collapse LAA
-static constexpr size_t MAX_PROBE_FLOOD_MAP = 64;
+static CacheMap<uint64_t, ProbeFloodWindow> g_probeFlood;  // key = packMac(srcMac & 0xFEFFFFFFFFFF) — collapse LAA
 static constexpr uint16_t PROBE_FLOOD_WIN_MS = 5000;
 static constexpr uint16_t PROBE_FLOOD_THRESH = 10;
 static std::atomic<bool> g_probeFloodEnabled{true};
@@ -2457,8 +2443,7 @@ struct ProbeBehaveWindow {
     bool alerted{};
     char ssid[33]{};
 };
-static PsramMap<uint64_t, ProbeBehaveWindow> g_probeBehave;
-static constexpr size_t MAX_PROBE_BEHAVE_MAP = 64;
+static CacheMap<uint64_t, ProbeBehaveWindow> g_probeBehave;
 static constexpr uint16_t PROBE_BEHAVE_WIN_MS = 5000;
 // Threshold from academic IDS research: >40 distinct MACs probing same SSID in 5s
 // is the suspicious-scanner-sweep range. Below that = busy-venue normal.
@@ -2473,7 +2458,7 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_probeBehave.find(key);
     if (it == g_probeBehave.end() || (now - it->second.windowStartMs) > PROBE_BEHAVE_WIN_MS) {
-        if (g_probeBehave.size() >= MAX_PROBE_BEHAVE_MAP) evictOldestBy(g_probeBehave, [](const auto &w) { return w.windowStartMs; });
+        cacheRoomBy(g_probeBehave, key, [](const auto &w) { return w.windowStartMs; });
         ProbeBehaveWindow w{};
         w.windowStartMs = now; w.bestRssi = rssi; w.channel = channel; w.alerted = false;
         strncpy(w.ssid, ssid, sizeof(w.ssid) - 1);
@@ -2515,8 +2500,8 @@ struct ProbeGlobalWin {
     uint32_t winMs{};
     uint16_t total{};
     bool alerted{};
-    PsramMap<uint64_t,uint16_t> srcCount;
-    PsramMap<uint64_t,uint8_t> srcStreak;
+    CacheMap<uint64_t,uint16_t> srcCount;
+    CacheMap<uint64_t,uint8_t> srcStreak;
     uint32_t lastEmitMs{};
     int8_t rssiMin{};
     int8_t rssiMax{};
@@ -2529,7 +2514,6 @@ struct ProbeGlobalWin {
 static ProbeGlobalWin g_probeGlobal;
 static constexpr uint32_t PROBE_FLOOD_QUIET_MS = 60000;
 static constexpr uint8_t  PROBE_SINGLE_MIN_STREAK = 2;
-static constexpr size_t   MAX_PROBE_STREAK_MAP = 32;
 
 static void probeTallySsid(const char *ssid) {
     ProbeGlobalWin &g = g_probeGlobal;
@@ -2581,8 +2565,8 @@ static void probeGlobalCheck(const uint8_t *src, const char *ssid, int8_t rssi, 
         }
         for (const auto &kv : g_probeGlobal.srcCount) {
             if (kv.second < thr) continue;
-            if (g_probeGlobal.srcStreak.size() >= MAX_PROBE_STREAK_MAP &&
-                g_probeGlobal.srcStreak.find(kv.first) == g_probeGlobal.srcStreak.end()) continue;
+            if (g_probeGlobal.srcStreak.find(kv.first) == g_probeGlobal.srcStreak.end())
+                cacheMakeRoomFor(g_probeGlobal.srcStreak, UINT32_MAX, [](uint8_t streak) { return (uint32_t)streak; });
             uint8_t &s = g_probeGlobal.srcStreak[kv.first];
             if (s < 255) s++;
         }
@@ -2595,10 +2579,11 @@ static void probeGlobalCheck(const uint8_t *src, const char *ssid, int8_t rssi, 
     if (channel < 16) g_probeGlobal.chanMask |= (uint16_t)(1u << channel);
     probeTallySsid(ssid);
     uint64_t sk = packMac(src);
+    if (g_probeGlobal.srcCount.find(sk) == g_probeGlobal.srcCount.end())
+        cacheMakeRoomFor(g_probeGlobal.srcCount, UINT32_MAX, [](uint16_t n) { return (uint32_t)n; });
     uint16_t &scRef = g_probeGlobal.srcCount[sk];
     if (scRef < 65535) scRef++;
     const uint16_t sc = scRef;
-    if (g_probeGlobal.srcCount.size() > 512) evictLowestCount(g_probeGlobal.srcCount);
     if (g_probeGlobal.alerted) return;
     bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
     auto st = g_probeGlobal.srcStreak.find(sk);
@@ -2712,7 +2697,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_probeFlood.find(key);
     if (it == g_probeFlood.end() || (now - it->second.windowStartMs) > PROBE_FLOOD_WIN_MS) {
-        if (g_probeFlood.size() >= MAX_PROBE_FLOOD_MAP) evictOldestBy(g_probeFlood, [](const auto &w) { return w.windowStartMs; });
+        cacheRoomBy(g_probeFlood, key, [](const auto &w) { return w.windowStartMs; });
         ProbeFloodWindow w{};
         w.windowStartMs = now;
         w.hits = 1;
@@ -2865,11 +2850,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
         auto ai = g_authFlood.find(bk);
         if (ai == g_authFlood.end() || (tnow - ai->second.windowStartMs) > AUTH_FLOOD_WIN_MS) {
-            if (g_authFlood.size() >= MAX_AUTH_FLOOD_MAP) {
-                uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
-                for (const auto &kv : g_authFlood) if (kv.second.windowStartMs < oldest) { oldest = kv.second.windowStartMs; oldestK = kv.first; }
-                g_authFlood.erase(oldestK);
-            }
+            cacheRoomBy(g_authFlood, bk, [](const AuthFloodWindow &a) { return a.windowStartMs; });
             AuthFloodWindow w{};
             w.windowStartMs = tnow; w.frames = 1; w.bestRssi = e.rssi;
             w.channel = e.channel; w.alerted = false; w.distinctSrc.insert(sk);
@@ -2918,12 +2899,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     uint16_t win = g_saeWindow.load();
 
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    if (g_saeCounters.size() >= 512 && g_saeCounters.find(k) == g_saeCounters.end()) {
-        for (auto it = g_saeCounters.begin(); it != g_saeCounters.end(); ) {
-            if (now - it->second.windowStart > win) it = g_saeCounters.erase(it);
-            else ++it;
-        }
-    }
+    cacheRoomBy(g_saeCounters, k, [](const SaeCounter &s) { return s.windowStart; });
     SaeCounter &c = g_saeCounters[k];
     if (c.windowStart == 0 || now - c.windowStart > win) {
         c.windowStart = now;
@@ -3065,11 +3041,7 @@ static void handleQosData(const DetectFrameEvent &e) {
         uint16_t seqNum = seqctrl >> 4;
         auto fit = g_fragMsdu.find(key);
         if (fit == g_fragMsdu.end()) {
-            if (g_fragMsdu.size() >= 64) {
-                uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-                for (const auto &kv : g_fragMsdu) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
-                g_fragMsdu.erase(oldestK);
-            }
+            cacheRoomBy(g_fragMsdu, key, [](const FragMsdu &f) { return f.lastSeen; });
             g_fragMsdu[key] = FragMsdu{};
             fit = g_fragMsdu.find(key);
         }
@@ -3252,7 +3224,6 @@ struct KnownRadio {
     char name[32];
 };
 static std::vector<KnownRadio> g_knownRadios;
-static constexpr size_t MAX_KNOWN_RADIOS = 32;
 
 static bool bleAddrRotates(const uint8_t *mac, uint8_t addrType) {
     return addrType != 0 && (mac[0] & 0xC0) != 0xC0;
@@ -3359,15 +3330,14 @@ size_t meshradio_count() {
     return g_meshRadio.size();
 }
 
-static void knownRadioSave() {
+static bool knownRadioSave() {
     String txt;
     {
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
         for (const auto &k : g_knownRadios)
             txt += String((unsigned)k.kind) + "," + macStr(k.mac) + "," + k.name + "\n";
     }
-    Preferences p;
-    if (p.begin("ahdetect", false)) { p.putString("knownRad", txt); p.end(); }
+    return nvsSaveList("knownRad", "knownRadB", txt);
 }
 
 static bool knownRadioKind(const String &type, uint8_t &kind) {
@@ -3386,16 +3356,17 @@ int knownradio_add(const String &mac, const String &type, const String &name) {
     uint8_t kind = 0;
     if (!parseMac6(mac, m) || !knownRadioKind(type, kind) || name.length() >= 32) return -1;
     int n;
+    bool added = false;
     {
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
         auto it = std::find_if(g_knownRadios.begin(), g_knownRadios.end(),
                                [&](const KnownRadio &k) { return memcmp(k.mac, m, 6) == 0; });
         if (it == g_knownRadios.end()) {
-            if (g_knownRadios.size() >= MAX_KNOWN_RADIOS) return -2;
             KnownRadio nk{};
             memcpy(nk.mac, m, 6);
             g_knownRadios.push_back(nk);
             it = g_knownRadios.end() - 1;
+            added = true;
         }
         it->kind = kind;
         String nm = name;
@@ -3408,7 +3379,14 @@ int knownradio_add(const String &mac, const String &type, const String &name) {
         knownRadioRefresh();
         n = (int)g_knownRadios.size();
     }
-    knownRadioSave();
+    if (!knownRadioSave() && added) {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto it = std::find_if(g_knownRadios.begin(), g_knownRadios.end(),
+                               [&](const KnownRadio &k) { return memcmp(k.mac, m, 6) == 0; });
+        if (it != g_knownRadios.end()) g_knownRadios.erase(it);
+        knownRadioRefresh();
+        return -2;
+    }
     return n;
 }
 
@@ -3443,7 +3421,7 @@ void knownradio_load(const String &txt) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_knownRadios.clear();
     int start = 0;
-    while (start < (int)txt.length() && g_knownRadios.size() < MAX_KNOWN_RADIOS) {
+    while (start < (int)txt.length()) {
         int nl = txt.indexOf('\n', start);
         if (nl < 0) nl = txt.length();
         String ln = txt.substring(start, nl);
@@ -3621,8 +3599,8 @@ void initializeDetect() {
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
             ah_detect::g_meshRadioEnabled.store(p.getBool("mrdOn", false));
             ah_detect::g_meshMeshRadio.store(p.getBool("mMrd", true));
-            ah_detect::knownradio_load(p.isKey("knownRad") ? p.getString("knownRad", "") : String());
-            ah_detect::fleet_load(p.isKey("fleetRad") ? p.getString("fleetRad", "") : String());
+            ah_detect::knownradio_load(ah_detect::nvsListText(p, "knownRad", "knownRadB"));
+            ah_detect::fleet_load(ah_detect::nvsListText(p, "fleetRad", "fleetRadB"));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
@@ -4365,6 +4343,14 @@ void detectTask(void *pv) {
         if (now - lastAgeSweep > 30000) {
             lastAgeSweep = now;
             std::lock_guard<std::recursive_mutex> lk(g_mtx);
+            for (auto d = g_deauthWitness.begin(); d != g_deauthWitness.end(); ) {
+                for (auto s = d->second.begin(); s != d->second.end(); ) {
+                    if (now - s->second.ts > EAPOL_BAIT_WINDOW_MS) s = d->second.erase(s);
+                    else ++s;
+                }
+                if (d->second.empty()) d = g_deauthWitness.erase(d);
+                else ++d;
+            }
             for (auto it = g_alerts.begin(); it != g_alerts.end(); ) {
                 if (now - it->second.firstSeen > 120000) it = g_alerts.erase(it);
                 else ++it;
@@ -4931,7 +4917,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
 }
 
 static uint8_t g_lastBloomTxHash[BloomFilter::BYTES / 128] = {0};
-static PsramMap<String, uint32_t> g_meshPeerLastSeen;
+static CacheMap<String, uint32_t> g_meshPeerLastSeen;
 static constexpr uint32_t MESH_PEER_TIMEOUT_MS = 120000;
 void _detect_recordMeshPeer(const String &fromNode) {
     if (fromNode.length() == 0 || fromNode == getNodeId()) return;
@@ -4941,11 +4927,7 @@ void _detect_recordMeshPeer(const String &fromNode) {
         if ((now - it->second) > MESH_PEER_TIMEOUT_MS) it = g_meshPeerLastSeen.erase(it);
         else ++it;
     }
-    if (g_meshPeerLastSeen.find(fromNode) == g_meshPeerLastSeen.end() && g_meshPeerLastSeen.size() >= 64) {
-        auto oldest = std::min_element(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
-            [](const auto &a, const auto &b) { return a.second < b.second; });
-        g_meshPeerLastSeen.erase(oldest);
-    }
+    cacheRoomTs(g_meshPeerLastSeen, fromNode);
     g_meshPeerLastSeen[fromNode] = now;
 }
 static bool hasMeshPeer() {
