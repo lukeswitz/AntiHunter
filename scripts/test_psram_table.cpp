@@ -281,6 +281,25 @@ static void testShedOldestEighthTakesTheOldest()
     for (uint32_t i = 100; i < 800; i++) CHECK(m.count(i) == 1);
 }
 
+static void testMakeRoomForShedsOldestOfThisMap()
+{
+    g_regionBudget = 32u * 1024;
+    std::map<uint32_t, uint32_t> m;
+    void *fill = cacheHeapAlloc(32u * 1024 - 2048);
+    CHECK(fill != nullptr);
+    for (uint32_t i = 0; i < 80; i++) m[i] = 1000 + i;
+    void *rest = cacheHeapAlloc(2048);
+    CHECK(rest != nullptr);
+    cacheMakeRoomFor(m, 5000u, [](uint32_t seen) { return seen; });
+    CHECK(m.empty());
+    cacheHeapRelease(rest);
+    for (uint32_t i = 0; i < 80; i++) m[i] = 1000 + i;
+    cacheMakeRoomFor(m, 5000u, [](uint32_t seen) { return seen; });
+    CHECK(m.size() == 80);
+    cacheHeapRelease(fill);
+    CHECK(g_regionUsed == 0);
+}
+
 static void testIndexReleaseAndRegrow()
 {
     g_regionBudget = 64u * 1024 * 1024;
@@ -315,6 +334,7 @@ int main()
     testWrapAges();
     testShedOldestEighthTakesTheOldest();
     testMakeRoomShedsSelfThenGivesUp();
+    testMakeRoomForShedsOldestOfThisMap();
     testOtherCachesShedAndNothingIsLost();
     testShedIsNotReentrant();
     if (failures) {

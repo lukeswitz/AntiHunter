@@ -806,17 +806,6 @@ void cleanupDroneData() {
     while (droneEventLog.size() > MAX_DRONE_LOG_ENTRIES) {
         droneEventLog.erase(droneEventLog.begin());
     }
-
-    if (ESP.getFreeHeap() < 20000) {
-        Serial.println("[DRONE] Low memory - clearing old data");
-        while (detectedDrones.size() > 10) {
-            detectedDrones.erase(detectedDrones.begin());
-            if (droneDetectionCount > 0) droneDetectionCount = droneDetectionCount - 1;
-        }
-        while (droneEventLog.size() > 20) {
-            droneEventLog.erase(droneEventLog.begin());
-        }
-    }
 }
 
 void droneDetectorTask(void *pv)
