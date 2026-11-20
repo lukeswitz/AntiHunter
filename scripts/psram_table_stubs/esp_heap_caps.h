@@ -32,3 +32,5 @@ inline void heap_caps_free(void *p)
 inline size_t heap_caps_get_free_size(unsigned) { return g_psramTotal - g_psramUsed; }
 inline size_t heap_caps_get_largest_free_block(unsigned) { return g_psramTotal - g_psramUsed; }
 inline size_t heap_caps_get_total_size(unsigned) { return g_psramTotal; }
+inline size_t heap_caps_get_minimum_free_size(unsigned) { return g_psramTotal - g_psramPeak; }
+inline int heap_caps_monitor_local_minimum_free_size_start() { return 0; }

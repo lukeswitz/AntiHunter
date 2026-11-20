@@ -43,7 +43,7 @@ test-meshcore:
 
 test-psram-table:
 	for v in $(FULL_SRC) $(HEADLESS_SRC); do \
-		c++ -std=c++17 -O1 -Iscripts/psram_table_stubs -I$$v scripts/test_psram_table.cpp -o /tmp/test_psram_table && \
+		c++ -std=c++17 -O1 -Iscripts/psram_table_stubs -I$$v -I$(COMMON_SRC) scripts/test_psram_table.cpp $(COMMON_SRC)/cache_heap.cpp -o /tmp/test_psram_table && \
 		/tmp/test_psram_table || exit 1; \
 	done
 

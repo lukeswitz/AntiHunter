@@ -175,7 +175,7 @@ static void snifferWarnUnstored()
     static uint32_t lastWarnMs = 0;
     if (millis() - lastWarnMs > 10000) {
         lastWarnMs = millis();
-        Serial.println("[SNIFFER] PSRAM exhausted: device not stored");
+        Serial.println("[SNIFFER] Cache region full: new devices go straight to the device database on SD");
     }
 }
 
@@ -194,24 +194,27 @@ static bool snifferTouch(const uint8_t mac[6], bool ble, int8_t rssi, uint8_t ch
     return true;
 }
 
-// false when the device was already known or PSRAM could not hold it.
+// false when the device was already known; a device the cache region cannot hold goes straight to the device database.
 static bool snifferAdd(const Hit &h)
 {
     const bool target = matchesMac(h.mac);
-    std::lock_guard<std::mutex> lock(snifferCacheMutex);
-    bool isNew = false;
-    auto *e = snifferDevices.upsert(macKey(h.mac, h.isBLE), millis(), &isNew);
-    if (!e) {
+    {
+        std::lock_guard<std::mutex> lock(snifferCacheMutex);
+        bool isNew = false;
+        auto *e = snifferDevices.upsert(macKey(h.mac, h.isBLE), millis(), &isNew);
+        if (e) {
+            if (!isNew) return false;
+            e->val.hit = h;
+            e->val.seen = 1;
+            e->val.flags = target ? SNIFF_TARGET : 0;
+            if (h.isBLE) snifferBleSeen++;
+            else snifferApSeen++;
+            uniqueNote(h.mac, h.isBLE);
+            return true;
+        }
         snifferWarnUnstored();
-        return false;
     }
-    if (!isNew) return false;
-    e->val.hit = h;
-    e->val.seen = 1;
-    e->val.flags = target ? SNIFF_TARGET : 0;
-    if (h.isBLE) snifferBleSeen++;
-    else snifferApSeen++;
-    uniqueNote(h.mac, h.isBLE);
+    mergeHitToDeviceDB(h, true);
     return true;
 }
 
@@ -1340,16 +1343,14 @@ void snifferScanTask(void *pv)
         std::lock_guard<std::mutex> lock(snifferCacheMutex);
         snifferDevices.clear();
         snifferDevices.setEvictHook(snifferEvictToDB, nullptr);
-        snifferDevices.setReserve(PsramTable<SniffDev>::reserveFraction(4, 1024 * 1024));
-        uniqueMacs.setReserve(PsramTable<SniffDev>::reserveFraction(4, 1024 * 1024));
         snifferApSeen = snifferBleSeen = snifferMeshSent = 0;
     }
-    Serial.printf("[SCANMEM] start internal=%u largest=%u psram=%u psram_largest=%u reserve=%u\n",
+    Serial.printf("[SCANMEM] start internal=%u largest=%u psram=%u psram_largest=%u cache_free=%u cache=%u\n",
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
-                  (unsigned)snifferDevices.reserve());
+                  (unsigned)cacheHeapFreeBytes(), (unsigned)cacheHeapSize());
     const size_t kTopLive = 50, kTopFinal = 100;
     Hit *topHits = static_cast<Hit *>(heap_caps_malloc(kTopFinal * sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     bool *topTarget = static_cast<bool *>(heap_caps_malloc(kTopFinal * sizeof(bool), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
@@ -1765,7 +1766,7 @@ void snifferScanTask(void *pv)
                     if (pHasSsid) addProbeSsid(pd, pssid);
                     if (pWildcard) pd.wildcardCount++;
                 } else {
-                    if (probePsramLow()) probeEvictOldestToDB();
+                    probeMakeRoom();
                     ProbeDevice pd = {};
                     memcpy(pd.mac, pEvt.mac, 6);
                     pd.rssi = pEvt.rssi;
