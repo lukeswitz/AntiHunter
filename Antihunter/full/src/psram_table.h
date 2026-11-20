@@ -6,11 +6,9 @@
 #include <cstring>
 #include <type_traits>
 
-extern "C" {
-#include "esp_heap_caps.h"
-}
+#include "cache_heap.h"
 
-// PSRAM-only keyed table, no entry limit, never throws; caller locks; pointers valid until next upsert/clear.
+// Keyed table in the cache region, no entry limit, never throws; caller locks; pointers valid until next upsert/clear.
 template <typename V>
 class PsramTable {
     static_assert(std::is_trivially_copyable<V>::value, "PsramTable payload must be trivially copyable");
@@ -27,7 +25,6 @@ public:
     static constexpr uint32_t kBlockShift = 9;
     static constexpr uint32_t kBlockLen = 1u << kBlockShift;
     static constexpr uint32_t kMinSlots = 1024;
-    static constexpr size_t kMinReserve = 512 * 1024;
 
     PsramTable() = default;
     PsramTable(const PsramTable &) = delete;
@@ -35,9 +32,6 @@ public:
     ~PsramTable() { release(); }
 
     void setEvictHook(EvictFn fn, void *ctx) { evictFn_ = fn; evictCtx_ = ctx; }
-    // PSRAM this table leaves free; a larger value makes it yield memory before tables with smaller ones.
-    void setReserve(size_t bytes) { reserve_ = bytes; }
-    size_t reserve() const { return reserve_ ? reserve_ : defaultReserve(); }
 
     void clear() {
         release();
@@ -72,7 +66,7 @@ public:
         }
     }
 
-    // nullptr only when PSRAM cannot hold one entry even after eviction.
+    // nullptr only when the cache region cannot hold one entry even after every cache sheds.
     Entry *upsert(uint64_t key, uint32_t now, bool *isNew) {
         *isNew = false;
         if (Entry *e = find(key)) {
@@ -114,14 +108,14 @@ public:
         evicted_ += (uint32_t)dropped;
         if (count_ == 0) { release(); return dropped; }
         const uint32_t keep = (uint32_t)(count_ >> kBlockShift) + 1;
-        while (nBlocks_ > keep) heap_caps_free(blocks_[--nBlocks_]);
+        while (nBlocks_ > keep) cacheHeapRelease(blocks_[--nBlocks_]);
         fitIndex();
         return dropped;
     }
 
     // Frees the lookup index; find() falls back to a scan and the next upsert rebuilds it.
     void releaseIndex() {
-        if (index_) heap_caps_free(index_);
+        if (index_) cacheHeapRelease(index_);
         index_ = nullptr;
         slots_ = 0;
     }
@@ -134,16 +128,12 @@ public:
             return;
         }
         const uint32_t keep = (uint32_t)((count_ + kBlockLen - 1) >> kBlockShift);
-        while (nBlocks_ > keep) heap_caps_free(blocks_[--nBlocks_]);
+        while (nBlocks_ > keep) cacheHeapRelease(blocks_[--nBlocks_]);
         fitIndex();
     }
 
-    static size_t reserveBytes() { return reserveFraction(8, kMinReserve); }
-    static size_t defaultReserve() { return reserveBytes(); }
-    static size_t reserveFraction(size_t divisor, size_t floor) {
-        const size_t r = heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / divisor;
-        return r < floor ? floor : r;
-    }
+    // Moves about the oldest eighth out through the evict hook; returns how many left.
+    size_t shed(uint32_t now) { return count_ ? evictOldest(now) : 0; }
 
 private:
     static uint32_t hash(uint64_t k) {
@@ -155,16 +145,10 @@ private:
         return (uint32_t)k;
     }
 
-    void *psramAlloc(size_t bytes) const {
-        if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) < bytes) return nullptr;
-        if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < bytes + reserve()) return nullptr;
-        return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    }
-
     void release() {
-        for (uint32_t b = 0; b < nBlocks_; b++) heap_caps_free(blocks_[b]);
-        if (blocks_) heap_caps_free(blocks_);
-        if (index_) heap_caps_free(index_);
+        for (uint32_t b = 0; b < nBlocks_; b++) cacheHeapRelease(blocks_[b]);
+        if (blocks_) cacheHeapRelease(blocks_);
+        if (index_) cacheHeapRelease(index_);
         blocks_ = nullptr;
         index_ = nullptr;
         nBlocks_ = blocksCap_ = slots_ = 0;
@@ -181,16 +165,16 @@ private:
     bool addBlock() {
         if (nBlocks_ == blocksCap_) {
             const uint32_t cap = blocksCap_ ? blocksCap_ * 2 : 16;
-            Entry **nb = static_cast<Entry **>(psramAlloc(cap * sizeof(Entry *)));
+            Entry **nb = static_cast<Entry **>(cacheHeapAlloc(cap * sizeof(Entry *)));
             if (!nb) return false;
             if (blocks_) {
                 memcpy(nb, blocks_, nBlocks_ * sizeof(Entry *));
-                heap_caps_free(blocks_);
+                cacheHeapRelease(blocks_);
             }
             blocks_ = nb;
             blocksCap_ = cap;
         }
-        Entry *blk = static_cast<Entry *>(psramAlloc(kBlockLen * sizeof(Entry)));
+        Entry *blk = static_cast<Entry *>(cacheHeapAlloc(kBlockLen * sizeof(Entry)));
         if (!blk) return false;
         blocks_[nBlocks_++] = blk;
         return true;
@@ -200,9 +184,9 @@ private:
         uint32_t ns = slots_ ? slots_ * 2 : kMinSlots;
         while (ns && (size_t)ns < (count_ + 1) * 2) ns <<= 1;
         if (ns <= slots_) return false;
-        uint32_t *ni = static_cast<uint32_t *>(psramAlloc((size_t)ns * sizeof(uint32_t)));
+        uint32_t *ni = static_cast<uint32_t *>(cacheHeapAlloc((size_t)ns * sizeof(uint32_t)));
         if (!ni) return false;
-        if (index_) heap_caps_free(index_);
+        if (index_) cacheHeapRelease(index_);
         index_ = ni;
         slots_ = ns;
         rebuildIndex();
@@ -215,8 +199,8 @@ private:
         uint32_t ns = kMinSlots;
         while ((size_t)ns < (count_ + 1) * 2) ns <<= 1;
         if (slots_ >= ns * 4) {
-            heap_caps_free(index_);
-            index_ = static_cast<uint32_t *>(heap_caps_malloc((size_t)ns * sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+            cacheHeapRelease(index_);
+            index_ = static_cast<uint32_t *>(cacheHeapAlloc((size_t)ns * sizeof(uint32_t)));
             slots_ = index_ ? ns : 0;
         }
         rebuildIndex();
@@ -229,14 +213,14 @@ private:
     }
 
     bool ensureRoom(uint32_t now) {
-        for (int attempt = 0; attempt < 2; attempt++) {
+        for (;;) {
             bool ok = true;
             if (count_ + 1 > (size_t)nBlocks_ * kBlockLen) ok = addBlock();
             if (ok && (count_ + 1) * 2 > slots_) ok = growIndex();
             if (ok) return true;
-            if (count_ == 0 || evictOldest(now) == 0) return false;
+            const size_t freed = cacheHeapShedOthers(this) + shed(now);
+            if (freed == 0) return false;
         }
-        return false;
     }
 
     // Drops about the oldest eighth by last-seen age via a 64-bucket histogram; no extra memory.
@@ -279,7 +263,7 @@ private:
         count_ = w;
         evicted_ += (uint32_t)dropped;
         const uint32_t keep = (uint32_t)(count_ >> kBlockShift) + 1;
-        while (nBlocks_ > keep) heap_caps_free(blocks_[--nBlocks_]);
+        while (nBlocks_ > keep) cacheHeapRelease(blocks_[--nBlocks_]);
         fitIndex();
         return dropped;
     }
@@ -293,7 +277,6 @@ private:
     std::atomic<uint32_t> inserted_{0};
     uint32_t evicted_ = 0;
     uint32_t allocFail_ = 0;
-    size_t reserve_ = 0;
     EvictFn evictFn_ = nullptr;
     void *evictCtx_ = nullptr;
 };

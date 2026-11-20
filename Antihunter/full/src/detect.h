@@ -23,6 +23,10 @@ template <typename T>
 using PsramVec = std::vector<T, PsramAllocator<T>>;
 template <typename T>
 using PsramDeque = std::deque<T, PsramAllocator<T>>;
+template <typename K, typename V>
+using CacheMap = std::map<K, V, std::less<K>, CacheAllocator<std::pair<const K, V>>>;
+template <typename T>
+using CacheSet = std::set<T, std::less<T>, CacheAllocator<T>>;
 
 struct PmkidHarvestEvent {
     uint8_t srcMac[6];

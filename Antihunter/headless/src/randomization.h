@@ -92,7 +92,7 @@ struct ProbeSession {
     int16_t rssiSum{};
     int8_t rssiMin{};
     int8_t rssiMax{};
-    std::vector<int8_t, PsramAllocator<int8_t>> rssiReadings{};
+    std::vector<int8_t, CacheAllocator<int8_t>> rssiReadings{};
 
     uint8_t primaryChannel{};
     uint32_t channelMask{};
@@ -122,7 +122,7 @@ struct ProbeSession {
 
 struct DeviceIdentity {
     char identityId[10]{};
-    std::vector<MacAddress, PsramAllocator<MacAddress>> macs{};
+    std::vector<MacAddress, CacheAllocator<MacAddress>> macs{};
     BehavioralSignature signature{};
     uint32_t firstSeen{};
     uint32_t lastSeen{};
@@ -152,8 +152,6 @@ const uint32_t SESSION_START_THRESHOLD = 3000;
 const uint32_t SESSION_END_TIMEOUT = 10000;
 const uint32_t SESSION_CLEANUP_AGE = 45000;
 const uint32_t TRACK_STALE_TIME = 86400000; // 24hr window for SD 
-// Sessions and identities have no count limit; new ones wait only while free PSRAM is below this.
-const uint32_t RAND_PSRAM_FLOOR = 512 * 1024;
 const uint32_t RAND_IDENTITY_SAVE_MS = 300000;
 #define RAND_IDENTITIES_FILE "/rand_identities.dat"
 #define RAND_IDENTITIES_TMP "/rand_identities.dat.tmp"
@@ -176,9 +174,9 @@ struct AuthFrameEvent {
 };
 
 using ActiveSessionsMap = std::map<String, ProbeSession, std::less<String>,
-    PsramAllocator<std::pair<const String, ProbeSession>>>;
+    CacheAllocator<std::pair<const String, ProbeSession>>>;
 using DeviceIdentitiesMap = std::map<String, DeviceIdentity, std::less<String>,
-    PsramAllocator<std::pair<const String, DeviceIdentity>>>;
+    CacheAllocator<std::pair<const String, DeviceIdentity>>>;
 using IdentityKeySet = std::set<String, std::less<String>, PsramAllocator<String>>;
 
 extern std::atomic<bool> randomizationDetectionEnabled;

@@ -9,6 +9,7 @@
 #include "scanner.h"
 #include "hardware.h"
 #include "detect.h"
+#include "cache_heap.h"
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
@@ -275,6 +276,11 @@ void setup() {
         Serial.printf("[MEM] PSRAM heap routing on (>16B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
+    if (cacheHeapInit(AH_SYSTEM_PSRAM_BYTES))
+        Serial.printf("[MEM] cache region %u bytes; %u bytes of PSRAM left for the system\n",
+                      (unsigned)cacheHeapSize(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    else
+        Serial.println("[MEM] cache region not created; caches share the system PSRAM heap");
 
     delay(400);
     memMark("setup");
@@ -459,6 +465,9 @@ void loop() {
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
                       (unsigned)uxTaskGetNumberOfTasks(),
                       s_uartForwardTask ? (unsigned)uxTaskGetStackHighWaterMark(s_uartForwardTask) : 0u);
+        Serial.printf("[CACHE] region=%u free=%u minfree=%u system_psram=%u system_minever=%u\n",
+                      (unsigned)cacheHeapSize(), (unsigned)cacheHeapFreeBytes(), (unsigned)cacheHeapMinFreeBytes(),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)cacheHeapSystemMinFreeBytes());
         if (freeHeap < 25000) {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
         }

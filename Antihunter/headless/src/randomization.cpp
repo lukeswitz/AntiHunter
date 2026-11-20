@@ -4,6 +4,8 @@
 #include "network.h"
 #include "main.h"
 #include "detect.h"
+#include "cache_heap.h"
+#include "cache_shed.h"
 #include <algorithm>
 #include <iterator>
 #include <cmath>
@@ -73,7 +75,7 @@ extern bool radioStartBLEChecked();
 extern std::atomic<bool> meshTxDraining;
 
 std::mutex randMutex;
-static uint32_t randSessionsShed = 0;
+static uint32_t randMovedToSd = 0;
 
 bool isRandomizedMAC(const uint8_t *mac) {
     return (mac[0] & 0x02) && !(mac[0] & 0x01);
@@ -106,27 +108,64 @@ static void archiveIdentity(const DeviceIdentity &id) {
     s_randArchive.add(line.c_str(), line.length());
 }
 
-// Caller holds randMutex. Makes room for a new session by dropping the oldest one.
-static void evictOldestSession() {
-    auto oldest = activeSessions.end();
-    for (auto it = activeSessions.begin(); it != activeSessions.end(); ++it) {
-        if (oldest == activeSessions.end() || it->second.lastSeen < oldest->second.lastSeen) oldest = it;
+// Caller holds randMutex.
+static void archiveSession(const ProbeSession &s) {
+    StaticJsonDocument<256> doc;
+    doc["session"] = macFmt6(s.mac);
+    doc["start"] = s.startTime;
+    doc["last"] = s.lastSeen;
+    doc["probes"] = s.probeCount;
+    doc["ssid"] = s.probedSSID;
+    if (s.linkedToIdentity) doc["identity"] = s.linkedIdentityId;
+    char line[320];
+    const size_t n = serializeJson(doc, line, sizeof(line));
+    s_randArchive.add(line, n);
+}
+
+static constexpr size_t kRandNodeBytes = 4 * sizeof(void *);
+static constexpr size_t kSessionBytes = sizeof(ActiveSessionsMap::value_type) + kRandNodeBytes;
+static constexpr size_t kIdentityBytes = sizeof(DeviceIdentitiesMap::value_type) + kRandNodeBytes;
+
+static void randNoteMoved(size_t n) {
+    if (!n) return;
+    randMovedToSd += (uint32_t)n;
+    if (s_randArchive.flush()) g_sdRecordsMoved += (uint32_t)n;
+}
+
+// Caller holds randMutex; moves the oldest eighth to the SD archive.
+static size_t randShedSessions(void *) {
+    const size_t n = shedOldestEighth(activeSessions, millis(), [](const ProbeSession &s) { return s.lastSeen; },
+                                      [](const ActiveSessionsMap::value_type &kv) { archiveSession(kv.second); });
+    randNoteMoved(n);
+    return n;
+}
+
+static size_t randShedIdentities(void *) {
+    const size_t n = shedOldestEighth(deviceIdentities, millis(), [](const DeviceIdentity &d) { return d.lastSeen; },
+                                      [](const DeviceIdentitiesMap::value_type &kv) { archiveIdentity(kv.second); });
+    randNoteMoved(n);
+    return n;
+}
+
+static size_t randShedAll(void *) {
+    return randShedSessions(nullptr) + randShedIdentities(nullptr);
+}
+
+static size_t randShedFromOtherCache(void *) {
+    if (!randMutex.try_lock()) return 0;
+    const size_t n = randShedAll(nullptr);
+    randMutex.unlock();
+    return n;
+}
+
+// Caller holds randMutex. A session the cache region cannot hold goes to the SD archive instead.
+static void admitSession(const String &key, const ProbeSession &session) {
+    if (cacheHeapMakeRoom(kSessionBytes, &randMutex, randShedAll, nullptr)) {
+        activeSessions[key] = session;
+        return;
     }
-    if (oldest == activeSessions.end()) return;
-    const ProbeSession &s = oldest->second;
-    if (!s.linkedToIdentity && isRandomizedMAC(s.mac)) {
-        StaticJsonDocument<256> doc;
-        doc["session"] = macFmt6(s.mac);
-        doc["start"] = s.startTime;
-        doc["last"] = s.lastSeen;
-        doc["probes"] = s.probeCount;
-        doc["ssid"] = s.probedSSID;
-        char line[320];
-        const size_t n = serializeJson(doc, line, sizeof(line));
-        s_randArchive.add(line, n);
-    }
-    activeSessions.erase(oldest);
-    randSessionsShed++;
+    archiveSession(session);
+    randNoteMoved(1);
 }
 
 bool isGlobalMAC(const uint8_t *mac) {
@@ -962,33 +1001,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                      sessionIsMinimal ? "MIN" : "FULL");
         
      } else {
-        if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
-            Serial.printf("[RAND] Heap-gate: skip new identity (internal:%u psram:%u)\n",
-                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-            return;
-        }
-        if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
-            String lruKey;
-            uint32_t oldestSeen = UINT32_MAX;
-            for (const auto& entry : deviceIdentities) {
-                if (entry.second.lastSeen < oldestSeen) {
-                    oldestSeen = entry.second.lastSeen;
-                    lruKey = entry.first;
-                }
-            }
-            if (!lruKey.isEmpty()) {
-                Serial.printf("[RAND] LRU evict %s (age:%lums) to admit new identity\n",
-                              deviceIdentities[lruKey].identityId,
-                              (unsigned long)(now - oldestSeen));
-                archiveIdentity(deviceIdentities[lruKey]);
-                deviceIdentities.erase(lruKey);
-                if (s_randArchive.flush()) g_sdRecordsMoved++;
-            } else {
-                return;
-            }
-        }
-
         for (const auto& existingEntry : deviceIdentities) {
             const DeviceIdentity& existingIdentity = existingEntry.second;
             const bool macMatches = std::any_of(existingIdentity.macs.begin(), existingIdentity.macs.end(),
@@ -1083,8 +1095,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         newIdentity.confidence = 1.0f;
         newIdentity.sessionCount = 1;
         newIdentity.observedSessions = 1;
-        
-        deviceIdentities[macStr] = newIdentity;
+
+        if (cacheHeapMakeRoom(kIdentityBytes, &randMutex, randShedIdentities, nullptr)) {
+            deviceIdentities[macStr] = newIdentity;
+        } else {
+            archiveIdentity(newIdentity);
+            randNoteMoved(1);
+        }
 
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
@@ -1429,8 +1446,9 @@ void randomizationDetectionTask(void *pv) {
     {
         std::lock_guard<std::mutex> lock(randMutex);
         activeSessions.clear();
-        randSessionsShed = 0;
+        randMovedToSd = 0;
     }
+    cacheHeapAddShedder(&randMutex, randShedFromOtherCache, nullptr);
     loadDeviceIdentities();
     cleanupStaleTracks();
     rebuildIdentityMacSnapshot();
@@ -1538,11 +1556,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(randMutex);
                 
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
-                
-                if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
-                    evictOldestSession();
-                }
-                
+
                 if (!isSession) {
                     ProbeSession session;
                     memcpy(session.mac, event.mac, 6);
@@ -1589,7 +1603,7 @@ void randomizationDetectionTask(void *pv) {
                         memset(&session.ieOrder, 0, sizeof(session.ieOrder));
                     }
                     
-                    activeSessions[macStr] = session;
+                    admitSession(macStr, session);
                     Serial.printf("[RAND] WiFi session %s rssi:%d\n", macStr.c_str(), event.rssi);
                     
                 } else {
@@ -1667,10 +1681,6 @@ void randomizationDetectionTask(void *pv) {
 
                 bool isSession = activeSessions.find(macStr) != activeSessions.end();
 
-                if (!isSession && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < RAND_PSRAM_FLOOR) {
-                    evictOldestSession();
-                }
-
                 if (!isSession) {
                     ProbeSession session;
                     memcpy(session.mac, mac, 6);
@@ -1706,7 +1716,7 @@ void randomizationDetectionTask(void *pv) {
                         memcpy(session.mfrData, evt.mfrData, session.mfrDataLen);
                     }
 
-                    activeSessions[macStr] = session;
+                    admitSession(macStr, session);
                     Serial.printf("[RAND] BLE session %s rssi:%d\n", macStr.c_str(), rssi);
                 } else {
                     ProbeSession& session = activeSessions[macStr];
@@ -1760,9 +1770,10 @@ void randomizationDetectionTask(void *pv) {
 
             {
                 std::lock_guard<std::mutex> lock(randMutex);
-                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu PSRAM:%u Shed:%u QueueDrops:%u\n",
+                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu PSRAM:%u Cache:%u/%u MovedToSD:%u QueueDrops:%u\n",
                             activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap(),
-                            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)randSessionsShed,
+                            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                            (unsigned)cacheHeapFreeBytes(), (unsigned)cacheHeapSize(), (unsigned)randMovedToSd,
                             (unsigned)g_probeQueueDrops.load());
             }
 
@@ -2139,7 +2150,12 @@ void loadDeviceIdentities() {
             id.firstSeen = nowMs;
             id.lastSeen = 0;
             String key = macFmt6(id.macs[0].bytes.data());
-            deviceIdentities[key] = id;
+            if (cacheHeapMakeRoom(kIdentityBytes, &randMutex, randShedIdentities, nullptr)) {
+                deviceIdentities[key] = id;
+            } else {
+                archiveIdentity(id);
+                randNoteMoved(1);
+            }
             identityIdCounter = max(identityIdCounter, static_cast<uint32_t>(strtol(id.identityId + 2, nullptr, 16)));
         }
     }
