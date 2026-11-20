@@ -92,6 +92,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
   - It works the same with Meshtastic and MeshCore radios.
 - **Fleet plan** on Full's Scan tab sets what each node scans and when, one row per node, and puts each row on that node's schedule.
   - Each row shows when the node answers. **Schedules on another node** lists and deletes another node's schedule.
+  - **Type a node ID** in the node picker plans a node that has not been heard yet.
   - Fleet cards have **Status**, **Stop**, and **Schedules** buttons.
 - `SCHED_LIST` now sends each schedule entry over the mesh as `SCHED_ITEM`, and `FLEET_SEND` accepts `SCHED_LIST` and `SCHED_DEL`.
 - The same `SCHED_ADD` sent twice adds one entry. `CAMPAIGN_START` with the running campaign's name no longer restarts it.
