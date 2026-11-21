@@ -56,8 +56,8 @@
 
    Use regulated 5V only, from USB or the UPS board. Unregulated input kills
    parts. Connect one USB cable at a time, because the ESP32 and the radio share
-   power rails. We recommend a 2A fast-blow fuse on the battery line. It is
-   not supplied.
+   power rails. We recommend a 2A fast-blow square TE5 fuse (Littelfuse 391
+   series) on the battery line. It is not supplied.
 ==================================================================================
    DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter
    COMMAND CENTER PRO, multi-site with TAK, MQTT and ADSB:
