@@ -79,7 +79,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
 | 2× | **JST Power Male Cables**<br>*Switch, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
-| 2× | **18650 Cells**<br>*Protected, flat-top, ~3000 mAh · see Note 1* | — | — | [Search](https://www.amazon.com/s?k=protected+18650+flat+top) | [Search](https://www.aliexpress.com/w/wholesale-protected-18650.html) |
+| 2× | **18650 Cells**<br>*Matched pair, flat-top, from a battery specialist · see Note 1* | — | — | — | — |
 | 1× | **Printed Enclosure**<br>*3D-printed · weather-resistant, not waterproof* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 | 1× | **TPU Seal Kit**<br>*Housing, USB-C, GPS antenna — grease before fitting* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 
@@ -130,7 +130,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 5. **Choose the airflow direction.** The fan blows toward its labeled side. Face the label toward the cover for exhaust, or toward the board for intake. Assembled units come set to exhaust.
 6. **To run the fan full time,** short the two THERMO pins to bypass the KSD9700.
 7. **Use the short M3 inserts.** The case holes are sized for M3×3mm inserts with a 4.6mm outside diameter. Longer inserts do not fit the PCB and power board posts. The fan screws thread straight into the plastic and need no inserts.
-8. **A battery fuse is optional.** A 2A fast-blow inline fuse between the cells and the UPS board protects against a cell fault. Use a square TE5 radial fuse (Littelfuse 391 series, 2A) soldered to the power switch (manual 11.3). Automotive blade fuses do not fit in the case. It is not required and not supplied.
+8. **A battery fuse is optional.** A 2A fast-blow inline fuse between the cells and the UPS board protects against a cell fault. Use a square TE5 radial fuse (Littelfuse 391 series, 2A, part 39112000000) soldered to the power switch (manual 11.3). Automotive blade fuses do not fit in the case. It is not required and not supplied.
 9. **The case is not waterproof.** The SMA connectors and the fan vents are not watertight by design. The TPU seals and grease reduce water entry. No IP rating is claimed.
 10. **Cases printed before 21 November 2026 have the older holes.** A front cover with no screw bosses around the fan opening is an older print. Older prints take M3 heat-set inserts and M3×4–6mm screws, and M3 screws thread straight into their UPS board posts with no inserts. The M3×3mm short inserts, the UPS post inserts and the fan screws above fit only the current STLs.
 
