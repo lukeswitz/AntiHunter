@@ -3543,6 +3543,7 @@ static void sentinelAlwaysOnTask(void *pv) {
             if (chans.empty()) chans.push_back(apChan);
             for (uint8_t ch : chans) {
                 if (!g_sentinelUserEnabled.load() || scanning.load() || !g_sentinelScanMode.load()) break;
+                if (apJoinHoldEnter("sentinel hop")) ch = apChan;
                 if (WiFi.softAPgetStationNum() > 0 && ch != apChan) {
                     wifi_scan_config_t sc = {};
                     sc.channel = ch;
