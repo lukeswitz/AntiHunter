@@ -1294,10 +1294,23 @@ static bool csiRadioStart(uint8_t ch) {
     return true;
 }
 
+static void csiRestoreApChannel() {
+    wifi_config_t apCfg = {};
+    if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) != ESP_OK || apCfg.ap.channel == (uint8_t)AP_CHANNEL) return;
+    const uint8_t from = apCfg.ap.channel;
+    const bool clients = WiFi.softAPgetStationNum() > 0;
+    apCfg.ap.channel = (uint8_t)AP_CHANNEL;
+    if (clients && apCfg.ap.csa_count == 0) apCfg.ap.csa_count = 3;
+    const esp_err_t r = esp_wifi_set_config(WIFI_IF_AP, &apCfg);
+    Serial.printf("[CSI] AP channel restored ch%u -> ch%u: %s\n", from, (unsigned)AP_CHANNEL, esp_err_to_name(r));
+    if (r == ESP_OK && clients) vTaskDelay(pdMS_TO_TICKS(400));
+}
+
 static void csiRadioStop() {
     esp_wifi_set_csi(false);
     esp_wifi_set_csi_rx_cb(NULL, nullptr);
     vTaskDelay(pdMS_TO_TICKS(50));
+    csiRestoreApChannel();
     radioStopSTA();
 }
 
