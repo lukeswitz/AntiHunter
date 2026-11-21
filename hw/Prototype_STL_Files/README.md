@@ -20,7 +20,7 @@ A field case with an external GPS antenna.
 - TPU seals cover the housing, GPS antenna, USB-C port and GPS SMA connector.
 - The front cover comes with an open or a hidden fan.
 - The base takes 1/4"-20 UNC heat-set inserts.
-- Assembly uses 14 M3×3 mm short heat-set inserts, two 15 mm standoffs and 18 M3×6 mm screws.
+- Assembly uses 14 M3×3 mm short heat-set inserts, two 15 mm standoffs, 14 M3×6 mm screws and 4 M3×12 mm fan screws.
 - Cases printed before 21 November 2026 take the older hardware. See note 10 in `BOM-Links.md`.
 - The socketed ESP32 housings have a taller USB opening for an ESP32 on socket headers.
 
