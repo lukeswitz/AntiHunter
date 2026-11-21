@@ -132,6 +132,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 7. **Use the short M3 inserts.** The case holes are sized for M3×3mm inserts with a 4.6mm outside diameter. Longer inserts do not fit the PCB and power board posts. The fan screws thread straight into the plastic and need no inserts.
 8. **A battery fuse is optional.** A 2A fast-blow inline fuse between the cells and the UPS board protects against a cell fault. Use a square TE5 radial fuse (Littelfuse 391 series, 2A) soldered to the power switch (manual 11.3). Automotive blade fuses do not fit in the case. It is not required and not supplied.
 9. **The case is not waterproof.** The SMA connectors and the fan vents are not watertight by design. The TPU seals and grease reduce water entry. No IP rating is claimed.
+10. **Cases printed before 21 November 2026 have the older holes.** A front cover with no screw bosses around the fan opening is an older print. Older prints take M3 heat-set inserts and M3×4–6mm screws, and M3 screws thread straight into their UPS board posts with no inserts. The M3×3mm short inserts, the UPS post inserts and the fan screws above fit only the current STLs.
 
 > [!IMPORTANT]
 > **The RTC and vibration sensor modules need a small pin change** to seat in the PCB.
