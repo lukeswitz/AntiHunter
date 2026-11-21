@@ -484,6 +484,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li>Make it the <b>primary</b> channel.</li>
     <li><b>Turn the public default channel off.</b></li>
     <li>Share the channel to your other nodes and phone by QR code or channel URL. Every node must carry the same channel.</li>
+    <li>Renaming the primary channel moves the radio to a different LoRa frequency slot. Set the same <b>Frequency slot</b> in the LoRa settings of every radio.</li>
   </ol>
 
   <h3>8.3 Erase key</h3>
@@ -674,7 +675,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Flashing fails or the port never appears</td><td>Charge-only cable, a serial monitor holding the port, both USB ports connected, or the wrong browser</td><td>Use a data cable, close other serial tools, unplug the radio, use Chrome or Edge.</td></tr>
     <tr><td>SD card not detected</td><td>Not FAT32, larger than 8 GB, or not seated</td><td>Use an 8 GB card formatted FAT32. Reseating means opening the enclosure.</td></tr>
     <tr><td>No GPS fix</td><td>Antenna not connected, or no view of the sky</td><td>Check the connection, move outdoors, give it time. The module runs hot while searching.</td></tr>
-    <tr><td>Nothing arrives over the mesh</td><td>Region <span class="mono">UNSET</span>, serial module off, wrong pins, or nodes on different channels or keys</td><td>Re-run <span class="mono">meshtastic_config.py</span> and print the settings. Confirm every node carries the same channel.</td></tr>
+    <tr><td>Nothing arrives over the mesh</td><td>Region <span class="mono">UNSET</span>, serial module off, wrong pins, nodes on different channels or keys, or radios on different LoRa frequency slots</td><td>Re-run <span class="mono">meshtastic_config.py</span> and print the settings. Confirm every node carries the same channel and the same frequency slot (§8.2).</td></tr>
     <tr><td>Node hears commands but never answers</td><td>Region unset on <i>that</i> node</td><td>Set its region.</td></tr>
     <tr><td>Constant vibration alerts</td><td>Trimpot too sensitive, or a resonant mount</td><td>See §11.3.</td></tr>
     <tr><td>Vibration never fires</td><td>Trimpot too insensitive, or a bad joint on the sensor header</td><td>See §11.3.</td></tr>
