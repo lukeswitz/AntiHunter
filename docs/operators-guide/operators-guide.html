@@ -204,10 +204,9 @@
   <h3>1.2 What you supply</h3>
   <ul>
     <li><b>18650 cells</b> for tiers 1 and 2. Tier 3 can run from USB or a regulated 5 V supply. We never supply cells. Use brand-new cells of the same brand and capacity. Sourcing, charging, storage and disposal are your responsibility.</li>
-    <li><b>A micro SD card</b>, only on the Bare PCB tier. It must be FAT32, and 32 GB or larger is not recommended.</li>
+    <li><b>A micro SD card</b>, only on the Bare PCB tier. Use an 8 GB card formatted FAT32.</li>
     <li><b>A USB-C data cable.</b> Charge-only cables will not flash the board.</li>
     <li><b>A computer running Chrome or Edge</b> for the web flasher, or a terminal for the CLI installer.</li>
-    <li><b>Soldering tools</b> on tiers 2 and 4: temperature-controlled iron, solder, flux, tweezers, small Phillips and hex drivers.</li>
   </ul>
 
   <div class="row">
@@ -278,12 +277,6 @@
 
   <figure><img src="img/antenna-map.jpg" alt=""><figcaption>Factory U.FL antennas beside their sockets: GPS patch, LoRa whip (915 MHz shown), 2.4 GHz film.</figcaption></figure>
 
-  <div class="box"><span class="t">Pick an orientation and keep it</span>
-    <p>On an enclosed build, decide which bulkhead carries LoRa and which carries Wi-Fi, then wire every node the same way. A spare antenna then always fits the port you expect.</p>
-  </div>
-
-  <figure class="half solo"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centered between them.</figcaption></figure>
-
   <div class="box warn">
     <span class="t">Match your antennas across nodes</span>
     <p>Use the same antenna type and cable length on every node. Triangulation assumes the nodes hear the world the same way, and mismatched antennas skew the result.</p>
@@ -323,7 +316,7 @@
   </ol>
   <div class="row">
     <figure><img src="img/sma-gps-housing.jpg" alt=""><figcaption>GPS SMA female in the battery housing, held by washer and nut.</figcaption></figure>
-    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>Wi-Fi SMA (female, left) and LoRa SMA (male, right) in the main housing.</figcaption></figure>
+    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>Wi-Fi SMA (female, left) and LoRa SMA (female, right) in the main housing.</figcaption></figure>
   </div>
 
   <div class="box tip"><span class="t">Wet conditions</span>
@@ -352,14 +345,13 @@
 
   <div class="box warn">
     <span class="t">Power rules</span>
-    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A 2 A fast-blow fuse in the battery line, in series with the switch wiring, is optional and not supplied with any tier.</p>
+    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources.</p>
   </div>
 
   <h3>5.2 Thermal</h3>
   <p>The ESP32 runs warm under load and the GPS module gets hot while it searches for satellites. Both are normal. The node works without the fan and the thermal switch.</p>
   <ul>
-    <li>The 30 mm fan plugs into the FAN JST output. Run it for a second and feel which way it blows before you screw it down. The sticker side is not always the exhaust side. The Fully Assembled Unit comes with the fan set to exhaust.</li>
-    <li>The KSD9700 thermal switch (normally open, 40 °C) wires to the THERMO JST and switches the fan on when the enclosure heats up.</li>
+    <li>The KSD9700 thermal switch (normally open, 40 °C) switches the fan on when the enclosure heats up.</li>
     <li>To run the fan continuously, jump the THERMO input or supply 5 V straight to the fan port.</li>
   </ul>
 
@@ -744,7 +736,7 @@ meshcore-cli -s PORT -b 115200 set radio 910.525,62.5,7,5 set_channel 0 MyTeam K
   <h3 id="s12-2">12.2 Tuning the trimpot</h3>
   <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
   <ol>
-    <li>Power the node and watch the sensor's LED, or watch a serial monitor for <span class="mono">[VIBRATION]</span> lines.</li>
+    <li>Power the node and watch the sensor's LED, or watch a serial monitor for <span class="mono">[VIBRATION]</span> lines. The LED is green or red depending on the batch. Both work the same.</li>
     <li>Leave the node still. If it triggers by itself, turn the screw an eighth of a turn at a time in the direction that stops it. Wait several seconds between adjustments, because the module reacts slowly.</li>
     <li>When it is silent at rest, back off slightly further.</li>
     <li>Tap the enclosure the way a person handling it would. It should fire.</li>
@@ -909,7 +901,7 @@ docker compose up -d --build</pre>
   <h3>14.2 Sealing and mounting</h3>
   <ul>
     <li>Fit the TPU seals for the housing, GPS and USB-C port.</li>
-    <li>The printed enclosure has no IP rating. Treat it as weather-resistant, not waterproof.</li>
+    <li>The printed enclosure has no IP rating. Treat it as weather-resistant, not waterproof. The SMA connectors and the fan vents are not watertight.</li>
     <li>The base takes a ¼"-20 insert for tripods and the universal bracket. STL files for brackets and solar mounts are in the <span class="mono">hw/</span> folder.</li>
     <li>Point the vented lid and fan opening downward or shielded so water does not sit in them.</li>
   </ul>
@@ -1001,7 +993,7 @@ docker compose up -d --build</pre>
     <tr><td>No <span class="mono">Antihunter</span> Wi-Fi network</td><td>Headless firmware, or the AP name was changed</td><td>Check over serial which build is running. Reflash Full if you need the UI.</td></tr>
     <tr><td>Web UI will not load</td><td>Not connected to the node's AP, or using https</td><td>Join the node's AP and open <b>http://192.168.4.1</b>.</td></tr>
     <tr><td>Flashing fails or the port never appears</td><td>Charge-only cable, a serial monitor holding the port, both USB ports connected, or the wrong browser</td><td>Use a data cable, close other serial tools, unplug the radio, use Chrome or Edge.</td></tr>
-    <tr><td>SD card not detected</td><td>Not FAT32, 32 GB or larger, or not seated</td><td>Reformat FAT32 on a card under 32 GB. Reseating means opening the enclosure.</td></tr>
+    <tr><td>SD card not detected</td><td>Not FAT32, larger than 8 GB, or not seated</td><td>Use an 8 GB card formatted FAT32. Reseating means opening the enclosure.</td></tr>
     <tr><td>No GPS fix</td><td>Antenna not connected, or no view of the sky</td><td>Check the connection, move outdoors, give it time. The module runs hot while searching.</td></tr>
     <tr><td>Nothing arrives over the mesh</td><td>Region <span class="mono">UNSET</span>, serial module off, wrong pins, or nodes on different channels or keys</td><td>Re-run <span class="mono">meshtastic_config.py</span> and print the settings. Confirm every node carries the same channel.</td></tr>
     <tr><td>Node hears commands but never answers</td><td>Region unset on <i>that</i> node</td><td>Set its region.</td></tr>
@@ -1041,17 +1033,17 @@ docker compose up -d --build</pre>
     <li>1× FAT32 SD card, 8 GB supplied on every tier but the Bare PCB</li>
     <li>1× 30 mm 5 V fan with JST lead, and 1× KSD9700 normally-open thermal switch, 40 °C</li>
     <li>1× 3-pin mini on/off switch</li>
-    <li>1× waterproof Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
+    <li>1× panel-mount Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
     <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
-    <li>2× 18650 cells, protected flat-top, never supplied with any tier; 1× 2 A fast-blow fuse, optional, not supplied</li>
+    <li>2× 18650 cells, matched flat-top pair such as Samsung 35E or Sony/Murata VTC6, never supplied with any tier; 1× 2 A fast-blow square TE5 fuse (Littelfuse 391 series), optional, not supplied</li>
   </ul>
   <h4>Antennas, connectors and enclosure</h4>
   <ul class="small">
     <li>3× U.FL to SMA pigtail, 10 to 20 cm, and SMA bulkheads</li>
     <li>1× 6 dBi 2.4 GHz antenna, and 1× 6 dBi LoRa antenna for your region</li>
     <li>1× GPS antenna: passive ceramic patch on the kit and populated PCB, active helix on the assembled unit</li>
-    <li>5× JST 2.54 2-pin terminals, 2× JST power male cables, M3 and M2 heat-set inserts, 2× 15 mm brass standoffs, M3 and M2 screws, 1× ¼"-20 tripod insert</li>
-    <li>3D-printed weatherproof enclosure. STLs, seals, brackets and solar mounts are in <span class="mono">hw/Prototype_STL_Files/</span></li>
+    <li>5× JST 2.54 2-pin terminals, 2× JST power male cables, 14× M3×3 mm short heat-set inserts, 2× 15 mm brass standoffs, 18× M3×6 mm screws, 1× ¼"-20 tripod insert</li>
+    <li>3D-printed enclosure, weather-resistant, not waterproof. STLs, seals, brackets and solar mounts are in <span class="mono">hw/Prototype_STL_Files/</span></li>
   </ul>
   <p class="small">Part links: <span class="mono">hw/Prototype_STL_Files/BOM-Links.md</span></p>
 </div>
