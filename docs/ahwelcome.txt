@@ -47,8 +47,8 @@
                                   !  POWER  !
    Use regulated 5V only, from USB or the UPS board. Unregulated input kills
    parts. Connect one USB cable at a time, because the ESP32 and the radio
-   share power rails. We recommend a 2A fast-blow fuse on the battery line.
-   It is not supplied.
+   share power rails. We recommend a 2A fast-blow square TE5 fuse
+   (Littelfuse 391 series) on the battery line. It is not supplied.
 ================================================================================
                                   [04]  TERMS
    By purchasing or powering this unit you accept the Limited Warranty on the

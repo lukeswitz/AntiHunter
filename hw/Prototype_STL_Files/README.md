@@ -20,7 +20,8 @@ A field case with an external GPS antenna.
 - TPU seals cover the housing, GPS antenna, USB-C port and GPS SMA connector.
 - The front cover comes with an open or a hidden fan.
 - The base takes 1/4"-20 UNC heat-set inserts.
-- Assembly uses M3 heat-set inserts and two 15 mm standoffs.
+- Assembly uses 14 M3×3 mm short heat-set inserts, two 15 mm standoffs and 18 M3×6 mm screws.
+- The socketed ESP32 housings have a taller USB opening for an ESP32 on socket headers.
 
 ### Files
 
@@ -37,6 +38,7 @@ A field case with an external GPS antenna.
 | Side-charge main housing | `SideCharge enclosure/Main-Housing-SideCharge-Version.stl` |
 | Side-charge battery housing | `SideCharge enclosure/Battery-Housing-SideCharge.stl` |
 | Side-charge full housing | `SideCharge enclosure/FullSideChargeHousing.stl` |
+| Socketed ESP32 main housings | `FastCharge enlosure/Main-Housing-USBFast-Version-SocketedESP.stl`, `SideCharge enclosure/Main-Housing-SideCharge-Version-SocketedESP.stl`, `SideCharge enclosure/FullSideChargeHousing-SocketedESP.stl` |
 
 ### Extensions
 
@@ -44,7 +46,7 @@ A field case with an external GPS antenna.
 |---|---|
 | `Extentions/MOUNTS` | Universal bracket, with or without battery |
 | `Extentions/RadarMOD` | Radar housing (fat, slim) and radar front |
-| `Extentions/SEALS` | TPU seals: battery housing, front housing, ESP USB plug, GPS, radar |
+| `Extentions/SEALS` | TPU seals: battery housing, front housing, ESP USB plug (standard and socketed ESP32), GPS, radar |
 | `Extentions/SOLAR` | 115x85 mm solar panel frame and leg |
 
 ## Puck Case
