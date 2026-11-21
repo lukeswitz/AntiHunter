@@ -573,19 +573,6 @@ void logEventToSD(const char* path, const String& jsonLine) {
 void logEventsToSD(const char* path, const String* lines, size_t count) {
     if (!SafeSD::isAvailable() || count == 0) return;
 
-    // Heap-floor guard: under a flood, drop the SD write rather than crash; detectors still count and alert in RAM.
-    if (ESP.getFreeHeap() < 20000) {
-        static uint32_t s_lastHeapWarnMs = 0;
-        uint32_t nowMs = millis();
-        if (nowMs - s_lastHeapWarnMs > 5000) {
-            s_lastHeapWarnMs = nowMs;
-            Serial.printf("[HEAP-GUARD] dropping SD log (%s) — free heap %u\n",
-                          path, (unsigned)ESP.getFreeHeap());
-        }
-        g_sdRecordsNotSaved += (uint32_t)count;
-        return;
-    }
-
     std::lock_guard<std::recursive_mutex> sdLock(SafeSD::fileLock());
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {
