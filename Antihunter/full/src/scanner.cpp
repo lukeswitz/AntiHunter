@@ -1213,6 +1213,12 @@ static void hopTimerCb(void *)
     }
     static size_t idx = 0;
 
+    if (apJoinHoldEnter("scan hop")) {
+        hopScanAbort();
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
+
     if (apHasClients()) {
         if (hopScanBusy()) return;
         if (baselineDetectionEnabled) return;
@@ -2957,6 +2963,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     framesSeen.fetch_add(1, std::memory_order_relaxed);
 
     if (ppkt->rx_ctrl.rx_state != 0) return;
+
+    apJoinNoteFrame(ppkt->payload, ppkt->rx_ctrl.sig_len);
 
     int8_t rssiThreshold;
     portENTER_CRITICAL_ISR(&rfConfigMux);

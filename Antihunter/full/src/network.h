@@ -57,6 +57,9 @@ extern bool hbEnabled;
 extern uint32_t hbInterval;
 extern bool vibrationEnabled;
 extern volatile uint32_t apScanSuppressUntilMs;
+void apJoinNoteFrame(const uint8_t *frame, uint16_t len);
+bool apJoinHoldActive();
+bool apJoinHoldEnter(const char *who);
 
 #ifndef AP_SSID
 #define AP_SSID "Antihunter"
@@ -69,6 +72,9 @@ extern volatile uint32_t apScanSuppressUntilMs;
 #endif
 #ifndef AP_INACTIVE_TIME_SEC
 #define AP_INACTIVE_TIME_SEC 3600
+#endif
+#ifndef AP_JOIN_HOLD_MS
+#define AP_JOIN_HOLD_MS 4000
 #endif
 #ifdef ARDUINO_XIAO_ESP32C5
 #define DEFAULT_CHANNELS {1, 6, 11, 36, 40, 44, 48, 149, 153, 157, 161, 165}

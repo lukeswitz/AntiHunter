@@ -41,7 +41,46 @@ bool vibrationEnabled = true;
 unsigned long meshSendInterval = 3000;
 std::atomic<bool> g_eraseWipeBusy{false};
 volatile uint32_t apScanSuppressUntilMs = 0;
+static volatile uint32_t s_apJoinHoldUntilMs = 0;
+static uint8_t s_apBssid[6] = {};
+static volatile bool s_apBssidSet = false;
 bool triangulationOrchestratorAssigned = false;
+
+void IRAM_ATTR apJoinNoteFrame(const uint8_t *frame, uint16_t len) {
+    if (!s_apBssidSet || !frame || len < 24) return;
+    const uint8_t fc0 = frame[0];
+    const uint8_t type = (fc0 >> 2) & 0x3;
+    const uint8_t subtype = fc0 >> 4;
+    if (frame[4] != s_apBssid[0] || frame[5] != s_apBssid[1] || frame[6] != s_apBssid[2] ||
+        frame[7] != s_apBssid[3] || frame[8] != s_apBssid[4] || frame[9] != s_apBssid[5]) return;
+    bool join = false;
+    if (type == 0) {
+        join = subtype == 0x0 || subtype == 0x2 || subtype == 0xB;
+    } else if (type == 2 && !(frame[1] & 0x40)) {
+        const uint16_t hdr = (subtype & 0x8) ? 26 : 24;
+        join = len >= hdr + 8 && frame[hdr] == 0xAA && frame[hdr + 1] == 0xAA && frame[hdr + 2] == 0x03 &&
+               frame[hdr + 6] == 0x88 && frame[hdr + 7] == 0x8E;
+    }
+    if (join) s_apJoinHoldUntilMs = (uint32_t)(esp_timer_get_time() / 1000ULL) + AP_JOIN_HOLD_MS;
+}
+
+bool IRAM_ATTR apJoinHoldActive() {
+    const uint32_t until = s_apJoinHoldUntilMs;
+    return until != 0 && (int32_t)((uint32_t)(esp_timer_get_time() / 1000ULL) - until) < 0;
+}
+
+bool apJoinHoldEnter(const char *who) {
+    static volatile uint32_t s_loggedUntil = 0;
+    if (!apJoinHoldActive()) return false;
+    const uint32_t until = s_apJoinHoldUntilMs;
+    if (s_loggedUntil == 0 || (int32_t)(until - s_loggedUntil) > (int32_t)AP_JOIN_HOLD_MS) {
+        s_loggedUntil = until;
+        Serial.printf("[AP] join hold: %s stays on ch%u\n", who, (unsigned)AP_CHANNEL);
+    } else {
+        s_loggedUntil = until;
+    }
+    return true;
+}
 
 
 // Scanner vars
@@ -284,6 +323,7 @@ void initializeNetwork()
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
                 apHidden ? "hidden" : "broadcast",
                 apOk ? "OK" : "FAIL");
+  if (esp_wifi_get_mac(WIFI_IF_AP, s_apBssid) == ESP_OK) s_apBssidSet = true;
   // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
   // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
   {

@@ -251,6 +251,7 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA && type != WIFI_PKT_CTRL) return;
 
     const wifi_promiscuous_pkt_t *pkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
+    if (pkt->rx_ctrl.rx_state == 0) apJoinNoteFrame(pkt->payload, pkt->rx_ctrl.sig_len);
     if (pkt->rx_ctrl.channel < PCAP_CHAN_TALLY) g_chanFrames[pkt->rx_ctrl.channel]++;
     int len = pkt->rx_ctrl.sig_len;
     if (len > 4) len -= 4;
@@ -470,6 +471,7 @@ static void pcapBuildHopList() {
 }
 
 static void pcapSetChannel(uint8_t ch) {
+    if (apJoinHoldEnter("pcap hop")) ch = (uint8_t)AP_CHANNEL;
     if (WiFi.softAPgetStationNum() > 0) {
         if (ch == (uint8_t)AP_CHANNEL) {
             pcapChanVisit(ch);
