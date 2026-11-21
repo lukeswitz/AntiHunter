@@ -25,13 +25,13 @@ This is the full parts list for one node. To see which parts each tier includes,
 ### Power & Enclosure
 | Qty | Part |
 |-----|------|
-| 1× | Type-C 15W 3A 5V UPS (2S 18650) |
+| 1× | Type-C 15W 3A 5V UPS (2× 18650 in parallel) |
 | 1× | Type-C Female Chassis Jack — panel mount, 2-pin 22 AWG |
 | 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 2× | JST Power Male Cables (switch, power board) |
 | 1× | KSD9700 Thermal Switch — Normally Open, 40°C |
-| 2× | 18650 Cells — protected, flat-top (see Note 1) |
+| 2× | 18650 Cells — matched pair, flat-top (see Note 1) |
 | 1× | Printed Enclosure (weather-resistant, not waterproof) |
 | 1× | TPU Seal Kit — housing, USB-C, GPS antenna |
 
@@ -48,7 +48,8 @@ This is the full parts list for one node. To see which parts each tier includes,
 |-----|------|
 | 14× | M3×3mm Short Heat-Set Inserts (4.6mm OD) |
 | 2× | M3×15mm Brass Standoffs (6mm male) |
-| 18× | M3×6mm Screws (every screw in the case) |
+| 14× | M3×6mm Screws (PCB, UPS board, covers) |
+| 4× | M3×12mm Screws (fan; M3×14mm for a 10mm fan) |
 | 5× | JST 2.54 2-Pin Terminals |
 | 1× | 1/4" Tripod Insert |
 
@@ -60,6 +61,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 |:---:|------|:---:|------|------|-----------|
 | 1× | **DIGI PCB**  | <img width="110" height="110" alt="pcb" src="../../docs/img/bom-pcb.jpg" /> | [AntiHunter - Lectronz Store](https://lectronz.com/products/antihunter-diginode-24ghz-wifible-pcb-only) |   |   |
 | 1× | **Seeed XIAO ESP32-S3** (2.4 GHz)<br>*Buy the plain S3 — "Sense" is a different board* | <img width="110" src="../../docs/img/bom-xiao-s3.jpg" /> | [Seeed Studio](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html) | [Search](https://www.amazon.com/s?k=Seeed+XIAO+ESP32-S3) | [Search](https://www.aliexpress.com/w/wholesale-XIAO-ESP32-S3.html) |
+| 2× + 2× | **Round-Pin Sockets for a Swappable XIAO** (optional, socketed housings only)<br>*PCB side: 7-pin machined round-pin socket strip, 2.79mm tall (Mill-Max 310-43-107-41-001000). XIAO side: 7-pin machined round-pin male strip, plastic 3mm tall or less* | — | [DigiKey](https://www.digikey.com/en/products/detail/mill-max-manufacturing-corp/310-43-107-41-001000/1212181) | [Search](https://www.amazon.com/s?k=2.54mm+round+machined+pin+female+header) | [Search](https://www.aliexpress.com/w/wholesale-2.54mm-round-pin-female-header.html) |
 | 1× | **Heltec WiFi LoRa 32 V3.2**<br>*T114 alt — V3.2 preferred · Band: 863–870 EU / 902–928 US* | <img width="110" src="../../docs/img/bom-heltec.jpg" /> | [Heltec](https://heltec.org/project/wifi-lora-32-v3/) · [Datasheet](https://resource.heltec.cn/download/WiFi_LoRa_32_V3/HTIT-WB32LA_V3.2.pdf) | [Search](https://www.amazon.com/s?k=heltec+v3&i=electronics&crid=2DU09XJ5HC24F&sprefix=heltec+v3%2Celectronics%2C245&ref=nb_sb_noss_1) | [Search](https://www.aliexpress.com/w/wholesale-Heltec-WiFi-LoRa-32-V3.html) |
 | 1× | **ATGM336H GPS Module**<br>*AT6558, L1-band, NMEA0183* | <img width="110" src="../../docs/img/bom-gps.jpg" /> | Commodity (AT6558) | [View](https://www.amazon.com/DWEII-Dual-Mode-Satellite-Positioning-Replacement/dp/B0B68C1W94/ref=sr_1_2?crid=1BIHLTX2D3Q8G&dib=eyJ2IjoiMSJ9._va0qNlb7f2IDJS0x_jvVHX8xcGx6iiLMNmwU0RB_PGok1ekmwTHfY0OI4jTp6s4Imkg8G-eQ6Nl07JPFTtBfchyTWXrSkKQXnUFaH8LTVuTyj6LBpfhVDewZlh-kxQeU1SWopQbhLirJqXIvjwaFo7n_hK0azY7D4k0iiaM06SxYNcpojHe3nNClcBAHLn4W03WiJxNN8etlzRgH1zrg65pv5FkGG7zH9cx24sFjm3eh6gFnbGsmogpGlArcx14VMVpZhjfKPaRL0o6a0lkA-DFXjiKfo2pwRW7-DFueIk.w59Du-qq6cBOpVpC9FWPaRVvfhw2eJ-b_bZN-Hn3y9s&dib_tag=se&keywords=ATGM336H&qid=1780583983&s=electronics&sprefix=atgm336h%2Celectronics%2C276&th=1) | [Search](https://www.aliexpress.com/w/wholesale-ATGM336H.html) · [ElectroDragon](https://www.electrodragon.com/product/gnss-module-atgm336h/) |
 | 1× | **DS3231 RTC Module** | <img width="110" src="../../docs/img/bom-rtc.jpg" /> | Analog Devices DS3231 | [View](https://amazon.com/dp/B08X4H3NBR) | [View](https://www.aliexpress.us/item/2251832129568616.html) |
@@ -73,7 +75,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 
 | Qty | Part | Image | MFR | AMZN | ALI |
 |:---:|------|:---:|------|------|-----|
-| 1× | **Type-C 15W 3A 5V UPS** (2S 18650)<br>*Board ID HW-465A · 88×41×22 mm* | <img width="110" src="../../docs/img/bom-ups.jpg" /> | Commodity (HW-465A) | [DWEII](https://www.amazon.com/dp/B0DCVRXTW8) · [JUZITAO 2-Pack](https://www.amazon.com/dp/B0DNMVSD65) | [Search](https://www.aliexpress.com/w/wholesale-HW-465A-UPS-18650.html) |
+| 1× | **Type-C 15W 3A 5V UPS** (2× 18650 in parallel)<br>*Board ID HW-465A · 88×41×22 mm* | <img width="110" src="../../docs/img/bom-ups.jpg" /> | Commodity (HW-465A) | [DWEII](https://www.amazon.com/dp/B0DCVRXTW8) · [JUZITAO 2-Pack](https://www.amazon.com/dp/B0DNMVSD65) | [Search](https://www.aliexpress.com/w/wholesale-HW-465A-UPS-18650.html) |
 | 1× | **Type-C Female Chassis Jack**<br>*Panel mount, 2-pin 22 AWG leads · 14mm panel nut · dust cap · external 5V input* | <img width="110" src="../../docs/img/bom-usbc-jack.jpg" /> | Commodity | [View](https://www.amazon.com/dp/B0CXLZBD2V) | [Search](https://www.aliexpress.com/w/wholesale-type-c-female-panel-mount-2-pin-waterproof.html) |
 | 1× | **KSD9700 Normally Open Thermal Switch** 40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="../../docs/img/bom-thermal.jpg"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
@@ -102,7 +104,8 @@ This is the full parts list for one node. To see which parts each tier includes,
 |:---:|------|:---:|------|-----|
 | 14× | **M3×3mm Short Heat-Set Inserts**<br>*4.6mm OD, 3mm long (CNC Kitchen M3 short or equal) · see Note 7* | <img width="110" src="../../docs/img/bom-heat-inserts.jpg" /> | [Search](https://www.amazon.com/s?k=M3+x+3mm+short+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M3-heat-set-insert.html) · [Prusa](https://www.prusa3d.com/product/threaded-inserts-m3-short-100-pcs/) |
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female, 6mm male thread* | <img width="110" src="../../docs/img/bom-standoffs.jpg" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
-| 18× | **M3×6mm Screws** (max 6mm heads)<br>*PCB, UPS board, covers and fan* | — | [Search](https://www.amazon.com/s?k=M3+x+6mm+screws) | [Search](https://www.aliexpress.com/w/wholesale-M3x6-screw.html) |
+| 14× | **M3×6mm Screws** (max 6mm heads)<br>*PCB, UPS board and covers* | — | [Search](https://www.amazon.com/s?k=M3+x+6mm+screws) | [Search](https://www.aliexpress.com/w/wholesale-M3x6-screw.html) |
+| 4× | **M3×12mm Screws**<br>*Fan, through the fan into the cover · M3×14mm for a 10mm fan* | — | [Search](https://www.amazon.com/s?k=M3+x+12mm+screws) | [Search](https://www.aliexpress.com/w/wholesale-M3x12-screw.html) |
 | 5× | **JST 2.54 2-Pin Terminals** | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
 
@@ -116,7 +119,7 @@ This is the full parts list for one node. To see which parts each tier includes,
 | Front cover to standoffs | — | M3×6mm screw | 2 |
 | UPS board posts, battery housing | M3×3mm | M3×6mm screw | 4 |
 | Back cover to battery housing posts | M3×3mm | M3×6mm screw | 4 |
-| Fan to front cover, through the fan | — (screw threads into the plastic) | M3×6mm screw | 4 |
+| Fan to front cover, through the fan | — (screw threads into the plastic) | M3×12mm screw (M3×14mm for a 10mm fan) | 4 |
 | Tripod mount, base | 1/4"-20 | — | 1 |
 
 ---
