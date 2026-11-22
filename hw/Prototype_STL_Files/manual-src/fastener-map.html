@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fastener map</title>
+<style>
+  @page { size: 595pt 842pt; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { width: 595pt; height: 842pt; position: relative; overflow: hidden; font-family: "Microsoft Sans Serif", Arial, sans-serif; font-size: 10.5pt; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a { position: absolute; margin: 0; }
+  .hdr { left: 0; top: 0; width: 107.5pt; height: 46.5pt; background: #a4063e; }
+  .foot { left: 0; top: 805.5pt; width: 595pt; height: 36.5pt; background: #161718; }
+  .foottxt { left: 0; top: 817pt; width: 595pt; text-align: center; color: #fff; font-size: 12pt; }
+  .title { left: 57.6pt; top: 60pt; font-size: 12pt; letter-spacing: 1pt; }
+  .intro { left: 57.6pt; top: 79pt; width: 480pt; line-height: 13.5pt; }
+  .intro p { margin: 0 0 4pt 0; }
+  table { border-collapse: collapse; font-size: 9.5pt; width: 480pt; }
+  td, th { border-bottom: 0.5pt solid #bbb; padding: 3pt 5pt; text-align: left; vertical-align: top; line-height: 12pt; }
+  th { background: #a4063e; color: #fff; font-weight: normal; }
+  td:nth-child(3) { text-align: center; }
+  .tbl { left: 57.6pt; top: 160pt; }
+  .tag { display: inline-block; min-width: 13pt; padding: 0 3pt; border-radius: 7pt; color: #fff; font-weight: bold; text-align: center; }
+  .t1 { background: #b8860b; } .t2 { background: #1f77b4; } .t3 { background: #d62728; } .t4 { background: #9467bd; }
+  .f1 { left: 40pt; top: 342pt; width: 255pt; }
+  .f2 { left: 300pt; top: 342pt; width: 255pt; }
+  .f3 { left: 170pt; top: 578pt; width: 255pt; }
+  img { width: 100%; max-height: 225pt; object-fit: contain; }
+</style>
+</head>
+<body>
+  <div class="a hdr"></div>
+  <p class="a title">FASTENER MAP</p>
+  <div class="a intro">
+    <p>Each number is one kind of part. The drawings show every place it goes. A hole marked <b>1+2</b> takes an insert (1) first, then a screw (2). Melt in all the inserts before you fit anything else (step 7.1).</p>
+    <p>The top of each drawing is the side with the antenna connectors. This map fits cases printed on or after 21 November 2026. A front cover whose four fan marks are shallow dimples, not through holes, is an older print. See BOM note 10 for its hardware.</p>
+  </div>
+  <table class="a tbl">
+    <tr><th>#</th><th>Part</th><th>Qty</th><th>Where it goes</th></tr>
+    <tr><td><span class="tag t1">1</span></td><td>M3×3 mm short heat-set insert</td><td>14</td><td>Main housing: 4 PCB posts and 2 wall posts. Battery housing: 4 UPS posts and 4 back cover posts.</td></tr>
+    <tr><td><span class="tag t2">2</span></td><td>M3×6 mm screw</td><td>14</td><td>2 through the PCB, 4 through the front cover, 4 through the UPS board, 4 through the back cover.</td></tr>
+    <tr><td><span class="tag t3">3</span></td><td>M3×15 mm brass standoff</td><td>2</td><td>Through the PCB into the lower two PCB posts. The front cover screws into its top.</td></tr>
+    <tr><td><span class="tag t4">4</span></td><td>M3×12 mm screw (M3×14 mm for a 10 mm fan)</td><td>4</td><td>Through the fan into the front cover. No insert.</td></tr>
+    <tr><td></td><td>1/4"-20 tripod insert</td><td>1</td><td>Tripod mount on the base. Not shown below.</td></tr>
+  </table>
+  <div class="a f1"><img src="img/fig-main.png" alt="Main housing"></div>
+  <div class="a f2"><img src="img/fig-cover.png" alt="Front cover"></div>
+  <div class="a f3"><img src="img/fig-battery.png" alt="Battery housing"></div>
+  <div class="a foot"></div>
+  <div class="a foottxt">AntiHunter &nbsp;| Perimeter Defense Systems</div>
+</body>
+</html>

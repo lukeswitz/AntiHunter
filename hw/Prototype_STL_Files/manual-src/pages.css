@@ -1,0 +1,22 @@
+@page { size: 595pt 842pt; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+body { width: 595pt; height: 842pt; position: relative; overflow: hidden; font-family: "Microsoft Sans Serif", Arial, sans-serif; font-size: 10.5pt; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.a { position: absolute; margin: 0; }
+.hdr { left: 0; top: 0; width: 107.5pt; height: 46.5pt; background: #a4063e; }
+.num { left: 50.2pt; top: 15.5pt; color: #fff; font-size: 12pt; }
+.foot { left: 0; top: 805.5pt; width: 595pt; height: 36.5pt; background: #161718; }
+.foottxt { left: 0; top: 817pt; width: 595pt; text-align: center; color: #fff; font-size: 12pt; }
+.body { left: 57.6pt; top: 62pt; width: 480pt; line-height: 14pt; }
+h1 { font-size: 18pt; font-weight: normal; margin: 0 0 10pt 0; }
+h2 { font-size: 11.5pt; font-weight: normal; letter-spacing: 1pt; color: #a4063e; margin: 0 0 8pt 0; }
+h3 { font-size: 10.5pt; font-weight: normal; margin: 8pt 0 4pt 0; }
+p { margin: 0 0 6pt 0; }
+ol, ul { margin: 0 0 8pt 0; padding-left: 20pt; }
+li { margin-bottom: 1pt; }
+ul ul { margin: 0; list-style: circle; }
+hr { border: 0; border-top: 1pt solid #a0a0a0; margin: 12pt 0; }
+.lbl { font-weight: bold; margin: 10pt 0 4pt 0; }
+.pair { display: flex; gap: 4pt; }
+.pair img { height: 190pt; max-width: 238pt; object-fit: contain; display: block; }
+.pair.s img { height: 165pt; }
+.warn { font-weight: bold; }
