@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assembly Manual Page 16</title>
+<style>
+  @page { size: 595pt 842pt; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { width: 595pt; height: 842pt; position: relative; overflow: hidden; font-family: "Microsoft Sans Serif", Arial, sans-serif; font-size: 10.5pt; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a { position: absolute; margin: 0; }
+  .hdr { left: 0; top: 0; width: 107.5pt; height: 46.5pt; background: #a4063e; }
+  .num { left: 50.2pt; top: 15.5pt; color: #fff; font-size: 12pt; }
+  .foot { left: 0; top: 805.5pt; width: 595pt; height: 36.5pt; background: #161718; }
+  .foottxt { left: 0; top: 817pt; width: 595pt; text-align: center; color: #fff; font-size: 12pt; }
+  .body { left: 57.6pt; top: 58pt; width: 480pt; line-height: 13pt; }
+  h2 { font-size: 11.5pt; font-weight: normal; letter-spacing: 1pt; color: #a4063e; margin: 0 0 5pt 0; }
+  h3 { font-size: 10.5pt; font-weight: bold; margin: 7pt 0 3pt 0; }
+  ol { margin: 0; padding-left: 17pt; }
+  ol li { margin-bottom: 2.5pt; }
+  ul { margin: 2pt 0 0 0; padding-left: 14pt; }
+  p { margin: 0 0 3pt 0; }
+  .row { display: flex; gap: 8pt; margin-top: 6pt; justify-content: space-between; }
+  figure { margin: 0; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  figure img { height: 160pt; max-width: 100%; object-fit: contain; display: block; }
+  figcaption { font-size: 8.5pt; line-height: 10pt; text-align: center; margin-top: 2pt; }
+</style>
+</head>
+<body>
+  <div class="a hdr"></div>
+  <div class="a num">16</div>
+  <div class="a body">
+    <h2>8.3 POWER SWITCH AND FUSE</h2>
+    <h3>On the bench: wire the switch first</h3>
+    <p>Soldering is easier before the switch goes into the case.</p>
+    <ol>
+      <li>Recommended: solder a 2 A fast-blow fuse across pin 1 and pin 2. Use a square TE5 fuse (Littelfuse 391 series, 2 A). Automotive blade fuses do not fit. No tier includes a fuse. If you can, fit the fuse on the UPS+ wire near the UPS instead.</li>
+      <li>Solder the switch cable: red wire on pin 1, black wire on pin 3. Without a fuse, solder the wires to pin 1 and pin 2.</li>
+    </ol>
+    <div class="row">
+      <figure><img src="img/fuse-part.jpg" alt="Square TE5 fuse"><figcaption>Square TE5 shape. This one is a 392<br>(T = time-lag). Buy the 391 (fast-blow).</figcaption></figure>
+      <figure><img src="img/fuse-closeup.jpg" alt="Fuse soldered on the switch"><figcaption>Fuse soldered on the switch</figcaption></figure>
+      <figure><img src="img/sw-inside.jpg" alt="Wired switch inside the case"><figcaption>Wired switch, seen from inside</figcaption></figure>
+    </div>
+    <h3>In the case: mount and tighten</h3>
+    <ol start="3">
+      <li>Run the nut to the bottom of the switch thread. Then fit the tab washer with its tab bent flat.</li>
+      <li>Push the switch through the cutout from inside. Screw the rubber boot on from outside.</li>
+      <li>Tighten the inside nut against the wall until the switch sits flush and cannot turn. Fingers cannot get it tight enough. Use one of these:
+        <ul>
+          <li><b>Slim spanner (best if you have wrist or hand problems).</b> Turn the inside nut with a thin open-end spanner. Stop when the switch no longer turns. The case is plastic, so do not overtighten.</li>
+          <li><b>Crush washer.</b> Fit the crush washer in place of the tab washer. Tighten with firm force and watch the washer. Stop when it is partly crushed, not flat. The squeezed washer acts as a spring. It keeps pushing on the nut, so the nut does not shake loose.</li>
+        </ul>
+      </li>
+      <li>Flip the switch a few times. It should move smoothly and the body should not turn.</li>
+    </ol>
+    <div class="row" style="justify-content: center; gap: 24pt;">
+      <figure><img src="img/sw-washer.jpg" alt="Partly crushed washer behind the inside nut"><figcaption>Crush washer, partly crushed</figcaption></figure>
+      <figure><img src="img/sw-outside.jpg" alt="Rubber boot on the outside"><figcaption>Rubber boot on the outside</figcaption></figure>
+    </div>
+  </div>
+  <div class="a foot"></div>
+  <div class="a foottxt">AntiHunter &nbsp;| Perimeter Defense Systems</div>
+</body>
+</html>

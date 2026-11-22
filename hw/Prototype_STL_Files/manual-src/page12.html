@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assembly Manual Page 12</title>
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+  <div class="a hdr"></div>
+  <div class="a num">12</div>
+  <div class="a body" style="line-height:15pt">
+    <h2>6. SD CARD REQUIREMENT &amp; INSTALLATION (CRITICAL)</h2>
+    <h3>Supported SD Card</h3>
+    <p>The DIGINODE requires a micro SD card with:</p>
+    <ul>
+      <li>Capacity: 8 GB</li>
+      <li>File system: FAT32</li>
+    </ul>
+    <p>Avoid:</p>
+    <p class="warn">Larger cards</p>
+    <p class="warn">exFAT or NTFS formatted cards</p>
+    <p>They will not function correctly.</p>
+    <hr>
+    <h3>SD Card Preparation</h3>
+    <ol>
+      <li>Format the card to FAT / FAT32</li>
+      <li>Ensure the card is empty</li>
+      <li>Safely eject from your computer</li>
+    </ol>
+    <hr>
+    <h3>Installation Timing (Very Important)</h3>
+    <p>The SD card must be inserted before the PCB is mounted into the main housing.</p>
+    <p>Once mounted, the SD slot is not easily accessible without disassembly.</p>
+    <p>Correct sequence:</p>
+    <ol>
+      <li>SD module soldered</li>
+      <li>SD card formatted</li>
+      <li>SD card inserted and verified</li>
+      <li>PCB mounted into enclosure</li>
+    </ol>
+    <p>SD card status can be verified in firmware after flashing the ESP32.</p>
+    <p>For additional information on firmware and the SD card, visit the firmware repository:</p>
+    <p style="padding-left:20pt"><a href="https://github.com/lukeswitz/AntiHunter">https://github.com/lukeswitz/AntiHunter</a></p>
+  </div>
+  <div class="a foot"></div>
+  <div class="a foottxt">AntiHunter &nbsp;| Perimeter Defense Systems</div>
+</body>
+</html>

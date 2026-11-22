@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assembly Manual Page 8</title>
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+  <div class="a hdr"></div>
+  <div class="a num">8</div>
+  <div class="a body">
+    <p class="lbl" style="margin-top:0">LoRa module (tip: you do not need to remove the screen before soldering)</p>
+    <p>Unscrew the three screws under the screen and hold the screen back to reach the pins near the glass and the flex cable. Solder the pins, then refit the screen and the screws.</p>
+    <p>To save power, leave the screen fitted and turn it off with <span style="white-space:nowrap">scripts/meshtastic_config.py --screen off</span>.</p>
+    <p>You can also desolder the screen permanently. This is advanced and at your own risk, because Heltec publishes no removal procedure. A node without a screen needs its Bluetooth pairing PIN set over serial: <span style="white-space:nowrap">scripts/meshtastic_config.py --pin NNNNNN</span>.</p>
+    <div class="pair"><img src="img/lora-headers.jpg" alt="LoRa module pin headers"><img src="img/lora-on-headers.jpg" alt="LoRa module on headers"></div>
+    <hr>
+    <p class="lbl">ESP32 module (XIAO)</p>
+    <div class="pair"><img src="img/esp-headers.jpg" alt="ESP32 module pin headers"><img src="img/esp-on-headers.jpg" alt="ESP32 module on headers"></div>
+  </div>
+  <div class="a foot"></div>
+  <div class="a foottxt">AntiHunter &nbsp;| Perimeter Defense Systems</div>
+</body>
+</html>
