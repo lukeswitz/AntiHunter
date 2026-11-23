@@ -347,6 +347,7 @@ struct DeviceDBStream {
     uint8_t phase = 0;
     uint8_t first = 1;
     bool holds = false;
+    bool raw = false;
     uint8_t *blk = nullptr;
     size_t blkStart = 0;
     size_t blkLen = 0;

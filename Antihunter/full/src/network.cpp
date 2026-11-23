@@ -34,7 +34,7 @@ static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 bool hbEnabled = false;
-uint32_t hbInterval = 600000;
+uint32_t hbInterval = 1800000;
 // Runtime gate for vibration mesh broadcasts (NVS key: "vibEnabled").
 // Detection and USB logging always run; this only controls Serial1 TX.
 bool vibrationEnabled = true;
@@ -809,7 +809,7 @@ static String dataCfgJson() {
   time_t now = schedNow();
   return String("{\"campaign\":\"") + campaignName() + "\",\"bleClassify\":" + (bleClassifyEnabled ? "true" : "false") +
          ",\"bleLongRange\":" + (bleLongRange.load() ? "true" : "false") +
-         ",\"tz\":\"" + nodeTZAbbrev(now) + "\",\"tzOff\":" + String(nodeTZOffset(now)) + ",\"tzPosix\":\"" + nodeTZPosix() + "\"}";
+         ",\"now\":" + String((unsigned long)now) + ",\"tz\":\"" + nodeTZAbbrev(now) + "\",\"tzOff\":" + String(nodeTZOffset(now)) + ",\"tzPosix\":\"" + nodeTZPosix() + "\"}";
 }
 
 int fleetSend(String node, String cmd, String &msg) {
@@ -2353,6 +2353,7 @@ void registerRemainingRoutes() {
 
   server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto st = std::make_shared<DeviceDBStream>();
+      st->raw = req->hasParam("raw");
       AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
           [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
               return deviceDBStreamFill(*st, buffer, maxLen);

@@ -192,13 +192,13 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/antihunter.log` | GET | System log (text). `404` if none. At 1 MB the node renames it to `/antihunter_old.log` and starts a new one |
 | `/api/antihunter.log/clear` | POST | Clears the system log and deletes `/antihunter_old.log` |
 | `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
-| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
+| `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `now` (the node's clock in Unix seconds, `0` before the clock is set), `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
 | `/data-cfg` | POST | `bleClassify` (`0` or `1`), `bleLongRange` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
 | `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
 | `/api/probedb/clear` | POST | Clears the probe database. `500` if the SD files could not be deleted |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
 | `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
-| `/api/devicedb` | GET | Every device on the SD card, one row each (JSON). Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch` |
+| `/api/devicedb` | GET | Every device on the SD card, one row each (JSON). Fields: `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`. The node first merges the latest scan into the SD file, which takes longer for a big list. Add `raw` (`/api/devicedb?raw=1`) to skip that step and start sending at once. A device can then appear more than once, and its row with the highest `last` is the newest |
 | `/api/devicedb/clear` | POST | Clears the device database from memory and the SD card. `500` if the SD files could not be deleted |
 
 These six logs take query parameters to read the end of a large file: `/api/deauth.jsonl`, `/api/drones.jsonl`, `/api/vibrations.jsonl`, `/api/antihunter.log`, `/api/campaigns.csv`, and `/api/incidents.jsonl`.
