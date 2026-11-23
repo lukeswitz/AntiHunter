@@ -100,7 +100,7 @@
   .check { list-style: none; padding-left: 0; }
   .check li { padding-left: 6mm; text-indent: -6mm; }
   .check li::before { content: "☐  "; color: var(--accent); font-weight: 700; }
-  .toc { column-count: 2; column-gap: 10mm; font-size: 9.2pt; }
+  .toc { column-count: 2; column-gap: 10mm; font-size: 9.2pt; break-inside: avoid; }
   .toc div { break-inside: avoid; margin-bottom: 1.6mm; }
   .toc .n { color: var(--accent); font-weight: 700; display: inline-block; width: 8mm; }
   .toc .s { color: var(--mut); font-size: 8.4pt; padding-left: 8mm; display: block; }
@@ -135,7 +135,7 @@
       Covers all four tiers: <b>Fully Assembled Unit</b> · <b>Complete Parts Kit</b> · <b>Populated PCB</b> · <b>Bare PCB</b>
     </div>
     <div class="foot">
-      Guide revision 1.5 · 21 November 2026 · Firmware v1.0.5 · Written for the current Stable and Beta firmware channels<br>
+      Guide revision 1.6 · 23 November 2026 · Firmware v1.0.5 · Written for the current Stable and Beta firmware channels<br>
       github.com/lukeswitz/AntiHunter · Web flasher: lukeswitz.github.io/AntiHunter
     </div>
   </div>
@@ -145,7 +145,7 @@
   <h2>Hello, operator</h2>
   <p class="lead">The DIGI node is a detection node you leave in a home, a vehicle, along a fence line, or at a site with no signal. AntiHunter, its firmware, listens to the Wi-Fi and Bluetooth around it and tells you who is there, who is new, and who is attacking. You control the node from its web UI (Full build), with text commands over LoRa from any Meshtastic radio on your channel, or on its USB serial port. It needs no internet connection, cloud account or server.</p>
 
-  <p>This guide takes you from the box to a node in the field. Building a kit or a bare board is in the assembly manual, not here. Section 10 lists every feature with its wiki page at <span class="mono">github.com/lukeswitz/AntiHunter/wiki</span>, where each page has every setting, alert and fix.</p>
+  <p>This guide takes you from the box to a node in the field. Building a kit or a bare board is in the assembly manual, not here. Section 10 has playbooks you can run step by step, and section 11 lists every feature.</p>
 
   <div class="box warn">
     <span class="t">Read before applying power: three rules</span>
@@ -175,9 +175,10 @@
     <div><span class="n">7</span> Mesh radio setup</div>
     <div><span class="n">8</span> Securing the node</div>
     <div><span class="n">9</span> First configuration</div>
-    <div><span class="n">10</span> Features and wiki pages</div>
-    <div><span class="n">11</span> Deployment</div>
-    <div><span class="n">12</span> Maintenance and troubleshooting</div>
+    <div><span class="n">10</span> Playbooks</div>
+    <div><span class="n">11</span> Features</div>
+    <div><span class="n">12</span> Deployment</div>
+    <div><span class="n">13</span> Maintenance and troubleshooting</div>
     <div><span class="n">A–E</span> Appendices: pinout, defaults and files, glossary, quick reference, mesh command basics</div>
   </div>
 </div>
@@ -292,21 +293,13 @@
     </ul>
   </div>
 
-  <h3>3.3 Fitting SMA antennas (tiers 1 and 2)</h3>
+  <h3>3.3 Fitting SMA antennas (tier 1)</h3>
   <ol>
-    <li>Check the bulkhead is tight in the shell. The bulkhead must not rotate when you turn an antenna onto it.</li>
     <li>Start the thread by hand, straight on, so it does not cross-thread.</li>
     <li>Turn until finger-tight, then no more than an eighth of a turn. Do not use pliers.</li>
     <li>Stand the antenna upright.</li>
   </ol>
-  <div class="row">
-    <figure><img src="img/sma-gps-housing.jpg" alt=""><figcaption>GPS SMA female in the battery housing, held by washer and nut.</figcaption></figure>
-    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>Wi-Fi SMA (female, left) and LoRa SMA (female, right) in the main housing.</figcaption></figure>
-  </div>
-
-  <div class="box tip"><span class="t">Wet conditions</span>
-    <p>Put silicone grease on the SMA threads and the TPU seals to keep water out.</p>
-  </div>
+  <figure class="solo"><img src="img/sma-mainhousing.jpg" alt=""><figcaption>Wi-Fi SMA (left) and LoRa SMA (right) on the main housing.</figcaption></figure>
 </div>
 
 <div class="sec">
@@ -322,15 +315,11 @@
 
   <h3>4.2 Thermal</h3>
   <p>The ESP32 runs warm under load and the GPS module gets hot while it searches for satellites. Both are normal. The node works without the fan and the thermal switch.</p>
-  <ul>
-    <li>The KSD9700 thermal switch (normally open, 40 °C) switches the fan on when the enclosure heats up.</li>
-    <li>To run the fan continuously, jump the THERMO input or supply 5 V straight to the fan port.</li>
-  </ul>
 </div>
 
 <div class="sec">
   <h2><span class="num">5</span>Flashing the radio and the firmware</h2>
-  <p class="lead">Flash the Meshtastic radio, then choose a build and flash it to the ESP32. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/Flash-a-node"><span class="mono">Flash-a-node</span></a>.</p>
+  <p class="lead">Flash the Meshtastic radio, then choose a build and flash it to the ESP32.</p>
 
   <h3>5.1 Flashing and linking the radio</h3>
   <p><b>Tiers 1 and 3</b> arrive with the radio on the latest stable Meshtastic and the serial link set as in the table below. The screen blanks after 1 s and the status LED is off. Do not redo it.</p>
@@ -343,15 +332,7 @@
     <tr><td>Pins, Heltec V3</td><td>19 RX / 20 TX</td></tr>
     <tr><td>Pins, T114</td><td>10 RX / 9 TX</td></tr>
   </table>
-  <p>Without this the node and the radio cannot talk.</p>
-
-  <div class="box warn"><span class="t">Three things every radio needs, on every tier</span>
-    <ul style="margin-bottom:0">
-      <li><b>LoRa region.</b> See §7.1.</li>
-      <li><b>Bluetooth pairing PIN.</b> Every unit has the same default PIN. Change it or turn BLE off.</li>
-      <li><b>Channel.</b> See §8.2.</li>
-    </ul>
-  </div>
+  <p>Without this the node and the radio cannot talk. On every tier, also set the radio's region (§7.1) and channel (§8.2).</p>
 
   <h3>5.2 Full or Headless?</h3>
   <p>Both builds have the same detectors, mesh commands and scan engine. The difference is whether the node hosts a Wi-Fi access point.</p>
@@ -360,9 +341,9 @@
     <tr><td><b>Control</b></td><td>Web UI and HTTP API over its own AP, plus serial and mesh</td><td>Serial and mesh only</td></tr>
     <tr><td><b>RF footprint</b></td><td>The AP beacons continuously, so the node is discoverable as a Wi-Fi network</td><td>Never beacons</td></tr>
     <tr><td><b>Results</b></td><td>Cards in the Results tab</td><td>Text in <span class="mono">/last_results.txt</span></td></tr>
-    <tr><td><b>SD logging</b></td><td colspan="2">Identical on both builds (§10.2)</td></tr>
+    <tr><td><b>SD logging</b></td><td colspan="2">Identical on both builds (§11.2)</td></tr>
   </table>
-  <p>Use Full for bench work and first setup, then reflash to Headless for covert and long-term field deployments. A reflash keeps settings unless you check <b>Erase Device</b>. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless"><span class="mono">Full-or-Headless</span></a>.</p>
+  <p>Use Full for bench work and first setup, then reflash to Headless for covert and long-term field deployments. A reflash keeps settings unless you check <b>Erase Device</b>.</p>
 
   <h3>5.3 Release channels</h3>
   <table class="tight">
@@ -390,21 +371,16 @@
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh</pre>
   <p>The script first shows the legal disclaimer and continues only after you type <span class="mono">yes</span>. It then asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
-  <p>To compile the firmware yourself with PlatformIO, see <a href="https://github.com/lukeswitz/AntiHunter/wiki/Build-from-source"><span class="mono">Build-from-source</span></a> on the wiki.</p>
 
   <h3>5.6 Board variants</h3>
-  <p>The XIAO ESP32-C5 replaces the S3 on the same board and adds 5 GHz scanning. Those builds are on the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/DIGI-C5"><span class="mono">DIGI-C5</span></a>, <a href="https://github.com/lukeswitz/AntiHunter/wiki/RadarNode"><span class="mono">RadarNode</span></a>.</p>
+  <p>The XIAO ESP32-C5 replaces the S3 on the same board and adds 5 GHz scanning. Those builds are on the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present.</p>
 </div>
 
 <div class="sec">
   <h2 id="s6"><span class="num">6</span>First power-on</h2>
 
   <h3>6.1 What a healthy boot looks like</h3>
-  <p>Connect a USB-C cable to the <b>ESP32</b> only and open a serial monitor at 115200 baud. The firmware prints its banner and version, then the result of each hardware check: SD card, GPS, RTC, vibration sensor. It names any module that failed to start. On Full firmware, a Wi-Fi access point named <span class="mono">Antihunter</span> appears within a few seconds. Join it and open <b>http://192.168.4.1</b> (<span class="mono">http</span>, not https). The default password and login are in §8.1.</p>
-
-  <div class="box warn"><span class="t">Do this before anything else</span>
-    <p>Change the default AP name and password. See §8.1.</p>
-  </div>
+  <p>Connect a USB-C cable to the <b>ESP32</b> only and open a serial monitor at 115200 baud. The firmware prints its banner and version, then the result of each hardware check: SD card, GPS, RTC, vibration sensor. It names any module that failed to start. On Full firmware, a Wi-Fi access point named <span class="mono">Antihunter</span> appears within a few seconds. Join it and open <b>http://192.168.4.1</b> (<span class="mono">http</span>, not https). Change the default AP name and password before anything else (§8.1).</p>
 
   <h3>6.2 Confirming the hardware</h3>
   <p>On Full firmware, System tab → <b>Diagnostics</b> reports each subsystem:</p>
@@ -420,7 +396,7 @@ chmod +x flashAntihunter.sh
 
 <div class="sec">
   <h2><span class="num">7</span>Mesh radio setup</h2>
-  <p class="lead">The LoRa mesh carries commands and alerts between your radios and your nodes. It is optional. A single node works on its own. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/Meshtastic-radio-setup"><span class="mono">Meshtastic-radio-setup</span></a>.</p>
+  <p class="lead">The LoRa mesh carries commands and alerts between your radios and your nodes. It is optional. A single node works on its own.</p>
 
   <figure><img src="../img/mesh-screenshot.jpg" alt=""><figcaption>A device scan sending results over the mesh. The header badge shows the transmit queue draining at the LoRa airtime cap (12 of 30 rows sent). Addresses and names are placeholders.</figcaption></figure>
 
@@ -443,7 +419,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">--ble on | off</span></td><td>Bluetooth radio</td></tr>
     <tr><td><span class="mono">--pin NNNNNN | none | random</span></td><td>BLE pairing: fixed 6-digit PIN, none, or random</td></tr>
   </table>
-  <p>The Meshtastic phone app or web client can apply the same settings.</p>
+  <p>The Meshtastic phone app or web client can apply the same settings. Every unit has the same default Bluetooth pairing PIN. Set your own with <span class="mono">--pin</span>, or turn Bluetooth off with <span class="mono">--ble off</span>.</p>
 
   <h3>7.2 Reaching the mesh</h3>
   <p>Commands and detections are ordinary Meshtastic text messages. Pair the radio to the Meshtastic app over Bluetooth or Wi-Fi and send <span class="mono">@node COMMAND</span> messages, or use the Meshtastic ATAK plugin or an MQTT gateway node. With a MeshCore radio (§7.3), they are MeshCore messages on channel 0.</p>
@@ -461,7 +437,6 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>7.4 Quiet-ops settings</h3>
   <ul>
     <li><b>Screen off and LED off</b> remove the visual signature and save power: <code>python3 scripts/meshtastic_config.py --screen off --led off</code>.</li>
-    <li><b>Screenless node.</b> This step is optional and advanced, at your own risk. Heltec publishes no removal procedure for the soldered display. Without a screen, set a fixed pairing PIN with <code>--pin NNNNNN</code> (6 digits, or <code>none</code>). <code>random</code> shows the PIN on the screen.</li>
     <li><b>BLE off</b> on the radio removes its Bluetooth signature. Set a pairing PIN first if you may turn it on later.</li>
     <li><b>Headless firmware</b> has no Wi-Fi access point. See §5.2.</li>
   </ul>
@@ -488,12 +463,12 @@ python3 scripts/meshtastic_config.py</pre>
   </ol>
 
   <h3>8.3 Erase key</h3>
-  <p>Every wipe, cancel, auto-erase change and factory reset needs it. The node makes one on first start. <b>Show my erase key</b> in Web Flasher step 2, the flash script and <span class="mono">pio run -t upload</span> all show it. <b>Write it down.</b> A flash with <b>Erase device</b> off keeps the key. A flash with <b>Erase device</b> on makes a new key and shows it. If you lose the key, flash with <b>Erase device</b> on. Settings come back from the SD card. The AP password and web password go back to their defaults. Change the key in System tab → <b>Settings</b> → <b>Danger zone</b>, or with <span class="mono">CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. That command sends both keys in the clear, so send it only on your own encrypted channel, or use USB serial or the web UI. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe"><span class="mono">Secure-wipe</span></a>.</p>
+  <p>Every wipe, cancel, auto-erase change and factory reset needs it. The node makes one on first start. <b>Show my erase key</b> in Web Flasher step 2, the flash script and <span class="mono">pio run -t upload</span> all show it. <b>Write it down.</b> A flash with <b>Erase device</b> off keeps the key. A flash with <b>Erase device</b> on makes a new key and shows it. If you lose the key, flash with <b>Erase device</b> on. Settings come back from the SD card. The AP password and web password go back to their defaults. Change the key in System tab → <b>Settings</b> → <b>Danger zone</b>, or with <span class="mono">CONFIG_ERASE_PSK:&lt;new&gt;:&lt;current&gt;</span>. That command sends both keys in the clear, so send it only on your own encrypted channel, or use USB serial or the web UI.</p>
 </div>
 
 <div class="sec">
   <h2><span class="num">9</span>First configuration</h2>
-  <p class="lead">Do this on the bench before you deploy the node. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/First-setup"><span class="mono">First-setup</span></a>, <a href="https://github.com/lukeswitz/AntiHunter/wiki/Settings"><span class="mono">Settings</span></a>.</p>
+  <p class="lead">Do this on the bench before you deploy the node.</p>
 
   <h3 id="s9-1">9.1 Identity and addressing</h3>
   <p><b>Node ID.</b> Set it in the web UI or with <span class="mono">@AH01 CONFIG_NODEID:AH02</span>. It prefixes every mesh message the node sends.</p>
@@ -520,62 +495,170 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Privacy.</b> The <b>Privacy</b> button masks MACs, GPS coordinates and device names, and replaces SSIDs with hashes, in the web UI. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allow list.</b> Scan tab → Device Discovery card → <b>Allow list</b>. Target Scan and Baseline skip the devices on it, so put your own devices there. Other scans ignore it.</li>
     <li><b>Battery Saver.</b> System tab → <b>Settings</b> → <b>Sensors &amp; power</b> → <b>Battery saver</b>, or <span class="mono">BATTERY_SAVER_START</span>. Scanning stops, BLE turns off, the CPU drops to 80 MHz, and the node sends a heartbeat at the interval you pick: 1, 2, 5, 10, 15 or 30 minutes. The mesh and access point stay on, and the node reads GPS once a minute.</li>
-    <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. Each other node has <b>Status</b>, <b>Stop</b> and <b>Schedules</b> buttons. Nodes heard earlier stay in the list until <b>Clear</b> empties it. Typing <span class="mono">FLEET</span> on USB serial prints the same list as JSON.</li>
-    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 10 minutes when you turn it on. <b>Repeat filter</b> skips a MAC already sent within 0 to 3600 seconds. The default is 300. 0 sends every device on every scan. Alerts, drone events and triangulation always go out.</li>
+    <li><b>Fleet.</b> System tab → <b>Fleet</b> lists the nodes and mesh radios heard on your channel. <b>Ping Nodes</b> sends <span class="mono">@ALL STATUS</span> so every node answers. Each other node has <b>Status</b>, <b>Stop</b> and <b>Schedules</b> buttons. Nodes heard earlier stay in the list until <b>Clear</b> empties it. Typing <span class="mono">FLEET</span> on USB serial prints the same list as JSON. To run a scan on another node, use Scan tab → <b>Schedule</b> → <b>Fleet plan</b> (Full), or type <span class="mono">FLEET_SEND:AH02 DEVICE_SCAN_START:2:300</span> on a node's USB serial port (Full and Headless). Both send the command over the mesh, and nodes in between pass it on to a node out of range.</li>
+    <li><b>Node &amp; mesh settings.</b> System tab → <b>Settings</b> → <b>Node &amp; mesh</b>: <b>Mesh</b> turns the radio link on or off. <b>Status heartbeat</b> sends a status message every 1 to 60 minutes. It is off by default and uses 30 minutes when you turn it on. <b>Repeat filter</b> skips a MAC already sent within 0 to 3600 seconds. The default is 300. 0 sends every device on every scan. Alerts, drone events and triangulation always go out.</li>
   </ul>
 </div>
 
 <div class="sec">
-  <h2 id="s10"><span class="num">10</span>Features and wiki pages</h2>
-  <p class="lead">Each feature below runs on the node itself, and one scan runs at a time. Each wiki page is at <span class="mono">github.com/lukeswitz/AntiHunter/wiki/</span> followed by the page name, and has every setting, alert and fix. Send the mesh commands as <span class="mono">@ALL</span> or <span class="mono">@</span> plus a node ID, followed by the command.</p>
+  <h2 id="s10"><span class="num">10</span>Playbooks</h2>
+  <p class="lead">Seven setups you can copy. Try each one on the bench first and read every reply, so you know what a healthy node sounds like before you leave it alone. Send the lines from a radio on your channel, or type them on the node's USB serial port. Swap <span class="mono">AH01</span> for your node's ID. Section 11 lists each feature and the command that starts it.</p>
+
+  <h3>10.1 Watch a site overnight</h3>
+  <p>The node learns who normally shows up. After that it tells you about new devices, devices that come back, anything that moves the node, and attacks on the Wi-Fi. You need an SD card and a set clock (§6.3).</p>
+  <ol>
+    <li>Ask the node for its status. If it answers, the radio link works.
+      <pre>@AH01 STATUS
+AH01: STATUS: Mode:WiFi+BLE Scan:IDLE Hits:0 Temp:41.5C Up:00:12:03 ...</pre></li>
+    <li>Start learning while the site is in its normal state. The node learns for 300 seconds (the baseline duration setting), then watches for 600 more.
+      <pre>@AH01 BASELINE_START:600
+AH01: BASELINE_ACK:STARTED</pre>
+      <span class="mono">@AH01 BASELINE_STATUS</span> shows how far along it is. <span class="mono">Established:YES</span> means learning is done.</li>
+    <li>To repeat this every night, add a schedule. Use tonight's date. This starts at 21:00 and repeats daily (86400 seconds), then watches for 9 hours (32400 seconds) once learning ends. <span class="mono">@AH01 SCHED_LIST</span> shows what the node saved.
+      <pre>@AH01 SCHED_ADD:2026-11-24T21:00|86400|/sniffer|detection=baseline&amp;secs=32400
+AH01: SCHED_ACK:OK</pre></li>
+    <li>Switch Sentinel on, and set it to start at every power-on so a reboot does not leave the site unwatched.
+      <pre>@AH01 SENTINEL_BOOT:1
+@AH01 SENTINEL_ON</pre></li>
+    <li>Movement alerts are on by default. This command makes sure, in case you turned them off.
+      <pre>@AH01 VIBRATION_ON
+AH01: VIBRATION_ON_ACK:OK</pre></li>
+    <li>In the morning, read what came in. A new device shows up as <span class="mono">ANOMALY-NEW: &lt;WiFi|BLE&gt; &lt;mac&gt; RSSI:&lt;n&gt;</span>. A device that left and came back shows up as <span class="mono">ANOMALY-RETURN</span>. Someone moving the node shows up as <span class="mono">VIBRATION: Movement detected at &lt;time&gt;</span>. On a Full node, the Data tab has <b>Baseline stats</b> and <b>Sentinel incidents</b>. <span class="mono">@AH01 SUMMARY</span> gives the counts.</li>
+  </ol>
+
+  <h3>10.2 Watch for specific devices</h3>
+  <p>Use this when you know what you are looking for: a phone, a tag, a network name. The node alerts when a MAC address, a maker's prefix or a network name from your list shows up.</p>
+  <ol>
+    <li>Survey the area for 10 minutes to see what is normally around. Your own devices will show up too.
+      <pre>@AH01 DEVICE_SCAN_START:2:600
+AH01: DEVICE_SCAN_ACK:STARTED</pre></li>
+    <li>Put your own devices on the allow list (Scan tab → Device Discovery card → <b>Allow list</b>) so the target scan skips them.</li>
+    <li>Load the watchlist before you start the scan, because a scan that is already running does not pick up a new list. Separate the entries with <span class="mono">|</span>. An entry is a full MAC address, the first three bytes of one (every device from that maker), or a network name.
+      <pre>@AH01 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
+AH01: CONFIG_ACK:TARGETS:OK</pre></li>
+    <li>Start the target scan. The 2 means Wi-Fi and Bluetooth, 600 is the run time in seconds, and 1..11 is the Wi-Fi channel range.
+      <pre>@AH01 SCAN_START:2:600:1..11
+AH01: SCAN_ACK:STARTED</pre></li>
+    <li>To run it every day, schedule it. This starts at 08:00 and runs for 10 hours.
+      <pre>@AH01 SCHED_ADD:2026-11-24T08:00|86400|/scan|mode=2&amp;secs=36000&amp;ch=1..11
+AH01: SCHED_ACK:OK</pre></li>
+    <li>A hit arrives as <span class="mono">AH01: Target: AA:BB:CC:DD:EE:FF RSSI:-62 Type:WiFi</span>. The node repeats a hit on the same device at most every 30 seconds, unless its signal changes by 5 dB or more or the node moves.</li>
+  </ol>
+
+  <h3>10.3 Compare the site before and after you leave</h3>
+  <p>Use this when you will be away for a while and want to know what changed. You mark the moment you leave. The node compares what it heard before the mark with what it heard after.</p>
+  <ol>
+    <li>Start a baseline when you arrive. The 0 means it keeps going until you stop it.
+      <pre>@AH01 BASELINE_START:0
+AH01: BASELINE_ACK:STARTED</pre></li>
+    <li>Mark the moment you leave. On a Full node the <b>Compare from now</b> button does the same thing.
+      <pre>@AH01 BASELINE_WATCH
+AH01: BASELINE_ACK:WATCHING</pre></li>
+    <li>Stop the baseline when you come back. The node sends its comparison.
+      <pre>@AH01 STOP
+AH01: BASELINE_WATCH: New=2 Gone=1 Moved=0 Both=14</pre>
+      <span class="mono">New</span> is the number of devices heard only after the mark, and <span class="mono">Gone</span> is the number heard only before it. <span class="mono">Both</span> is the number heard at both times, and <span class="mono">Moved</span> is how many of those changed signal strength by a noticeable amount.</li>
+  </ol>
+
+  <h3>10.4 Watch for drones</h3>
+  <p>Drones broadcast an ID and their position, called Remote ID. The node reads those broadcasts on both radios. Read §2.4 before you act on what it reports.</p>
+  <ol>
+    <li>Start a drone watch. The 0 means it runs until you stop it.
+      <pre>@AH01 DRONE_START:0
+AH01: DRONE_ACK:STARTED</pre></li>
+    <li>To run it every day, schedule it. This starts at 06:00 and runs for 16 hours (57600 seconds).
+      <pre>@AH01 SCHED_ADD:2026-11-24T06:00|86400|/drone|droneScanMode=2&amp;secs=57600
+AH01: SCHED_ACK:OK</pre></li>
+    <li>A drone shows up as <span class="mono">DRONE: &lt;mac&gt; ID:&lt;uavId&gt; R&lt;rssi&gt;</span>. When the drone sends them, the line also has its position, altitude, speed and the pilot's location. <span class="mono">DRONE_LOST: &lt;mac&gt; AGE:&lt;s&gt;</span> arrives when the drone stops broadcasting.</li>
+  </ol>
+
+  <h3>10.5 Watch for Wi-Fi attacks</h3>
+  <p>Use this when you think someone is attacking your Wi-Fi. Deauth detection counts the frames that knock devices off a network. Sentinel watches for fake access points and known attack tools.</p>
+  <ol>
+    <li>Start deauth detection. The 0 means it runs until you stop it.
+      <pre>@AH01 DEAUTH_START:0
+AH01: DEAUTH_ACK:STARTED</pre></li>
+    <li>Switch Sentinel on.
+      <pre>@AH01 SENTINEL_ON
+AH01: SENTINEL_ACK:ON run=&lt;0|1&gt;</pre></li>
+    <li>A deauth frame shows up as <span class="mono">ATTACK: DEAUTH BROADCAST SRC:&lt;mac&gt; DST:&lt;mac&gt; RSSI:&lt;n&gt;dBm CH:&lt;n&gt;</span>. Sentinel adds lines such as <span class="mono">DEAUTH_FLOOD:&lt;src&gt;:&lt;count&gt;:&lt;rssi&gt;</span> and <span class="mono">EVILTWIN:&lt;bssid&gt;:&lt;reason&gt;:&lt;rssi&gt;:&lt;ssid&gt;</span>. On a Full node, the Data tab keeps them under <b>Deauth attacks</b> and <b>Sentinel incidents</b>.</li>
+  </ol>
+
+  <h3>10.6 Leave a node in a vehicle or camp</h3>
+  <p>When someone moves the node, you get an alert, and the node starts a scan on its own to record who was nearby.</p>
+  <ol>
+    <li>Turn on the movement scan. The numbers are on or off (1 is on), which scan to run (1 is device discovery), how long it runs in seconds, and how many seconds must pass before another movement can start one.
+      <pre>@AH01 VIBSCAN_SET:1:1:300:600
+AH01: VIBSCAN_ACK:OK En:1 Mode:1 Dur:300s Cd:600s Pre:0</pre></li>
+    <li>Check the settings.
+      <pre>@AH01 VIBSCAN_STATUS</pre></li>
+    <li>Leave Battery Saver off. It stops scanning, so a bump would no longer start a scan.</li>
+    <li>A bump shows up as <span class="mono">VIBRATION: Movement detected at &lt;time&gt;</span>. When the scan ends, <span class="mono">SCAN_DONE</span> says how many devices it heard. If doors or bumps set it off too often, retune the sensor (§12.3) or raise the 600.</li>
+  </ol>
+
+  <h3>10.7 Run several nodes from one place</h3>
+  <p>Every node answers under its own ID, and you can start scans on any of them from one node.</p>
+  <ol>
+    <li>Give every node its own ID (§9.1) and put every radio on the same channel (§8.2).</li>
+    <li>Check that every node answers. Each one replies with its own ID.
+      <pre>@ALL STATUS</pre></li>
+    <li>To start a scan on another node, type this on the USB serial port of a node you can reach. The node replies <span class="mono">FLEET_SEND:200 Sent to AH02</span>, and AH02's answer follows. On a Full node, Scan tab → <b>Schedule</b> → <b>Fleet plan</b> does the same from the web UI and lets you set repeat times.
+      <pre>FLEET_SEND:AH02 DEVICE_SCAN_START:2:300</pre></li>
+    <li>The Command Center (§11.3) puts every node on one map.</li>
+  </ol>
+</div>
+
+<div class="sec">
+  <h2 id="s11"><span class="num">11</span>Features</h2>
+  <p class="lead">Each feature below runs on the node itself, and one scan runs at a time. Send the mesh commands as <span class="mono">@ALL</span> or <span class="mono">@</span> plus a node ID, followed by the command.</p>
 
   <figure><img src="../img/scan-tab.jpg" alt=""><figcaption>The Scan tab: scans on top, options left, schedule right.</figcaption></figure>
 
-  <h3>10.1 Feature table</h3>
+  <h3>11.1 Feature table</h3>
   <table class="tight">
-    <tr><th style="width:20%">Feature</th><th>What it does</th><th style="width:27%">Start over mesh</th><th style="width:19%">Wiki page</th></tr>
-    <tr><td><b>Target Scan</b></td><td>Alerts when a device on your watchlist appears. A target is a full MAC address, an OUI (the first three bytes of a MAC, which match one maker) or a network name.</td><td><span class="mono">SCAN_START:2:300:1..11</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Target-scan"><span class="mono">Target-scan</span></a></td></tr>
-    <tr><td><b>Device Discovery</b></td><td>Lists every Wi-Fi and BLE device nearby with its signal, channel and name, and labels Bluetooth devices such as AirPods, a Tile tag or a drone.</td><td><span class="mono">DEVICE_SCAN_START:2:300</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Device-discovery"><span class="mono">Device-discovery</span></a>, <a href="https://github.com/lukeswitz/AntiHunter/wiki/Device-classifier"><span class="mono">Device-classifier</span></a></td></tr>
-    <tr><td><b>Probe Request Scanner</b></td><td>Records each phone or laptop and the names of the networks it asks for.</td><td><span class="mono">PROBE_START:2:300</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Probe-requests"><span class="mono">Probe-requests</span></a></td></tr>
-    <tr><td><b>Randomized MAC Tracer</b> (experimental)</td><td>Links a phone's changing MAC addresses back to one device. Treat an identity as a lead, not proof.</td><td><span class="mono">RANDOMIZATION_START:2:300</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Randomized-MAC-tracer"><span class="mono">Randomized-MAC-tracer</span></a></td></tr>
-    <tr><td><b>Drone RID Detection</b></td><td>Reads the Remote ID that drones broadcast: the drone's ID, position, altitude, speed and, when sent, the pilot's location.</td><td><span class="mono">DRONE_START:300</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Drone-Remote-ID"><span class="mono">Drone-Remote-ID</span></a></td></tr>
-    <tr><td><b>Triangulation</b> (experimental)</td><td>Three or more nodes with GPS fixes and matched antennas each measure one target's signal, and one node puts it on a map.</td><td><span class="mono">TRIANGULATE_START:&lt;MAC&gt;:60:2</span>, to one node</td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Triangulation"><span class="mono">Triangulation</span></a></td></tr>
-    <tr><td><b>Baseline Anomaly Detection</b></td><td>Learns which devices belong at a site, then reports who is new, who comes back, whose signal moves and who disappears.</td><td><span class="mono">BASELINE_START:900</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly"><span class="mono">Baseline-anomaly</span></a></td></tr>
-    <tr><td><b>CSI Motion Detection</b> (experimental, Beta and C5)</td><td>Senses people moving nearby, even through walls, from changes in the Wi-Fi signals around the node. It detects movement, not someone sitting still.</td><td><span class="mono">CSI_MOTION_START:0:FOREVER</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion"><span class="mono">CSI-motion</span></a></td></tr>
-    <tr><td><b>Deauth Detection</b></td><td>Catches the frames that knock clients off a Wi-Fi network, and tracks who sent them.</td><td><span class="mono">DEAUTH_START:300</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Deauth-detection"><span class="mono">Deauth-detection</span></a></td></tr>
-    <tr><td><b>Sentinel</b></td><td>Watches in the background for Wi-Fi attacks, fake access points, handshake capture, jamming, attack devices, and Meshtastic and MeshCore radios nearby.</td><td><span class="mono">SENTINEL_ON</span>, or <span class="mono">SENTINEL_BOOT:1</span> at every power-on</td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Sentinel"><span class="mono">Sentinel</span></a></td></tr>
-    <tr><td><b>Attack response</b></td><td>Runs triangulation, a packet capture or a scan after Sentinel confirms an attack. Off until you turn it on.</td><td>Sentinel tab → <b>Attack response</b></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Attack-response"><span class="mono">Attack-response</span></a></td></tr>
-    <tr><td><b>Packet Capture</b></td><td>Records the raw Wi-Fi or BLE traffic around the node to the SD card as a file Wireshark opens.</td><td><span class="mono">PCAP_START:0:300:0</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture"><span class="mono">Packet-capture</span></a></td></tr>
-    <tr><td><b>Scheduled scans</b></td><td>Runs a scan at set times, on this node or another, once or on a repeat. It needs the clock (§6.3).</td><td>Scan tab → <b>Schedule this scan</b></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Scheduled-scans"><span class="mono">Scheduled-scans</span></a></td></tr>
-    <tr><td><b>Campaigns</b></td><td>Tags the SD logs with a name between a start and a stop, so you can export one operation as a set.</td><td><span class="mono">CAMPAIGN_START:site-a</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Campaigns"><span class="mono">Campaigns</span></a></td></tr>
-    <tr><td><b>Vibration and tamper</b></td><td>Sends an alert, starts a scan, or arms auto-erase when someone moves the node.</td><td><span class="mono">VIBRATION_ON</span></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Vibration-and-tamper"><span class="mono">Vibration-and-tamper</span></a></td></tr>
-    <tr><td><b>Secure wipe</b></td><td>Erases settings and SD files on command with the erase key (§8.3). A wipe cannot be undone.</td><td>System tab → <b>Settings</b> → <b>Danger zone</b></td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Secure-wipe"><span class="mono">Secure-wipe</span></a></td></tr>
-    <tr><td><b>Web UI</b></td><td>Shows results as cards, the device database, settings and diagnostics on Full firmware.</td><td>http://192.168.4.1</td><td><a href="https://github.com/lukeswitz/AntiHunter/wiki/Web-UI-tour"><span class="mono">Web-UI-tour</span></a></td></tr>
+    <tr><th style="width:22%">Feature</th><th>What it does</th><th style="width:30%">Start over mesh</th></tr>
+    <tr><td><b>Target Scan</b></td><td>Alerts when a device on your watchlist appears. A target is a full MAC address, an OUI (the first three bytes of a MAC, which match one maker) or a network name.</td><td><span class="mono">SCAN_START:2:300:1..11</span></td></tr>
+    <tr><td><b>Device Discovery</b></td><td>Lists every Wi-Fi and BLE device nearby with its signal, channel and name, and labels Bluetooth devices such as AirPods, a Tile tag or a drone.</td><td><span class="mono">DEVICE_SCAN_START:2:300</span></td></tr>
+    <tr><td><b>Probe Request Scanner</b></td><td>Records each phone or laptop and the names of the networks it asks for.</td><td><span class="mono">PROBE_START:2:300</span></td></tr>
+    <tr><td><b>Randomized MAC Tracer</b> (experimental)</td><td>Links a phone's changing MAC addresses back to one device. Treat an identity as a lead, not proof.</td><td><span class="mono">RANDOMIZATION_START:2:300</span></td></tr>
+    <tr><td><b>Drone RID Detection</b></td><td>Reads the Remote ID that drones broadcast: the drone's ID, position, altitude, speed and, when sent, the pilot's location.</td><td><span class="mono">DRONE_START:300</span></td></tr>
+    <tr><td><b>Triangulation</b> (experimental)</td><td>Three or more nodes with GPS fixes and matched antennas each measure one target's signal, and one node puts it on a map.</td><td><span class="mono">TRIANGULATE_START:&lt;MAC&gt;:60:2</span>, to one node</td></tr>
+    <tr><td><b>Baseline Anomaly Detection</b></td><td>Learns which devices belong at a site, then reports who is new, who comes back, whose signal moves and who disappears.</td><td><span class="mono">BASELINE_START:900</span></td></tr>
+    <tr><td><b>CSI Motion Detection</b> (experimental, Beta and C5)</td><td>Senses people moving nearby, even through walls, from changes in the Wi-Fi signals around the node. It detects movement, not someone sitting still.</td><td><span class="mono">CSI_MOTION_START:0:FOREVER</span></td></tr>
+    <tr><td><b>Deauth Detection</b></td><td>Catches the frames that knock clients off a Wi-Fi network, and tracks who sent them.</td><td><span class="mono">DEAUTH_START:300</span></td></tr>
+    <tr><td><b>Sentinel</b></td><td>Watches in the background for Wi-Fi attacks, fake access points, handshake capture, jamming, attack devices, and Meshtastic and MeshCore radios nearby.</td><td><span class="mono">SENTINEL_ON</span>, or <span class="mono">SENTINEL_BOOT:1</span> at every power-on</td></tr>
+    <tr><td><b>Attack response</b></td><td>Runs triangulation, a packet capture or a scan after Sentinel confirms an attack. Off until you turn it on.</td><td>Sentinel tab → <b>Attack response</b></td></tr>
+    <tr><td><b>Packet Capture</b></td><td>Records the raw Wi-Fi or BLE traffic around the node to the SD card as a file Wireshark opens.</td><td><span class="mono">PCAP_START:0:300:0</span></td></tr>
+    <tr><td><b>Scheduled scans</b></td><td>Runs a scan at set times, on this node or another, once or on a repeat. It needs the clock (§6.3).</td><td>Scan tab → <b>Schedule this scan</b></td></tr>
+    <tr><td><b>Campaigns</b></td><td>Tags the SD logs with a name between a start and a stop, so you can export one operation as a set.</td><td><span class="mono">CAMPAIGN_START:site-a</span></td></tr>
+    <tr><td><b>Vibration and tamper</b></td><td>Sends an alert, starts a scan, or arms auto-erase when someone moves the node.</td><td><span class="mono">VIBRATION_ON</span></td></tr>
+    <tr><td><b>Secure wipe</b></td><td>Erases settings and SD files on command with the erase key (§8.3). A wipe cannot be undone.</td><td>System tab → <b>Settings</b> → <b>Danger zone</b></td></tr>
+    <tr><td><b>Web UI</b></td><td>Shows results as cards, the device database, settings and diagnostics on Full firmware.</td><td>http://192.168.4.1</td></tr>
   </table>
 
   <div class="box"><span class="t">Two features can transmit</span>
     <p>Sentinel's karma bait sends a Wi-Fi probe request every 8 seconds, and is off by default. CSI motion sends probe requests when there is too little traffic to measure, if you turn off "Listen only, never transmit". Anyone nearby can see these frames. Check local rules first.</p>
   </div>
 
-  <h3>10.2 Results and the SD card</h3>
+  <h3>11.2 Results and the SD card</h3>
   <p>Both builds log to the SD card. Appendix B lists the main files. Full also shows results as cards in the Results tab and the device database in the Data tab. Over mesh you receive each alert plus a summary when a scan ends.</p>
   <div class="box warn"><span class="t">Exports carry location</span>
     <p>SD logs, exports and mesh alerts can all contain GPS coordinates. Review any file before you post it publicly or attach it to a report. Privacy Mode only redacts the live web UI.</p>
   </div>
   <div class="box warn"><span class="t">Stop a capture before you cut power</span>
-    <p>FAT has no power-fail protection. Resetting or unplugging a node while a capture is writing can leave the card unreadable until you reformat it. The node then runs with no storage, so it has no logging, no baseline and no captures. System tab → <b>Settings</b> → <b>Storage</b> can rebuild an unmountable card, which erases everything on it. <b>Wiki:</b> <a href="https://github.com/lukeswitz/AntiHunter/wiki/Packet-capture"><span class="mono">Packet-capture</span></a>.</p>
+    <p>FAT has no power-fail protection. Resetting or unplugging a node while a capture is writing can leave the card unreadable until you reformat it. The node then runs with no storage, so it has no logging, no baseline and no captures. System tab → <b>Settings</b> → <b>Storage</b> can rebuild an unmountable card, which erases everything on it.</p>
   </div>
 
-  <h3 id="s10-3">10.3 Command Center</h3>
+  <h3 id="s11-3">11.3 Command Center</h3>
   <figure class="third"><img src="../img/architecture.png" alt=""><figcaption>Nodes work independently and coordinate over the mesh. The Command Center aggregates.</figcaption></figure>
   <p>One node needs no server. For a fleet, AntiHunter Command &amp; Control PRO collects every node's detections on a live map, with TAK, MQTT and ADS-B integration and a Sentinel console. It runs on Linux, macOS or Windows 10/11 with a Meshtastic radio on USB, joined to <b>your</b> channel. The install steps, remote access and phone alerts are in the project README at <span class="mono">github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO</span>.</p>
   <p>Change the seeded admin password at first login, and never forward the Command Center's ports on your router.</p>
 </div>
 
 <div class="sec">
-  <h2 id="s11"><span class="num">11</span>Deployment</h2>
+  <h2 id="s12"><span class="num">12</span>Deployment</h2>
 
-  <h3>11.1 Siting</h3>
+  <h3>12.1 Siting</h3>
   <figure class="third"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds.</figcaption></figure>
   <ul>
     <li><b>Mount it high</b>, above metal, vehicles and crowds.</li>
@@ -584,9 +667,8 @@ python3 scripts/meshtastic_config.py</pre>
     <li>For triangulation, spread nodes around the area rather than in a line, each with a clear GPS fix and matched antennas.</li>
   </ul>
 
-  <h3>11.2 Sealing and mounting</h3>
+  <h3>12.2 Sealing and mounting</h3>
   <ul>
-    <li>Fit the TPU seals for the housing, GPS and USB-C port.</li>
     <li>The printed enclosure has no IP rating. Treat it as weather-resistant, not waterproof. The SMA connectors and the fan vents are not watertight.</li>
     <li>The base takes a ¼"-20 insert for tripods and the universal bracket. STL files for brackets and solar mounts are in the <span class="mono">hw/</span> folder.</li>
     <li>Point the vented lid and fan opening downward or shielded so water does not sit in them.</li>
@@ -596,7 +678,7 @@ python3 scripts/meshtastic_config.py</pre>
     <figure><img src="../img/hw-enclosure-side.jpg" alt=""><figcaption>Vented lid, SMA bulkheads on top, battery housing below.</figcaption></figure>
   </div>
 
-  <h3 id="s11-3">11.3 Tuning the vibration sensor</h3>
+  <h3 id="s12-3">12.3 Tuning the vibration sensor</h3>
   <p>The trimpot is the small brass screw on the SW-420 sensor module. It sets the sensitivity threshold. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
   <ol>
     <li>Power the node and watch the sensor's LED, or watch a serial monitor for <span class="mono">[VIBRATION]</span> lines. The LED is green or red depending on the batch. Both work the same.</li>
@@ -614,51 +696,21 @@ python3 scripts/meshtastic_config.py</pre>
     </ul>
   </div>
 
-  <h3>11.4 Playbooks</h3>
-  <p>Set-and-forget setups. The repeat of <span class="mono">86400</span> seconds below means daily. Each wiki exercise walks through one setup in full.</p>
-
-  <h4>Overnight perimeter watch: <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-watch-a-site-overnight"><span class="mono">How-to-watch-a-site-overnight</span></a></h4>
-  <pre>@AH01 SCHED_ADD:2026-10-05T21:00|86400|/sniffer|detection=baseline&amp;secs=32400   <span class="c"># 21:00 daily, monitor 9 h after learning</span>
-@AH01 SENTINEL_BOOT:1                     <span class="c"># 1 = start Sentinel at power-on</span>
-@AH01 VIBRATION_ON                        <span class="c"># send vibration alerts over mesh</span></pre>
-
-  <h4>Someone casing the place: <a href="https://github.com/lukeswitz/AntiHunter/wiki/Target-scan"><span class="mono">Target-scan</span></a></h4>
-  <pre>@AH01 DEVICE_SCAN_START:2:600                                       <span class="c"># Wi-Fi and BLE, 600 s</span>
-@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33                       <span class="c"># replace the watchlist</span>
-@AH01 SCHED_ADD:2026-10-05T08:00|86400|/scan|mode=2&amp;secs=36000&amp;ch=1..11   <span class="c"># 08:00 daily, 10 h</span></pre>
-
-  <h4>While you are away: <a href="https://github.com/lukeswitz/AntiHunter/wiki/Baseline-anomaly"><span class="mono">Baseline-anomaly</span></a></h4>
-  <p>Start a baseline when you arrive. When you leave, press <b>Compare from now</b> or send <span class="mono">@AH01 BASELINE_WATCH</span>. When you return, the results list what is new, what is gone, and what moved closer.</p>
-
-  <h4>Drones over the property: <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-watch-for-drones"><span class="mono">How-to-watch-for-drones</span></a></h4>
-  <pre>@AH01 SCHED_ADD:2026-10-05T06:00|86400|/drone|droneScanMode=2&amp;secs=57600   <span class="c"># 06:00 daily, 16 h</span></pre>
-
-  <h4>Your Wi-Fi is being attacked: <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-protect-your-wifi"><span class="mono">How-to-protect-your-wifi</span></a></h4>
-  <pre>@AH01 DEAUTH_START:0:FOREVER                <span class="c"># run until STOP</span>
-@AH01 SENTINEL_ON                          <span class="c"># also evil twins, karma, PMKID, floods</span></pre>
-
-  <h4>Unattended in a vehicle or camp: <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-leave-a-node-in-a-vehicle"><span class="mono">How-to-leave-a-node-in-a-vehicle</span></a></h4>
-  <pre>@AH01 VIBSCAN_SET:1:1:300:600              <span class="c"># on, device scan, 300 s, 600 s cooldown</span>
-@AH01 BATTERY_SAVER_START:10                <span class="c"># heartbeat every 10 min</span></pre>
-
-  <h4>Several sites, one screen: <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes"><span class="mono">How-to-run-several-nodes</span></a></h4>
-  <p>Run the Command Center (§10.3) on a machine at one site with a Meshtastic radio on USB. Phone alerts are on <a href="https://github.com/lukeswitz/AntiHunter/wiki/How-to-get-alerts-on-your-phone"><span class="mono">How-to-get-alerts-on-your-phone</span></a>.</p>
-
-  <h3>11.5 Before you walk away</h3>
+  <h3>12.4 Before you walk away</h3>
   <p>Work through the setup order in Appendix D. Then record the erase key somewhere safe, check the auto-erase values if you armed it, confirm the node answers <span class="mono">@NODEID STATUS</span> over the mesh from where you will stand, and check that the antennas are tight, the seals seated and the lid closed.</p>
 </div>
 
 <div class="sec">
-  <h2 id="s12"><span class="num">12</span>Maintenance and troubleshooting</h2>
+  <h2 id="s13"><span class="num">13</span>Maintenance and troubleshooting</h2>
 
-  <h3>12.1 Routine maintenance</h3>
+  <h3>13.1 Routine maintenance</h3>
   <ul>
     <li>Archive the SD card logs periodically, then clear them, so a lost node carries less.</li>
     <li>Retire a swollen or damaged 18650 immediately and never recharge it.</li>
     <li>Re-check antenna tightness and seals after any period in the field.</li>
   </ul>
 
-  <h3>12.2 Updates</h3>
+  <h3>13.2 Updates</h3>
   <p>The web flasher serves the current build of the channel you pick, so re-running it updates the node. The node never contacts the internet or updates itself. To hear about releases, click <b>Watch</b> → <b>Custom</b> → <b>Releases</b> on <b>github.com/lukeswitz/AntiHunter</b>, and read <span class="mono">docs/release-notes/notes.md</span> before you flash.</p>
   <ol>
     <li>Bring the node in, or reach it over USB in place.</li>
@@ -667,7 +719,7 @@ python3 scripts/meshtastic_config.py</pre>
   </ol>
   <p>The node keeps settings in its built-in memory and copies them to the SD card, so they normally survive an update, a reboot and a corrupted copy. To roll back, flash the other channel. If a downgrade misbehaves, erase and flash clean, then reconfigure. Run one firmware version across a mesh, because message formats can differ between versions.</p>
 
-  <h3>12.3 Symptom table</h3>
+  <h3>13.3 Symptom table</h3>
   <table>
     <tr><th style="width:26%">Symptom</th><th>Likely cause</th><th>What to do</th></tr>
     <tr><td>No <span class="mono">Antihunter</span> Wi-Fi network</td><td>Headless firmware, or the AP name was changed</td><td>Check over serial which build is running. Reflash Full if you need the UI.</td></tr>
@@ -677,12 +729,12 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>No GPS fix</td><td>Antenna not connected, or no view of the sky</td><td>Check the connection, move outdoors, give it time. The module runs hot while searching.</td></tr>
     <tr><td>Nothing arrives over the mesh</td><td>Region <span class="mono">UNSET</span>, serial module off, wrong pins, nodes on different channels or keys, or radios on different LoRa frequency slots</td><td>Re-run <span class="mono">meshtastic_config.py</span> and print the settings. Confirm every node carries the same channel and the same frequency slot (§8.2).</td></tr>
     <tr><td>Node hears commands but never answers</td><td>Region unset on <i>that</i> node</td><td>Set its region.</td></tr>
-    <tr><td>Constant vibration alerts</td><td>Trimpot too sensitive, or a resonant mount</td><td>See §11.3.</td></tr>
-    <tr><td>Vibration never fires</td><td>Trimpot too insensitive, or a bad joint on the sensor header</td><td>See §11.3.</td></tr>
+    <tr><td>Constant vibration alerts</td><td>Trimpot too sensitive, or a resonant mount</td><td>See §12.3.</td></tr>
+    <tr><td>Vibration never fires</td><td>Trimpot too insensitive, or a bad joint on the sensor header</td><td>See §12.3.</td></tr>
   </table>
   <p>More fixes are on <a href="https://github.com/lukeswitz/AntiHunter/wiki/Troubleshooting"><span class="mono">Troubleshooting</span></a>.</p>
 
-  <h3>12.4 Getting help</h3>
+  <h3>13.4 Getting help</h3>
   <p>Open an issue or discussion at <b>github.com/lukeswitz/AntiHunter</b>. Include the firmware build and channel, Full or Headless, board type, what you did, what you expected, what happened, and the serial output around the failure. Scrub coordinates and MAC addresses from anything you paste.</p>
 </div>
 
@@ -721,7 +773,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>Vibration alerts</td><td>on</td><td>at most one per 3 s</td></tr>
     <tr><td>Vibrations required for tamper</td><td>3</td><td>range 2 to 5</td></tr>
     <tr><td>Heartbeat</td><td>off</td><td></td></tr>
-    <tr><td>Auto-erase, karma bait, attacker auto-triangulation</td><td>off</td><td>§10.1</td></tr>
+    <tr><td>Auto-erase, karma bait, attacker auto-triangulation</td><td>off</td><td>§11.1</td></tr>
     <tr><td>Command Center frontend</td><td><span class="mono">http://localhost:5173</span>, Docker 8080</td><td></td></tr>
     <tr><td>Command Center admin</td><td><span class="mono">admin@example.com</span>, <span class="mono">admin</span> (Docker seed)</td><td><b>change at first login</b></td></tr>
   </table>
@@ -795,14 +847,14 @@ python3 scripts/meshtastic_config.py</pre>
       <li>Change the AP credentials (§8.1)</li>
       <li>Create your encrypted channel and disable the public one (§8.2)</li>
       <li>Set the node ID (§9.1)</li>
-      <li>Tune the vibration trimpot in place (§11.3)</li>
+      <li>Tune the vibration trimpot in place (§12.3)</li>
       <li>Verify <span class="mono">@NODEID STATUS</span> answers over the mesh</li>
-      <li>Seal and deploy (§11)</li>
+      <li>Seal and deploy (§12)</li>
     </ol>
   </div>
 
   <p class="small" style="margin-top:3mm; text-align:center; color:var(--mut)">
-    AntiHunter DIGI NODE Operator's Guide · revision 1.5 · 21 November 2026 · GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
+    AntiHunter DIGI NODE Operator's Guide · revision 1.6 · 23 November 2026 · GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
   </p>
 </div>
 
@@ -821,7 +873,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">BATTERY_SAVER_START:10</span> [BSS]</td><td>Starts Battery Saver (§9.3) with a heartbeat every 10 minutes (1 to 30, default 5). <span class="mono">BATTERY_SAVER_STOP</span> [BSX] ends it.</td></tr>
     <tr><td><span class="mono">HB_ON</span> [HB1], <span class="mono">HB_OFF</span> [HB0], <span class="mono">HB_INTERVAL:10</span> [HBI]</td><td>Turns the status heartbeat on or off, or sets its interval in minutes (§9.3).</td></tr>
   </table>
-  <p>The full list, with every argument, reply and alias, is in <span class="mono">docs/mesh-commands.md</span> in the repository. The ten commands to learn first are on the card in Appendix D. Section 10.1 lists the command that starts each feature.</p>
+  <p><span class="mono">docs/mesh-commands.md</span> in the repository lists every command with its arguments, replies and short forms. Appendix D has the ten to learn first, and the table in §11.1 shows the command that starts each feature.</p>
 </div>
 
 <script>
