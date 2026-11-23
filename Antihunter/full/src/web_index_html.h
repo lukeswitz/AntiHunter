@@ -445,6 +445,35 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
       .res-note.danger{border-left-color:var(--dang)}
       .res-note-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-right:6px}
+      .ev-ctl{display:flex;flex-wrap:wrap;gap:6px}
+      .ev-ctl .btn{padding:6px 12px;font-size:12px;min-width:38px}
+      .ev-kinds{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+      .ev-kinds button{border:1px solid var(--bord);background:transparent;color:var(--mut);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+      .ev-kinds button.on{background:var(--accbg);color:var(--txt);border-color:var(--acc)}
+      #evStrip{--csi-hit:var(--acc)}
+      .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
+      .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block;cursor:pointer}
+      .csi-heat i.h0{background:color-mix(in srgb,var(--csi-hit) 8%,transparent)}
+      .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 50%,#fff)}
+      .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 58%,#fff)}
+      .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 66%,#fff)}
+      .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 75%,#fff)}
+      .csi-heat i.h5{background:color-mix(in srgb,var(--csi-hit) 83%,#fff)}
+      .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 92%,#fff)}
+      .csi-heat i.h7{background:var(--csi-hit)}
+      [data-theme="dark"] .csi-heat i.h1,[data-theme="cyber"] .csi-heat i.h1{background:color-mix(in srgb,var(--csi-hit) 30%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h2,[data-theme="cyber"] .csi-heat i.h2{background:color-mix(in srgb,var(--csi-hit) 45%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h3,[data-theme="cyber"] .csi-heat i.h3{background:color-mix(in srgb,var(--csi-hit) 62%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h4,[data-theme="cyber"] .csi-heat i.h4{background:color-mix(in srgb,var(--csi-hit) 80%,var(--surf))}
+      [data-theme="dark"] .csi-heat i.h5,[data-theme="cyber"] .csi-heat i.h5{background:var(--csi-hit)}
+      [data-theme="dark"] .csi-heat i.h6,[data-theme="cyber"] .csi-heat i.h6{background:color-mix(in srgb,var(--csi-hit) 82%,#fff)}
+      [data-theme="dark"] .csi-heat i.h7,[data-theme="cyber"] .csi-heat i.h7{background:color-mix(in srgb,var(--csi-hit) 64%,#fff)}
+      .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+      #evStrip .csi-heat{height:34px}
+      .ev-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+      .ev-tbl td{padding:6px 8px;border-top:1px solid var(--bord);vertical-align:top;overflow-wrap:anywhere}
+      .ev-tbl td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mut)}
+      .ev-tbl td:nth-child(2){white-space:nowrap}
       /* sub meta line */
       .res-sub{font-size:12px;color:var(--mut);margin-top:9px;line-height:1.5}
       .res-sub strong{color:var(--txt);font-weight:600}
@@ -1042,6 +1071,22 @@ R"HTML(
       </div>
 
       <div class="page-tab" id="page-results">
+      <div class="card" id="evCard" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <h3 style="margin:0;">Event timeline</h3>
+          <div class="ev-ctl">
+            <button class="btn alt" type="button" onclick="evPan(-1)" aria-label="Earlier">&#9664;</button>
+            <button class="btn alt" type="button" onclick="evPan(1)" aria-label="Later">&#9654;</button>
+            <button class="btn alt" type="button" onclick="evZoom(0.5)" aria-label="Zoom in">+</button>
+            <button class="btn alt" type="button" onclick="evZoom(2)" aria-label="Zoom out">&minus;</button>
+            <button class="btn alt" type="button" onclick="evAll()">All</button>
+            <button class="btn alt" type="button" onclick="evLoad(true)">Refresh</button>
+          </div>
+        </div>
+        <div id="evKinds" class="ev-kinds"></div>
+        <div id="evStrip"><div class="res-note">Loading events...</div></div>
+        <div id="evList"></div>
+      </div>
       <div class="card" style="margin-bottom:16px;">
         <h3 style="margin:0 0 12px;">Scan Results</h3>
         <div class="res-toolbar">
@@ -1244,7 +1289,7 @@ R"HTML(
                 <div id="meshControls" style="display:none;">
                   <div class="srow">
                     <div class="srow-l"><label for="hbEnabledCb">Status heartbeat</label><p>1 to 60 minutes.</p></div>
-                    <div class="srow-c"><input type="number" id="hbIntervalInput" class="num" min="1" max="60" step="1" value="10" aria-label="Heartbeat interval in minutes" onchange="saveHbInterval()"><span class="srow-u">min</span><label class="dsw"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()"><span class="dsw-s"></span></label></div>
+                    <div class="srow-c"><input type="number" id="hbIntervalInput" class="num" min="1" max="60" step="1" value="30" aria-label="Heartbeat interval in minutes" onchange="saveHbInterval()"><span class="srow-u">min</span><label class="dsw"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()"><span class="dsw-s"></span></label></div>
                   </div>
                   <div class="srow">
                     <div class="srow-l"><label for="meshInterval">Alert send interval</label><p>Minimum gap between alerts. 1500 to 30000 ms.</p></div>
@@ -1633,7 +1678,7 @@ R"HTML(
         .dn-row p{margin:4px 0 0;font-size:13px;color:var(--mut)}
         .dn-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid var(--bord);font-size:13px;color:var(--mut)}
         .dn-main h3{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--txt)}
-        @media (max-width:720px){.dn-nav{flex:1 1 100%;flex-direction:row;overflow-x:auto;min-width:0}.dn-navh{display:none}.dn-nav button{width:auto;white-space:nowrap}}
+        @media (max-width:720px){.dn-wrap{gap:14px}.dn-nav{flex:1 1 100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:0}.dn-navh{display:none}.dn-nav button{border:1px solid var(--bord);background:var(--surf)}.dn-nav button.active{box-shadow:none;border-color:var(--acc)}}
       </style>
       <div class="dn-wrap">
         <nav class="dn-nav" id="dataNav" aria-label="Datasets">
@@ -1655,6 +1700,8 @@ R"HTML(
 R"HTML(
           <div class="dn-navh" style="padding-top:18px;">Collect</div>
           <button type="button" data-ds="campaigns" onclick="dataPick('campaigns')">Campaigns</button>
+          <div class="dn-navh" style="padding-top:18px;">Manage</div>
+          <button type="button" id="dataClearAll" onclick="clearAllData()" style="color:var(--dang);">Clear all data</button>
         </nav>
         <div class="dn-main">
         <div id="dataView" class="dn-main" style="flex:none;">
@@ -2755,6 +2802,7 @@ R"HTML(
         window.scrollTo(0, 0);
         if (pageName === 'results' && typeof resultsPoll === 'function') resultsPoll(true);
         if (pageName === 'results' && typeof refreshPcapList === 'function') refreshPcapList();
+        if (pageName === 'results' && typeof evLoad === 'function') evLoad(false);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
 )HTML"
 #if AH_SENTINEL
@@ -4862,7 +4910,7 @@ R"HTML(
           if (sessionsMatch) html += _resKv('Sessions', sessionsMatch[1]);
           if (probesMatch) html += _resKv('Probes', probesMatch[1]);
           if (rssiMatch) html += '<div class="res-kv"><div class="res-kv-lab">RSSI min/avg/max</div><div class="res-kv-val sm" style="color:' + rssiColor + '">' + rssiMatch[2] + ' / ' + rssiMatch[1] + ' / ' + rssiMatch[3] + ' dBm</div></div>';
-          if (lastSeenMatch) { const seenTxt = firstSeenMatch ? firstSeenMatch[1] + 's &rarr; ' + lastSeenMatch[1] + 's ago' : lastSeenMatch[1] + 's ago'; html += '<div class="res-kv"><div class="res-kv-lab">Seen</div><div class="res-kv-val sm">' + seenTxt + '</div></div>'; }
+          if (lastSeenMatch) { const a1 = firstSeenMatch ? resAbs(+firstSeenMatch[1]) : '', a2 = resAbs(+lastSeenMatch[1]); const seenTxt = (a2 ? (a1 ? a1 + ' &rarr; ' + a2 : a2) + ' &middot; ' : '') + (firstSeenMatch ? firstSeenMatch[1] + 's &rarr; ' + lastSeenMatch[1] + 's ago' : lastSeenMatch[1] + 's ago'); html += '<div class="res-kv"><div class="res-kv-lab">Seen</div><div class="res-kv-val sm">' + seenTxt + '</div></div>'; }
           if (intervalConMatch) html += _resKv('Interval Consistency', (parseFloat(intervalConMatch[1]) * 100).toFixed(0) + '%');
           if (rssiConMatch) html += _resKv('RSSI Stability', (parseFloat(rssiConMatch[1]) * 100).toFixed(0) + '%');
           if (channelsMatch) html += _resKv('Unique Channels', channelsMatch[1]);
@@ -5180,7 +5228,7 @@ R"HTML(
           if (classMatch) kvs.push(['Classification', classMatch[1]]);
           if (areaMatch) kvs.push(['Operational area', areaMatch[1]]);
           if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
-          if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? '. No Remote ID for 120 s' : '')]);
+          if (seenMatch) kvs.push(['Last seen', (resAbs(+seenMatch[1]) ? resAbs(+seenMatch[1]) + ' · ' : '') + seenMatch[1] + 's ago' + (isStale ? '. No Remote ID for 120 s' : '')]);
           if (kvs.length) {
             html += '<div class="res-kvs g5">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
@@ -6663,6 +6711,9 @@ R"HTML(
           if (dm.value !== v) { dm.value = v; dm.dispatchEvent(new Event('change')); }
         }
         document.getElementById('scanTitle').textContent = (SCAN_ITEMS.find(i => i.v === v) || {}).n || '';
+        const cls = document.getElementById('bleClassifyScan'), lr = document.getElementById('bleLongRange');
+        if (cls) cls.closest('label').style.display = ['target', 'device-scan', 'probe-scan', 'randomization-detection', 'baseline'].includes(v) ? '' : 'none';
+        if (lr) lr.closest('label').style.display = ['deauth', 'csi-motion'].includes(v) ? 'none' : '';
         document.querySelectorAll('#scanPicker .pick').forEach(t => t.classList.toggle('on', t.dataset.v === v));
         schedOpen(false);
       }
@@ -6887,7 +6938,7 @@ R"HTML(
 
       // ---- Data Tab ----
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
-      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0;
+      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false;
       function dataChunked(cfg){return cfg.fmt==='jsonl'||cfg.fmt==='text';}
       function dataParseChunk(text,cfg){
         var out=[],lines=text.split('\n');
@@ -6987,7 +7038,11 @@ R"HTML(
         'EST5EDT,M3.2.0,M11.1.0':'America/New_York','GMT0BST,M3.5.0/1,M10.5.0':'Europe/London','CET-1CEST,M3.5.0,M10.5.0/3':'Europe/Paris',
         'EET-2EEST,M3.5.0/3,M10.5.0/4':'Europe/Helsinki'};
       var nodeTz={abbr:'UTC',off:0,std:'UTC',dst:'',stdOff:0,fmt:null};
+      var nodeNowAt={e:0,at:0};
+      function nodeNow(){return nodeNowAt.e?nodeNowAt.e+(Date.now()-nodeNowAt.at)/1000:0;}
+      function resAbs(secsAgo){var n=nodeNow();return n?evFmt(Math.floor(n-secsAgo)):'';}
       function nodeTzSet(d){
+        if(d&&typeof d.now==='number'&&d.now>1609459200) nodeNowAt={e:d.now,at:Date.now()};
         if(!d||typeof d.tzOff!=='number')return;
         var m=/^([A-Za-z]+)(-?\d+)([A-Za-z]+)?/.exec(d.tzPosix||''),fmt=null,z=NODE_TZ_IANA[d.tzPosix||''];
         if(z){try{fmt=new Intl.DateTimeFormat('en-US',{timeZone:z,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});}catch(e){console.warn('[TZ]',z,e);}}
@@ -7213,6 +7268,54 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
+      function heatShade(lvl, ev) {
+        return lvl > 0 ? Math.min(7, 1 + Math.ceil(lvl * 6)) : (ev > 0 ? 1 : 0);
+      }
+      function dataStreamJson(cfg,gen){
+        var area=document.getElementById('dataArea');
+        dataRows=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataStreaming=true;
+        var slow=setTimeout(function(){if(gen===dataGen&&!dataRows.length) area.innerHTML='<div class="data-empty">Still loading. The node reads this list from its SD card, which takes longer for big lists.</div>';},3000);
+        var isDev=cfg.url==='/api/devicedb',seen=isDev?new Map():null,lastPaint=0,counted=0;
+        function add(r){
+          if(seen&&r&&r.mac){var i=seen.get(r.mac);if(i!==undefined){if((r.last||0)>=(dataRows[i].last||0)) dataRows[i]=r;return;}seen.set(r.mac,dataRows.length);}
+          dataRows.push(r);
+        }
+        function paint(force){var now=Date.now();if(!force&&now-lastPaint<800) return;lastPaint=now;dataRefilter();renderDataTable(cfg);}
+        function finish(){clearTimeout(slow);if(gen!==dataGen) return;dataStreaming=false;dataRefilter();renderDataTable(cfg);}
+        return streamJsonRows(cfg.url+(isDev?'?raw=1':''),add,function(){return gen===dataGen;},function(){
+          if(dataRows.length>counted){paint(counted<DATA_PAGE_SIZE);counted=dataRows.length;}
+        }).then(finish,function(e){clearTimeout(slow);if(gen===dataGen){dataStreaming=false;area.innerHTML='<div class="data-empty">No data available.</div>';}});
+      }
+      function streamJsonRows(url,onRow,alive,onChunk){
+        var dec=new TextDecoder(),buf='';
+        function scan(){
+          var depth=0,inStr=false,esc=false,start=-1;
+          for(var i=0;i<buf.length;i++){
+            var ch=buf.charCodeAt(i);
+            if(inStr){if(esc) esc=false;else if(ch===92) esc=true;else if(ch===34) inStr=false;continue;}
+            if(ch===34){inStr=true;continue;}
+            if(ch===123){if(depth===0) start=i;depth++;}
+            else if(ch===125&&depth>0){depth--;if(depth===0&&start>=0){try{onRow(JSON.parse(buf.slice(start,i+1)));}catch(e){dataSkipped++;}start=-1;buf=buf.slice(i+1);i=-1;}}
+          }
+          buf=start>=0?buf.slice(start):'';
+        }
+        return fetch(url).then(function(r){
+          if(!r.ok) throw new Error(r.status);
+          if(!r.body||!r.body.getReader){return r.text().then(function(t){JSON.parse(t).forEach(onRow);if(onChunk) onChunk();});}
+          var rd=r.body.getReader();
+          function pump(){
+            return rd.read().then(function(c){
+              if(!alive()){rd.cancel();return;}
+              if(c.done) return;
+              buf+=dec.decode(c.value,{stream:true});
+              scan();
+              if(onChunk) onChunk();
+              return pump();
+            });
+          }
+          return pump();
+        });
+      }
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
         dataNavSync(ds);
@@ -7227,7 +7330,8 @@ R"HTML(
         exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'||cfg.fmt==='baseline'?'.json':'.jsonl');
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
         ['dataSearch','dataRangeSel','dataPriv'].forEach(function(id){document.getElementById(id).style.display=cfg.fmt==='baseline'?'none':'';});
-        dataGen++;dataCursor=0;dataBusy=false;
+        dataGen++;dataCursor=0;dataBusy=false;dataStreaming=false;
+        if(ds==='devicedb'||ds==='probedb'){dataStreamJson(cfg,dataGen);return;}
         if(dataChunked(cfg)){
           var gen=dataGen;
           dataFetchChunk(cfg,null).then(function(c){
@@ -7326,9 +7430,9 @@ R"HTML(
         for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
         html+='</tbody></table>';area.innerHTML=html;privacyApply(area);
         var pager=document.getElementById('dataPager');
-        if(dataFiltered.length>DATA_PAGE_SIZE||dataCursor>0){
+        if(dataFiltered.length>DATA_PAGE_SIZE||dataCursor>0||dataStreaming){
           pager.style.display='flex';
-          document.getElementById('dataPageInfo').textContent='Showing '+(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'')+' rows';
+          document.getElementById('dataPageInfo').textContent='Showing '+(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'')+' rows'+(dataStreaming?' (still loading)':'');
           document.getElementById('dataPrevBtn').disabled=dataPage===0;
           document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length&&!(dataCursor>0);
         } else { pager.style.display='none'; }
@@ -7373,6 +7477,14 @@ R"HTML(
         if(!await ahConfirm('Clear all '+ds+' data? This cannot be undone.')) return;
         fetch(cfg.clear,{method:'POST'}).then(function(r){if(r.ok){toast('Data cleared','success');loadDataSet();}else toast('Clear failed','error');});
       }
+      async function clearAllData(){
+        if(!await ahConfirm('Clear every dataset in the Data tab? Settings and the baseline stay. This cannot be undone.')) return;
+        var keys=Object.keys(DATA_SETS).filter(function(k){return DATA_SETS[k].clear&&k!=='baseline';});
+        var res=await Promise.all(keys.map(function(k){return fetch(DATA_SETS[k].clear,{method:'POST'}).then(function(r){return r.ok;}).catch(function(){return false;});}));
+        var bad=res.filter(function(ok){return !ok;}).length;
+        if(bad) toast(bad+' of '+keys.length+' datasets failed to clear','error');else toast('Data cleared','success');
+        loadDataSet();
+      }
       function parseLogData(text,cfg){
         dataRows=[];dataCols=cfg.keys;
         var lines=text.trim().split('\n');
@@ -7390,6 +7502,83 @@ R"HTML(
             +rows.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>';}).join('')+'</tbody></table>';
         }catch(e){area.innerHTML='<div class="data-empty">No baseline data available.</div>';}
       }
+
+      // ---- Event timeline (Results tab) ----
+      var EV_KINDS={device:'Devices',incident:'Sentinel',deauth:'Deauth',drone:'Drones',vibration:'Movement',probe:'Probe hits'};
+      var EV_CELLS=96,evData=[],evDev=new Map(),evOn={device:1,incident:1,deauth:1,drone:1,vibration:1,probe:1},evView=null,evAuto=true,evSel=-1,evLoadedAt=0,evGen=0,evPaintAt=0;
+      function evFmt(t){var d=new Date((t+nodeOff(t))*1000),h=d.getUTCHours(),m=d.getUTCMinutes();return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+(h%12||12)+':'+(m<10?'0':'')+m+' '+(h>=12?'PM':'AM');}
+      function evAdd(k,t,l){if(t&&t>946684800) evData.push({t:t,k:k,l:l});}
+      function evJsonl(url,gen,fn){
+        return fetch(url+'?bytes='+DATA_CHUNK).then(function(r){return r.ok?r.text():'';}).then(function(t){
+          if(gen!==evGen) return;
+          t.split('\n').forEach(function(l){if(!l.trim()) return;try{fn(JSON.parse(l));}catch(e){dataSkipped++;}});
+        }).catch(function(e){console.warn('[EV] '+url+' failed',e);});
+      }
+      function evLoad(force){
+        if(!document.getElementById('evStrip')) return;
+        if(!force&&Date.now()-evLoadedAt<60000) return;
+        evLoadedAt=Date.now();var gen=++evGen;evData=[];evDev=new Map();evSel=-1;evAuto=true;evView=null;
+        var jobs=[
+          evJsonl('/api/incidents.jsonl',gen,function(r){evAdd('incident',dataEpoch(r.epoch),(r.type||'Incident')+(r.src&&r.src!=='local'?' from '+r.src:''));}),
+          evJsonl('/api/deauth.jsonl',gen,function(r){evAdd('deauth',dataEpoch(r.t),(r.disassoc?'Disassoc ':'Deauth ')+(r.src||'')+' to '+(r.dst||''));}),
+          evJsonl('/api/drones.jsonl',gen,function(r){evAdd('drone',dataEpoch(r.timestamp),'Drone '+(r.uav_id||r.mac||''));}),
+          evJsonl('/api/vibrations.jsonl',gen,function(r){evAdd('vibration',dataEpoch(r.t),'Node moved');}),
+          evJsonl('/api/probes.jsonl',gen,function(r){if(r.hit) evAdd('probe',dataEpoch(r.t),'Probe hit '+(r.mac||''));})
+        ];
+        jobs.forEach(function(p){p.then(function(){if(gen===evGen) evRender();});});
+        streamJsonRows('/api/devicedb?raw=1',function(r){
+          if(!r||!r.mac) return;
+          var o=evDev.get(r.mac);if(!o||(r.last||0)>=(o.last||0)) evDev.set(r.mac,r);
+        },function(){return gen===evGen;},function(){
+          if(Date.now()-evPaintAt>1500) evRender();
+        }).then(function(){if(gen===evGen) evRender();},function(e){console.warn('[EV] device list failed',e);if(gen===evGen) evRender();});
+        evRender();
+      }
+      function evEvents(){
+        var out=evData.slice();
+        evDev.forEach(function(r,mac){
+          var f=dataEpoch(r.first),l=dataEpoch(r.last),n=r.name?' '+r.name:'',span=f&&l&&l-f>60;
+          if(l) out.push({t:l,k:'device',l:(span?'Last seen ':'Seen ')+mac+n});
+          if(span) out.push({t:f,k:'device',l:'First seen '+mac+n});
+        });
+        return out.filter(function(e){return evOn[e.k];}).sort(function(a,b){return a.t-b.t;});
+      }
+      function evRender(){
+        evPaintAt=Date.now();
+        var strip=document.getElementById('evStrip'),kinds=document.getElementById('evKinds'),list=document.getElementById('evList');
+        if(!strip) return;
+        kinds.innerHTML=Object.keys(EV_KINDS).map(function(k){return '<button type="button" class="'+(evOn[k]?'on':'')+'" onclick="evToggle(\''+k+'\')">'+EV_KINDS[k]+'</button>';}).join('')
+          +'<span style="margin-left:auto;align-self:center;font-size:11px;color:var(--mut);">Node time, '+htmlEsc(nodeTz.abbr)+'</span>';
+        var ev=evEvents();
+        if(!ev.length){strip.innerHTML='<div class="res-note">No timed events yet. A scan, a Sentinel alert or a movement alert adds them here.</div>';list.innerHTML='';return;}
+        if(!evView||evAuto){var lo=ev[0].t,hi=ev[ev.length-1].t,pad=Math.max(60,Math.ceil((hi-lo)*0.02));evView=[lo-pad,hi+pad];}
+        var from=evView[0],to=evView[1],step=(to-from)/EV_CELLS,cnt=new Array(EV_CELLS).fill(0),max=0,i;
+        ev.forEach(function(e){if(e.t<from||e.t>=to) return;var c=Math.min(EV_CELLS-1,Math.floor((e.t-from)/step));cnt[c]++;if(cnt[c]>max) max=cnt[c];});
+        var cells='';
+        for(i=0;i<EV_CELLS;i++){
+          var a=from+i*step;
+          cells+='<i data-i="'+i+'" class="h'+heatShade(max?cnt[i]/max:0,cnt[i])+'" title="'+evFmt(a)+' to '+evFmt(a+step)+' · '+cnt[i]+(cnt[i]===1?' event':' events')+'"'+(i===evSel?' style="outline:2px solid var(--txt);outline-offset:-2px"':'')+'></i>';
+        }
+        strip.innerHTML='<div class="csi-heatwrap" onclick="evTap(event)"><div class="csi-heat">'+cells+'</div><div class="csi-room-lab"><span>'+evFmt(from)+'</span><span>'+evFmt(to)+'</span></div></div>';
+        var lf=from,lt=to;
+        if(evSel>=0){lf=from+evSel*step;lt=lf+step;}
+        var rows=ev.filter(function(e){return e.t>=lf&&e.t<lt;}),lim=evSel>=0?200:30,more=rows.length>lim;
+        rows=rows.slice(-lim).reverse();
+        list.innerHTML=(evSel>=0?'<div style="font-size:12px;color:var(--mut);margin-top:8px;">'+evFmt(lf)+' to '+evFmt(lt)+'. Tap the same block again to show the whole range.</div>':'<div style="font-size:12px;color:var(--mut);margin-top:8px;">Tap a block to see its events, or zoom in.</div>')
+          +(rows.length?'<div style="max-height:320px;overflow:auto;"><table class="ev-tbl"><tbody>'+rows.map(function(e){return '<tr><td>'+evFmt(e.t)+'</td><td>'+EV_KINDS[e.k]+'</td><td>'+htmlEsc(e.l)+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="res-note">No events in this range.</div>')
+          +(more?'<div style="font-size:12px;color:var(--mut);margin-top:6px;">Showing the newest '+lim+' events in this range.</div>':'');
+        privacyApply(list);
+      }
+      function evTap(e){var i=+e.target.dataset.i;if(isNaN(i)) return;evSel=(i===evSel)?-1:i;evRender();}
+      function evToggle(k){evOn[k]=evOn[k]?0:1;evSel=-1;evRender();}
+      function evAll(){evAuto=true;evSel=-1;evRender();}
+      function evZoom(f){
+        if(!evView) return;evAuto=false;
+        var c=evSel>=0?evView[0]+(evSel+0.5)*(evView[1]-evView[0])/EV_CELLS:(evView[0]+evView[1])/2,h=(evView[1]-evView[0])*f/2;
+        if(h<30) h=30;
+        evView=[c-h,c+h];evSel=-1;evRender();
+      }
+      function evPan(d){if(!evView) return;evAuto=false;var s=(evView[1]-evView[0])/2*d;evView=[evView[0]+s,evView[1]+s];evSel=-1;evRender();}
 
       // Initialize
       refreshIdentityMap(true);

@@ -22,7 +22,7 @@ extern "C"
 // LoRa RF Config
 bool meshEnabled = true;
 bool hbEnabled = false;
-uint32_t hbInterval = 600000;
+uint32_t hbInterval = 1800000;
 // Runtime gate for vibration mesh broadcasts (NVS key: "vibEnabled").
 // Detection and USB logging always run; this only controls Serial1 TX.
 bool vibrationEnabled = true;

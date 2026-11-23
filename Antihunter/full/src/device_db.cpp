@@ -285,6 +285,7 @@ static void deviceDBCompact()
 static std::atomic<uint32_t> s_devPrepReq{0};
 static std::atomic<uint32_t> s_devPrepDone{0};
 static std::atomic<bool> s_devPrepOk{true};
+static std::atomic<bool> s_devPrepCompact{false};
 
 static void deviceDBPrepareList()
 {
@@ -295,7 +296,7 @@ static void deviceDBPrepareList()
     }
     s_devDirty.clear();
     const bool ok = devBufFlush();
-    if (ok && devHasDuplicates()) deviceDBCompact();
+    if (ok && s_devPrepCompact.exchange(false) && devHasDuplicates()) deviceDBCompact();
     s_devPrepOk = ok;
 }
 
@@ -523,6 +524,7 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
         st.pendOff = st.pendLen = 0;
         if (st.phase == 0) {
             if (!st.waitGen) {
+                if (!st.raw) s_devPrepCompact = true;
                 st.waitGen = s_devPrepReq.fetch_add(1) + 1;
                 if (!dbWorkerKick()) deviceDBServicePrep();
             }

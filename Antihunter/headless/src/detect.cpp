@@ -58,7 +58,7 @@ void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) {
 
 bool detect_isSelfApMac(const uint8_t *mac) { return isSelfMac(mac); }
 
-static constexpr uint32_t FLEET_REPEAT_MS = 600000;
+static constexpr uint32_t FLEET_REPEAT_MS = 1800000;
 static constexpr uint32_t FLEET_AP_GRACE_MS = 60000;
 static constexpr size_t FLEET_PREFIX_MAX = 12;
 

@@ -569,7 +569,7 @@ void loadConfiguration() {
         setBaselineRssiThreshold(prefs.getInt("blRssi", -70));
         baselineDuration = prefs.getUInt("blDuration", 300000);
         hbEnabled = prefs.getBool("hbEnabled", false);
-        hbInterval = prefs.getUInt("hbInterval", 600000);
+        hbInterval = prefs.getUInt("hbInterval", 1800000);
         vibrationEnabled = prefs.getBool("vibEnabled", true);
         vibAutoScanEnabled = prefs.getBool("vibScanEn", false);
         vibAutoScanMode = prefs.getUChar("vibScanMode", 0);
