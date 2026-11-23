@@ -315,7 +315,7 @@ struct DeviceDBStream {
     char pend[320];
 };
 size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen);
-struct DeviceDBView {
+struct DbView {
     uint32_t off = 0;
     uint32_t lim = 50;
     uint8_t sort = 9;
@@ -333,7 +333,8 @@ struct DeviceDBView {
     std::atomic<bool> done{false};
     String out;
 };
-bool deviceDBViewStart(std::shared_ptr<DeviceDBView> v);
+bool deviceDBViewStart(std::shared_ptr<DbView> v);
+bool probeDBViewStart(std::shared_ptr<DbView> v);
 bool clearDeviceDB();
 
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s

@@ -23,6 +23,7 @@
 #include "scanner_internal.h"
 #include "psram_table.h"
 #include "cuckoo_filter.h"
+#include "db_view.h"
 
 extern "C"
 {
@@ -1297,6 +1298,65 @@ size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen)
         break;
     }
     return written;
+}
+
+static void probeSsidJoin(const ProbeDBEntry &e, char *out, size_t cap)
+{
+    size_t n = 0;
+    out[0] = '\0';
+    for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
+        const String s = sanitizeAscii(e.ssids[i], 33);
+        if (!s.length()) continue;
+        n += snprintf(out + n, n < cap ? cap - n : 0, "%s%s", n ? "," : "", s.c_str());
+        if (n >= cap) break;
+    }
+}
+
+static void probeDBRunView(DbView &v)
+{
+    {
+        std::lock_guard<std::mutex> lock(probeDBMutex);
+        const bool ok = probeDBFlushDirty();
+        if (ok && probeHasDuplicates()) probeDBCompact();
+        if (!ok) {
+            v.out = "{\"error\":\"SD write failed\"}";
+            return;
+        }
+    }
+    dbPageView<ProbeDBEntry>(
+        v, v.sort == 0 || v.sort == 2 || v.sort == 3 || v.sort == 10,
+        [](const std::function<void(const ProbeDBEntry &, uint32_t)> &fn) {
+            return dbScanFile<ProbeDBEntry>(PROBE_DB_BIN, probeDBMutex, s_probeStreams, fn);
+        },
+        [](const uint32_t *recs, size_t n, ProbeDBEntry *out) {
+            return dbReadRecs<ProbeDBEntry>(PROBE_DB_BIN, probeDBMutex, recs, n, out);
+        },
+        probeDBFormatRow,
+        [](const ProbeDBEntry &e, uint8_t sort, const String &vend, const String &nm, DbSortKey &k) {
+            if (dbKeyCommon(e, sort, vend, nm, k)) return;
+            if (sort == 10) {
+                char all[300];
+                probeSsidJoin(e, all, sizeof(all));
+                dbLower(all, k.str, sizeof(k.str));
+            } else {
+                k.num = e.isRandomized;
+            }
+        },
+        [](const ProbeDBEntry &e, const char *ql, const String &vend, const String &nm) {
+            if (dbMatchCommon(e, ql, vend, nm)) return true;
+            for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
+                if (dbHas(sanitizeAscii(e.ssids[i], 33).c_str(), ql)) return true;
+            }
+            return false;
+        });
+}
+
+bool probeDBViewStart(std::shared_ptr<DbView> v)
+{
+    return sdWorkerRun([v]() {
+        probeDBRunView(*v);
+        v->done = true;
+    });
 }
 
 static void probeEventLineRender(const char *text, size_t len, PsramJsonString &out)
