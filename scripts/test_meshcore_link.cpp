@@ -204,7 +204,8 @@ int main() {
     const uint8_t appStart[] = {0x0B, 0x00, 0x01, 3, 0, 0, 0, 0, 0, 0, 'c', 'l', 'i'};
     Serial.rx.insert(Serial.rx.end(), appStart, appStart + sizeof(appStart));
     t0 = g_fakeMillis;
-    meshcoreBridge(0x3C);
+    const uint8_t first = 0x3C;
+    meshcoreBridge(&first, 1);
     assert(g_fakeMillis - t0 >= 10000 && Serial.rx.empty());
     assert(Serial1.frames.size() == 1 && Serial1.frames[0].size() == 11 && Serial1.frames[0][0] == 0x01);
     assert(Serial.tx.size() == 3 + 66 && Serial.tx[0] == 0x3E && Serial.tx[1] == 66 && Serial.tx[3] == 0x05);
