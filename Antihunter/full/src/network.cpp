@@ -36,6 +36,7 @@ bool vibrationEnabled = true;
 unsigned long meshSendInterval = 3000;
 std::atomic<bool> g_eraseWipeBusy{false};
 volatile uint32_t apScanSuppressUntilMs = 0;
+volatile bool apReachDuringScan = true;
 static volatile uint32_t s_apJoinHoldUntilMs = 0;
 static uint8_t s_apBssid[6] = {};
 static volatile bool s_apBssidSet = false;
@@ -270,6 +271,7 @@ void initializeNetwork()
   wifi_auth_mode_t apAuth = prefs.getUChar("apAuth", 0) == 1 ? WIFI_AUTH_WPA2_PSK
                                                              : WIFI_AUTH_WPA2_WPA3_PSK;
   bool apHidden = prefs.getBool("apHidden", false);
+  apReachDuringScan = prefs.getBool("apReach", true);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, apHidden ? 1 : 0, 4, false,
@@ -2160,6 +2162,7 @@ void registerRemainingRoutes() {
     json += "\"ssid\":\"" + jsonEscape(ssid) + "\",";
     json += "\"auth\":" + String(prefs.getUChar("apAuth", 0)) + ",";
     json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false") + ",";
+    json += "\"reach\":" + String(prefs.getBool("apReach", true) ? "true" : "false") + ",";
     json += "\"webPassSet\":" + String(prefsGetString("webPass", "").length() > 0 ? "true" : "false") + ",";
     json += "\"webAuth\":" + String(prefs.getBool("webAuth", false) ? "true" : "false");
     json += "}";
@@ -2343,6 +2346,9 @@ void registerRemainingRoutes() {
       }
       if (req->hasParam("hidden", true)) {
           prefs.putBool("apHidden", req->getParam("hidden", true)->value().toInt() == 1);
+      }
+      if (req->hasParam("reach", true)) {
+          prefs.putBool("apReach", req->getParam("reach", true)->value().toInt() == 1);
       }
 
       saveConfiguration();

@@ -431,6 +431,7 @@ static void writeConfigJson(Print &w) {
     w.printf(" \"pcapMaxFileMB\":%u,\n", (unsigned)getPcapMaxFileMB());
     w.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
     w.printf(" \"apHidden\":%s,\n", prefs.getBool("apHidden", false) ? "true" : "false");
+    w.printf(" \"apReach\":%s,\n", prefs.getBool("apReach", true) ? "true" : "false");
     w.printf(" \"sentinelBoot\":%s,\n", prefs.getBool("sentBoot", false) ? "true" : "false");
     w.printf(" \"onboardingDone\":%s,\n", prefs.getBool("obDone", false) ? "true" : "false");
     {
@@ -762,6 +763,11 @@ void loadConfiguration() {
 
     if (doc.containsKey("apHidden")) {
         prefs.putBool("apHidden", doc["apHidden"].as<bool>());
+    }
+
+    if (doc.containsKey("apReach")) {
+        prefs.putBool("apReach", doc["apReach"].as<bool>());
+        apReachDuringScan = doc["apReach"].as<bool>();
     }
 
     if (doc.containsKey("meshEnabled")) {

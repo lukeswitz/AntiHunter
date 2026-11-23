@@ -1339,7 +1339,11 @@ R"HTML(
                   <div class="srow-l"><label for="apHidden">Hidden network</label><p>Hides the network name. Clients must type it.</p></div>
                   <div class="srow-c"><label class="dsw"><input type="checkbox" id="apHidden" value="1"><span class="dsw-s"></span></label></div>
                 </div>
-                <div class="sfoot"><span class="sfoot-t">The hidden setting saves with the button.</span><button class="btn primary" type="button" onclick="saveWiFiConfig()">Save Wi-Fi settings</button></div>
+                <div class="srow tog">
+                  <div class="srow-l"><label for="apReach">Joinable during scans</label><p>Phones can join while a scan runs. Scans hear less.</p></div>
+                  <div class="srow-c"><label class="dsw"><input type="checkbox" id="apReach" value="1" checked><span class="dsw-s"></span></label></div>
+                </div>
+                <div class="sfoot"><span class="sfoot-t">These switches save with the button.</span><button class="btn primary" type="button" onclick="saveWiFiConfig()">Save Wi-Fi settings</button></div>
               </div>
             </div>
             <div class="set-grp">
@@ -3745,6 +3749,7 @@ R"HTML(
         fd.append('pass', pass);
         fd.append('auth', document.getElementById('apAuth').value);
         fd.append('hidden', document.getElementById('apHidden').checked ? '1' : '0');
+        fd.append('reach', document.getElementById('apReach').checked ? '1' : '0');
 
         try {
           const r = await fetch('/wifi-config', {method: 'POST', body: fd});
@@ -3762,6 +3767,7 @@ R"HTML(
           document.getElementById('apSsid').value = cfg.ssid;
           if (cfg.auth !== undefined) document.getElementById('apAuth').value = cfg.auth;
           if (cfg.hidden !== undefined) document.getElementById('apHidden').checked = !!cfg.hidden;
+          if (cfg.reach !== undefined) document.getElementById('apReach').checked = !!cfg.reach;
           if (cfg.webPassSet) document.getElementById('webPass').placeholder = 'Set - enter 8-63 characters to change';
           if (cfg.webAuth !== undefined) document.getElementById('webAuth').checked = !!cfg.webAuth;
         } catch(e) {}

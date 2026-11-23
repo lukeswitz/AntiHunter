@@ -53,6 +53,7 @@ extern bool hbEnabled;
 extern uint32_t hbInterval;
 extern bool vibrationEnabled;
 extern volatile uint32_t apScanSuppressUntilMs;
+extern volatile bool apReachDuringScan;
 void apJoinNoteFrame(const uint8_t *frame, uint16_t len);
 bool apJoinHoldActive();
 bool apJoinHoldEnter(const char *who);
@@ -71,6 +72,12 @@ bool apJoinHoldEnter(const char *who);
 #endif
 #ifndef AP_JOIN_HOLD_MS
 #define AP_JOIN_HOLD_MS 4000
+#endif
+#ifndef AP_HOME_DWELL_MS
+#define AP_HOME_DWELL_MS 150
+#endif
+#ifndef AP_BLE_SCAN_WINDOW_MS
+#define AP_BLE_SCAN_WINDOW_MS 30
 #endif
 #ifdef ARDUINO_XIAO_ESP32C5
 #define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11, 36, 40, 44, 48, 149, 153, 157, 161, 165}
