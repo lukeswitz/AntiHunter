@@ -194,7 +194,8 @@ The **Data** tab shows these logs in a searchable, sortable table. Its datasets 
 | `/api/campaigns.csv` | GET | Campaign start and stop log (CSV) |
 | `/data-cfg` | GET | JSON: `campaign`, `bleClassify`, `bleLongRange`, `now` (the node's clock in Unix seconds, `0` before the clock is set), `tz` (time zone name, such as `UTC` or the zone set from GPS), `tzOff` (current UTC offset in seconds), `tzPosix` (POSIX TZ rule, `UTC0` before a GPS fix) |
 | `/data-cfg` | POST | `bleClassify` (`0` or `1`), `bleLongRange` (`0` or `1`), `stop` (any value ends the campaign), `campaign=<name>` (starts one; `400` unless the name uses letters, digits, `-`, `_`). Returns the same JSON as GET |
-| `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8) |
+| `/api/probedb` | GET | Probe database (JSON): `mac`, `seen`, `sessions`, `first`, `last`, `rssi`, `vendor`, `name`, `rand`, `ble`, `ch`, `ssids` (up to 8). Full export; the web UI uses `/api/probedb/view` |
+| `/api/probedb/view` | GET | One page of the probe database, with the same parameters and reply as `/api/devicedb/view` in its list mode. `sort` runs 0-11 in this field order starting at `mac`, with `ssids` at 10 and `rand` at 11. `q` also matches any network name. No timeline mode |
 | `/api/probedb/clear` | POST | Clears the probe database. `500` if the SD files could not be deleted |
 | `/api/probes.jsonl` | GET | Probe log (JSONL). `404` if none |
 | `/api/probes/clear` | POST | Deletes `/probes.jsonl` and `/probes_old.jsonl` |
