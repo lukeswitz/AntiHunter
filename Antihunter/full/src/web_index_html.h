@@ -6974,7 +6974,21 @@ R"HTML(
 
       // ---- Data Tab ----
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
-      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false;
+      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false,dataSrv=null,dataSrvTok=0;
+      function dataSrvLoad(cfg){
+        var tok=++dataSrvTok,area=document.getElementById('dataArea'),q=document.getElementById('dataSearch').value.trim();
+        var u='/api/devicedb/view?off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&sort='+(dataSortCol<0?9:dataSortCol)+'&asc='+(dataSortAsc?1:0)
+          +(q?'&q='+encodeURIComponent(q):'')+(dataRange?'&from='+Math.max(0,Math.floor(dataRange[0]))+'&to='+Math.floor(dataRange[1]):'');
+        var slow=setTimeout(function(){if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">Reading the device list from the SD card.</div>';},1500);
+        return fetch(u).then(function(r){if(!r.ok) throw new Error(r.status);return r.json();}).then(function(d){
+          clearTimeout(slow);
+          if(tok!==dataSrvTok||!dataSrv) return;
+          if(d.error) throw new Error(d.error);
+          dataSrv.total=d.total;dataSrv.first=d.first;dataSrv.last=d.last;dataSrv.top=d.top||[];
+          dataRows=d.rows;dataFiltered=d.rows;
+          dataSummarize();renderDataTable(cfg);
+        }).catch(function(e){clearTimeout(slow);console.warn('[DATA] device list page failed',e);if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">No data available.</div>';});
+      }
       function dataChunked(cfg){return cfg.fmt==='jsonl'||cfg.fmt==='text';}
       function dataParseChunk(text,cfg){
         var out=[],lines=text.split('\n');
@@ -7018,10 +7032,13 @@ R"HTML(
       }
       function dataSummarize(){
         var el=document.getElementById('dataSummary');if(!el) return;
-        var n=dataFiltered.length;if(!n){el.textContent='';return;}
+        var n=dataSrv?dataSrv.total:dataFiltered.length;if(!n){el.textContent='';return;}
         var cfg=DATA_SETS[document.getElementById('dataSet').value],tk=cfg&&cfg.top;
         var lo=Infinity,hi=-Infinity,macs={},grp={};
-        dataFiltered.forEach(function(r){
+        if(dataSrv){
+          if(dataSrv.first) lo=dataSrv.first;if(dataSrv.last) hi=dataSrv.last;
+          (dataSrv.top||[]).forEach(function(p){grp[p[0]]=p[1];});
+        } else dataFiltered.forEach(function(r){
           var s=dataRowSpan(r);if(s){if(s[0]<lo)lo=s[0];if(s[1]>hi)hi=s[1];}
           var m=r.mac||r.src;if(m)macs[m]=1;
           if(tk){var g=dataGroupVal(r,tk[0]);if(g)grp[g]=(grp[g]||0)+1;}
@@ -7033,7 +7050,7 @@ R"HTML(
         var tile=function(l,v,c,h){return '<div class="dn-tile'+(c?' '+c:'')+'"><small>'+he(l)+'</small><div title="'+he(v)+'">'+(h||he(v))+'</div></div>';};
         var topHtml=topK.map(function(k){return he(k)+' <b>'+grp[k]+'</b>';}).join('<br>');
         el.innerHTML=tile(dataCursor>0?'Rows loaded':'Rows',String(n))
-          +(Object.keys(macs).length?tile('Unique MACs',String(Object.keys(macs).length)):'')
+          +(dataSrv?'':Object.keys(macs).length?tile('Unique MACs',String(Object.keys(macs).length)):'')
           +(lo<=hi?tile('First',fmt(lo),'sm')+tile('Last',fmt(hi),'sm'):'')
           +(top?tile(tk[1],top,'wide',topHtml):'');
         privacyApply(el);
@@ -7311,14 +7328,11 @@ R"HTML(
         var area=document.getElementById('dataArea');
         dataRows=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataStreaming=true;
         var slow=setTimeout(function(){if(gen===dataGen&&!dataRows.length) area.innerHTML='<div class="data-empty">Still loading. The node reads this list from its SD card, which takes longer for big lists.</div>';},3000);
-        var isDev=cfg.url==='/api/devicedb',seen=isDev?new Map():null,lastPaint=0,counted=0;
-        function add(r){
-          if(seen&&r&&r.mac){var i=seen.get(r.mac);if(i!==undefined){if((r.last||0)>=(dataRows[i].last||0)) dataRows[i]=r;return;}seen.set(r.mac,dataRows.length);}
-          dataRows.push(r);
-        }
+        var lastPaint=0,counted=0;
+        function add(r){dataRows.push(r);}
         function paint(force){var now=Date.now();if(!force&&now-lastPaint<800) return;lastPaint=now;dataRefilter();renderDataTable(cfg);}
         function finish(){clearTimeout(slow);if(gen!==dataGen) return;dataStreaming=false;dataRefilter();renderDataTable(cfg);}
-        return streamJsonRows(cfg.url+(isDev?'?raw=1':''),add,function(){return gen===dataGen;},function(){
+        return streamJsonRows(cfg.url,add,function(){return gen===dataGen;},function(){
           if(dataRows.length>counted){paint(counted<DATA_PAGE_SIZE);counted=dataRows.length;}
         }).then(finish,function(e){clearTimeout(slow);if(gen===dataGen){dataStreaming=false;area.innerHTML='<div class="data-empty">No data available.</div>';}});
       }
@@ -7366,8 +7380,9 @@ R"HTML(
         exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'||cfg.fmt==='baseline'?'.json':'.jsonl');
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
         ['dataSearch','dataRangeSel','dataPriv'].forEach(function(id){document.getElementById(id).style.display=cfg.fmt==='baseline'?'none':'';});
-        dataGen++;dataCursor=0;dataBusy=false;dataStreaming=false;
-        if(ds==='devicedb'||ds==='probedb'){dataStreamJson(cfg,dataGen);return;}
+        dataGen++;dataCursor=0;dataBusy=false;dataStreaming=false;dataSrv=null;dataSrvTok++;
+        if(ds==='devicedb'){dataSrv={};dataRows=[];dataFiltered=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataSrvLoad(cfg);return;}
+        if(ds==='probedb'){dataStreamJson(cfg,dataGen);return;}
         if(dataChunked(cfg)){
           var gen=dataGen;
           dataFetchChunk(cfg,null).then(function(c){
@@ -7456,7 +7471,8 @@ R"HTML(
       function renderDataTable(cfg){
         var area=document.getElementById('dataArea');
         if(!dataFiltered.length){area.innerHTML='<div class="data-empty">No records found.</div>';document.getElementById('dataPager').style.display='none';return;}
-        var start=dataPage*DATA_PAGE_SIZE,end=Math.min(start+DATA_PAGE_SIZE,dataFiltered.length);
+        var start=dataSrv?0:dataPage*DATA_PAGE_SIZE,end=Math.min(start+DATA_PAGE_SIZE,dataFiltered.length);
+        var total=dataSrv?dataSrv.total:dataFiltered.length,shown=dataPage*DATA_PAGE_SIZE;
         var html='<table id="data-table"><thead><tr>';
         for(var c=0;c<cfg.cols.length;c++){
           var arrow='';if(dataSortCol===c) arrow='<span class="sort-arrow">'+(dataSortAsc?'&#9650;':'&#9660;')+'</span>';
@@ -7466,16 +7482,17 @@ R"HTML(
         for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
         html+='</tbody></table>';area.innerHTML=html;privacyApply(area);
         var pager=document.getElementById('dataPager');
-        if(dataFiltered.length>DATA_PAGE_SIZE||dataCursor>0||dataStreaming){
+        if(total>DATA_PAGE_SIZE||dataCursor>0||dataStreaming){
           pager.style.display='flex';
-          document.getElementById('dataPageInfo').textContent='Showing '+(start+1)+'-'+end+' of '+dataFiltered.length+(dataCursor>0?'+':'')+' rows'+(dataStreaming?' (still loading)':'');
+          document.getElementById('dataPageInfo').textContent='Showing '+(shown+1)+'-'+(shown+end-start)+' of '+total+(dataCursor>0?'+':'')+' rows'+(dataStreaming?' (still loading)':'');
           document.getElementById('dataPrevBtn').disabled=dataPage===0;
-          document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length&&!(dataCursor>0);
+          document.getElementById('dataNextBtn').disabled=shown+end-start>=total&&!(dataCursor>0);
         } else { pager.style.display='none'; }
       }
       function sortDataCol(ci){
         var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
         if(dataSortCol===ci){dataSortAsc=!dataSortAsc;}else{dataSortCol=ci;dataSortAsc=true;}
+        if(dataSrv){dataPage=0;dataSrvLoad(cfg);return;}
         var key=dataCols[ci];
         dataFiltered.sort(function(a,b){
           var av=getVal(a,key),bv=getVal(b,key);
@@ -7490,13 +7507,21 @@ R"HTML(
         clearTimeout(dataSearchTimer);
         dataSearchTimer=setTimeout(function(){
           var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+          dataPage=0;
+          if(dataSrv){dataSrvLoad(cfg);return;}
           dataRefilter();
-          dataPage=0;renderDataTable(cfg);
+          renderDataTable(cfg);
         },300);
       }
-      function dataPagePrev(){if(dataPage>0){dataPage--;renderDataTable(DATA_SETS[document.getElementById('dataSet').value]);}}
+      function dataPagePrev(){
+        if(dataPage<=0) return;dataPage--;
+        var cfg=DATA_SETS[document.getElementById('dataSet').value];
+        if(dataSrv){dataSrvLoad(cfg);return;}
+        renderDataTable(cfg);
+      }
       function dataPageNext(){
         var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+        if(dataSrv){if((dataPage+1)*DATA_PAGE_SIZE<dataSrv.total){dataPage++;dataSrvLoad(cfg);}return;}
         if((dataPage+1)*DATA_PAGE_SIZE<dataFiltered.length){dataPage++;renderDataTable(cfg);return;}
         if(dataChunked(cfg)&&dataCursor>0&&!dataBusy){
           var need=(dataPage+2)*DATA_PAGE_SIZE,gen=dataGen;
@@ -7541,7 +7566,7 @@ R"HTML(
 
       // ---- Event timeline (Results tab) ----
       var EV_KINDS={device:'Devices',incident:'Sentinel',deauth:'Deauth',drone:'Drones',vibration:'Movement',probe:'Probe hits'};
-      var EV_CELLS=(window.innerWidth<600?32:96),evData=[],evDev=new Map(),evOn={device:1,incident:1,deauth:1,drone:1,vibration:1,probe:1},evView=null,evAuto=true,evSel=-1,evLoadedAt=0,evGen=0,evPaintAt=0;
+      var EV_CELLS=(window.innerWidth<600?32:96),evData=[],evDevLo=0,evDevHi=0,evDevView=null,evDevWant='',evOn={device:1,incident:1,deauth:1,drone:1,vibration:1,probe:1},evView=null,evAuto=true,evSel=-1,evLoadedAt=0,evGen=0;
       function evFmt(t){var d=new Date((t+nodeOff(t))*1000),h=d.getUTCHours(),m=d.getUTCMinutes();return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+(h%12||12)+':'+(m<10?'0':'')+m+' '+(h>=12?'PM':'AM');}
       function evAdd(k,t,l){if(t&&t>946684800) evData.push({t:t,k:k,l:l});}
       function evJsonl(url,gen,fn){
@@ -7553,7 +7578,7 @@ R"HTML(
       function evLoad(force){
         if(!document.getElementById('evStrip')) return;
         if(!force&&Date.now()-evLoadedAt<60000) return;
-        evLoadedAt=Date.now();var gen=++evGen;evData=[];evDev=new Map();evSel=-1;evAuto=true;evView=null;
+        evLoadedAt=Date.now();var gen=++evGen;evData=[];evDevLo=evDevHi=0;evDevView=null;evDevWant='';evSel=-1;evAuto=true;evView=null;
         var jobs=[
           evJsonl('/api/incidents.jsonl',gen,function(r){evAdd('incident',dataEpoch(r.epoch),(r.type||'Incident')+(r.src&&r.src!=='local'?' from '+r.src:''));}),
           evJsonl('/api/deauth.jsonl',gen,function(r){evAdd('deauth',dataEpoch(r.t),(r.disassoc?'Disassoc ':'Deauth ')+(r.src||'')+' to '+(r.dst||''));}),
@@ -7562,43 +7587,60 @@ R"HTML(
           evJsonl('/api/probes.jsonl',gen,function(r){if(r.hit) evAdd('probe',dataEpoch(r.t),'Probe hit '+(r.mac||''));})
         ];
         jobs.forEach(function(p){p.then(function(){if(gen===evGen) evRender();});});
-        streamJsonRows('/api/devicedb?raw=1',function(r){
-          if(!r||!r.mac) return;
-          var o=evDev.get(r.mac);if(!o||(r.last||0)>=(o.last||0)) evDev.set(r.mac,r);
-        },function(){return gen===evGen;},function(){
-          if(Date.now()-evPaintAt>1500) evRender();
-        }).then(function(){if(gen===evGen) evRender();},function(e){console.warn('[EV] device list failed',e);if(gen===evGen) evRender();});
+        fetch('/api/devicedb/view?tl=1').then(function(r){return r.ok?r.json():{};}).then(function(d){
+          if(gen!==evGen) return;
+          evDevLo=d.lo||0;evDevHi=d.hi||0;evRender();
+        }).catch(function(e){console.warn('[EV] device range failed',e);});
         evRender();
       }
-      function evEvents(){
-        var out=evData.slice();
-        evDev.forEach(function(r,mac){
+      function evDevEvents(rows){
+        var out=[];
+        (rows||[]).forEach(function(r){
           var f=dataEpoch(r.first),l=dataEpoch(r.last),n=r.name?' '+r.name:'',span=f&&l&&l-f>60;
-          if(l) out.push({t:l,k:'device',l:(span?'Last seen ':'Seen ')+mac+n});
-          if(span) out.push({t:f,k:'device',l:'First seen '+mac+n});
+          if(l) out.push({t:l,k:'device',l:(span?'Last seen ':'Seen ')+r.mac+n});
+          if(span) out.push({t:f,k:'device',l:'First seen '+r.mac+n});
         });
-        return out.filter(function(e){return evOn[e.k];}).sort(function(a,b){return a.t-b.t;});
+        return out;
+      }
+      function evEvents(){
+        return evData.filter(function(e){return evOn[e.k];}).sort(function(a,b){return a.t-b.t;});
+      }
+      function evDevFetch(key,from,to,lf,lt,lim){
+        if(evDevWant===key) return;
+        evDevWant=key;var gen=evGen;
+        fetch('/api/devicedb/view?tl=1&tlFrom='+from+'&tlTo='+to+'&cells='+EV_CELLS+'&lf='+lf+'&lt='+lt+'&llim='+lim)
+          .then(function(r){if(!r.ok) throw new Error(r.status);return r.json();})
+          .then(function(d){if(gen!==evGen||evDevWant!==key) return;evDevView={key:key,cells:d.cells||[],rows:evDevEvents(d.rows)};evRender();})
+          .catch(function(e){console.warn('[EV] device events failed',e);if(evDevWant===key) evDevWant='';});
       }
       function evRender(){
-        evPaintAt=Date.now();
         var strip=document.getElementById('evStrip'),kinds=document.getElementById('evKinds'),list=document.getElementById('evList');
         if(!strip) return;
         kinds.innerHTML=Object.keys(EV_KINDS).map(function(k){return '<button type="button" class="'+(evOn[k]?'on':'')+'" onclick="evToggle(\''+k+'\')">'+EV_KINDS[k]+'</button>';}).join('')
           +'<span style="margin-left:auto;align-self:center;font-size:11px;color:var(--mut);">Node time, '+htmlEsc(nodeTz.abbr)+'</span>';
-        var ev=evEvents();
-        if(!ev.length){strip.innerHTML='<div class="res-note">No timed events yet. A scan, a Sentinel alert or a movement alert adds them here.</div>';list.innerHTML='';return;}
-        if(!evView||evAuto){var lo=ev[0].t,hi=ev[ev.length-1].t,pad=Math.max(60,Math.ceil((hi-lo)*0.02));evView=[lo-pad,hi+pad];}
+        var ev=evEvents(),dev=evOn.device&&evDevHi>0;
+        if(!ev.length&&!dev){strip.innerHTML='<div class="res-note">No timed events yet. A scan, a Sentinel alert or a movement alert adds them here.</div>';list.innerHTML='';return;}
+        if(!evView||evAuto){
+          var lo=ev.length?ev[0].t:evDevLo,hi=ev.length?ev[ev.length-1].t:evDevHi;
+          if(dev){if(evDevLo<lo) lo=evDevLo;if(evDevHi>hi) hi=evDevHi;}
+          var pad=Math.max(60,Math.ceil((hi-lo)*0.02));evView=[Math.floor(lo-pad),Math.ceil(hi+pad)];
+        }
         var from=evView[0],to=evView[1],step=(to-from)/EV_CELLS,cnt=new Array(EV_CELLS).fill(0),max=0,i;
-        ev.forEach(function(e){if(e.t<from||e.t>=to) return;var c=Math.min(EV_CELLS-1,Math.floor((e.t-from)/step));cnt[c]++;if(cnt[c]>max) max=cnt[c];});
+        var lf=from,lt=to;
+        if(evSel>=0){lf=from+evSel*step;lt=lf+step;}
+        var lim=evSel>=0?200:30,dkey=[from,to,EV_CELLS,lf,lt,lim].join(','),dv=dev&&evDevView&&evDevView.key===dkey?evDevView:null;
+        if(dev&&!dv) evDevFetch(dkey,from,to,lf,lt,lim);
+        ev.forEach(function(e){if(e.t<from||e.t>=to) return;var c=Math.min(EV_CELLS-1,Math.floor((e.t-from)/step));cnt[c]++;});
+        if(dv) dv.cells.forEach(function(n,c){if(c<EV_CELLS) cnt[c]+=n;});
+        cnt.forEach(function(n){if(n>max) max=n;});
         var cells='';
         for(i=0;i<EV_CELLS;i++){
           var a=from+i*step;
           cells+='<i data-i="'+i+'" class="h'+heatShade(max?cnt[i]/max:0,cnt[i])+'" title="'+evFmt(a)+' to '+evFmt(a+step)+' · '+cnt[i]+(cnt[i]===1?' event':' events')+'"'+(i===evSel?' style="outline:2px solid var(--txt);outline-offset:-2px"':'')+'></i>';
         }
         strip.innerHTML='<div class="csi-heatwrap" onclick="evTap(event)"><div class="csi-heat">'+cells+'</div><div class="csi-room-lab"><span>'+evFmt(from)+'</span><span>'+evFmt(to)+'</span></div></div>';
-        var lf=from,lt=to;
-        if(evSel>=0){lf=from+evSel*step;lt=lf+step;}
-        var rows=ev.filter(function(e){return e.t>=lf&&e.t<lt;}),lim=evSel>=0?200:30,more=rows.length>lim;
+        var inRange=function(e){return e.t>=lf&&e.t<lt;};
+        var rows=ev.filter(inRange).concat(dv?dv.rows.filter(inRange):[]).sort(function(a,b){return a.t-b.t;}),more=rows.length>lim;
         rows=rows.slice(-lim).reverse();
         list.innerHTML=(evSel>=0?'<div style="font-size:12px;color:var(--mut);margin-top:8px;">'+evFmt(lf)+' to '+evFmt(lt)+'. Tap the same block again to show the whole range.</div>':'<div style="font-size:12px;color:var(--mut);margin-top:8px;">Tap a block to see its events, or zoom in.</div>')
           +(rows.length?'<div style="max-height:320px;overflow:auto;"><table class="ev-tbl"><tbody>'+rows.map(function(e){return '<tr><td>'+evFmt(e.t)+'</td><td>'+EV_KINDS[e.k]+'</td><td>'+htmlEsc(e.l)+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="res-note">No events in this range.</div>')

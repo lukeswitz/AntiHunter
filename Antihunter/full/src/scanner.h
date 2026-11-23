@@ -7,6 +7,7 @@
 #include <string>
 #include <atomic>
 #include <functional>
+#include <memory>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
@@ -305,7 +306,6 @@ struct DeviceDBStream {
     uint8_t phase = 0;
     uint8_t first = 1;
     bool holds = false;
-    bool raw = false;
     uint8_t *blk = nullptr;
     size_t blkStart = 0;
     size_t blkLen = 0;
@@ -315,6 +315,25 @@ struct DeviceDBStream {
     char pend[320];
 };
 size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen);
+struct DeviceDBView {
+    uint32_t off = 0;
+    uint32_t lim = 50;
+    uint8_t sort = 9;
+    bool asc = false;
+    String q;
+    uint32_t rangeFrom = 0;
+    uint32_t rangeTo = 0;
+    bool timeline = false;
+    double tlFrom = 0;
+    double tlTo = 0;
+    double listFrom = 0;
+    double listTo = 0;
+    uint16_t cells = 0;
+    uint16_t listLim = 30;
+    std::atomic<bool> done{false};
+    String out;
+};
+bool deviceDBViewStart(std::shared_ptr<DeviceDBView> v);
 bool clearDeviceDB();
 
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
