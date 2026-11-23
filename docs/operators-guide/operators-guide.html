@@ -633,7 +633,7 @@ AH01: VIBSCAN_ACK:OK En:1 Mode:1 Dur:300s Cd:600s Pre:0</pre></li>
     <tr><td><b>Campaigns</b></td><td>Tags the SD logs with a name between a start and a stop, so you can export one operation as a set.</td><td><span class="mono">CAMPAIGN_START:site-a</span></td></tr>
     <tr><td><b>Vibration and tamper</b></td><td>Sends an alert, starts a scan, or arms auto-erase when someone moves the node.</td><td><span class="mono">VIBRATION_ON</span></td></tr>
     <tr><td><b>Secure wipe</b></td><td>Erases settings and SD files on command with the erase key (§8.3). A wipe cannot be undone.</td><td>System tab → <b>Settings</b> → <b>Danger zone</b></td></tr>
-    <tr><td><b>Web UI</b></td><td>Shows results as cards, the device database, settings and diagnostics on Full firmware.</td><td>http://192.168.4.1</td></tr>
+    <tr><td><b>Web UI</b></td><td>Shows results with a timeline of events, the Data tab with every log, settings and diagnostics on Full firmware.</td><td>http://192.168.4.1</td></tr>
   </table>
 
   <div class="box"><span class="t">Two features can transmit</span>
@@ -641,7 +641,7 @@ AH01: VIBSCAN_ACK:OK En:1 Mode:1 Dur:300s Cd:600s Pre:0</pre></li>
   </div>
 
   <h3>11.2 Results and the SD card</h3>
-  <p>Both builds log to the SD card. Appendix B lists the main files. Full also shows results as cards in the Results tab and the device database in the Data tab. Over mesh you receive each alert plus a summary when a scan ends.</p>
+  <p>Both builds log to the SD card. Appendix B lists the main files. Full also shows results as cards in the Results tab, with a timeline of dated events above them, and every log in the Data tab. Over mesh you receive each alert plus a summary when a scan ends.</p>
   <div class="box warn"><span class="t">Exports carry location</span>
     <p>SD logs, exports and mesh alerts can all contain GPS coordinates. Review any file before you post it publicly or attach it to a report. Privacy Mode only redacts the live web UI.</p>
   </div>

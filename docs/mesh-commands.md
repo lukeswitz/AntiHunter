@@ -268,7 +268,7 @@ To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in th
 | Command | Argument | Meaning | Range | Default |
 |---|---|---|---|---|
 | `BATTERY_SAVER_START` | `min` | Minutes between battery-saver heartbeats. Out-of-range values move to the nearest limit | 1-30 | 5 |
-| `HB_INTERVAL` | `min` | Minutes between normal heartbeats. Out-of-range values move to the nearest limit | 1-60 | |
+| `HB_INTERVAL` | `min` | Minutes between normal heartbeats. Out-of-range values move to the nearest limit | 1-60 | 30 |
 
 ### Sentinel
 
@@ -483,15 +483,15 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `JAMMING:<ch>:noise_rise:<db>` | `db`: how far the noise floor rose above its learned level |
 | `JAMMING_BASELINE:<ch>:silence:<fps>` | `fps`: the channel's usual frames per second |
 | `RADIO_DETECTED:<radio>:<mac>:<rssi>:<name>` | `Meshtastic` `MeshCore`. `name` is empty if the radio has not sent one yet |
-| `FLEET_AP:<mac>` | A Full node sends its own access point MAC about 10 seconds after boot, then every 10 minutes. It also sends it on hearing a new node's `FLEET_AP` or a known node's changed MAC, at least 30 seconds after its last send. Receivers do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
-| `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 10 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
+| `FLEET_AP:<mac>` | A Full node sends its own access point MAC about 10 seconds after boot, then every 30 minutes. It also sends it on hearing a new node's `FLEET_AP` or a known node's changed MAC, at least 30 seconds after its last send. Receivers do not report that access point as `SELF_CLONE` or `SELF_CLONE_OPEN` |
+| `FLEET_RADIO:<node>:<name>` | Tells `<node>` the short name its Meshtastic radio puts in front of each line, such as `ah07`. A node sends it when it first sees a peer's short name, and again at most every 30 minutes per peer. Nodes do not report a Bluetooth radio whose name starts with `<name>_` as `RADIO_DETECTED` |
 | `FLEET_CMD:<origin>-<id>:<hops>:@<node> <command>` | A node passes on a fleet command when `<node>` did not answer within 8 to 16 seconds, up to 3 hops. It also answers `FLEET_WHAT` with it, with a scan's seconds set to the time left. Each node runs a command once, however many copies arrive. A node that was off does not get commands it missed while off. Only the `FLEET_SEND` commands are passed on |
 | `@<node> FLEET_WHAT:<reply>` | A node that hears two others answer with `<reply>`, such as `DEVICE_SCAN_ACK`, to a command it never got, asks one of them. That node answers with `FLEET_CMD` for its latest matching `@ALL` command |
 | `<relay>: <node>: <reply>` | A node that passed on a command sends `<node>`'s answer back the same way |
 | `CSI_PEER:<mac>` | Beta and C5. At its first CSI motion start after boot, a node sends its access point MAC and its probe source MAC. Other nodes stop using those MACs as CSI links and answer with their own |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
-A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 10 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
+A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 30 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
 
