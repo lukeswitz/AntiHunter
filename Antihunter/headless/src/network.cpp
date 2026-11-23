@@ -19,9 +19,7 @@ extern "C"
 {
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
-#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
 #include "hal/usb_serial_jtag_ll.h"
-#endif
 }
 
 // LoRa RF Config
@@ -4142,11 +4140,9 @@ static size_t s_usbEarlyLen = 0;
 static size_t s_usbEarlyPos = 0;
 
 void usbRecoverRx() {
-#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
     usb_serial_jtag_ll_disable_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_OUT_RECV_PKT);
     if (!Serial.available()) s_usbEarlyLen = usb_serial_jtag_ll_read_rxfifo(s_usbEarly, sizeof(s_usbEarly));
     usb_serial_jtag_ll_ena_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_OUT_RECV_PKT);
-#endif
 }
 
 void processUSBToMesh() {
