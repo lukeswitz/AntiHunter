@@ -15,6 +15,7 @@
 #include "psram_table.h"
 #include "cuckoo_filter.h"
 #include "detect.h"
+#include "db_view.h"
 
 extern bool parseMac6(const String &in, uint8_t out[6]);
 
@@ -586,123 +587,15 @@ size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
     return written;
 }
 
-static bool devEpochOk(uint32_t t) { return t > 946684800u; }
-
-static void devLower(const char *s, char *out, size_t cap)
-{
-    size_t i = 0;
-    for (; s[i] && i + 1 < cap; i++) out[i] = (char)tolower((unsigned char)s[i]);
-    out[i] = '\0';
-}
-
-static bool devHas(const char *hay, const char *ql)
-{
-    char low[48];
-    devLower(hay, low, sizeof(low));
-    return strstr(low, ql) != nullptr;
-}
-
-static bool devMatches(const DeviceDBEntry &e, const DeviceDBView &v, const char *ql, const String &vend, const String &nm)
-{
-    if (v.rangeFrom || v.rangeTo) {
-        uint32_t lo = devEpochOk(e.firstEpoch) ? e.firstEpoch : 0, hi = devEpochOk(e.lastEpoch) ? e.lastEpoch : 0;
-        if (!lo && !hi) return false;
-        if (!lo) lo = hi;
-        if (!hi) hi = lo;
-        if (hi < v.rangeFrom || lo > v.rangeTo) return false;
-    }
-    if (!ql[0]) return true;
-    if (devHas(e.mac, ql) || devHas(vend.c_str(), ql) || devHas(nm.c_str(), ql)) return true;
-    if (devHas(e.isBLE ? "true" : "false", ql) || devHas(e.isRandomized ? "true" : "false", ql)) return true;
-    const long nums[] = {(long)e.bestRssi, (long)e.channel, (long)e.sessionCount, (long)e.totalSeen,
-                         (long)e.firstEpoch, (long)e.lastEpoch};
-    char num[16];
-    for (long n : nums) {
-        snprintf(num, sizeof(num), "%ld", n);
-        if (strstr(num, ql)) return true;
-    }
-    return false;
-}
-
-struct DevSortKey {
-    uint32_t rec;
-    int64_t num;
-    char str[33];
-};
-
-static bool devStrSort(uint8_t sort) { return sort == 0 || sort == 2 || sort == 3; }
-
-static void devKeyFor(const DeviceDBEntry &e, uint8_t sort, const String &vend, const String &nm, DevSortKey &k)
-{
-    k.num = 0;
-    k.str[0] = '\0';
-    switch (sort) {
-    case 0: devLower(e.mac, k.str, sizeof(k.str)); break;
-    case 1: k.num = e.isBLE; break;
-    case 2: devLower(vend.c_str(), k.str, sizeof(k.str)); break;
-    case 3: devLower(nm.c_str(), k.str, sizeof(k.str)); break;
-    case 4: k.num = e.bestRssi; break;
-    case 5: k.num = e.channel; break;
-    case 6: k.num = e.sessionCount; break;
-    case 7: k.num = e.totalSeen; break;
-    case 8: k.num = e.firstEpoch; break;
-    case 9: k.num = e.lastEpoch; break;
-    default: k.num = e.isRandomized; break;
-    }
-}
-
-// Scans /devicedb.bin once in 64-record blocks, locking per block so scans and merges keep running.
 template <typename F>
 static bool devScanAll(F fn)
 {
-    size_t end;
-    {
-        std::lock_guard<std::mutex> lock(deviceDBMutex);
-        end = SafeSD::exists(DEVICE_DB_BIN) ? SafeSD::size(DEVICE_DB_BIN) : 0;
-        s_devStreams++;
-    }
-    const size_t kBlkRecs = 64;
-    uint8_t *blk = static_cast<uint8_t *>(heap_caps_malloc(kBlkRecs * REC, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    bool ok = blk != nullptr;
-    uint32_t rec = 0;
-    for (size_t cur = 0; ok && cur + REC <= end;) {
-        size_t want = end - cur;
-        if (want > kBlkRecs * REC) want = kBlkRecs * REC;
-        want -= want % REC;
-        size_t got = 0;
-        {
-            std::lock_guard<std::mutex> lock(deviceDBMutex);
-            File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
-            if (f && f.seek(cur)) got = SafeSD::read(f, blk, want);
-            if (f) f.close();
-        }
-        got -= got % REC;
-        if (got < REC) { ok = false; break; }
-        for (size_t o = 0; o < got; o += REC, rec++) {
-            DeviceDBEntry e;
-            memcpy(&e, blk + o, REC);
-            e.mac[17] = '\0';
-            fn(e, rec);
-        }
-        cur += got;
-    }
-    heap_caps_free(blk);
-    s_devStreams--;
-    return ok;
+    return dbScanFile<DeviceDBEntry>(DEVICE_DB_BIN, deviceDBMutex, s_devStreams, fn);
 }
 
 static bool devReadRecs(const uint32_t *recs, size_t n, DeviceDBEntry *out)
 {
-    std::lock_guard<std::mutex> lock(deviceDBMutex);
-    File f = SafeSD::open(DEVICE_DB_BIN, FILE_READ);
-    if (!f) return false;
-    bool ok = true;
-    for (size_t i = 0; i < n && ok; i++) {
-        ok = f.seek((size_t)recs[i] * REC) && SafeSD::read(f, reinterpret_cast<uint8_t *>(&out[i]), REC) == REC;
-        out[i].mac[17] = '\0';
-    }
-    f.close();
-    return ok;
+    return dbReadRecs<DeviceDBEntry>(DEVICE_DB_BIN, deviceDBMutex, recs, n, out);
 }
 
 static void devAppendRows(String &out, const uint32_t *recs, size_t n)
@@ -716,7 +609,62 @@ static void devAppendRows(String &out, const uint32_t *recs, size_t n)
     }
 }
 
-static void deviceDBRunView(DeviceDBView &v)
+static void deviceDBRunTimeline(DbView &v)
+{
+    struct TlHit {
+        uint32_t t;
+        uint32_t rec;
+    };
+    std::vector<uint32_t> cells(v.cells, 0);
+    std::vector<TlHit> tl;
+    uint32_t tlLo = UINT32_MAX, tlHi = 0;
+    const double step = (v.cells && v.tlTo > v.tlFrom) ? (v.tlTo - v.tlFrom) / v.cells : 0;
+    auto tlBefore = [](const TlHit &a, const TlHit &b) { return a.t != b.t ? a.t > b.t : a.rec > b.rec; };
+    const bool ok = devScanAll([&](const DeviceDBEntry &e, uint32_t rec) {
+        const bool lOk = dbEpochOk(e.lastEpoch), fOk = dbEpochOk(e.firstEpoch);
+        const bool span = lOk && fOk && e.lastEpoch > e.firstEpoch + 60;
+        uint32_t best = 0;
+        for (int k = 0; k < 2; k++) {
+            const uint32_t t = k == 0 ? (lOk ? e.lastEpoch : 0) : (span ? e.firstEpoch : 0);
+            if (!t) continue;
+            if (t < tlLo) tlLo = t;
+            if (t > tlHi) tlHi = t;
+            if (step > 0 && t >= v.tlFrom && t < v.tlTo) {
+                size_t c = (size_t)((t - v.tlFrom) / step);
+                if (c >= cells.size()) c = cells.size() - 1;
+                cells[c]++;
+            }
+            if (t >= v.listFrom && t < v.listTo && t > best) best = t;
+        }
+        if (!best) return;
+        const TlHit h{best, rec};
+        if (tl.size() < v.listLim) {
+            tl.push_back(h);
+            std::push_heap(tl.begin(), tl.end(), tlBefore);
+        } else if (tlBefore(h, tl.front())) {
+            std::pop_heap(tl.begin(), tl.end(), tlBefore);
+            tl.back() = h;
+            std::push_heap(tl.begin(), tl.end(), tlBefore);
+        }
+    });
+    if (!ok) {
+        v.out = "{\"error\":\"SD read failed\"}";
+        return;
+    }
+    std::sort_heap(tl.begin(), tl.end(), tlBefore);
+    std::vector<uint32_t> recs;
+    for (const TlHit &h : tl) recs.push_back(h.rec);
+    v.out = "{\"lo\":" + String(tlLo == UINT32_MAX ? 0 : tlLo) + ",\"hi\":" + String(tlHi) + ",\"cells\":[";
+    for (size_t i = 0; i < cells.size(); i++) {
+        if (i) v.out += ',';
+        v.out += String(cells[i]);
+    }
+    v.out += "],\"rows\":[";
+    devAppendRows(v.out, recs.data(), recs.size());
+    v.out += "]}";
+}
+
+static void deviceDBRunView(DbView &v)
 {
     s_devPrepCompact = true;
     deviceDBPrepareList();
@@ -724,125 +672,24 @@ static void deviceDBRunView(DeviceDBView &v)
         v.out = "{\"error\":\"SD write failed\"}";
         return;
     }
-    char ql[65];
-    devLower(v.q.c_str(), ql, sizeof(ql));
-    const bool str = devStrSort(v.sort);
-    const bool asc = v.asc;
-    auto before = [str, asc](const DevSortKey &a, const DevSortKey &b) {
-        if (str) {
-            const int c = strcmp(a.str, b.str);
-            if (c) return asc ? c < 0 : c > 0;
-        } else if (a.num != b.num) {
-            return asc ? a.num < b.num : a.num > b.num;
-        }
-        return a.rec > b.rec;
-    };
-    const size_t keep = (size_t)v.off + v.lim;
-    std::vector<DevSortKey> heap;
-    uint32_t total = 0, firstLo = UINT32_MAX, lastHi = 0;
-    std::map<std::string, uint32_t> vendors;
-
-    struct TlHit {
-        uint32_t t;
-        uint32_t rec;
-    };
-    std::vector<uint32_t> cells(v.timeline ? v.cells : 0, 0);
-    std::vector<TlHit> tl;
-    uint32_t tlLo = UINT32_MAX, tlHi = 0;
-    const double step = (v.cells && v.tlTo > v.tlFrom) ? (v.tlTo - v.tlFrom) / v.cells : 0;
-    auto tlBefore = [](const TlHit &a, const TlHit &b) { return a.t != b.t ? a.t > b.t : a.rec > b.rec; };
-
-    const bool ok = devScanAll([&](const DeviceDBEntry &e, uint32_t rec) {
-        const String vend = sanitizeAscii(e.vendor, sizeof(e.vendor));
-        const String nm = sanitizeAscii(e.name, sizeof(e.name));
-        if (v.timeline) {
-            const bool lOk = devEpochOk(e.lastEpoch), fOk = devEpochOk(e.firstEpoch);
-            const bool span = lOk && fOk && e.lastEpoch > e.firstEpoch + 60;
-            uint32_t best = 0;
-            for (int k = 0; k < 2; k++) {
-                const uint32_t t = k == 0 ? (lOk ? e.lastEpoch : 0) : (span ? e.firstEpoch : 0);
-                if (!t) continue;
-                if (t < tlLo) tlLo = t;
-                if (t > tlHi) tlHi = t;
-                if (step > 0 && t >= v.tlFrom && t < v.tlTo) {
-                    size_t c = (size_t)((t - v.tlFrom) / step);
-                    if (c >= cells.size()) c = cells.size() - 1;
-                    cells[c]++;
-                }
-                if (t >= v.listFrom && t < v.listTo && t > best) best = t;
-            }
-            if (best) {
-                const TlHit h{best, rec};
-                if (tl.size() < v.listLim) {
-                    tl.push_back(h);
-                    std::push_heap(tl.begin(), tl.end(), tlBefore);
-                } else if (tlBefore(h, tl.front())) {
-                    std::pop_heap(tl.begin(), tl.end(), tlBefore);
-                    tl.back() = h;
-                    std::push_heap(tl.begin(), tl.end(), tlBefore);
-                }
-            }
-            return;
-        }
-        if (!devMatches(e, v, ql, vend, nm)) return;
-        total++;
-        const uint32_t lo = devEpochOk(e.firstEpoch) ? e.firstEpoch : (devEpochOk(e.lastEpoch) ? e.lastEpoch : 0);
-        const uint32_t hi = devEpochOk(e.lastEpoch) ? e.lastEpoch : lo;
-        if (lo && lo < firstLo) firstLo = lo;
-        if (hi > lastHi) lastHi = hi;
-        if (vend.length()) vendors[std::string(vend.c_str())]++;
-        DevSortKey k;
-        k.rec = rec;
-        devKeyFor(e, v.sort, vend, nm, k);
-        if (heap.size() < keep) {
-            heap.push_back(k);
-            std::push_heap(heap.begin(), heap.end(), before);
-        } else if (before(k, heap.front())) {
-            std::pop_heap(heap.begin(), heap.end(), before);
-            heap.back() = k;
-            std::push_heap(heap.begin(), heap.end(), before);
-        }
-    });
-    if (!ok) {
-        v.out = "{\"error\":\"SD read failed\"}";
-        return;
-    }
-
     if (v.timeline) {
-        std::sort_heap(tl.begin(), tl.end(), tlBefore);
-        std::vector<uint32_t> recs;
-        for (const TlHit &h : tl) recs.push_back(h.rec);
-        v.out = "{\"lo\":" + String(tlLo == UINT32_MAX ? 0 : tlLo) + ",\"hi\":" + String(tlHi) + ",\"cells\":[";
-        for (size_t i = 0; i < cells.size(); i++) {
-            if (i) v.out += ',';
-            v.out += String(cells[i]);
-        }
-        v.out += "],\"rows\":[";
-        devAppendRows(v.out, recs.data(), recs.size());
-        v.out += "]}";
+        deviceDBRunTimeline(v);
         return;
     }
-
-    std::sort_heap(heap.begin(), heap.end(), before);
-    std::vector<uint32_t> recs;
-    for (size_t i = v.off; i < heap.size(); i++) recs.push_back(heap[i].rec);
-    std::vector<std::pair<std::string, uint32_t>> top(vendors.begin(), vendors.end());
-    std::sort(top.begin(), top.end(), [](const std::pair<std::string, uint32_t> &a, const std::pair<std::string, uint32_t> &b) {
-        return a.second > b.second;
-    });
-    if (top.size() > 3) top.resize(3);
-    v.out = "{\"total\":" + String(total) + ",\"first\":" + String(firstLo == UINT32_MAX ? 0 : firstLo) +
-            ",\"last\":" + String(lastHi) + ",\"top\":[";
-    for (size_t i = 0; i < top.size(); i++) {
-        if (i) v.out += ',';
-        v.out += "[\"" + String(top[i].first.c_str()) + "\"," + String(top[i].second) + "]";
-    }
-    v.out += "],\"rows\":[";
-    devAppendRows(v.out, recs.data(), recs.size());
-    v.out += "]}";
+    dbPageView<DeviceDBEntry>(
+        v, v.sort == 0 || v.sort == 2 || v.sort == 3,
+        [](const std::function<void(const DeviceDBEntry &, uint32_t)> &fn) { return devScanAll(fn); },
+        devReadRecs,
+        deviceDBFormatRow,
+        [](const DeviceDBEntry &e, uint8_t sort, const String &vend, const String &nm, DbSortKey &k) {
+            if (!dbKeyCommon(e, sort, vend, nm, k)) k.num = e.isRandomized;
+        },
+        [](const DeviceDBEntry &e, const char *ql, const String &vend, const String &nm) {
+            return dbMatchCommon(e, ql, vend, nm);
+        });
 }
 
-bool deviceDBViewStart(std::shared_ptr<DeviceDBView> v)
+bool deviceDBViewStart(std::shared_ptr<DbView> v)
 {
     return sdWorkerRun([v]() {
         deviceDBRunView(*v);

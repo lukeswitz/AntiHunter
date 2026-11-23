@@ -5748,6 +5748,41 @@ R"HTML(
 
       let savedDevicesLoaded = false;
       let savedDevicesOpen = false;
+      let savedDevicesShown = 0;
+      function savedDevicesMore() {
+        const list = document.getElementById('savedDevicesList');
+        if (!list) return;
+        const more = document.getElementById('savedDevicesMoreBtn');
+        if (more) more.remove();
+        if (!savedDevicesShown) list.innerHTML = '<div class="res-note">Loading...</div>';
+        fetch('/api/probedb/view?off=' + savedDevicesShown + '&lim=50&sort=9&asc=0').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
+          if (d.error) throw new Error(d.error);
+          savedDevicesLoaded = true;
+          if (!savedDevicesShown) list.innerHTML = '';
+          if (!d.total) {
+            list.innerHTML = '<div class="res-note">No saved devices</div>';
+            return;
+          }
+          let h = '';
+          for (const dv of d.rows) {
+            let tags = '';
+            if (dv.ssids && dv.ssids.length > 0) {
+              tags += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
+              for (const s of dv.ssids) tags += '<span class="res-tag" data-ssid="' + esc(s) + '">' + esc(s) + '</span>';
+              tags += '</div>';
+            }
+            h += resItem({ mac: dv.mac, name: dv.name, rssi: dv.rssi, after: tags,
+              chips: (dv.vendor && !isRandomMac(dv.mac) ? resChip(esc(dv.vendor)) : '') + resChip('seen ' + dv.seen + 'x') + resChip(dv.sessions + ' session' + (String(dv.sessions) === '1' ? '' : 's')) });
+          }
+          savedDevicesShown += d.rows.length;
+          if (savedDevicesShown < d.total) h += '<button type="button" class="btn" id="savedDevicesMoreBtn" onclick="savedDevicesMore()">Show more (' + savedDevicesShown + ' of ' + d.total + ')</button>';
+          list.insertAdjacentHTML('beforeend', h);
+          if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
+        }).catch((e) => {
+          console.error('probedb load failed', e);
+          list.innerHTML = '<div class="res-note danger">Failed to load (' + (e && e.message ? e.message : 'error') + ')</div>';
+        });
+      }
       function toggleSavedDevices() {
         const list = document.getElementById('savedDevicesList');
         const arrow = document.getElementById('savedDevicesArrow');
@@ -5756,31 +5791,8 @@ R"HTML(
         list.style.display = savedDevicesOpen ? 'block' : 'none';
         arrow.style.transform = savedDevicesOpen ? 'rotate(90deg)' : '';
         if (savedDevicesOpen && !savedDevicesLoaded) {
-          list.innerHTML = '<div class="res-note">Loading...</div>';
-          fetch('/api/probedb').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(devices => {
-            savedDevicesLoaded = true;
-            if (!devices.length) {
-              list.innerHTML = '<div class="res-note">No saved devices</div>';
-              return;
-            }
-            let h = '';
-            devices.sort((a, b) => b.last - a.last);
-            for (const d of devices) {
-              let tags = '';
-              if (d.ssids && d.ssids.length > 0) {
-                tags += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
-                for (const s of d.ssids) tags += '<span class="res-tag" data-ssid="' + esc(s) + '">' + esc(s) + '</span>';
-                tags += '</div>';
-              }
-              h += resItem({ mac: d.mac, name: d.name, rssi: d.rssi, after: tags,
-                chips: (d.vendor && !isRandomMac(d.mac) ? resChip(esc(d.vendor)) : '') + resChip('seen ' + d.seen + 'x') + resChip(d.sessions + ' session' + (String(d.sessions) === '1' ? '' : 's')) });
-            }
-            list.innerHTML = h;
-            if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
-          }).catch((e) => {
-            console.error('probedb load failed', e);
-            list.innerHTML = '<div class="res-note danger">Failed to load (' + (e && e.message ? e.message : 'error') + ')</div>';
-          });
+          savedDevicesShown = 0;
+          savedDevicesMore();
         }
       }
 
@@ -7271,9 +7283,9 @@ R"HTML(
       var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false,dataSrv=null,dataSrvTok=0;
       function dataSrvLoad(cfg){
         var tok=++dataSrvTok,area=document.getElementById('dataArea'),q=document.getElementById('dataSearch').value.trim();
-        var u='/api/devicedb/view?off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&sort='+(dataSortCol<0?9:dataSortCol)+'&asc='+(dataSortAsc?1:0)
+        var u=cfg.view+'?off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&sort='+(dataSortCol<0?9:dataSortCol)+'&asc='+(dataSortAsc?1:0)
           +(q?'&q='+encodeURIComponent(q):'')+(dataRange?'&from='+Math.max(0,Math.floor(dataRange[0]))+'&to='+Math.floor(dataRange[1]):'');
-        var slow=setTimeout(function(){if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">Reading the device list from the SD card.</div>';},1500);
+        var slow=setTimeout(function(){if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">Reading the list from the SD card.</div>';},1500);
         return fetch(u).then(function(r){if(!r.ok) throw new Error(r.status);return r.json();}).then(function(d){
           clearTimeout(slow);
           if(tok!==dataSrvTok||!dataSrv) return;
@@ -7519,10 +7531,10 @@ R"HTML(
         }).finally(function(){if(gen===dataGen) dataBusy=false;});
       }
       var DATA_SETS={
-        devicedb:{url:'/api/devicedb',clear:'/api/devicedb/clear',fmt:'json',top:['vendor','Top vendors'],
+        devicedb:{url:'/api/devicedb',view:'/api/devicedb/view',clear:'/api/devicedb/clear',fmt:'json',top:['vendor','Top vendors'],
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','rand']},
-        probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',top:['vendor','Top vendors'],
+        probedb:{url:'/api/probedb',view:'/api/probedb/view',clear:'/api/probedb/clear',fmt:'json',top:['vendor','Top vendors'],
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',top:['v','Top vendors'],
@@ -7659,9 +7671,8 @@ R"HTML(
         exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'||cfg.fmt==='baseline'?'.json':'.jsonl');
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
         ['dataSearch','dataRangeSel','dataPriv'].forEach(function(id){document.getElementById(id).style.display=cfg.fmt==='baseline'?'none':'';});
-        dataGen++;dataCursor=0;dataBusy=false;dataStreaming=false;dataSrv=null;dataSrvTok++;
-        if(ds==='devicedb'){dataSrv={};dataRows=[];dataFiltered=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataSrvLoad(cfg);return;}
-        if(ds==='probedb'){dataStreamJson(cfg,dataGen);return;}
+        dataGen++;dataCursor=0;dataBusy=false;dataSrv=null;dataSrvTok++;
+        if(cfg.view){dataSrv={};dataRows=[];dataFiltered=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataSrvLoad(cfg);return;}
         if(dataChunked(cfg)){
           var gen=dataGen;
           dataFetchChunk(cfg,null).then(function(c){
@@ -7761,7 +7772,7 @@ R"HTML(
         for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
         html+='</tbody></table>';area.innerHTML=html;privacyApply(area);
         var pager=document.getElementById('dataPager');
-        if(total>DATA_PAGE_SIZE||dataCursor>0||dataStreaming){
+        if(total>DATA_PAGE_SIZE||dataCursor>0){
           pager.style.display='flex';
           document.getElementById('dataPageInfo').textContent='Showing '+(shown+1)+'-'+(shown+end-start)+' of '+total+(dataCursor>0?'+':'')+' rows'+(dataStreaming?' (still loading)':'');
           document.getElementById('dataPrevBtn').disabled=dataPage===0;

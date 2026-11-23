@@ -344,6 +344,40 @@ void initializeNetwork()
 
 #include "web_index_html_gz.h"
 
+static void webDbView(AsyncWebServerRequest *req, bool (*start)(std::shared_ptr<DbView>), long maxSort) {
+  auto v = std::make_shared<DbView>();
+  auto num = [req](const char *k, double d) { return req->hasParam(k) ? req->getParam(k)->value().toDouble() : d; };
+  v->off = (uint32_t)num("off", 0);
+  v->lim = (uint32_t)constrain((long)num("lim", 50), 1L, 200L);
+  v->sort = (uint8_t)constrain((long)num("sort", 9), 0L, maxSort);
+  v->asc = num("asc", 0) != 0;
+  if (req->hasParam("q")) v->q = req->getParam("q")->value().substring(0, 64);
+  v->rangeFrom = (uint32_t)num("from", 0);
+  v->rangeTo = (uint32_t)num("to", 0);
+  v->timeline = req->hasParam("tl");
+  v->tlFrom = num("tlFrom", 0);
+  v->tlTo = num("tlTo", 0);
+  v->listFrom = num("lf", v->tlFrom);
+  v->listTo = num("lt", v->tlTo);
+  v->cells = (uint16_t)constrain((long)num("cells", 0), 0L, 400L);
+  v->listLim = (uint16_t)constrain((long)num("llim", 30), 1L, 200L);
+  if (!start(v)) {
+    req->send(503, "text/plain", "List busy");
+    return;
+  }
+  auto pos = std::make_shared<size_t>(0);
+  AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
+      [v, pos](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
+        if (!v->done.load()) return RESPONSE_TRY_AGAIN;
+        const size_t left = v->out.length() - *pos;
+        const size_t n = left < maxLen ? left : maxLen;
+        memcpy(buffer, v->out.c_str() + *pos, n);
+        *pos += n;
+        return n;
+      });
+  req->send(res);
+}
+
 static void webSdJob(AsyncWebServerRequest *req, std::function<void(AsyncWebServerRequestPtr)> job) {
     AsyncWebServerRequestPtr p = req->pause();
     if (!sdWorkerRun([p, job]() { job(p); })) job(p);
@@ -2346,6 +2380,8 @@ void registerRemainingRoutes() {
 
   static_assert(DB_STREAM_WAIT == RESPONSE_TRY_AGAIN, "DB stream wait must be the web server's try-again value");
   // Probe database endpoints
+  server->on("/api/probedb/view", HTTP_GET, [](AsyncWebServerRequest *req) { webDbView(req, probeDBViewStart, 11); });
+
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto st = std::make_shared<ProbeDBStream>();
       AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
@@ -2362,39 +2398,7 @@ void registerRemainingRoutes() {
       });
   });
 
-  server->on("/api/devicedb/view", HTTP_GET, [](AsyncWebServerRequest *req) {
-      auto v = std::make_shared<DeviceDBView>();
-      auto num = [req](const char *k, double d) { return req->hasParam(k) ? req->getParam(k)->value().toDouble() : d; };
-      v->off = (uint32_t)num("off", 0);
-      v->lim = (uint32_t)constrain((long)num("lim", 50), 1L, 200L);
-      v->sort = (uint8_t)constrain((long)num("sort", 9), 0L, 10L);
-      v->asc = num("asc", 0) != 0;
-      if (req->hasParam("q")) v->q = req->getParam("q")->value().substring(0, 64);
-      v->rangeFrom = (uint32_t)num("from", 0);
-      v->rangeTo = (uint32_t)num("to", 0);
-      v->timeline = req->hasParam("tl");
-      v->tlFrom = num("tlFrom", 0);
-      v->tlTo = num("tlTo", 0);
-      v->listFrom = num("lf", v->tlFrom);
-      v->listTo = num("lt", v->tlTo);
-      v->cells = (uint16_t)constrain((long)num("cells", 0), 0L, 400L);
-      v->listLim = (uint16_t)constrain((long)num("llim", 30), 1L, 200L);
-      if (!deviceDBViewStart(v)) {
-          req->send(503, "text/plain", "Device list busy");
-          return;
-      }
-      auto pos = std::make_shared<size_t>(0);
-      AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-          [v, pos](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
-              if (!v->done.load()) return RESPONSE_TRY_AGAIN;
-              const size_t left = v->out.length() - *pos;
-              const size_t n = left < maxLen ? left : maxLen;
-              memcpy(buffer, v->out.c_str() + *pos, n);
-              *pos += n;
-              return n;
-          });
-      req->send(res);
-  });
+  server->on("/api/devicedb/view", HTTP_GET, [](AsyncWebServerRequest *req) { webDbView(req, deviceDBViewStart, 10); });
 
   server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto st = std::make_shared<DeviceDBStream>();
