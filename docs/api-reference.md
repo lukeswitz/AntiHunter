@@ -281,7 +281,7 @@ Each incident record has `ts` (uptime in milliseconds), `epoch` (clock seconds, 
 |---|---|---|
 | `/rf-config` | GET | JSON: `preset`, `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold`, `rfEnv`. (C5) Also `bandMode` and `dualBand` |
 | `/rf-config` | POST | Sets one of the groups below. `409` while a scan runs, `400` if nothing matched. Returns the new settings as JSON |
-| `/wifi-config` | GET | JSON: `ssid`, `auth`, `hidden`, `webPassSet`, `webAuth`. Passwords are never returned |
+| `/wifi-config` | GET | JSON: `ssid`, `auth`, `hidden`, `reach`, `webPassSet`, `webAuth`. Passwords are never returned |
 | `/wifi-config` | POST | Sets the access point (parameters below). The node always restarts 3 seconds later |
 | `/web-pass` | POST | `pass` (8-63 characters, no `:`) and `current` (the web password, or the access point password until a web password exists). `400` invalid, `403` wrong `current`. 5 wrong tries lock `/web-pass` and `/web-auth` for 10 minutes |
 | `/web-auth` | POST | `enabled` (`1` login required, `0` login off) and `current`. Stored in flash, not in the SD config. `400` missing, `403` wrong `current` |
@@ -312,6 +312,7 @@ A custom setup limits `wifiChannelTime` to 50-300 ms, `wifiScanInterval` and `bl
 | `pass` | Access point password. Empty keeps the current one | 8-63 characters |
 | `auth` | `0` WPA2 and WPA3, `1` WPA2 only | 0-1 |
 | `hidden` | `1` hides the network name. Clients must type the name and send it in probe requests | 0-1 |
+| `reach` | `1` keeps the access point joinable during scans: scans return to its channel between channels, and BLE scans listen 30 ms per interval. `0` gives scans the full radio | 0-1 |
 
 </details>
 

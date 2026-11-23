@@ -1219,7 +1219,11 @@ static void hopTimerCb(void *)
         return;
     }
 
-    if (apHasClients()) {
+    const bool apHasSta = apHasClients();
+    const uint8_t triCh = triangulationActive.load() ? triTargetChannel.load() : 0;
+    const bool triPin = !apHasSta && triCh >= 1 && triCh <= 14;
+
+    if (apHasSta || (apReachDuringScan && (WiFi.getMode() & WIFI_MODE_AP) && !triPin)) {
         if (hopScanBusy()) return;
         if (baselineDetectionEnabled) return;
         idx = (idx + 1) % g_activeChannels.size();
@@ -1235,7 +1239,8 @@ static void hopTimerCb(void *)
         sc.scan_type = WIFI_SCAN_TYPE_ACTIVE;
         sc.scan_time.active.min = 40;
         sc.scan_time.active.max = rfConfig.wifiChannelTime;
-        sc.home_chan_dwell_time = 30;
+        sc.home_chan_dwell_time = apReachDuringScan ? AP_HOME_DWELL_MS : 30;
+        sc.coex_background_scan = apReachDuringScan;
         esp_err_t rc = esp_wifi_scan_start(&sc, false);
         static uint32_t lastApHopLog = 0;
         if (millis() - lastApHopLog >= 2000) {
@@ -1254,12 +1259,9 @@ static void hopTimerCb(void *)
         return;
     }
 
-    if (triangulationActive.load()) {
-        uint8_t tch = triTargetChannel.load();
-        if (tch >= 1 && tch <= 14) {
-            esp_wifi_set_channel(tch, WIFI_SECOND_CHAN_NONE);
-            return;
-        }
+    if (triPin) {
+        esp_wifi_set_channel(triCh, WIFI_SECOND_CHAN_NONE);
+        return;
     }
 
     idx = (idx + 1) % g_activeChannels.size();
@@ -3446,7 +3448,8 @@ bool radioStartBLEChecked()
         return true;
     }
     pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
-    pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
+    pBLEScan->setWindow(apReachDuringScan && (WiFi.getMode() & WIFI_MODE_AP) ? AP_BLE_SCAN_WINDOW_MS
+                                                                              : (rfConfig.bleScanInterval / 10) - 10);
     if (!pBLEScan->start(0, false)) {
         Serial.println("[RADIO] BLE scan start returned false");
         return false;
@@ -3542,6 +3545,16 @@ bool safeMacQueueCreate(size_t queueSize) {
     return false;
 }
 
+static void radioApplyHomeDwell() {
+    if (apReachDuringScan) {
+        wifi_scan_default_params_t p = {};
+        p.home_chan_dwell_time = AP_HOME_DWELL_MS;
+        esp_wifi_set_scan_parameters(&p);
+    } else {
+        esp_wifi_set_scan_parameters(nullptr);
+    }
+}
+
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
 
@@ -3587,6 +3600,7 @@ void radioStartSTA() {
     esp_wifi_set_country(&ctry);
 #endif
     applyBandMode();
+    radioApplyHomeDwell();
 
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
@@ -3653,6 +3667,7 @@ void radioStartListScan() {
     esp_wifi_set_country(&ctry);
 #endif
     applyBandMode();
+    radioApplyHomeDwell();
 
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");
 }
