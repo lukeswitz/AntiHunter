@@ -260,6 +260,7 @@ void setup() {
 #endif
     delay(1000);
     Serial.begin(115200);
+    usbRecoverRx();
     delay(300);
 #if AH_SD_PROBE
     Serial.printf("[SDPROBE] pins at first instruction: CS=%d SCK=%d MOSI=%d MISO=%d reset=%d\n", sdLevels[0], sdLevels[1],

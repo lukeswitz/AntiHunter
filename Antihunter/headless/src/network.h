@@ -80,6 +80,7 @@ String fleetCmdsJson();
 String meshFleetJson();
 int fleetSend(String node, String cmd, String &msg);
 void processUSBToMesh();
+void usbRecoverRx();
 void serviceVibrationAutoScan();
 void scheduleTick();
 bool schedulerYieldRadio(const char *who);

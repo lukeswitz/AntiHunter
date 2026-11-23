@@ -225,6 +225,7 @@ static void randomizeRadioIdentity() {
 void setup() {
     delay(1000);
     Serial.begin(115200);
+    usbRecoverRx();
     delay(300);
     // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)/gpio
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);

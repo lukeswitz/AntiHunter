@@ -94,6 +94,7 @@ String fleetRepliesJson();
 String meshFleetJson();
 void meshFleetClear();
 void processUSBToMesh();
+void usbRecoverRx();
 void serviceVibrationAutoScan();
 void scheduleTick();
 int schedAddBlock(const String &at, long period, const String &path, const String &body, String &msg);
