@@ -34,6 +34,9 @@ extern "C"
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
 #include "lwip/err.h"
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+#include "hal/usb_serial_jtag_ll.h"
+#endif
 #include "lwip/sockets.h"
 }
 
@@ -4116,16 +4119,36 @@ void processMeshMessage(const String &message, bool fromRadio) {
     }
 }
 
+static uint8_t s_usbEarly[64];
+static size_t s_usbEarlyLen = 0;
+static size_t s_usbEarlyPos = 0;
+
+void usbRecoverRx() {
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+    usb_serial_jtag_ll_disable_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_OUT_RECV_PKT);
+    if (!Serial.available()) s_usbEarlyLen = usb_serial_jtag_ll_read_rxfifo(s_usbEarly, sizeof(s_usbEarly));
+    usb_serial_jtag_ll_ena_intr_mask(USB_SERIAL_JTAG_INTR_SERIAL_OUT_RECV_PKT);
+#endif
+}
+
 void processUSBToMesh() {
     static std::atomic_flag usbDraining = ATOMIC_FLAG_INIT;
     if (usbDraining.test_and_set(std::memory_order_acquire)) return;
     static String usbBuffer = "";
 
-    while (Serial.available()) {
-        char c = Serial.read();
+    for (;;) {
+        const bool early = s_usbEarlyPos < s_usbEarlyLen;
+        if (!early && !Serial.available()) break;
+        char c = early ? (char)s_usbEarly[s_usbEarlyPos++] : (char)Serial.read();
         // A MeshCore app frame (0x3C) at line start: pass USB through to the radio
         if (c == 0x3C && usbBuffer.length() == 0 && g_meshcoreTransport) {
-            meshcoreBridge((uint8_t)c);
+            if (early) {
+                meshcoreBridge(s_usbEarly + s_usbEarlyPos - 1, s_usbEarlyLen - s_usbEarlyPos + 1);
+                s_usbEarlyPos = s_usbEarlyLen;
+            } else {
+                const uint8_t first = 0x3C;
+                meshcoreBridge(&first, 1);
+            }
             Serial.println("[MC] Radio bridge closed");
             continue;
         }

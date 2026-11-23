@@ -330,9 +330,9 @@ void meshcoreFeedByte(uint8_t c) {
     if (mcAssemble(c) && mcWanted(s_rx[0])) mcPendPush(s_rx, s_rxLen);
 }
 
-void meshcoreBridge(uint8_t first) {
+void meshcoreBridge(const uint8_t *pre, size_t n0) {
     if (!serial1Mutex || xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return;
-    Serial1.write(&first, 1);
+    Serial1.write(pre, n0);
     uint8_t buf[64];
     uint32_t last = millis();
     while (millis() - last < MC_BRIDGE_IDLE_MS) {
