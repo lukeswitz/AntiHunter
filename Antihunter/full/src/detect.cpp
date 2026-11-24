@@ -3759,14 +3759,16 @@ static void sentinelAlwaysOnTask(void *pv) {
             for (uint8_t ch : chans) {
                 if (!g_sentinelUserEnabled.load() || scanning.load() || !g_sentinelScanMode.load()) break;
                 if (apJoinHoldEnter("sentinel hop")) ch = apChan;
-                if (WiFi.softAPgetStationNum() > 0 && ch != apChan) {
+                const bool keepAp = WiFi.softAPgetStationNum() > 0 || (apReachDuringScan && (WiFi.getMode() & WIFI_MODE_AP));
+                if (keepAp && ch != apChan) {
                     wifi_scan_config_t sc = {};
                     sc.channel = ch;
                     sc.show_hidden = true;
                     sc.scan_type = WIFI_SCAN_TYPE_ACTIVE;
                     sc.scan_time.active.min = 40;
                     sc.scan_time.active.max = 120;
-                    sc.home_chan_dwell_time = 30;
+                    sc.home_chan_dwell_time = apReachDuringScan ? AP_HOME_DWELL_MS : 30;
+                    sc.coex_background_scan = apReachDuringScan;
                     esp_wifi_scan_start(&sc, false);
                 } else {
                     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);

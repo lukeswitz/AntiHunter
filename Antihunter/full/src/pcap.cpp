@@ -463,7 +463,7 @@ static void pcapBuildHopList() {
 
 static void pcapSetChannel(uint8_t ch) {
     if (apJoinHoldEnter("pcap hop")) ch = (uint8_t)AP_CHANNEL;
-    if (WiFi.softAPgetStationNum() > 0) {
+    if (WiFi.softAPgetStationNum() > 0 || (apReachDuringScan && (WiFi.getMode() & WIFI_MODE_AP))) {
         if (ch == (uint8_t)AP_CHANNEL) {
             pcapChanVisit(ch);
             return;
@@ -473,11 +473,12 @@ static void pcapSetChannel(uint8_t ch) {
         sc.show_hidden = true;
         sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
         sc.scan_time.passive = g_dwellMs;
-        sc.home_chan_dwell_time = PCAP_AP_HOME_DWELL_MS;
+        sc.home_chan_dwell_time = apReachDuringScan ? AP_HOME_DWELL_MS : PCAP_AP_HOME_DWELL_MS;
+        sc.coex_background_scan = apReachDuringScan;
         const esp_err_t rc = esp_wifi_scan_start(&sc, false);
         if (rc == ESP_OK) {
             pcapChanVisit(ch);
-            g_hopScanEndsMs = millis() + g_dwellMs + PCAP_AP_HOME_DWELL_MS;
+            g_hopScanEndsMs = millis() + g_dwellMs + sc.home_chan_dwell_time;
             return;
         }
         if (g_chanFails.fetch_add(1) == 0) {
