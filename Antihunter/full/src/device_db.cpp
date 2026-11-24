@@ -44,6 +44,7 @@ static uint32_t s_devRecords = 0;
 static uint32_t s_lastSweepSecs = 0;
 static bool s_devRestoreOk = true;
 static bool s_devBakPending = false;
+static std::atomic<uint32_t> s_devFileGen{0};
 
 static uint64_t deviceDBKey(const uint8_t mac[6])
 {
@@ -83,6 +84,7 @@ static bool devWriteWhole(const uint8_t *data, size_t len)
     if (s_devBakPending) {
         if (!SafeSD::rename(DEVICE_DB_BIN_BAK, DEVICE_DB_BIN)) return false;
         s_devBakPending = false;
+        s_devFileGen++;
     }
     File f = SafeSD::open(DEVICE_DB_BIN, FILE_APPEND);
     const size_t pos = f ? f.size() : 0;
@@ -278,6 +280,7 @@ static void deviceDBCompact()
     if (s_devStreams.load() > 0) return;
     devBufFlush();
     const int32_t kept = sdCompactNewestPerKey(DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, REC, deviceDBRecKey, "DEVDB");
+    s_devFileGen++;
     if (kept < 0) return;
     s_devRecords = s_devCleanRecords = (uint32_t)kept;
     s_devNewKeys = 0;
@@ -609,26 +612,65 @@ static void devAppendRows(String &out, const uint32_t *recs, size_t n)
     }
 }
 
-static void deviceDBRunTimeline(DbView &v)
+// Per device: record number, last-seen event, and first-seen event when it is over 60 s before last.
+struct DevTlEntry {
+    uint32_t rec;
+    uint32_t last;
+    uint32_t first;
+};
+static DevTlEntry *s_tlDevs = nullptr;
+static uint32_t s_tlCount = 0, s_tlLo = 0, s_tlHi = 0, s_tlGen = UINT32_MAX;
+
+static bool deviceDBTimelineBuild(uint32_t gen)
 {
+    cacheHeapRelease(s_tlDevs);
+    s_tlDevs = nullptr;
+    s_tlCount = 0;
+    s_tlGen = UINT32_MAX;
+    const size_t maxRecs = (SafeSD::exists(DEVICE_DB_BIN) ? SafeSD::size(DEVICE_DB_BIN) / REC : 0) + 256;
+    s_tlDevs = static_cast<DevTlEntry *>(cacheHeapAlloc(maxRecs * sizeof(DevTlEntry)));
+    if (!s_tlDevs) return false;
+    uint32_t lo = UINT32_MAX, hi = 0, n = 0;
+    const bool ok = devScanAll([&](const DeviceDBEntry &e, uint32_t rec) {
+        const bool lOk = dbEpochOk(e.lastEpoch), fOk = dbEpochOk(e.firstEpoch);
+        const bool span = lOk && fOk && e.lastEpoch > e.firstEpoch + 60;
+        if (!lOk || n >= maxRecs) return;
+        s_tlDevs[n++] = {rec, e.lastEpoch, span ? e.firstEpoch : 0};
+        const uint32_t a = span ? e.firstEpoch : e.lastEpoch;
+        if (a < lo) lo = a;
+        if (e.lastEpoch > hi) hi = e.lastEpoch;
+    });
+    if (!ok) {
+        cacheHeapRelease(s_tlDevs);
+        s_tlDevs = nullptr;
+        return false;
+    }
+    s_tlCount = n;
+    s_tlLo = lo == UINT32_MAX ? 0 : lo;
+    s_tlHi = hi;
+    s_tlGen = gen;
+    return true;
+}
+
+static void deviceDBRunTimeline(DbView &v, uint32_t gen)
+{
+    if ((v.fresh || s_tlGen != gen) && !deviceDBTimelineBuild(gen)) {
+        v.out = "{\"error\":\"Not enough memory or SD read failed\"}";
+        return;
+    }
     struct TlHit {
         uint32_t t;
         uint32_t rec;
     };
     std::vector<uint32_t> cells(v.cells, 0);
     std::vector<TlHit> tl;
-    uint32_t tlLo = UINT32_MAX, tlHi = 0;
     const double step = (v.cells && v.tlTo > v.tlFrom) ? (v.tlTo - v.tlFrom) / v.cells : 0;
     auto tlBefore = [](const TlHit &a, const TlHit &b) { return a.t != b.t ? a.t > b.t : a.rec > b.rec; };
-    const bool ok = devScanAll([&](const DeviceDBEntry &e, uint32_t rec) {
-        const bool lOk = dbEpochOk(e.lastEpoch), fOk = dbEpochOk(e.firstEpoch);
-        const bool span = lOk && fOk && e.lastEpoch > e.firstEpoch + 60;
+    for (uint32_t i = 0; i < s_tlCount; i++) {
+        const DevTlEntry &d = s_tlDevs[i];
         uint32_t best = 0;
-        for (int k = 0; k < 2; k++) {
-            const uint32_t t = k == 0 ? (lOk ? e.lastEpoch : 0) : (span ? e.firstEpoch : 0);
+        for (const uint32_t t : {d.last, d.first}) {
             if (!t) continue;
-            if (t < tlLo) tlLo = t;
-            if (t > tlHi) tlHi = t;
             if (step > 0 && t >= v.tlFrom && t < v.tlTo) {
                 size_t c = (size_t)((t - v.tlFrom) / step);
                 if (c >= cells.size()) c = cells.size() - 1;
@@ -636,8 +678,8 @@ static void deviceDBRunTimeline(DbView &v)
             }
             if (t >= v.listFrom && t < v.listTo && t > best) best = t;
         }
-        if (!best) return;
-        const TlHit h{best, rec};
+        if (!best) continue;
+        const TlHit h{best, d.rec};
         if (tl.size() < v.listLim) {
             tl.push_back(h);
             std::push_heap(tl.begin(), tl.end(), tlBefore);
@@ -646,15 +688,11 @@ static void deviceDBRunTimeline(DbView &v)
             tl.back() = h;
             std::push_heap(tl.begin(), tl.end(), tlBefore);
         }
-    });
-    if (!ok) {
-        v.out = "{\"error\":\"SD read failed\"}";
-        return;
     }
     std::sort_heap(tl.begin(), tl.end(), tlBefore);
     std::vector<uint32_t> recs;
     for (const TlHit &h : tl) recs.push_back(h.rec);
-    v.out = "{\"lo\":" + String(tlLo == UINT32_MAX ? 0 : tlLo) + ",\"hi\":" + String(tlHi) + ",\"cells\":[";
+    v.out = "{\"lo\":" + String(s_tlLo) + ",\"hi\":" + String(s_tlHi) + ",\"cells\":[";
     for (size_t i = 0; i < cells.size(); i++) {
         if (i) v.out += ',';
         v.out += String(cells[i]);
@@ -664,27 +702,34 @@ static void deviceDBRunTimeline(DbView &v)
     v.out += "]}";
 }
 
+static DbIndex s_devIndex;
+
 static void deviceDBRunView(DbView &v)
 {
-    s_devPrepCompact = true;
-    deviceDBPrepareList();
-    if (!s_devPrepOk.load()) {
-        v.out = "{\"error\":\"SD write failed\"}";
-        return;
+    const bool rebuild = v.timeline ? (v.fresh || s_tlGen == UINT32_MAX) : dbIndexStale(s_devIndex, v);
+    if (rebuild) {
+        s_devPrepCompact = true;
+        deviceDBPrepareList();
+        if (!s_devPrepOk.load()) {
+            v.out = "{\"error\":\"SD write failed\"}";
+            return;
+        }
     }
+    const uint32_t gen = s_devFileGen.load();
     if (v.timeline) {
-        deviceDBRunTimeline(v);
+        deviceDBRunTimeline(v, gen);
         return;
     }
-    dbPageView<DeviceDBEntry>(
-        v, v.sort == 0 || v.sort == 2 || v.sort == 3,
+    const size_t maxRecs = (SafeSD::exists(DEVICE_DB_BIN) ? SafeSD::size(DEVICE_DB_BIN) / REC : 0) + 256;
+    dbIndexedView<DeviceDBEntry>(
+        s_devIndex, v, gen, maxRecs, v.sort == 0 || v.sort == 2 || v.sort == 3,
         [](const std::function<void(const DeviceDBEntry &, uint32_t)> &fn) { return devScanAll(fn); },
         devReadRecs,
         deviceDBFormatRow,
-        [](const DeviceDBEntry &e, uint8_t sort, const String &vend, const String &nm, DbSortKey &k) {
+        [](const DeviceDBEntry &e, uint8_t sort, const char *vend, const char *nm, DbSortKey &k) {
             if (!dbKeyCommon(e, sort, vend, nm, k)) k.num = e.isRandomized;
         },
-        [](const DeviceDBEntry &e, const char *ql, const String &vend, const String &nm) {
+        [](const DeviceDBEntry &e, const char *ql, const char *vend, const char *nm) {
             return dbMatchCommon(e, ql, vend, nm);
         });
 }
@@ -704,6 +749,7 @@ bool clearDeviceDB()
     s_devSeen.clear();
     s_devDirty.clear();
     s_devBufLen = s_devRecords = s_devCleanRecords = s_devNewKeys = 0;
+    s_devFileGen++;
     bool ok = SafeSD::isAvailable();
     for (const char *p : {DEVICE_DB_BIN, DEVICE_DB_BIN_TMP, DEVICE_DB_BIN_BAK, DEVICE_DB_JSONL,
                           DEVICE_DB_JSONL_BAK, DEVICE_DB_ARCHIVE})

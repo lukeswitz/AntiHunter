@@ -10,6 +10,7 @@
 #include "pcap.h"
 #include "campaign.h"
 #include "ble_class.h"
+#include "log_view.h"
 #include <AsyncTCP.h>
 #include <WebAuthentication.h>
 #include <RTClib.h>
@@ -354,6 +355,7 @@ static void webDbView(AsyncWebServerRequest *req, bool (*start)(std::shared_ptr<
   if (req->hasParam("q")) v->q = req->getParam("q")->value().substring(0, 64);
   v->rangeFrom = (uint32_t)num("from", 0);
   v->rangeTo = (uint32_t)num("to", 0);
+  v->fresh = req->hasParam("fresh");
   v->timeline = req->hasParam("tl");
   v->tlFrom = num("tlFrom", 0);
   v->tlTo = num("tlTo", 0);
@@ -362,6 +364,48 @@ static void webDbView(AsyncWebServerRequest *req, bool (*start)(std::shared_ptr<
   v->cells = (uint16_t)constrain((long)num("cells", 0), 0L, 400L);
   v->listLim = (uint16_t)constrain((long)num("llim", 30), 1L, 200L);
   if (!start(v)) {
+    req->send(503, "text/plain", "List busy");
+    return;
+  }
+  auto pos = std::make_shared<size_t>(0);
+  AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
+      [v, pos](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
+        if (!v->done.load()) return RESPONSE_TRY_AGAIN;
+        const size_t left = v->out.length() - *pos;
+        const size_t n = left < maxLen ? left : maxLen;
+        memcpy(buffer, v->out.c_str() + *pos, n);
+        *pos += n;
+        return n;
+      });
+  req->send(res);
+}
+
+static void webLogView(AsyncWebServerRequest *req) {
+  auto v = std::make_shared<LogView>();
+  v->path = req->hasParam("log") ? logViewPath(req->getParam("log")->value()) : nullptr;
+  if (!v->path) {
+    req->send(400, "text/plain", "Unknown log");
+    return;
+  }
+  auto str = [req](const char *k) { return req->hasParam(k) ? req->getParam(k)->value() : String(); };
+  v->off = (uint32_t)str("off").toInt();
+  v->lim = (uint32_t)constrain(req->hasParam("lim") ? str("lim").toInt() : 50L, 1L, 200L);
+  v->sortKey = str("sortk").substring(0, 24);
+  v->asc = str("asc").toInt() != 0;
+  v->q = str("q").substring(0, 64);
+  v->topKey = str("top").substring(0, 24);
+  v->campTag = str("ctag").substring(0, 40);
+  v->fresh = req->hasParam("fresh");
+  v->rangeFrom = (uint32_t)str("from").toInt();
+  v->rangeTo = (uint32_t)str("to").toInt();
+  const String keys = str("keys");
+  for (int s = 0; s < (int)keys.length() && v->keys.size() < 16;) {
+    int e = keys.indexOf(',', s);
+    if (e < 0) e = keys.length();
+    if (e > s) v->keys.push_back(keys.substring(s, e));
+    s = e + 1;
+  }
+  if (!logViewStart(v)) {
     req->send(503, "text/plain", "List busy");
     return;
   }
@@ -2381,6 +2425,7 @@ void registerRemainingRoutes() {
   static_assert(DB_STREAM_WAIT == RESPONSE_TRY_AGAIN, "DB stream wait must be the web server's try-again value");
   // Probe database endpoints
   server->on("/api/probedb/view", HTTP_GET, [](AsyncWebServerRequest *req) { webDbView(req, probeDBViewStart, 11); });
+  server->on("/api/logview", HTTP_GET, webLogView);
 
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
       auto st = std::make_shared<ProbeDBStream>();

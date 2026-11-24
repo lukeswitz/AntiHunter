@@ -738,6 +738,7 @@ static std::mutex probeDBMutex;
 static bool s_probeLoaded = false;
 static bool s_probeRestoreOk = true;
 static bool s_probeBakPending = false;
+static std::atomic<uint32_t> s_probeFileGen{0};
 static uint8_t *s_probeBuf = nullptr;
 static size_t s_probeBufLen = 0;
 static uint32_t s_probeRecords = 0;
@@ -786,6 +787,7 @@ static bool probeWriteWhole(const uint8_t *data, size_t len)
     if (s_probeBakPending) {
         if (!SafeSD::rename(PROBE_DB_BIN_BAK, PROBE_DB_BIN)) return false;
         s_probeBakPending = false;
+        s_probeFileGen++;
     }
     File f = SafeSD::open(PROBE_DB_BIN, FILE_APPEND);
     const size_t pos = f ? f.size() : 0;
@@ -1008,6 +1010,7 @@ static void probeDBCompact()
     if (s_probeStreams.load() > 0) return;
     probeBufFlush();
     const int32_t kept = sdCompactNewestPerKey(PROBE_DB_BIN, PROBE_DB_BIN_TMP, PROBE_DB_BIN_BAK, PREC, probeDBRecKey, "PROBEDB");
+    s_probeFileGen++;
     if (kept < 0) return;
     s_probeRecords = s_probeCleanRecords = (uint32_t)kept;
     s_probeNewKeys = 0;
@@ -1330,9 +1333,11 @@ static void probeSsidJoin(const ProbeDBEntry &e, char *out, size_t cap)
     }
 }
 
+static DbIndex s_probeIndex;
+
 static void probeDBRunView(DbView &v)
 {
-    {
+    if (dbIndexStale(s_probeIndex, v)) {
         std::lock_guard<std::mutex> lock(probeDBMutex);
         const bool ok = probeDBFlushDirty();
         if (ok && probeHasDuplicates()) probeDBCompact();
@@ -1341,8 +1346,9 @@ static void probeDBRunView(DbView &v)
             return;
         }
     }
-    dbPageView<ProbeDBEntry>(
-        v, v.sort == 0 || v.sort == 2 || v.sort == 3 || v.sort == 10,
+    const size_t maxRecs = (SafeSD::exists(PROBE_DB_BIN) ? SafeSD::size(PROBE_DB_BIN) / PREC : 0) + 256;
+    dbIndexedView<ProbeDBEntry>(
+        s_probeIndex, v, s_probeFileGen.load(), maxRecs, v.sort == 0 || v.sort == 2 || v.sort == 3 || v.sort == 10,
         [](const std::function<void(const ProbeDBEntry &, uint32_t)> &fn) {
             return dbScanFile<ProbeDBEntry>(PROBE_DB_BIN, probeDBMutex, s_probeStreams, fn);
         },
@@ -1350,7 +1356,7 @@ static void probeDBRunView(DbView &v)
             return dbReadRecs<ProbeDBEntry>(PROBE_DB_BIN, probeDBMutex, recs, n, out);
         },
         probeDBFormatRow,
-        [](const ProbeDBEntry &e, uint8_t sort, const String &vend, const String &nm, DbSortKey &k) {
+        [](const ProbeDBEntry &e, uint8_t sort, const char *vend, const char *nm, DbSortKey &k) {
             if (dbKeyCommon(e, sort, vend, nm, k)) return;
             if (sort == 10) {
                 char all[300];
@@ -1360,10 +1366,12 @@ static void probeDBRunView(DbView &v)
                 k.num = e.isRandomized;
             }
         },
-        [](const ProbeDBEntry &e, const char *ql, const String &vend, const String &nm) {
+        [](const ProbeDBEntry &e, const char *ql, const char *vend, const char *nm) {
             if (dbMatchCommon(e, ql, vend, nm)) return true;
+            char ss[34];
             for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
-                if (dbHas(sanitizeAscii(e.ssids[i], 33).c_str(), ql)) return true;
+                dbSanitize(e.ssids[i], 33, ss, sizeof(ss));
+                if (dbHas(ss, ql)) return true;
             }
             return false;
         });
@@ -1448,6 +1456,7 @@ bool clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDBInitLocked();
+    s_probeFileGen++;
     s_probeLoaded = SafeSD::isAvailable();
     bool ok = s_probeLoaded;
     for (const char *p : {PROBE_DB_BIN, PROBE_DB_BIN_TMP, PROBE_DB_BIN_BAK, PROBE_DB_PATH, PROBE_DB_TMP,
