@@ -7736,7 +7736,7 @@ R"HTML(
         if(key==='ble') return val?'BLE':'WiFi';
         if(key==='ch') return val?String(val):'-';
         if(key==='rand') return val?'<span class="rand-yes">Yes</span>':'No';
-        if(key==='hit'||key==='dst') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
+        if(key==='hit') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
         var _priv=(typeof privacyMode!=='undefined'&&privacyMode);
         if(key==='lat'||key==='lon'||key==='latitude'||key==='longitude'){
           if(_priv) return 'REDACTED';
