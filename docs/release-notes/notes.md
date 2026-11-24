@@ -150,7 +150,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - The Data tab loads **All devices**, **Probe devices** and the event logs one page at a time. The node sorts and searches the whole list on its SD card.
   - **Saved Devices** in probe scan results loads 50 at a time, with **Show more**.
 - **Clear all data** on the Data tab clears every dataset except **Baseline stats**.
-- On a phone, the tabs sit in a bar at the bottom of the screen, and no menu scrolls sideways.
+- On a phone, the five tabs fit in one row at the top of the screen, and no menu scrolls sideways.
 - The Bluetooth classify and long range switches show only for scans that use them.
 
 ### Detection
