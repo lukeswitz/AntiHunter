@@ -931,6 +931,13 @@ static void hopScanAbort()
     esp_wifi_scan_stop();
 }
 
+static uint8_t scanParkChannel()
+{
+    const bool keepAp = (WiFi.getMode() & WIFI_MODE_AP) && (apReachDuringScan || WiFi.softAPgetStationNum() > 0);
+    if (keepAp || CHANNELS.empty()) return (uint8_t)AP_CHANNEL;
+    return CHANNELS[0];
+}
+
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
@@ -1422,7 +1429,7 @@ void snifferScanTask(void *pv)
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, sweepChan);
             WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_DEFAULT_MS);
             esp_wifi_set_promiscuous(true);
-            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            esp_wifi_set_channel(scanParkChannel(), WIFI_SECOND_CHAN_NONE);
             if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
             if (stopRequested) break;
 
@@ -3324,11 +3331,7 @@ void radioStartSTA() {
     esp_wifi_set_promiscuous(true);
 
     if (CHANNELS.empty()) CHANNELS = {1,2,3,4,5,6,7,8,9,10,11};
-    if (WiFi.softAPgetStationNum() > 0) {
-        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
-    } else {
-        esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-    }
+    esp_wifi_set_channel(scanParkChannel(), WIFI_SECOND_CHAN_NONE);
 
     if (hopTimer) {
         esp_timer_stop(hopTimer);
