@@ -7323,7 +7323,14 @@ R"HTML(
           +(cfg.fmt==='jsonl'?(dataSortCol>=0?'&sortk='+encodeURIComponent(dataCols[dataSortCol]):'')+'&keys='+encodeURIComponent(cfg.keys.join(','))+(cfg.top?'&top='+encodeURIComponent(cfg.top[0]):'')+(dataCampTag?'&ctag='+encodeURIComponent(dataCampTag):'')
             :'&sort='+(dataSortCol<0?9:dataSortCol))
           +(q?'&q='+encodeURIComponent(q):'')+(dataRange?'&from='+Math.max(0,Math.floor(dataRange[0]))+'&to='+Math.floor(dataRange[1]):'');
-        var slow=setTimeout(function(){if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">Reading the list from the SD card.</div>';},1500);
+        var pb=document.getElementById('dataPrevBtn'),nb=document.getElementById('dataNextBtn'),info=document.getElementById('dataPageInfo');
+        if(pb) pb.disabled=true;
+        if(nb) nb.disabled=true;
+        var slow=setTimeout(function(){
+          if(tok!==dataSrvTok) return;
+          if(dataRows.length&&info&&document.getElementById('data-table')) info.textContent='Reading the list from the SD card.';
+          else area.innerHTML='<div class="data-empty">Reading the list from the SD card.</div>';
+        },1500);
         return fetch(u).then(function(r){if(!r.ok) throw new Error(r.status);return r.json();}).then(function(d){
           clearTimeout(slow);
           if(tok!==dataSrvTok||!dataSrv) return;
