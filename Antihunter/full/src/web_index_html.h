@@ -7613,7 +7613,7 @@ R"HTML(
         var ev=evEvents(),dev=(!evType||evType==='device')&&evDevHi>0;
         if(!ev.length&&!dev){strip.innerHTML='<div class="res-note">No events yet.</div>';list.innerHTML='';return;}
         var from,to;
-        if(evRange){to=Math.floor(Date.now()/1000);from=to-evRange;}
+        if(evRange){to=Math.floor(Date.now()/1000)+1;from=to-1-evRange;}
         else{
           var lo=ev.length?ev[0].t:evDevLo,hi=ev.length?ev[ev.length-1].t:evDevHi;
           if(dev){if(evDevLo<lo) lo=evDevLo;if(evDevHi>hi) hi=evDevHi;}
