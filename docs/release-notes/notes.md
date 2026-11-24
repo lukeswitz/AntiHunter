@@ -103,6 +103,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
   - A laptop with a Headless node on USB can command every node it hears. Use `ALL` as the node to reach them all.
   - See [How to run several nodes](https://github.com/lukeswitz/AntiHunter/wiki/How-to-run-several-nodes) on the wiki.
 - `FLEET` on a Headless node's USB port prints every node and radio it has heard as JSON, as Full does.
+- The status heartbeat now defaults to every 30 minutes, down from 10. Nodes also repeat their fleet announcement every 30 minutes, down from 10.
 - A campaign tags a node's logs with a name you choose, so you can pull one survey out of the logs later.
   - Use `CAMPAIGN_START:<name>`, `CAMPAIGN_STOP`, and `CAMPAIGN_STATUS`. A campaign keeps running after a reboot.
   - `scripts/campaign_report.py` summarizes a copied Headless SD card by campaign or by date.
@@ -142,6 +143,15 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Help text and messages are shorter. Bloom Gossip is now called Baseline Sharing.
 - Confirm prompts now open inside the page and work from the keyboard.
 - Full shows the terms of use once and saves your answer on the SD card.
+- **Joinable during scans**, under System tab → **Settings** → **Access point**, lets phones join the node's access point while a scan runs. It is on by default. Scans hear less while it is on.
+- The Results tab has an **Events** card under Scan Results. It lists every logged event with its date and time, newest first, by day.
+  - Pick a time range and an event type. **Show more** loads 50 more events.
+- Tracer and drone results show the date and time each was last seen.
+- The Data tab loads **All devices**, **Probe devices** and the event logs one page at a time. The node sorts and searches the whole list on its SD card.
+  - **Saved Devices** in probe scan results loads 50 at a time, with **Show more**.
+- **Clear all data** on the Data tab clears every dataset except **Baseline stats**.
+- On a phone, the tabs sit in a bar at the bottom of the screen, and no menu scrolls sideways.
+- The Bluetooth classify and long range switches show only for scans that use them.
 
 ### Detection
 
@@ -185,6 +195,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Bursts of replies no longer lose lines on Meshtastic radios.
 - Commands from USB, the mesh, and the scheduler now run one at a time, in order.
 - Commands typed on USB no longer get lost or merged with the line before.
+- A command sent on USB while the node boots no longer stops USB input until a power cycle.
 - `STOP` now cancels an Attack response that is waiting to start.
 - `ERASE_FORCE` now replies when the wipe finishes, fails, or is already running.
 - `FACTORY_RESET` now reports success or failure over the mesh before the node reboots.
@@ -224,6 +235,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
   - This fixes Sentinel starting again at boot after you turned it off.
 - `FACTORY_RESET:CONFIG` now also removes the settings file from the SD card.
 - If the board's built-in memory is wiped, the node now rebuilds its Sentinel settings from the SD card.
+- Event logs no longer drop records when internal memory runs low.
 
 ### Sentinel and detectors
 
@@ -259,6 +271,15 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Headless with Sentinel on no longer fails every Wi-Fi scan.
 - A failed triangulation setup on Headless no longer leaves the node stuck.
 
+### Access point
+
+- Phones could not join the access point while a scan ran, or dropped off during one. The scan moved the access point off its channel. It now stays on its channel while **Joinable during scans** is on or a phone is connected.
+  - This covers device scans, Sentinel's **Scan all channels** mode and packet capture.
+- During scans that use Wi-Fi and Bluetooth, the access point no longer goes quiet for about 2 seconds at a time.
+- Scans stay on the access point's channel for 4 seconds when a phone starts to join.
+- On Beta and C5, stopping CSI puts the access point back on its channel and bandwidth.
+  - With **Joinable during scans** on, CSI stays on the access point's channel when one transmitter there sends at least 12 frames per second.
+
 ### Triangulation
 
 - A distance calibration is no longer overwritten when the next triangulation starts.
@@ -281,6 +302,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - Privacy mode now also hides names and addresses on the Data tab.
 - This node no longer appears twice in node lists.
 - On Beta and C5, Full now reports an error when a scan can't start.
+- **Previous** and **Next** on the Data tab no longer hang the page while a scan runs.
+- The Data tab keeps the current rows on screen while the next page loads.
+- The **Dst** column of **Deauth attacks** now shows the address instead of "Yes".
 
 ### C5 (Experimental)
 
