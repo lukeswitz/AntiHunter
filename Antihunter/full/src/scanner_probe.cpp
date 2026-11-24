@@ -1228,6 +1228,12 @@ static size_t probeDBFormatRow(const ProbeDBEntry &e, bool first, char *out, siz
     return (len > 0 && (size_t)len < cap) ? (size_t)len : 0;
 }
 
+void probeDBStreamPrepare(ProbeDBStream &st)
+{
+    st.waitGen = s_probePrepReq.fetch_add(1) + 1;
+    probeDBServicePrep();
+}
+
 size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen)
 {
     size_t written = 0;
@@ -1364,6 +1370,7 @@ bool probeDBViewStart(std::shared_ptr<DbView> v)
     return sdWorkerRun([v]() {
         probeDBRunView(*v);
         v->done = true;
+        if (v->then) v->then();
     });
 }
 

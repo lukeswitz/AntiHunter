@@ -513,6 +513,13 @@ static size_t deviceDBFormatRow(const DeviceDBEntry &e, bool first, char *out, s
 }
 
 // Streams one newest row per device from the compacted SD record for /api/devicedb.
+void deviceDBStreamPrepare(DeviceDBStream &st)
+{
+    s_devPrepCompact = true;
+    st.waitGen = s_devPrepReq.fetch_add(1) + 1;
+    deviceDBServicePrep();
+}
+
 size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen)
 {
     size_t written = 0;
@@ -739,6 +746,7 @@ bool deviceDBViewStart(std::shared_ptr<DbView> v)
     return sdWorkerRun([v]() {
         deviceDBRunView(*v);
         v->done = true;
+        if (v->then) v->then();
     });
 }
 

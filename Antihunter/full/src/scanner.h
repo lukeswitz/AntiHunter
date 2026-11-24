@@ -274,6 +274,7 @@ struct ProbeDBStream {
     char pend[768];
 };
 size_t probeDBStreamFill(ProbeDBStream &st, uint8_t *buf, size_t maxLen);
+void probeDBStreamPrepare(ProbeDBStream &st);
 struct ProbeLogStream {
     bool started = false;
     size_t end = 0;
@@ -315,6 +316,7 @@ struct DeviceDBStream {
     char pend[320];
 };
 size_t deviceDBStreamFill(DeviceDBStream &st, uint8_t *buf, size_t maxLen);
+void deviceDBStreamPrepare(DeviceDBStream &st);
 struct DbView {
     uint32_t off = 0;
     uint32_t lim = 50;
@@ -333,6 +335,7 @@ struct DbView {
     uint16_t listLim = 30;
     std::atomic<bool> done{false};
     String out;
+    std::function<void()> then;
 };
 bool deviceDBViewStart(std::shared_ptr<DbView> v);
 bool probeDBViewStart(std::shared_ptr<DbView> v);
