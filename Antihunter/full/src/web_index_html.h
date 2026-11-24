@@ -506,17 +506,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
       .res-note.danger{border-left-color:var(--dang)}
       .res-note-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-right:6px}
-      .ev-ctl{display:flex;flex-wrap:wrap;gap:6px}
-      .ev-ctl .btn{padding:6px 12px;font-size:12px;min-width:38px}
-      .ev-kinds{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
-      .ev-kinds button{border:1px solid var(--bord);background:transparent;color:var(--mut);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
-      .ev-kinds button.on{background:var(--accbg);color:var(--txt);border-color:var(--acc)}
+      .ev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+      .ev-ref{min-width:44px;min-height:44px;padding:0;font-size:20px;line-height:1}
+      .ev-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+      .ev-pick select{min-height:44px;width:100%}
       #evStrip .csi-heat{height:34px}
+      .ev-day td{font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:12px 8px 6px}
+      .ev-more{width:100%;min-height:44px;margin-top:10px}
       .ev-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
       .ev-tbl td{padding:6px 8px;border-top:1px solid var(--bord);vertical-align:top;overflow-wrap:anywhere}
       .ev-tbl td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mut)}
       .ev-tbl td:nth-child(2){white-space:nowrap}
-      @media(max-width:600px){#evStrip .csi-heat{height:44px;margin-top:10px}#evStrip .csi-room-lab{font-size:10px;letter-spacing:.03em;gap:8px;white-space:nowrap}.ev-ctl{width:100%}.ev-ctl .btn{min-height:36px;min-width:44px;padding:8px 12px;font-size:13px}.ev-kinds{gap:8px}.ev-kinds button{min-height:32px;padding:6px 12px;font-size:13px}.ev-tbl,.ev-tbl tbody{display:block;width:100%}.ev-tbl tr{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:9px 0;border-top:1px solid var(--bord)}.ev-tbl td{padding:0;border-top:0;font-size:13px}.ev-tbl td:nth-child(3){grid-column:1/-1;white-space:normal}}
+      @media(max-width:600px){#evStrip .csi-heat{height:44px;margin-top:10px}#evStrip .csi-room-lab{font-size:10px;letter-spacing:.03em;gap:8px;white-space:nowrap}.ev-tbl,.ev-tbl tbody{display:block;width:100%}.ev-tbl tr{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px 0;min-height:44px;border-top:1px solid var(--bord)}.ev-tbl td{padding:0;border-top:0;font-size:14px}.ev-tbl td:nth-child(3){grid-column:1/-1;white-space:normal}.ev-tbl tr.ev-day{display:block;min-height:0;padding:0;border-top:0}.ev-tbl tr.ev-day td{display:block;padding:14px 0 6px}}
       /* sub meta line */
       .res-sub{font-size:12px;color:var(--mut);margin-top:9px;line-height:1.5}
       .res-sub strong{color:var(--txt);font-weight:600}
@@ -1180,22 +1181,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
 
       <div class="page-tab" id="page-results">
-      <div class="card" id="evCard" style="margin-bottom:16px;">
-        <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <h3 style="margin:0;">Event timeline</h3>
-          <div class="ev-ctl">
-            <button class="btn alt" type="button" onclick="evPan(-1)" aria-label="Earlier">&#9664;</button>
-            <button class="btn alt" type="button" onclick="evPan(1)" aria-label="Later">&#9654;</button>
-            <button class="btn alt" type="button" onclick="evZoom(0.5)" aria-label="Zoom in">+</button>
-            <button class="btn alt" type="button" onclick="evZoom(2)" aria-label="Zoom out">&minus;</button>
-            <button class="btn alt" type="button" onclick="evAll()">All</button>
-            <button class="btn alt" type="button" onclick="evLoad(true)">Refresh</button>
-          </div>
-        </div>
-        <div id="evKinds" class="ev-kinds"></div>
-        <div id="evStrip"><div class="res-note">Loading events...</div></div>
-        <div id="evList"></div>
-      </div>
       <div class="card" style="margin-bottom:16px;">
         <h3 style="margin:0 0 12px;">Scan Results</h3>
         <div class="res-toolbar">
@@ -1224,6 +1209,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div style="color:var(--mut);">No baseline data</div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
+      </div>
+      <div class="card" id="evCard" style="margin-bottom:16px;">
+        <div class="ev-head">
+          <h3 style="margin:0;">Events</h3>
+          <button class="btn alt ev-ref" type="button" onclick="evLoad(true)" aria-label="Refresh">&#8635;</button>
+        </div>
+        <div class="ev-pick">
+          <select id="evRange" onchange="evSetRange(this.value)" aria-label="Time range">
+            <option value="0">All time</option>
+            <option value="3600">Last hour</option>
+            <option value="21600">Last 6 hours</option>
+            <option value="86400">Last 24 hours</option>
+            <option value="604800">Last 7 days</option>
+          </select>
+          <select id="evType" onchange="evSetType(this.value)" aria-label="Event type"></select>
+        </div>
+        <div id="evStrip"><div class="res-note">Loading events...</div></div>
+        <div id="evList"></div>
       </div>
       </div>
 
@@ -7823,7 +7826,16 @@ R"HTML(
 
       // ---- Event timeline (Results tab) ----
       var EV_KINDS={device:'Devices',incident:'Sentinel',deauth:'Deauth',drone:'Drones',vibration:'Movement',probe:'Probe hits'};
-      var EV_CELLS=(window.innerWidth<600?32:96),evData=[],evDevLo=0,evDevHi=0,evDevView=null,evDevWant='',evOn={device:1,incident:1,deauth:1,drone:1,vibration:1,probe:1},evView=null,evAuto=true,evSel=-1,evLoadedAt=0,evGen=0;
+      var EV_CELLS=(window.innerWidth<600?32:96),evData=[],evDevLo=0,evDevHi=0,evDevView=null,evDevWant='',evType='',evRange=0,evLim=50,evLoadedAt=0,evGen=0;
+      function evTime(t){var d=new Date((t+nodeOff(t))*1000),h=d.getUTCHours(),m=d.getUTCMinutes();return (h%12||12)+':'+(m<10?'0':'')+m+' '+(h>=12?'PM':'AM');}
+      function evDay(t){var d=new Date((t+nodeOff(t))*1000);return d.getUTCFullYear()*10000+(d.getUTCMonth()+1)*100+d.getUTCDate();}
+      function evDayLab(t){
+        var now=Math.floor(Date.now()/1000),k=evDay(t);
+        if(k===evDay(now)) return 'Today';
+        if(k===evDay(now-86400)) return 'Yesterday';
+        var d=new Date((t+nodeOff(t))*1000);
+        return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]+' '+d.getUTCDate();
+      }
       function evFmt(t){var d=new Date((t+nodeOff(t))*1000),h=d.getUTCHours(),m=d.getUTCMinutes();return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+(h%12||12)+':'+(m<10?'0':'')+m+' '+(h>=12?'PM':'AM');}
       function evAdd(k,t,l){if(t&&t>946684800) evData.push({t:t,k:k,l:l});}
       function evJsonl(url,gen,fn){
@@ -7835,7 +7847,7 @@ R"HTML(
       function evLoad(force){
         if(!document.getElementById('evStrip')) return;
         if(!force&&Date.now()-evLoadedAt<60000) return;
-        evLoadedAt=Date.now();var gen=++evGen;evData=[];evDevLo=evDevHi=0;evDevView=null;evDevWant='';evSel=-1;evAuto=true;evView=null;
+        evLoadedAt=Date.now();var gen=++evGen;evData=[];evDevLo=evDevHi=0;evDevView=null;evDevWant='';evLim=50;
         var jobs=[
           evJsonl('/api/incidents.jsonl',gen,function(r){evAdd('incident',dataEpoch(r.epoch),(r.type||'Incident')+(r.src&&r.src!=='local'?' from '+r.src:''));}),
           evJsonl('/api/deauth.jsonl',gen,function(r){evAdd('deauth',dataEpoch(r.t),(r.disassoc?'Disassoc ':'Deauth ')+(r.src||'')+' to '+(r.dst||''));}),
@@ -7860,7 +7872,7 @@ R"HTML(
         return out;
       }
       function evEvents(){
-        return evData.filter(function(e){return evOn[e.k];}).sort(function(a,b){return a.t-b.t;});
+        return evData.filter(function(e){return !evType||e.k===evType;}).sort(function(a,b){return a.t-b.t;});
       }
       function evDevFetch(key,from,to,lf,lt,lim){
         if(evDevWant===key) return;
@@ -7871,49 +7883,46 @@ R"HTML(
           .catch(function(e){console.warn('[EV] device events failed',e);if(evDevWant===key) evDevWant='';});
       }
       function evRender(){
-        var strip=document.getElementById('evStrip'),kinds=document.getElementById('evKinds'),list=document.getElementById('evList');
+        var strip=document.getElementById('evStrip'),list=document.getElementById('evList'),ts=document.getElementById('evType');
         if(!strip) return;
-        kinds.innerHTML=Object.keys(EV_KINDS).map(function(k){return '<button type="button" class="'+(evOn[k]?'on':'')+'" onclick="evToggle(\''+k+'\')">'+EV_KINDS[k]+'</button>';}).join('')
-          +'<span style="margin-left:auto;align-self:center;font-size:11px;color:var(--mut);">Node time, '+htmlEsc(nodeTz.abbr)+'</span>';
-        var ev=evEvents(),dev=evOn.device&&evDevHi>0;
-        if(!ev.length&&!dev){strip.innerHTML='<div class="res-note">No timed events yet. A scan, a Sentinel alert or a movement alert adds them here.</div>';list.innerHTML='';return;}
-        if(!evView||evAuto){
+        if(ts&&!ts.options.length){
+          ts.innerHTML='<option value="">All types</option>'+Object.keys(EV_KINDS).map(function(k){return '<option value="'+k+'">'+EV_KINDS[k]+'</option>';}).join('');
+          ts.value=evType;
+        }
+        var ev=evEvents(),dev=(!evType||evType==='device')&&evDevHi>0;
+        if(!ev.length&&!dev){strip.innerHTML='<div class="res-note">No events yet.</div>';list.innerHTML='';return;}
+        var from,to;
+        if(evRange){to=Math.floor(Date.now()/1000);from=to-evRange;}
+        else{
           var lo=ev.length?ev[0].t:evDevLo,hi=ev.length?ev[ev.length-1].t:evDevHi;
           if(dev){if(evDevLo<lo) lo=evDevLo;if(evDevHi>hi) hi=evDevHi;}
-          var pad=Math.max(60,Math.ceil((hi-lo)*0.02));evView=[Math.floor(lo-pad),Math.ceil(hi+pad)];
+          var pad=Math.max(60,Math.ceil((hi-lo)*0.02));from=Math.floor(lo-pad);to=Math.ceil(hi+pad);
         }
-        var from=evView[0],to=evView[1],step=(to-from)/EV_CELLS,cnt=new Array(EV_CELLS).fill(0),max=0,i;
-        var lf=from,lt=to;
-        if(evSel>=0){lf=from+evSel*step;lt=lf+step;}
-        var lim=evSel>=0?200:30,dkey=[from,to,EV_CELLS,lf,lt,lim].join(','),dv=dev&&evDevView&&evDevView.key===dkey?evDevView:null;
-        if(dev&&!dv) evDevFetch(dkey,from,to,lf,lt,lim);
+        var step=(to-from)/EV_CELLS,cnt=new Array(EV_CELLS).fill(0),max=0,i;
+        var dlim=Math.min(evLim+1,200),dkey=[from,to,EV_CELLS,dlim].join(','),dv=dev&&evDevView&&evDevView.key===dkey?evDevView:null;
+        if(dev&&!dv) evDevFetch(dkey,from,to,from,to,dlim);
         ev.forEach(function(e){if(e.t<from||e.t>=to) return;var c=Math.min(EV_CELLS-1,Math.floor((e.t-from)/step));cnt[c]++;});
         if(dv) dv.cells.forEach(function(n,c){if(c<EV_CELLS) cnt[c]+=n;});
         cnt.forEach(function(n){if(n>max) max=n;});
         var cells='';
-        for(i=0;i<EV_CELLS;i++){
-          var a=from+i*step;
-          cells+='<i data-i="'+i+'" class="h'+heatShade(max?cnt[i]/max:0,cnt[i])+'" title="'+evFmt(a)+' to '+evFmt(a+step)+' · '+cnt[i]+(cnt[i]===1?' event':' events')+'"'+(i===evSel?' style="outline:2px solid var(--txt);outline-offset:-2px"':'')+'></i>';
-        }
-        strip.innerHTML='<div class="csi-heatwrap" onclick="evTap(event)"><div class="csi-heat">'+cells+'</div><div class="csi-room-lab"><span>'+evFmt(from)+'</span><span>'+evFmt(to)+'</span></div></div>';
-        var inRange=function(e){return e.t>=lf&&e.t<lt;};
-        var rows=ev.filter(inRange).concat(dv?dv.rows.filter(inRange):[]).sort(function(a,b){return a.t-b.t;}),more=rows.length>lim;
-        rows=rows.slice(-lim).reverse();
-        list.innerHTML=(evSel>=0?'<div style="font-size:12px;color:var(--mut);margin-top:8px;">'+evFmt(lf)+' to '+evFmt(lt)+'. Tap the same block again to show the whole range.</div>':'<div style="font-size:12px;color:var(--mut);margin-top:8px;">Tap a block to see its events, or zoom in.</div>')
-          +(rows.length?'<div style="max-height:320px;overflow:auto;"><table class="ev-tbl"><tbody>'+rows.map(function(e){return '<tr><td>'+evFmt(e.t)+'</td><td>'+EV_KINDS[e.k]+'</td><td>'+htmlEsc(e.l)+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="res-note">No events in this range.</div>')
-          +(more?'<div style="font-size:12px;color:var(--mut);margin-top:6px;">Showing the newest '+lim+' events in this range.</div>':'');
+        for(i=0;i<EV_CELLS;i++) cells+='<i class="h'+heatShade(max?cnt[i]/max:0,cnt[i])+'"></i>';
+        strip.innerHTML='<div class="csi-heatwrap"><div class="csi-heat">'+cells+'</div><div class="csi-room-lab"><span>'+evFmt(from)+'</span><span>'+evFmt(to)+'</span></div></div>';
+        var inRange=function(e){return e.t>=from&&e.t<to;};
+        var rows=ev.filter(inRange).concat(dv?dv.rows.filter(inRange):[]).sort(function(a,b){return b.t-a.t;}),more=rows.length>evLim;
+        rows=rows.slice(0,evLim);
+        var day=0,body='';
+        rows.forEach(function(e){
+          var k=evDay(e.t);
+          if(k!==day){day=k;body+='<tr class="ev-day"><td colspan="3">'+evDayLab(e.t)+'</td></tr>';}
+          body+='<tr><td>'+evTime(e.t)+'</td><td>'+EV_KINDS[e.k]+'</td><td>'+htmlEsc(e.l)+'</td></tr>';
+        });
+        list.innerHTML=rows.length?'<table class="ev-tbl"><tbody>'+body+'</tbody></table>'+(more?'<button type="button" class="btn alt ev-more" onclick="evMore()">Show more</button>':'')
+          :'<div class="res-note">No events in this range.</div>';
         privacyApply(list);
       }
-      function evTap(e){var s=e.currentTarget.querySelector('.csi-heat').getBoundingClientRect(),i=Math.floor((e.clientX-s.left)/s.width*EV_CELLS);if(!(i>=0&&i<EV_CELLS)) return;evSel=(i===evSel)?-1:i;evRender();}
-      function evToggle(k){evOn[k]=evOn[k]?0:1;evSel=-1;evRender();}
-      function evAll(){evAuto=true;evSel=-1;evRender();}
-      function evZoom(f){
-        if(!evView) return;evAuto=false;
-        var c=evSel>=0?evView[0]+(evSel+0.5)*(evView[1]-evView[0])/EV_CELLS:(evView[0]+evView[1])/2,h=(evView[1]-evView[0])*f/2;
-        if(h<30) h=30;
-        evView=[c-h,c+h];evSel=-1;evRender();
-      }
-      function evPan(d){if(!evView) return;evAuto=false;var s=(evView[1]-evView[0])/2*d;evView=[evView[0]+s,evView[1]+s];evSel=-1;evRender();}
+      function evSetRange(v){evRange=parseInt(v,10)||0;evLim=50;evRender();}
+      function evSetType(v){evType=v;evLim=50;evRender();}
+      function evMore(){evLim+=50;evRender();}
 
       // Initialize
       refreshIdentityMap(true);
