@@ -367,6 +367,10 @@ void initializeNetwork()
 
 #include "web_index_html_gz.h"
 
+static void webReply(AsyncWebServerRequestPtr p, int code, const char *type, const String &body) {
+    if (auto r = p.lock()) r->send(code, type, body);
+}
+
 static void webDbView(AsyncWebServerRequest *req, bool (*start)(std::shared_ptr<DbView>), long maxSort) {
   auto v = std::make_shared<DbView>();
   auto num = [req](const char *k, double d) { return req->hasParam(k) ? req->getParam(k)->value().toDouble() : d; };
@@ -385,21 +389,10 @@ static void webDbView(AsyncWebServerRequest *req, bool (*start)(std::shared_ptr<
   v->listTo = num("lt", v->tlTo);
   v->cells = (uint16_t)constrain((long)num("cells", 0), 0L, 400L);
   v->listLim = (uint16_t)constrain((long)num("llim", 30), 1L, 200L);
-  if (!start(v)) {
-    req->send(503, "text/plain", "List busy");
-    return;
-  }
-  auto pos = std::make_shared<size_t>(0);
-  AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-      [v, pos](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
-        if (!v->done.load()) return RESPONSE_TRY_AGAIN;
-        const size_t left = v->out.length() - *pos;
-        const size_t n = left < maxLen ? left : maxLen;
-        memcpy(buffer, v->out.c_str() + *pos, n);
-        *pos += n;
-        return n;
-      });
-  req->send(res);
+  AsyncWebServerRequestPtr p = req->pause();
+  DbView *raw = v.get();
+  v->then = [p, raw]() { webReply(p, 200, "application/json", raw->out); };
+  if (!start(v)) webReply(p, 503, "text/plain", "List busy");
 }
 
 static void webLogView(AsyncWebServerRequest *req) {
@@ -427,30 +420,15 @@ static void webLogView(AsyncWebServerRequest *req) {
     if (e > s) v->keys.push_back(keys.substring(s, e));
     s = e + 1;
   }
-  if (!logViewStart(v)) {
-    req->send(503, "text/plain", "List busy");
-    return;
-  }
-  auto pos = std::make_shared<size_t>(0);
-  AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-      [v, pos](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
-        if (!v->done.load()) return RESPONSE_TRY_AGAIN;
-        const size_t left = v->out.length() - *pos;
-        const size_t n = left < maxLen ? left : maxLen;
-        memcpy(buffer, v->out.c_str() + *pos, n);
-        *pos += n;
-        return n;
-      });
-  req->send(res);
+  AsyncWebServerRequestPtr p = req->pause();
+  LogView *raw = v.get();
+  v->then = [p, raw]() { webReply(p, 200, "application/json", raw->out); };
+  if (!logViewStart(v)) webReply(p, 503, "text/plain", "List busy");
 }
 
 static void webSdJob(AsyncWebServerRequest *req, std::function<void(AsyncWebServerRequestPtr)> job) {
     AsyncWebServerRequestPtr p = req->pause();
     if (!sdWorkerRun([p, job]() { job(p); })) job(p);
-}
-
-static void webReply(AsyncWebServerRequestPtr p, int code, const char *type, const String &body) {
-    if (auto r = p.lock()) r->send(code, type, body);
 }
 
 static void sendSdFileLocked(AsyncWebServerRequest *req, const char *path, const char *mime) {
@@ -2460,12 +2438,14 @@ void registerRemainingRoutes() {
   server->on("/api/logview", HTTP_GET, webLogView);
 
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
-      auto st = std::make_shared<ProbeDBStream>();
-      AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-          [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
-              return probeDBStreamFill(*st, buffer, maxLen);
-          });
-      req->send(res);
+      webSdJob(req, [](AsyncWebServerRequestPtr p) {
+          auto st = std::make_shared<ProbeDBStream>();
+          probeDBStreamPrepare(*st);
+          if (auto r = p.lock()) {
+              r->send(r->beginChunkedResponse("application/json",
+                  [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t { return probeDBStreamFill(*st, buffer, maxLen); }));
+          }
+      });
   });
 
   server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -2478,12 +2458,14 @@ void registerRemainingRoutes() {
   server->on("/api/devicedb/view", HTTP_GET, [](AsyncWebServerRequest *req) { webDbView(req, deviceDBViewStart, 10); });
 
   server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
-      auto st = std::make_shared<DeviceDBStream>();
-      AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
-          [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t {
-              return deviceDBStreamFill(*st, buffer, maxLen);
-          });
-      req->send(res);
+      webSdJob(req, [](AsyncWebServerRequestPtr p) {
+          auto st = std::make_shared<DeviceDBStream>();
+          deviceDBStreamPrepare(*st);
+          if (auto r = p.lock()) {
+              r->send(r->beginChunkedResponse("application/json",
+                  [st](uint8_t *buffer, size_t maxLen, size_t) -> size_t { return deviceDBStreamFill(*st, buffer, maxLen); }));
+          }
+      });
   });
 
   server->on("/api/devicedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
