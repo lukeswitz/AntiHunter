@@ -53,6 +53,11 @@ static const uint32_t CSI_LINK_MIN_PKTS = 60;
 static const float CSI_LINK_ARM_SEC = 60.0f;
 static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
+static const float CSI_HOME_MIN_FPS = 12.0f;
+
+static inline bool csiHomeChannelOk(uint32_t hits, uint32_t trialMs) {
+    return trialMs > 0 && (float)hits * 1000.0f / (float)trialMs >= CSI_HOME_MIN_FPS;
+}
 
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;

@@ -130,6 +130,61 @@ static void addWalker(Path *p, int &np, float scale) {
     }
 }
 
+struct Gate { uint32_t packets = 0, consec = 0, elevMs = 0; bool motion = false; };
+
+static bool gateStep(Gate &g, const CsiScorer &s, uint32_t dtMs) {
+    const bool relAbove = s.shlen >= CSI_ACF_MIN_HIST && s.sigVar >= CSI_REL_MIN_SIG &&
+                          s.sigVar >= CSI_REL_FLOOR_K * s.sigFloor;
+    const bool sigAbove = s.psiValid && (s.sigVar >= CSI_SIG_ETA || relAbove) && s.sigZ * 1000.0f >= 500.0f;
+    if (sigAbove) {
+        if (g.consec < 255) g.consec++;
+        g.elevMs += dtMs;
+        if (g.elevMs > 6000) g.elevMs = 6000;
+    } else {
+        g.consec = 0;
+        const uint32_t d = dtMs * 2;
+        g.elevMs = g.elevMs > d ? g.elevMs - d : 0;
+    }
+    if (!s.settled() || g.packets < CSI_LINK_MIN_PKTS) return false;
+    if (!g.motion && g.elevMs >= 300 && g.consec >= 3) { g.motion = true; return true; }
+    return false;
+}
+
+static void homeTrials(float fps, float noise, int trials, int &hits, int &falses) {
+    static float hwin[CsiScorer::windowFloats()];
+    hits = falses = 0;
+    const uint32_t dt = (uint32_t)(1e6f / fps);
+    for (int tr = 0; tr < trials; tr++) {
+        Path p[16]; int np;
+        mkStatic(p, np);
+        CsiScorer s; s.attachWindow(hwin); s.reset();
+        Gate g;
+        float re[NSC], im[NSC], a[CSI_NSUB];
+        int8_t buf[128];
+        double t = 0.0;
+        bool falseHit = false;
+        for (int i = 0; i < (int)(fps * 120.0f); i++) {
+            t += dt / 1e6;
+            channelAt(p, np, (float)t, re, im);
+            quantize(re, im, noise, buf);
+            if (!csiAmplitudes(buf, a)) continue;
+            g.packets++;
+            if (s.update(a, g.motion, dt) && gateStep(g, s, dt / 1000)) falseHit = true;
+        }
+        if (falseHit) falses++;
+        g.motion = false; g.consec = 0; g.elevMs = 0;
+        addWalker(p, np, 1.0f);
+        for (int i = 0; i < (int)(fps * 60.0f); i++) {
+            t += dt / 1e6;
+            channelAt(p, np, (float)t, re, im);
+            quantize(re, im, noise, buf);
+            if (!csiAmplitudes(buf, a)) continue;
+            g.packets++;
+            if (s.update(a, g.motion, dt) && gateStep(g, s, dt / 1000)) { hits++; break; }
+        }
+    }
+}
+
 int main() {
     Path p[16]; int np;
     const uint32_t LAG = 33333;
@@ -270,6 +325,28 @@ int main() {
                armN, worst, CSI_SIG_ETA);
         assert(armN > 0);
         assert(worst < CSI_SIG_ETA);
+    }
+
+    printf("== AP channel floor: CSI_HOME_MIN_FPS=%.0f/s from one transmitter ==\n", CSI_HOME_MIN_FPS);
+    {
+        assert(!csiHomeChannelOk(0, 10000));
+        assert(!csiHomeChannelOk(119, 10000));
+        assert(csiHomeChannelOk(120, 10000));
+        assert(!csiHomeChannelOk(120, 0));
+        int hitFloor = 0, hitHalf = 0, falseFloor = 0;
+        const float noises[3] = {2.0f, 4.0f, 8.0f};
+        for (float nz : noises) {
+            int h, f;
+            homeTrials(CSI_HOME_MIN_FPS, nz, 20, h, f);
+            hitFloor += h; falseFloor += f;
+            homeTrials(CSI_HOME_MIN_FPS / 2.0f, nz, 20, h, f);
+            hitHalf += h; falseFloor += f;
+        }
+        printf("   walker caught at %.0f/s: %d/60   at %.0f/s: %d/60   false alerts while quiet: %d/120\n",
+               CSI_HOME_MIN_FPS, hitFloor, CSI_HOME_MIN_FPS / 2.0f, hitHalf, falseFloor);
+        assert(hitFloor >= 50);
+        assert(hitHalf <= 10);
+        assert(falseFloor == 0);
     }
 
     printf("\nOK\n");
