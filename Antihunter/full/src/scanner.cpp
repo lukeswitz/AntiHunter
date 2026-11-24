@@ -972,6 +972,7 @@ static void hopTimerCb(void *)
 
     if (apHasSta || (apReachDuringScan && (WiFi.getMode() & WIFI_MODE_AP) && !triPin)) {
         if (hopScanBusy()) return;
+        if (pBLEScan && pBLEScan->isScanning()) return;
         if (baselineDetectionEnabled) return;
         idx = (idx + 1) % CHANNELS.size();
         uint8_t ch = CHANNELS[idx];
