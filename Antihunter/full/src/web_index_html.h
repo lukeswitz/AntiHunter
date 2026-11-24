@@ -7280,7 +7280,7 @@ R"HTML(
 
       // ---- Data Tab ----
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
-      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false,dataSrv=null,dataSrvTok=0;
+      var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataSrv=null,dataSrvTok=0;
       function dataSrvLoad(cfg,fresh){
         var tok=++dataSrvTok,area=document.getElementById('dataArea'),q=document.getElementById('dataSearch').value.trim();
         var u=cfg.view+(cfg.view.indexOf('?')>=0?'&':'?')+'off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&asc='+(dataSortAsc?1:0)+(fresh?'&fresh=1':'')
@@ -7617,48 +7617,6 @@ R"HTML(
         if(/^(FRAG|ASSOC_SLEEP)/.test(t))return 'med';
         return 'info';
       }
-      function dataStreamJson(cfg,gen){
-        var area=document.getElementById('dataArea');
-        dataRows=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataStreaming=true;
-        var slow=setTimeout(function(){if(gen===dataGen&&!dataRows.length) area.innerHTML='<div class="data-empty">Still loading. The node reads this list from its SD card, which takes longer for big lists.</div>';},3000);
-        var lastPaint=0,counted=0;
-        function add(r){dataRows.push(r);}
-        function paint(force){var now=Date.now();if(!force&&now-lastPaint<800) return;lastPaint=now;dataRefilter();renderDataTable(cfg);}
-        function finish(){clearTimeout(slow);if(gen!==dataGen) return;dataStreaming=false;dataRefilter();renderDataTable(cfg);}
-        return streamJsonRows(cfg.url,add,function(){return gen===dataGen;},function(){
-          if(dataRows.length>counted){paint(counted<DATA_PAGE_SIZE);counted=dataRows.length;}
-        }).then(finish,function(e){clearTimeout(slow);if(gen===dataGen){dataStreaming=false;area.innerHTML='<div class="data-empty">No data available.</div>';}});
-      }
-      function streamJsonRows(url,onRow,alive,onChunk){
-        var dec=new TextDecoder(),buf='';
-        function scan(){
-          var depth=0,inStr=false,esc=false,start=-1;
-          for(var i=0;i<buf.length;i++){
-            var ch=buf.charCodeAt(i);
-            if(inStr){if(esc) esc=false;else if(ch===92) esc=true;else if(ch===34) inStr=false;continue;}
-            if(ch===34){inStr=true;continue;}
-            if(ch===123){if(depth===0) start=i;depth++;}
-            else if(ch===125&&depth>0){depth--;if(depth===0&&start>=0){try{onRow(JSON.parse(buf.slice(start,i+1)));}catch(e){dataSkipped++;}start=-1;buf=buf.slice(i+1);i=-1;}}
-          }
-          buf=start>=0?buf.slice(start):'';
-        }
-        return fetch(url).then(function(r){
-          if(!r.ok) throw new Error(r.status);
-          if(!r.body||!r.body.getReader){return r.text().then(function(t){JSON.parse(t).forEach(onRow);if(onChunk) onChunk();});}
-          var rd=r.body.getReader();
-          function pump(){
-            return rd.read().then(function(c){
-              if(!alive()){rd.cancel();return;}
-              if(c.done) return;
-              buf+=dec.decode(c.value,{stream:true});
-              scan();
-              if(onChunk) onChunk();
-              return pump();
-            });
-          }
-          return pump();
-        });
-      }
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
         dataNavSync(ds);
@@ -7776,7 +7734,7 @@ R"HTML(
         var pager=document.getElementById('dataPager');
         if(total>DATA_PAGE_SIZE||dataCursor>0){
           pager.style.display='flex';
-          document.getElementById('dataPageInfo').textContent='Showing '+(shown+1)+'-'+(shown+end-start)+' of '+total+(dataCursor>0?'+':'')+' rows'+(dataStreaming?' (still loading)':'');
+          document.getElementById('dataPageInfo').textContent='Showing '+(shown+1)+'-'+(shown+end-start)+' of '+total+(dataCursor>0?'+':'')+' rows';
           document.getElementById('dataPrevBtn').disabled=dataPage===0;
           document.getElementById('dataNextBtn').disabled=shown+end-start>=total&&!(dataCursor>0);
         } else { pager.style.display='none'; }
