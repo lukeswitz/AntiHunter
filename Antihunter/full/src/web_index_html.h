@@ -105,12 +105,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:142px;justify-content:flex-start}
-      .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;text-align:right;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-      .statx-ticker::-webkit-scrollbar{display:none}
-      .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
-      @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
-      @media(max-width:760px){.header-bar:has(#scanStatus.active){gap:8px}.header-bar:has(#scanStatus.active) .wm{display:none}.header-bar:has(#scanStatus.active) .statx-ticker{overflow:hidden}.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite;will-change:transform}.header-bar:has(#scanStatus.active) .statx-ticker:active .statx-track{animation-play-state:paused}}
-      @media(prefers-reduced-motion:reduce){.header-bar:has(#scanStatus.active) .statx-track{animation:none}}
+      .statx-ticker{flex:1 1 0;min-width:0;overflow:visible;white-space:normal;text-align:right}
+      .statx-track{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+      @media(max-width:760px){.header-bar:has(#scanStatus.active){gap:8px}.header-bar:has(#scanStatus.active) .wm{display:none}.header-bar{flex-wrap:wrap}.statx-ticker,.header-bar:has(#scanStatus.active) .statx-ticker{flex:1 1 100%;order:3;overflow:visible;white-space:normal}.statx-track,.header-bar:has(#scanStatus.active) .statx-track{display:flex;flex-wrap:wrap;gap:6px;width:100%;animation:none}}
       #gpsStatus{min-width:66px;justify-content:flex-start}
       #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:12px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
@@ -152,7 +149,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(min-width:900px){.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
       @media(max-width:600px){.header{padding:14px 16px;gap:12px}.header h1{font-size:17px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:10.5px;padding:5px 11px;gap:6px}.status-item::before{width:6px;height:6px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
-      @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
+      @media(max-width:820px){.page-tabs{width:100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible}.page-tab-btn{text-align:center;min-height:44px}}
+      @media(max-height:500px){.header{position:static}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#3399ff;--c-ble-bg:rgba(51,153,255,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
@@ -670,6 +668,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #ob-scroll::-webkit-scrollbar{width:4px}
       #ob-scroll::-webkit-scrollbar-track{background:transparent}
       #ob-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px}
+      @media(max-width:600px){
+        .header{position:static}
+        .page-tabs{position:fixed;left:0;right:0;bottom:0;z-index:120;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;margin:0;width:auto;border:0;border-top:1px solid var(--bord);border-radius:0;padding:4px 4px calc(4px + env(safe-area-inset-bottom));background:var(--surf);box-shadow:0 -6px 18px rgba(0,0,0,.25)}
+        .page-tab-btn{min-height:50px;display:flex;align-items:center;justify-content:center;padding:0 2px;font-size:12px;border-radius:8px}
+        body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+        body:has(#page-scan.active){padding-bottom:calc(136px + env(safe-area-inset-bottom))}
+        #page-scan .scan-go,#page-scan #startDetectionBtn{bottom:calc(70px + env(safe-area-inset-bottom))}
+        #toast{bottom:calc(72px + env(safe-area-inset-bottom))}
+      }
     </style>
     <script>
     (function(){
