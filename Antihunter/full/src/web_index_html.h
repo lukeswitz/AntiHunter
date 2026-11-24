@@ -707,15 +707,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #ob-scroll::-webkit-scrollbar{width:4px}
       #ob-scroll::-webkit-scrollbar-track{background:transparent}
       #ob-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px}
-      @media(max-width:600px){
-        .header{position:static}
-        .page-tabs{position:fixed;left:0;right:0;bottom:0;z-index:120;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;margin:0;width:auto;border:0;border-top:1px solid var(--bord);border-radius:0;padding:4px 4px calc(4px + env(safe-area-inset-bottom));background:var(--surf);box-shadow:0 -6px 18px rgba(0,0,0,.25)}
-        .page-tab-btn{min-height:50px;display:flex;align-items:center;justify-content:center;padding:0 2px;font-size:12px;border-radius:8px}
-        body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
-        body:has(#page-scan.active){padding-bottom:calc(136px + env(safe-area-inset-bottom))}
-        #page-scan .scan-go,#page-scan #startDetectionBtn{bottom:calc(70px + env(safe-area-inset-bottom))}
-        #toast{bottom:calc(72px + env(safe-area-inset-bottom))}
-      }
     </style>
     <script>
     (function(){
