@@ -323,6 +323,7 @@ struct DbView {
     String q;
     uint32_t rangeFrom = 0;
     uint32_t rangeTo = 0;
+    bool fresh = false;
     bool timeline = false;
     double tlFrom = 0;
     double tlTo = 0;

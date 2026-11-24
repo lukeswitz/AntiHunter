@@ -6987,9 +6987,11 @@ R"HTML(
       // ---- Data Tab ----
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
       var DATA_PAGE_SIZE=50,DATA_CHUNK=32768,dataCursor=0,dataGen=0,dataBusy=false,dataSkipped=0,dataStreaming=false,dataSrv=null,dataSrvTok=0;
-      function dataSrvLoad(cfg){
+      function dataSrvLoad(cfg,fresh){
         var tok=++dataSrvTok,area=document.getElementById('dataArea'),q=document.getElementById('dataSearch').value.trim();
-        var u=cfg.view+'?off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&sort='+(dataSortCol<0?9:dataSortCol)+'&asc='+(dataSortAsc?1:0)
+        var u=cfg.view+(cfg.view.indexOf('?')>=0?'&':'?')+'off='+dataPage*DATA_PAGE_SIZE+'&lim='+DATA_PAGE_SIZE+'&asc='+(dataSortAsc?1:0)+(fresh?'&fresh=1':'')
+          +(cfg.fmt==='jsonl'?(dataSortCol>=0?'&sortk='+encodeURIComponent(dataCols[dataSortCol]):'')+'&keys='+encodeURIComponent(cfg.keys.join(','))+(cfg.top?'&top='+encodeURIComponent(cfg.top[0]):'')+(dataCampTag?'&ctag='+encodeURIComponent(dataCampTag):'')
+            :'&sort='+(dataSortCol<0?9:dataSortCol))
           +(q?'&q='+encodeURIComponent(q):'')+(dataRange?'&from='+Math.max(0,Math.floor(dataRange[0]))+'&to='+Math.floor(dataRange[1]):'');
         var slow=setTimeout(function(){if(tok===dataSrvTok) area.innerHTML='<div class="data-empty">Reading the list from the SD card.</div>';},1500);
         return fetch(u).then(function(r){if(!r.ok) throw new Error(r.status);return r.json();}).then(function(d){
@@ -7243,16 +7245,16 @@ R"HTML(
         probedb:{url:'/api/probedb',view:'/api/probedb/view',clear:'/api/probedb/clear',fmt:'json',top:['vendor','Top vendors'],
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','ssids','rand']},
-        probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',top:['v','Top vendors'],
+        probes:{url:'/api/probes.jsonl',view:'/api/logview?log=probes',clear:'/api/probes/clear',fmt:'jsonl',top:['v','Top vendors'],
           cols:['Time','MAC','Type','RSSI','Ch','Count','Vendor','Name','SSIDs','Rand','Hit'],
           keys:['t','mac','ble','rssi','ch','cnt','v','n','ss','rand','hit']},
-        deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',top:['src','Top senders'],
+        deauth:{url:'/api/deauth.jsonl',view:'/api/logview?log=deauth',clear:'/api/deauth/clear',fmt:'jsonl',top:['src','Top senders'],
           cols:['Time','Src','Dst','BSSID','RSSI','Ch','Reason','Type'],
           keys:['t','src','dst','bssid','rssi','ch','reason','_type']},
-        drones:{url:'/api/drones.jsonl',clear:'/api/drones/clear',fmt:'jsonl',
+        drones:{url:'/api/drones.jsonl',view:'/api/logview?log=drones',clear:'/api/drones/clear',fmt:'jsonl',
           cols:['Time','MAC','RSSI','UAV ID','Type','Lat','Lon'],
           keys:['timestamp','mac','rssi','uav_id','type','lat','lon']},
-        vibrations:{url:'/api/vibrations.jsonl',clear:'/api/vibrations/clear',fmt:'jsonl',
+        vibrations:{url:'/api/vibrations.jsonl',view:'/api/logview?log=vibrations',clear:'/api/vibrations/clear',fmt:'jsonl',
           cols:['Time','Uptime','Pulses','Lat','Lon'],
           keys:['t','uptime_ms','pulses','lat','lon']},
         baseline:{url:'/baseline/config',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
@@ -7261,7 +7263,7 @@ R"HTML(
 )HTML"
 #if AH_SENTINEL
 R"HTML(
-        incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',top:['type','Top types'],
+        incidents:{url:'/api/incidents.jsonl',view:'/api/logview?log=incidents',clear:'/api/incidents/clear',fmt:'jsonl',top:['type','Top types'],
           cols:['Uptime','Node','Src','Type','Raw','Evidence'],
           keys:['ts','node','src','type','raw','ev']}
 )HTML"
@@ -7393,7 +7395,7 @@ R"HTML(
         document.getElementById('dataClear').style.display=cfg.clear?'':'none';
         ['dataSearch','dataRangeSel','dataPriv'].forEach(function(id){document.getElementById(id).style.display=cfg.fmt==='baseline'?'none':'';});
         dataGen++;dataCursor=0;dataBusy=false;dataSrv=null;dataSrvTok++;
-        if(cfg.view){dataSrv={};dataRows=[];dataFiltered=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataSrvLoad(cfg);return;}
+        if(cfg.view){dataSrv={};dataRows=[];dataFiltered=[];dataCols=cfg.keys;dataPage=0;dataSortCol=cfg.keys.indexOf('last');dataSortAsc=false;dataSrvLoad(cfg,true);return;}
         if(dataChunked(cfg)){
           var gen=dataGen;
           dataFetchChunk(cfg,null).then(function(c){
@@ -7503,7 +7505,7 @@ R"HTML(
       function sortDataCol(ci){
         var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
         if(dataSortCol===ci){dataSortAsc=!dataSortAsc;}else{dataSortCol=ci;dataSortAsc=true;}
-        if(dataSrv){dataPage=0;dataSrvLoad(cfg);return;}
+        if(dataSrv){dataPage=0;dataSrvLoad(cfg,true);return;}
         var key=dataCols[ci];
         dataFiltered.sort(function(a,b){
           var av=getVal(a,key),bv=getVal(b,key);
@@ -7519,7 +7521,7 @@ R"HTML(
         dataSearchTimer=setTimeout(function(){
           var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
           dataPage=0;
-          if(dataSrv){dataSrvLoad(cfg);return;}
+          if(dataSrv){dataSrvLoad(cfg,true);return;}
           dataRefilter();
           renderDataTable(cfg);
         },300);
@@ -7598,7 +7600,7 @@ R"HTML(
           evJsonl('/api/probes.jsonl',gen,function(r){if(r.hit) evAdd('probe',dataEpoch(r.t),'Probe hit '+(r.mac||''));})
         ];
         jobs.forEach(function(p){p.then(function(){if(gen===evGen) evRender();});});
-        fetch('/api/devicedb/view?tl=1').then(function(r){return r.ok?r.json():{};}).then(function(d){
+        fetch('/api/devicedb/view?tl=1&fresh=1').then(function(r){return r.ok?r.json():{};}).then(function(d){
           if(gen!==evGen) return;
           evDevLo=d.lo||0;evDevHi=d.hi||0;evRender();
         }).catch(function(e){console.warn('[EV] device range failed',e);});
