@@ -297,5 +297,6 @@ bool logViewStart(std::shared_ptr<LogView> v)
     return sdWorkerRun([v]() {
         logRunView(*v, logIndexFor(v->path));
         v->done = true;
+        if (v->then) v->then();
     });
 }

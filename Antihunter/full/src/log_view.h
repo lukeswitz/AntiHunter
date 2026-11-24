@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -19,6 +20,7 @@ struct LogView {
     uint32_t rangeTo = 0;
     std::atomic<bool> done{false};
     String out;
+    std::function<void()> then;
 };
 
 const char *logViewPath(const String &id);
