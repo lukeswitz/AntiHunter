@@ -90,7 +90,7 @@ static bool gateStep(Gate &g, const CsiScorer &s, uint32_t dtMs) {
 }
 
 static void homeTrials(float fps, float noise, int trials, int &hits, int &falses) {
-    static float *hwin = (float *)calloc(CsiScorer::windowFloats(), sizeof(float));
+    static float *hwin = static_cast<float *>(calloc(CsiScorer::windowFloats(), sizeof(float)));
     hits = falses = 0;
     const uint32_t dt = (uint32_t)(1e6f / fps);
     for (int tr = 0; tr < trials; tr++) {
@@ -343,11 +343,11 @@ int main() {
         int hitFloor = 0, hitHalf = 0, falseQuiet = 0;
         const float noises[3] = {2.0f, 4.0f, 8.0f};
         for (float nz : noises) {
-            int h, f;
-            homeTrials(CSI_HOME_MIN_FPS, nz, 20, h, f);
-            hitFloor += h; falseQuiet += f;
-            homeTrials(CSI_HOME_MIN_FPS / 2.0f, nz, 20, h, f);
-            hitHalf += h; falseQuiet += f;
+            int h, fq;
+            homeTrials(CSI_HOME_MIN_FPS, nz, 20, h, fq);
+            hitFloor += h; falseQuiet += fq;
+            homeTrials(CSI_HOME_MIN_FPS / 2.0f, nz, 20, h, fq);
+            hitHalf += h; falseQuiet += fq;
         }
         printf("   walker caught at %.0f/s: %d/60   at %.0f/s: %d/60   false alerts while quiet: %d/120\n",
                CSI_HOME_MIN_FPS, hitFloor, CSI_HOME_MIN_FPS / 2.0f, hitHalf, falseQuiet);
