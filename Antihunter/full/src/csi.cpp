@@ -528,7 +528,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
     Serial.printf("[CSI] Survey: %u access points on allowed channels (scan %s)\n",
                   aps, esp_err_to_name(sr));
 
-    uint8_t cand[3] = {0, 0, 0};
+    uint8_t cand[4] = {0, 0, 0, 0};
     for (int k = 0; k < 3; k++) {
         int top = CSI_LINK_MIN_RSSI - 1;
         for (uint8_t c = 1; c <= 14; c++) {
@@ -539,10 +539,16 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
         Serial.println("[CSI] No access point in range on any allowed channel");
         return 0;
     }
+    const uint8_t home = (uint8_t)AP_CHANNEL;
+    const bool homeEligible = apReachDuringScan && home >= 1 && home <= 14 && ((allowed >> home) & 1) &&
+                              best[home] >= CSI_LINK_MIN_RSSI;
+    if (homeEligible && cand[0] != home && cand[1] != home && cand[2] != home) cand[3] = home;
 
     const uint32_t trialMs = dwellMs * 2;
     uint8_t pick = cand[0];
     uint32_t pickHits = 0;
+    uint32_t homeHits = 0;
+    uint8_t homeMac[6] = {};
     for (uint8_t c : cand) {
         if (!c || stopRequested) continue;
         csiMoveRadio(c);
@@ -569,7 +575,20 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
                       c, best[c], g_surveyTx.load(), g_surveyHt.load(),
                       (float)top * 1000.0f / (float)trialMs,
                       top ? macFmt6(g_surveyMacs[topIdx]).c_str() : "-");
+        if (c == home) { homeHits = top; memcpy(homeMac, g_surveyMacs[topIdx], 6); }
         if (top > pickHits) { pickHits = top; pick = c; memcpy(g_surveyPickMac, g_surveyMacs[topIdx], 6); }
+    }
+
+    if (homeEligible && pick != home) {
+        const float homeFps = (float)homeHits * 1000.0f / (float)trialMs;
+        if (csiHomeChannelOk(homeHits, trialMs)) {
+            pick = home;
+            pickHits = homeHits;
+            memcpy(g_surveyPickMac, homeMac, 6);
+            Serial.printf("[CSI] Staying on the AP channel ch%u (%.1f/s, needs %.0f/s)\n", home, homeFps, CSI_HOME_MIN_FPS);
+        } else {
+            Serial.printf("[CSI] AP channel ch%u too quiet (%.1f/s, needs %.0f/s)\n", home, homeFps, CSI_HOME_MIN_FPS);
+        }
     }
 
     Serial.printf("[CSI] Selected ch%u (%.1f/s from its best access point)\n",

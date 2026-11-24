@@ -2,11 +2,126 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 static unsigned long rngState = 12345;
 static float frand() {
     rngState = rngState * 1103515245UL + 12345UL;
     return (float)((rngState >> 16) & 0x7fff) / 32767.0f;
+}
+
+static const int NSC = 64;
+static const float BW = 20e6f;
+static float gauss() {
+    float u = frand(), v = frand();
+    if (u < 1e-7f) u = 1e-7f;
+    return sqrtf(-2.0f * logf(u)) * cosf(6.2831853f * v);
+}
+struct Path { float amp, delay, dopp, phase; };
+static void channelAt(const Path *p, int np, float t, float *re, float *im) {
+    for (int k = 0; k < NSC; k++) {
+        const float fk = ((float)k - NSC / 2.0f) * (BW / NSC);
+        float sr = 0.0f, si = 0.0f;
+        for (int i = 0; i < np; i++) {
+            const float ph = p[i].phase + 6.2831853f * p[i].dopp * t - 6.2831853f * fk * p[i].delay;
+            sr += p[i].amp * cosf(ph);
+            si += p[i].amp * sinf(ph);
+        }
+        re[k] = sr;
+        im[k] = si;
+    }
+}
+static void quantize(const float *re, const float *im, float noise, int8_t *buf) {
+    float pw = 0.0f;
+    for (int k = 0; k < NSC; k++) pw += re[k] * re[k] + im[k] * im[k];
+    const float rms = sqrtf(pw / NSC);
+    const float g = (rms > 0.0f) ? (45.0f / rms) : 1.0f;
+    for (int k = 0; k < NSC; k++) {
+        float r = g * re[k] + noise * gauss();
+        float q = g * im[k] + noise * gauss();
+        if (r > 127.0f) r = 127.0f;
+        if (r < -127.0f) r = -127.0f;
+        if (q > 127.0f) q = 127.0f;
+        if (q < -127.0f) q = -127.0f;
+        buf[k * 2] = (int8_t)lrintf(q);
+        buf[k * 2 + 1] = (int8_t)lrintf(r);
+    }
+}
+static void mkStatic(Path *p, int &np) {
+    np = 0;
+    for (int i = 0; i < 6; i++) {
+        p[np].amp = 1.0f / (1.0f + i * 0.6f);
+        p[np].delay = (float)i * 25e-9f;
+        p[np].dopp = 0.0f;
+        p[np].phase = frand() * 6.2831853f;
+        np++;
+    }
+}
+static void addWalker(Path *p, int &np, float scale) {
+    const float fd[4] = {1.5f, 3.0f, 6.5f, 11.0f};
+    const float amp[4] = {0.30f, 0.22f, 0.15f, 0.10f};
+    for (int i = 0; i < 4; i++) {
+        p[np].amp = amp[i] * scale;
+        p[np].delay = (110.0f + 15.0f * i) * 1e-9f;
+        p[np].dopp = fd[i];
+        p[np].phase = frand() * 6.2831853f;
+        np++;
+    }
+}
+
+struct Gate { uint32_t packets = 0, consec = 0, elevMs = 0; bool motion = false; };
+
+static bool gateStep(Gate &g, const CsiScorer &s, uint32_t dtMs) {
+    const bool relAbove = s.shlen >= CSI_ACF_MIN_HIST && s.sigVar >= CSI_REL_MIN_SIG &&
+                          s.sigVar >= CSI_REL_FLOOR_K * s.sigFloor;
+    const bool sigAbove = s.psiValid && (s.sigVar >= CSI_SIG_ETA || relAbove) && s.sigZ >= CSI_SIG_Z_GATE;
+    if (sigAbove) {
+        if (g.consec < 255) g.consec++;
+        g.elevMs += dtMs;
+        if (g.elevMs > 6000) g.elevMs = 6000;
+    } else {
+        g.consec = 0;
+        const uint32_t d = dtMs * 2;
+        g.elevMs = g.elevMs > d ? g.elevMs - d : 0;
+    }
+    if (!s.settled() || g.packets < CSI_LINK_MIN_PKTS) return false;
+    if (!g.motion && g.elevMs >= 300 && g.consec >= 3) { g.motion = true; return true; }
+    return false;
+}
+
+static void homeTrials(float fps, float noise, int trials, int &hits, int &falses) {
+    static float *hwin = (float *)calloc(CsiScorer::windowFloats(), sizeof(float));
+    hits = falses = 0;
+    const uint32_t dt = (uint32_t)(1e6f / fps);
+    for (int tr = 0; tr < trials; tr++) {
+        Path p[16]; int np;
+        mkStatic(p, np);
+        CsiScorer s; s.attachWindow(hwin); s.reset();
+        Gate g;
+        float re[NSC], im[NSC], a[CSI_NSUB];
+        int8_t buf[128];
+        double t = 0.0;
+        bool falseHit = false;
+        for (int i = 0; i < (int)(fps * 120.0f); i++) {
+            t += dt / 1e6;
+            channelAt(p, np, (float)t, re, im);
+            quantize(re, im, noise, buf);
+            if (!csiAmplitudes(buf, a)) continue;
+            g.packets++;
+            if (s.update(a, g.motion, dt) && gateStep(g, s, dt / 1000)) falseHit = true;
+        }
+        if (falseHit) falses++;
+        g.motion = false; g.consec = 0; g.elevMs = 0;
+        addWalker(p, np, 1.0f);
+        for (int i = 0; i < (int)(fps * 60.0f); i++) {
+            t += dt / 1e6;
+            channelAt(p, np, (float)t, re, im);
+            quantize(re, im, noise, buf);
+            if (!csiAmplitudes(buf, a)) continue;
+            g.packets++;
+            if (s.update(a, g.motion, dt) && gateStep(g, s, dt / 1000)) { hits++; break; }
+        }
+    }
 }
 
 static void makePacket(int8_t *buf, const float *chanReal, const float *chanImag, float noise) {
@@ -217,6 +332,27 @@ int main() {
                armN, worst, CSI_SIG_ETA);
         assert(armN > 0);
         assert(worst < CSI_SIG_ETA);
+    }
+
+    printf("== AP channel floor: CSI_HOME_MIN_FPS=%.0f/s from one transmitter ==\n", CSI_HOME_MIN_FPS);
+    {
+        assert(!csiHomeChannelOk(0, 10000));
+        assert(!csiHomeChannelOk(119, 10000));
+        assert(csiHomeChannelOk(120, 10000));
+        assert(!csiHomeChannelOk(120, 0));
+        int hitFloor = 0, hitHalf = 0, falseQuiet = 0;
+        const float noises[3] = {2.0f, 4.0f, 8.0f};
+        for (float nz : noises) {
+            int h, f;
+            homeTrials(CSI_HOME_MIN_FPS, nz, 20, h, f);
+            hitFloor += h; falseQuiet += f;
+            homeTrials(CSI_HOME_MIN_FPS / 2.0f, nz, 20, h, f);
+            hitHalf += h; falseQuiet += f;
+        }
+        printf("   walker caught at %.0f/s: %d/60   at %.0f/s: %d/60   false alerts while quiet: %d/120\n",
+               CSI_HOME_MIN_FPS, hitFloor, CSI_HOME_MIN_FPS / 2.0f, hitHalf, falseQuiet);
+        assert(hitFloor >= 50);
+        assert(hitHalf <= 10);
     }
 
     printf("\nOK\n");
