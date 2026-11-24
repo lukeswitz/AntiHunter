@@ -498,6 +498,10 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs, uint16_t avoidMask = 0) {
     wifi_scan_config_t sc = {};
     sc.show_hidden = true;
     sc.scan_type = csiNoTx.load() ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
+    if (apReachDuringScan) {
+        sc.home_chan_dwell_time = AP_HOME_DWELL_MS;
+        sc.coex_background_scan = true;
+    }
     const esp_err_t sr = esp_wifi_scan_start(&sc, true);
     uint16_t n = 0;
     if (sr == ESP_OK) esp_wifi_scan_get_ap_num(&n);
@@ -1309,6 +1313,9 @@ static bool csiMoveRadio(uint8_t ch) {
     return esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) == ESP_OK;
 }
 
+static wifi_bandwidths_t s_csiApBwPrev = {};
+static bool s_csiApBwSaved = false;
+
 static void csiForceHt20() {
     wifi_bandwidths_t bw = {};
     bw.ghz_2g = WIFI_BW_HT20;
@@ -1326,9 +1333,21 @@ static void csiForceHt20() {
                       (int)apBw.ghz_2g, (int)apBw.ghz_5g, clients);
     } else {
         ap = esp_wifi_set_bandwidths(WIFI_IF_AP, &bw);
+        if (ap == ESP_OK && apGet == ESP_OK && !s_csiApBwSaved) {
+            s_csiApBwPrev = apBw;
+            s_csiApBwSaved = true;
+        }
     }
     Serial.printf("[CSI] bandwidth HT20 sta=%s ap=%s\n",
                   esp_err_to_name(sta), esp_err_to_name(ap));
+}
+
+static void csiRestoreApBandwidth() {
+    if (!s_csiApBwSaved) return;
+    s_csiApBwSaved = false;
+    const esp_err_t r = esp_wifi_set_bandwidths(WIFI_IF_AP, &s_csiApBwPrev);
+    Serial.printf("[CSI] AP bandwidth restored to 2g=%d 5g=%d: %s\n", (int)s_csiApBwPrev.ghz_2g, (int)s_csiApBwPrev.ghz_5g,
+                  esp_err_to_name(r));
 }
 
 static bool csiArmCsi(uint8_t ch) {
@@ -1468,6 +1487,7 @@ static void csiRadioStop() {
     esp_wifi_set_csi_rx_cb(NULL, nullptr);
     vTaskDelay(pdMS_TO_TICKS(50));
     csiRestoreApChannel();
+    csiRestoreApBandwidth();
     radioStopSTA();
 }
 
