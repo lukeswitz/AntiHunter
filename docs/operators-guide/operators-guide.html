@@ -350,7 +350,7 @@
     <tr><th>Channel</th><th>Source</th><th>Use it when</th></tr>
     <tr><td><b>Stable</b></td><td><span class="mono">main</span> branch</td><td>Default. Field deployments.</td></tr>
     <tr><td><b>Beta</b></td><td><span class="mono">beta</span> branch</td><td>New features first, less tested.</td></tr>
-    <tr><td><b>Experimental</b></td><td>ESP32-C5 builds (2.4 + 5 GHz) and RadarNode</td><td>Only on C5 hardware. The flasher asks you to acknowledge these are test builds.</td></tr>
+    <tr><td><b>Beta — XIAO ESP32-C5</b></td><td>ESP32-C5 builds (2.4 + 5 GHz) and RadarNode</td><td>Only on C5 hardware. RadarNode is experimental, and the flasher asks you to acknowledge that.</td></tr>
   </table>
 
   <h3>5.4 Method A: web flasher (recommended)</h3>
@@ -373,7 +373,7 @@ chmod +x flashAntihunter.sh
   <p>The script first shows the legal disclaimer and continues only after you type <span class="mono">yes</span>. It then asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
 
   <h3>5.6 Board variants</h3>
-  <p>The XIAO ESP32-C5 replaces the S3 on the same board and adds 5 GHz scanning. Those builds are on the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present.</p>
+  <p>The XIAO ESP32-C5 replaces the S3 on the same board and adds 5 GHz scanning. Those builds are on the flasher's Beta — XIAO ESP32-C5 channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present.</p>
 </div>
 
 <div class="sec">
