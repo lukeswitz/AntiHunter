@@ -82,7 +82,7 @@ Give each node its own ID and put all of them on the same encrypted channel. Nod
 
 | Question | Answer |
 |---|---|
-| **Full or Headless?** | Both builds run the same detectors, scan engine, and mesh commands. Full adds a Wi-Fi access point with the web UI and API. The access point is visible unless **Hidden network** is on. Headless has no access point and is controlled by serial and mesh only. Start with Full. Use Headless where the node must stay quiet. [Details](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless) |
+| **Full or Headless?** | Both builds run the same detectors, scan engine, and mesh commands. Full adds a Wi-Fi access point with the web UI and API. The access point is visible unless **Hidden network** is on. Headless has no access point and is controlled by serial and mesh only. Flash Full where you want the web UI. Flash Headless where the node must stay quiet, or where a Command Center controls it. [Details](https://github.com/lukeswitz/AntiHunter/wiki/Full-or-Headless) |
 | **Stable or Beta?** | Use Stable (`main`) in the field. Beta (`beta`) gets new features first. See the [release notes](release-notes/notes.md). |
 | **S3 or C5?** | The ESP32-S3 is the stable board. The [ESP32-C5](ESP32-C5.md) fits the same pads and adds 5 GHz. It is under the flasher's Experimental channel while it is in testing. [RadarNode](RADARNODE.md) adds a 24 GHz radar to the same mesh. |
 | **Do I need the Meshtastic radio?** | Not to scan. Without it, you control a node from its own access point or over USB serial, standing next to it. With it, you send commands to every node in mesh range and receive detections from them. |
