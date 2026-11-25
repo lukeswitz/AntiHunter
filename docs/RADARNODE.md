@@ -198,7 +198,7 @@ The `RADAR_CONFIG` fields are the keys in the [Alarm table](#alarm): `DIST` in m
 | `ALM` | This detection raised the alarm. |
 | `CAND1` to `CAND3` | The top three devices from the sweep. Moving devices (`mov`) come first, then the rest by score. |
 
-`TYPE:RADAR` tells the RadarNode mesh list and the Command Center that the sender is a RadarNode. A peer with no `TYPE` field counts as `RADAR` if it reports a `RADAR:` field, and as DIGI otherwise. DIGI Full reads both fields for its fleet list. DIGI Headless reads neither.
+`TYPE:RADAR` tells the RadarNode mesh list and the Command Center that the sender is a RadarNode. A peer with no `TYPE` field counts as `RADAR` if it reports a `RADAR:` field, and as DIGI otherwise. DIGI Full and DIGI Headless read both fields for their fleet lists.
 
 ---
 
