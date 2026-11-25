@@ -5,7 +5,7 @@ STABLE_BRANCH="main"
 STABLE_VERSION="v1.0.5"
 BETA_BRANCH="beta"
 BETA_VERSION="v1.0.5-beta1"
-# Experimental ESP32-C5 builds. Served from main/Dist until the C5 branches are published.
+# ESP32-C5 beta builds and the experimental RadarNode. Served from main/Dist until the C5 branches are published.
 C5_BRANCH="main"
 C5_VERSION="v1.0.5-c5exp1"
 RADAR_BRANCH="main"
@@ -22,7 +22,7 @@ select_channel() {
     echo "Release channel:"
     echo "  1. Stable ($STABLE_VERSION) - ESP32-S3, tested, recommended"
     echo "  2. Beta ($BETA_VERSION) - ESP32-S3, newest features, may be unstable"
-    echo "  3. Experimental - XIAO ESP32-C5 (2.4 + 5GHz) and RadarNode. Test builds, not production."
+    echo "  3. Beta - XIAO ESP32-C5 (2.4 + 5GHz), newest features, may be unstable. Also the experimental RadarNode."
     echo ""
     while true; do
         read -p "Select channel (1-3) [default: 1]: " ch
@@ -91,7 +91,7 @@ Options:
   -l, --list         List available firmware options and exit
 
 S3 builds ship bootloader + partitions + app and are written at 0x0/0x8000/0x10000.
-Experimental C5 builds ship a single .factory.bin written at 0x0; a custom .bin ending
+C5 builds ship a single .factory.bin written at 0x0; a custom .bin ending
 in .factory.bin is treated the same way. Use --erase to perform full flash erase first.
 
 Requires esptool and pyserial. Install them with your system package manager.

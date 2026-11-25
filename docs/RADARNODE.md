@@ -87,8 +87,8 @@ If the restore line never appears, the sensor is not answering. Check in this or
 
 Flash `Dist/radarnode-c5-v0.1.0-radarexp2.factory.bin` with either tool:
 
-- The web flasher: choose Experimental, then RadarNode.
-- `Dist/flashAntihunter.sh`: choose channel 3 (Experimental), then RadarNode.
+- The web flasher: choose the **Beta — XIAO ESP32-C5** channel, then RadarNode, and check the acknowledgment box.
+- `Dist/flashAntihunter.sh`: choose channel 3, then RadarNode.
 
 ---
 

@@ -352,7 +352,7 @@ Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` runs a 300
 
 ### CSI Motion (Beta, C5)
 
-These commands exist in the Beta firmware and the Experimental C5 firmware. The main (Stable) firmware does not have them. CSI (channel state information) motion detection reports movement from changes in nearby Wi-Fi signals. See [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) for how it works. A start command replies `BUSY` while another scan runs.
+These commands exist in the Beta firmware and the Beta C5 firmware. The main (Stable) firmware does not have them. CSI (channel state information) motion detection reports movement from changes in nearby Wi-Fi signals. See [CSI motion](https://github.com/lukeswitz/AntiHunter/wiki/CSI-motion) for how it works. A start command replies `BUSY` while another scan runs.
 
 | Command | Alias | What it does | Reply | Example |
 |---|---|---|---|---|
