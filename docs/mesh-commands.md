@@ -125,7 +125,7 @@ Each command starts one scan task. `secs` is the run time.
 
 Notes:
 
-- A scheduled scan runs only after the node knows the time, from GPS, its real-time clock, or a web UI visit. The node holds 8 scheduled scans.
+- A scheduled scan runs only after the node knows the time, from GPS or its real-time clock. The node holds 8 scheduled scans.
 - `PCAP_STOP` and `PROBE_STOP` both stop whatever scan is running.
 - A target scan started over the mesh does not check that the target list has entries. The web UI does.
 
@@ -491,7 +491,7 @@ Nodes send these lines on their own. `NODE` is the sender's ID.
 | `CSI_PEER:<mac>` | Beta and C5. At its first CSI motion start after boot, a node sends its access point MAC and its probe source MAC. Other nodes stop using those MACs as CSI links and answer with their own |
 | `ASSOC_SLEEP` `SSID_CONFUSION` `OWE_ABUSE` `PWNAGOTCHI` `RECON` `ATTACKER_HUNT` | |
 
-A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 30 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
+A Headless node has no access point and sends no `SELF_CLONE` or `SELF_CLONE_OPEN`. A node on the default network name sends no `SELF_CLONE` for an encrypted access point with that name. It logs that access point once every 30 minutes. `EAPOL_BAIT` needs one to three deauthentications with a known attack-tool signature, or two to three without one.
 
 `R:` reason codes (802.11-2020 Table 9-49): `1` unspecified, `2` prev auth invalid, `3` STA leaving, `4` inactivity, `5` AP full, `6` class 2 from unauth STA, `7` class 3 from unassoc STA, `8` leaving BSS, `14` MIC failure.
 

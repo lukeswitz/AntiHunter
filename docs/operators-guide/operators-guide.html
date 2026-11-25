@@ -335,15 +335,16 @@
   <p>Without this the node and the radio cannot talk. On every tier, also set the radio's region (§7.1) and channel (§8.2).</p>
 
   <h3>5.2 Full or Headless?</h3>
-  <p>Both builds have the same detectors, mesh commands and scan engine. The difference is whether the node hosts a Wi-Fi access point.</p>
+  <p>Both builds have the same mesh commands and scan engine, and the same detectors with one exception in the table. The difference is whether the node hosts a Wi-Fi access point.</p>
   <table>
     <tr><th style="width:22%"></th><th>Full</th><th>Headless</th></tr>
     <tr><td><b>Control</b></td><td>Web UI and HTTP API over its own AP, plus serial and mesh</td><td>Serial and mesh only</td></tr>
     <tr><td><b>RF footprint</b></td><td>The AP beacons continuously, so the node is discoverable as a Wi-Fi network</td><td>Never beacons</td></tr>
     <tr><td><b>Results</b></td><td>Cards in the Results tab</td><td>Text in <span class="mono">/last_results.txt</span></td></tr>
     <tr><td><b>SD logging</b></td><td colspan="2">Identical on both builds (§11.2)</td></tr>
+    <tr><td><b>Own-AP copy alert</b></td><td>Yes</td><td>No. It has no AP</td></tr>
   </table>
-  <p>Use Full for bench work and first setup, then reflash to Headless for covert and long-term field deployments. A reflash keeps settings unless you check <b>Erase Device</b>.</p>
+  <p>Flash Full when you want the web UI. Flash Headless when the node must not beacon, or when a Command Center (§11.3) controls it. A reflash keeps settings unless you check <b>Erase Device</b>.</p>
 
   <h3>5.3 Release channels</h3>
   <table class="tight">
@@ -359,7 +360,7 @@
     <li>Choose <b>Full</b> or <b>Headless</b>, and a release channel.</li>
     <li>Plug the ESP32 in with a data cable, nothing else connected to the board.</li>
     <li>Click <b>Connect &amp; Flash</b> and pick the port.</li>
-    <li>Optionally set device parameters before flashing. The <b>Sentinel &amp; Detectors</b> panel configures start-on-boot, radio mode, every detector toggle, mesh flags and thresholds. Anything left on <i>Default</i> keeps the firmware's own setting. The panel also has the <b>Erase key</b> field, the only place to set the key on Headless.</li>
+    <li>Optionally set device parameters before flashing. The <b>Sentinel &amp; Detectors</b> panel configures start-on-boot, radio mode, every detector toggle, mesh flags and thresholds. Anything left on <i>Default</i> keeps the firmware's own setting. The panel also has the <b>Erase key</b> field.</li>
   </ol>
   <div class="box"><span class="t">Erase Device</span>
     <p>Check it when upgrading from firmware older than v0.9.2, or when you want to clear saved settings. Otherwise leave it off.</p>
