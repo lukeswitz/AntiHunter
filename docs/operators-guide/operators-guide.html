@@ -371,7 +371,7 @@
   https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh</pre>
-  <p>The script first shows the legal disclaimer and continues only after you type <span class="mono">yes</span>. It then asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
+  <p>The script first shows the legal disclaimer and continues only after you type <span class="mono">yes</span>. It then asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> sets device parameters during the flash, <span class="mono">-n</span> sets them without flashing, <span class="mono">-e</span> erases flash first, <span class="mono">-l</span> lists available firmware, <span class="mono">-f FILE</span> flashes your own <span class="mono">.bin</span>.</p>
 
   <h3>5.6 Board variants</h3>
   <p>The XIAO ESP32-C5 replaces the S3 on the same board and adds 5 GHz scanning. Those builds are on the flasher's Beta — XIAO ESP32-C5 channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps Wi-Fi and BLE to record which devices were present.</p>
