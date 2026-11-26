@@ -137,7 +137,7 @@ Several nodes measure the signal strength of one target and estimate its positio
 |---|---|---|---|---|
 | `TRIANGULATE_START` | `TS` | Starts a triangulation run | Each other node sends `TRI_START_ACK` within about 2 seconds. A node that cannot free its radio sends `TRI_ACK:BUSY`. A malformed command gets no reply | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0` |
 | `TRIANGULATE_STOP` | `TX` | Ends the run. Each node sends its last readings as `T_D` lines | `TRIANGULATE_STOP_ACK` | `@ALL TRIANGULATE_STOP` |
-| `TRIANGULATE_RESULTS` | `TR` | Prints the current estimate | `TRIANGULATE_RESULTS_START`, the result text, `TRIANGULATE_RESULTS_END`; or `TRIANGULATE_RESULTS:NO_DATA` | `@AH01 TRIANGULATE_RESULTS` |
+| `TRIANGULATE_RESULTS` | `TR` | Sends the coordinator's last result again | `TRIANGULATE_RESULTS_START`, the `T_F` line if a position was found, the `T_C` line, `TRIANGULATE_RESULTS_END`; or `TRIANGULATE_RESULTS:NO_DATA` during a run, before any run, or on a node that was not the coordinator | `@AH01 TRIANGULATE_RESULTS` |
 
 `TRIANGULATE_START` takes `target:secs[:rfEnv[:wifiPwr[:blePwr]]]`:
 
