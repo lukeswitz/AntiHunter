@@ -3767,6 +3767,13 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lastSendTime = 0;
     triAccum.lastSendSeq = 0;
 }
+
+void triangulationResetAccumulator() {
+    uint8_t target[6];
+    triangulationGetTarget(target);
+    resetTriAccumulator(target);
+}
+
 static std::atomic<bool> triSelfDirty(false);
 
 static void triUpsertSelfNode(const String& nodeId) {
