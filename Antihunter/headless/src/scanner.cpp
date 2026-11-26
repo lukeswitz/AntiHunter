@@ -3711,7 +3711,7 @@ void listScanTask(void *pv) {
             }
             if (hopTimer) esp_timer_stop(hopTimer);
             esp_wifi_set_promiscuous(false);
-            WiFi.setScanTimeout(AH_SCAN_TIMEOUT_MS);
+            WiFi.setScanTimeout(sweepCh ? AH_SCAN_TIMEOUT_MS : AH_SWEEP_TIMEOUT_MS);
             WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_MS);
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, sweepCh);
             WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_DEFAULT_MS);

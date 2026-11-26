@@ -87,6 +87,26 @@ bool triangulationLastResult(String &finalMsg, String &completeMsg) {
     completeMsg = triLastCompleteMsg;
     return finalMsg.length() > 0 || completeMsg.length() > 0;
 }
+
+void triangulationClearLastResult() {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    triLastFinalMsg = "";
+    triLastCompleteMsg = "";
+}
+
+void triangulationNoteResult(const String &sender, const String &content) {
+    int m = content.indexOf("MAC=");
+    if (m < 0) return;
+    int e = content.indexOf(' ', m + 4);
+    uint8_t mac[6];
+    if (!parseMac6(content.substring(m + 4, e < 0 ? content.length() : e), mac) || !triangulationTargetMatches(mac)) return;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        if (content.startsWith("T_F:")) triLastFinalMsg = sender + ": " + content;
+        else triLastCompleteMsg = sender + ": " + content;
+    }
+    Serial.printf("[TRIANGULATE] Kept %s's %.3s for TRIANGULATE_RESULTS\n", sender.c_str(), content.c_str());
+}
 std::vector<TriangulateAckInfo> triangulateAcks;
 std::vector<String> triangulateReportedNodes;
 String triangulationCoordinator = "";
@@ -690,13 +710,21 @@ void coordinatorSetupTask(const void *parameter) {
     }
     {
         uint32_t ackWaitStart = millis();
-        size_t peers = detect_meshPeerCount();
-        size_t expected = peers > triLastChildCount ? peers : triLastChildCount;
+        const std::vector<String> known = detect_meshPeerIds();
+        size_t expected = known.size() > triLastChildCount ? known.size() : triLastChildCount;
         while ((uint32_t)(millis() - ackWaitStart) < 15000) {
             if (triSetupAbort.load()) break;
             size_t have;
-            { std::lock_guard<std::mutex> lock(triangulationMutex); have = triangulateAcks.size(); }
-            if (expected > 0 && have >= expected) {
+            bool allKnown;
+            {
+                std::lock_guard<std::mutex> lock(triangulationMutex);
+                have = triangulateAcks.size();
+                allKnown = std::all_of(known.begin(), known.end(), [](const String &id) {
+                    return std::any_of(triangulateAcks.begin(), triangulateAcks.end(),
+                                       [&id](const TriangulateAckInfo &a) { return a.nodeId == id; });
+                });
+            }
+            if (expected > 0 && have >= expected && allKnown) {
                 Serial.printf("[TRIANGULATE] All %u known nodes ACKed in %ums - starting early\n",
                               (unsigned)have, (unsigned)(millis() - ackWaitStart));
                 break;
@@ -2038,6 +2066,7 @@ static void calibrationTask(void *parameter) {
     uint8_t wifiChannel = 0;
     uint32_t startTime = millis();
     while (millis() - startTime < 30000 && !stopRequested.load()) {
+        WiFi.setScanTimeout(wifiChannel ? AH_SCAN_TIMEOUT_MS : AH_SWEEP_TIMEOUT_MS);
         int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime, wifiChannel);
         for (int i = 0; i < n; i++) {
             if (memcmp(WiFi.BSSID(i), macBytes, 6) != 0) continue;
