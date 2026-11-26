@@ -226,6 +226,7 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
 
 bool detect_isVerbose();
 size_t detect_meshPeerCount();
+std::vector<String> detect_meshPeerIds();
 
 void sentinel_startAlwaysOn();
 void sentinel_kill();

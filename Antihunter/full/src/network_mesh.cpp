@@ -1740,6 +1740,7 @@ static void handleTriangulateStart(const String &command, const String &targetId
   { std::lock_guard<std::mutex> lock(triangulationMutex); triangulationNodes.clear(); }
   triangulationResetAccumulator();
   reportingSchedule.reset();
+  triangulationClearLastResult();
   triangulationActive = true;
   triangulationStart = millis();
   triangulationDuration = duration;
@@ -3689,6 +3690,8 @@ void processMeshMessage(const String &message, bool fromRadio) {
     }
 
     // Process T_D messages during active triangulation or while waiting for final reports
+    if (haveSender && !triangulationInitiator && (content.startsWith("T_F:") || content.startsWith("T_C:")))
+        triangulationNoteResult(sendingNode, content);
     if ((triangulationActive || waitingForFinalReports) && haveSender) {
         // T_D from child nodes
         if (content.startsWith("T_D:")) {

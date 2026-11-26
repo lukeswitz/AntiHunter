@@ -4136,7 +4136,9 @@ void listScanTask(void *pv) {
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0) &&
             (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, triScanChannel());
+            const uint8_t triCh = triScanChannel();
+            WiFi.setScanTimeout(triCh ? AH_SCAN_TIMEOUT_MS : AH_SWEEP_TIMEOUT_MS);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, triCh);
             if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {

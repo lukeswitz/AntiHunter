@@ -4762,6 +4762,14 @@ size_t detect_meshPeerCount() {
     return static_cast<size_t>(std::count_if(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
         [now](const auto &kv) { return (now - kv.second) < MESH_PEER_TIMEOUT_MS; }));
 }
+std::vector<String> detect_meshPeerIds() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    uint32_t now = millis();
+    std::vector<String> ids;
+    for (const auto &kv : g_meshPeerLastSeen)
+        if ((now - kv.second) < MESH_PEER_TIMEOUT_MS) ids.push_back(kv.first);
+    return ids;
+}
 
 std::atomic<bool> g_detectVerbose{false};
 bool detect_isVerbose() { return g_detectVerbose.load(); }
