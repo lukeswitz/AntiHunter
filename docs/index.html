@@ -514,7 +514,7 @@
           </div>
           <div>
             <label>Baseline RAM Cache</label>
-            <input type="number" id="cfgBaselineRam" placeholder="400" min="50" max="2000">
+            <input type="number" id="cfgBaselineRam" placeholder="400" min="200" max="500">
           </div>
           <div class="full">
             <label>Targets (MACs, vendor prefixes, SSIDs)</label>
@@ -530,19 +530,19 @@
         <div class="cfg-grid">
           <div>
             <label>Wi-Fi Channel Dwell (ms)</label>
-            <input type="number" id="cfgWifiChannelTime" placeholder="160" min="20" max="500">
+            <input type="number" id="cfgWifiChannelTime" placeholder="160" min="110" max="300">
           </div>
           <div>
             <label>Wi-Fi Scan Interval (ms)</label>
-            <input type="number" id="cfgWifiScanInterval" placeholder="3000" min="500" max="30000">
+            <input type="number" id="cfgWifiScanInterval" placeholder="3000" min="1000" max="10000">
           </div>
           <div>
             <label>BLE Scan Interval (ms)</label>
-            <input type="number" id="cfgBleScanInterval" placeholder="4000" min="500" max="30000">
+            <input type="number" id="cfgBleScanInterval" placeholder="4000" min="1000" max="10000">
           </div>
           <div>
             <label>BLE Scan Duration (ms)</label>
-            <input type="number" id="cfgBleScanDuration" placeholder="2000" min="500" max="30000">
+            <input type="number" id="cfgBleScanDuration" placeholder="2000" min="1000" max="5000">
           </div>
           <div>
             <label>Global RSSI Threshold (dBm)</label>
@@ -563,7 +563,7 @@
           </div>
           <div>
             <label>Heartbeat Interval (min)</label>
-            <input type="number" id="cfgHbInterval" placeholder="10" min="1" max="60">
+            <input type="number" id="cfgHbInterval" placeholder="30" min="1" max="60">
           </div>
           <div>
             <label>Vibration Sensor</label>
@@ -590,12 +590,12 @@
             <label>Scan to Run</label>
             <select id="cfgVibScanMode">
               <option value="" selected>Unchanged</option>
-              <option value="1">All-device scan</option>
-              <option value="2">Probe-request detect</option>
-              <option value="3">Randomized-MAC detect</option>
-              <option value="4">List scan (targets)</option>
-              <option value="5">Drone / RemoteID</option>
-              <option value="6">Deauth detect</option>
+              <option value="1">Device discovery</option>
+              <option value="2">Probe requests</option>
+              <option value="3">Randomized MAC tracer</option>
+              <option value="4">Target scan</option>
+              <option value="5">Drone RID</option>
+              <option value="6">Deauth detection</option>
               <option value="7">Baseline anomaly</option>
               <option value="8">Packet capture to SD</option>
             </select>
@@ -607,6 +607,14 @@
           <div>
             <label>Cooldown (sec)</label>
             <input type="number" id="cfgVibScanCooldown" placeholder="60" min="5" max="86400">
+          </div>
+          <div>
+            <label>Interrupt scheduled scans</label>
+            <select id="cfgVibScanPreempt">
+              <option value="" selected>Unchanged</option>
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
           </div>
         </div>
 
@@ -641,11 +649,11 @@
           </div>
           <div>
             <label>Erase Delay (sec)</label>
-            <input type="number" id="cfgAutoEraseDelay" placeholder="30" min="5" max="3600">
+            <input type="number" id="cfgAutoEraseDelay" placeholder="30" min="10" max="300">
           </div>
           <div>
             <label>Erase Cooldown (sec)</label>
-            <input type="number" id="cfgAutoEraseCooldown" placeholder="300" min="10" max="3600">
+            <input type="number" id="cfgAutoEraseCooldown" placeholder="300" min="300" max="3600">
           </div>
           <div>
             <label>Vibrations Required</label>
@@ -653,11 +661,11 @@
           </div>
           <div>
             <label>Detection Window (sec)</label>
-            <input type="number" id="cfgDetectionWindow" placeholder="20" min="1" max="120">
+            <input type="number" id="cfgDetectionWindow" placeholder="20" min="10" max="60">
           </div>
           <div>
             <label>Setup Delay (sec)</label>
-            <input type="number" id="cfgSetupDelay" placeholder="120" min="5" max="600">
+            <input type="number" id="cfgSetupDelay" placeholder="120" min="30" max="600">
           </div>
         </div>
 
@@ -674,15 +682,15 @@
           </div>
           <div>
             <label>Absence Threshold (sec)</label>
-            <input type="number" id="cfgAbsenceThreshold" placeholder="120" min="60" max="7200">
+            <input type="number" id="cfgAbsenceThreshold" placeholder="120" min="30" max="600">
           </div>
           <div>
             <label>Reappearance Window (sec)</label>
-            <input type="number" id="cfgReappearanceWindow" placeholder="300" min="10" max="3600">
+            <input type="number" id="cfgReappearanceWindow" placeholder="300" min="60" max="1800">
           </div>
           <div>
             <label>RSSI Change Delta (dB)</label>
-            <input type="number" id="cfgRssiChangeDelta" placeholder="20" min="1" max="50">
+            <input type="number" id="cfgRssiChangeDelta" placeholder="20" min="5" max="50">
           </div>
         </div>
 
@@ -691,16 +699,37 @@
           <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Wi-Fi Access Point (Full firmware only)</p>
           <div class="cfg-grid">
             <div>
-              <label>AP SSID</label>
+              <label>Network name (SSID)</label>
               <input type="text" id="cfgApSsid" placeholder="Antihunter" maxlength="32">
             </div>
             <div>
-              <label>AP Password</label>
+              <label>Password</label>
               <input type="text" id="cfgApPass" placeholder="antihunt3r123" minlength="8" maxlength="63">
-              <div class="cfg-note">Min 8 characters</div>
+              <div class="cfg-note">8 to 63 characters</div>
             </div>
             <div>
-              <label>AP Security</label>
+              <label>Joinable during scans</label>
+              <select id="cfgApReach">
+                <option value="" selected>On (default)</option>
+                <option value="1">On</option>
+                <option value="0">Off</option>
+              </select>
+            </div>
+            <div>
+              <label>Require web login</label>
+              <select id="cfgWebAuth">
+                <option value="" selected>Off (default)</option>
+                <option value="1">On</option>
+                <option value="0">Off</option>
+              </select>
+            </div>
+            <div>
+              <label>Web password</label>
+              <input type="text" id="cfgWebPass" placeholder="Uses the Wi-Fi password" minlength="8" maxlength="63">
+              <div class="cfg-note">8 to 63 characters, no ":". User name is admin.</div>
+            </div>
+            <div>
+              <label>Security</label>
               <select id="cfgApAuth">
                 <option value="" selected>WPA2/WPA3 (default)</option>
                 <option value="0">WPA2/WPA3</option>
@@ -708,7 +737,7 @@
               </select>
             </div>
             <div>
-              <label>Hidden Network</label>
+              <label>Hidden network</label>
               <select id="cfgApHidden">
                 <option value="" selected>Off (default)</option>
                 <option value="1">On</option>
@@ -966,9 +995,24 @@ chmod +x flashAntihunter.sh
     function buildConfigJson() {
       const cfg = {};
       function str(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = v; }
-      function num(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = parseInt(v, 10); }
+      function ranged(id) {
+        const el = document.getElementById(id);
+        const v = el.value.trim();
+        if (!v) return null;
+        const n = parseInt(v, 10);
+        const lo = el.min === '' ? null : parseInt(el.min, 10);
+        const hi = el.max === '' ? null : parseInt(el.max, 10);
+        const label = el.parentElement.querySelector('label');
+        const name = label ? label.textContent.trim() : id;
+        if (el.tagName === 'INPUT' && (Number.isNaN(n) || (lo !== null && n < lo) || (hi !== null && n > hi))) {
+          el.focus();
+          throw new Error(name + ' must be ' + (lo !== null && hi !== null ? lo + ' to ' + hi : 'a number'));
+        }
+        return n;
+      }
+      function num(id, key) { const n = ranged(id); if (n !== null) cfg[key] = n; }
       function bool(id, key) { const v = document.getElementById(id).value; if (v !== '') cfg[key] = v === '1'; }
-      function ms(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = parseInt(v, 10) * 1000; }
+      function ms(id, key) { const n = ranged(id); if (n !== null) cfg[key] = n * 1000; }
 
       const nodeId = document.getElementById('cfgNodeId').value.trim().toUpperCase();
       if (nodeId) {
@@ -995,6 +1039,7 @@ chmod +x flashAntihunter.sh
       num('cfgVibScanMode', 'vibScanMode');
       num('cfgVibScanDuration', 'vibScanDuration');
       ms('cfgVibScanCooldown', 'vibScanCooldown');
+      bool('cfgVibScanPreempt', 'vibScanPreempt');
       bool('cfgSdAutoRepair', 'sdAutoRepair');
       num('cfgPcapMaxFileMB', 'pcapMaxFileMB');
       num('cfgBaselineRam', 'baselineRamSize');
@@ -1022,10 +1067,20 @@ chmod +x flashAntihunter.sh
 
       if (selectedFirmware === 'full') {
         str('cfgApSsid', 'apSsid');
-        const apPass = document.getElementById('cfgApPass').value.trim();
-        if (apPass && apPass.length >= 8) cfg.apPass = apPass;
+        const apPass = document.getElementById('cfgApPass').value;
+        if (apPass) {
+          if (apPass.length < 8 || apPass.length > 63) throw new Error('Access point password must be 8 to 63 characters');
+          cfg.apPass = apPass;
+        }
         num('cfgApAuth', 'apAuth');
         bool('cfgApHidden', 'apHidden');
+        bool('cfgApReach', 'apReach');
+        bool('cfgWebAuth', 'webAuth');
+        const webPass = document.getElementById('cfgWebPass').value;
+        if (webPass) {
+          if (webPass.length < 8 || webPass.length > 63 || webPass.includes(':')) throw new Error('Web password must be 8 to 63 characters with no ":"');
+          cfg.webPass = webPass;
+        }
       }
 
       {
@@ -1048,6 +1103,12 @@ chmod +x flashAntihunter.sh
       document.getElementById('termBody').textContent = '';
 
       try {
+        const cfg = buildConfigJson();
+        const payload = 'CONFIG:' + JSON.stringify(cfg);
+        const shown = Object.assign({}, cfg);
+        ['erasePSK', 'apPass', 'webPass'].forEach(k => { if (k in shown) shown[k] = '(hidden)'; });
+        tLog('Settings to send: ' + JSON.stringify(shown), 'dim');
+
         tLog('Select the ESP32 serial port...', 'dim');
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: BAUD });
@@ -1057,8 +1118,6 @@ chmod +x flashAntihunter.sh
         tLog('Resetting device...', 'ok');
         await tReset();
 
-        const cfg = buildConfigJson();
-        const payload = 'CONFIG:' + JSON.stringify(cfg);
         let configSent = false;
         let bootComplete = false;
         let timeSent = false;
