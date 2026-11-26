@@ -287,16 +287,16 @@
       <div style="max-width:320px;margin:0 auto 14px;">
         <label>Release Channel</label>
         <select id="cfgChannel" onchange="selectChannel(this.value)">
-          <option value="stable">Stable (recommended)</option>
-          <option value="beta">Beta (latest — may be unstable)</option>
-          <option value="c5">Beta — XIAO ESP32-C5 (2.4 + 5GHz)</option>
+          <option value="stable">Stable - recommended</option>
+          <option value="beta">Beta - latest features, less stable</option>
+          <option value="c5">Beta - ESP32-C5 (single-core)</option>
         </select>
       </div>
 
       <div id="c5Note" class="banner info" style="display:none">
-        Builders who want to swap between the S3 and C5 can mount the XIAO on pin headers. The
+        Builders who want to swap between the S3 (dual-core, more compute power) and C5 (adds 5Ghz Wi-Fi) can mount the XIAO on pin headers. The
         <a href="https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files" target="_blank" rel="noopener" style="color:var(--acc)">socketed housings</a>
-        have the opening for it. A C5 soldered straight into the PCB needs desoldering to go back to the S3.
+        have the opening for it. The S3 is officially supported because of its compute power, C5 is beta.
       </div>
 
       <div class="exp-gate" id="expGate" style="display:none">
