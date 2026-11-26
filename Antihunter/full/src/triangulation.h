@@ -170,6 +170,8 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
 String calculateTriangulation();
 bool triangulationLastResult(String &finalMsg, String &completeMsg);
+void triangulationClearLastResult();
+void triangulationNoteResult(const String &sender, const String &content);
 void stopTriangulation();
 void requestTriangulationStop();
 void triangulationAbortSetup();

@@ -208,6 +208,9 @@ uint8_t nextActiveScanChannel();
 #ifndef AH_SCAN_TIMEOUT_MS
 #define AH_SCAN_TIMEOUT_MS 8000
 #endif
+#ifndef AH_SWEEP_TIMEOUT_MS
+#define AH_SWEEP_TIMEOUT_MS 20000
+#endif
 extern std::atomic<bool> g_dronePinChannel;
 
 extern TaskHandle_t workerTaskHandle;

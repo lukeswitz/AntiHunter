@@ -205,6 +205,7 @@ void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi);
 void detect_setVerbose(bool on);
 bool detect_isVerbose();
 size_t detect_meshPeerCount();
+std::vector<String> detect_meshPeerIds();
 
 void sentinel_startAlwaysOn();
 void sentinel_kill();
