@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** Breadboard the C5 and test it before you solder anything. A C5 soldered into a PCB can go back to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Experimental** channel. The S3 build on `main` is the stable one.
+> **Beta.** Breadboard the C5 and test it before you solder anything. A C5 soldered into a PCB can go back to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Beta — XIAO ESP32-C5** channel. The S3 build on `main` is the stable one.
 
 The XIAO ESP32-C5 replaces the XIAO ESP32-S3 on the same AntiHunter PCB, with the same footprint, peripherals and mesh. Its radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 radio is 2.4 GHz only.
 
@@ -65,10 +65,9 @@ The pads are the same as on the S3 node. Only the GPIO numbers differ, so an ass
 
 **Web flasher.** [Open it](https://lukeswitz.github.io/AntiHunter/), then:
 
-1. Choose the **Experimental — XIAO ESP32-C5** channel.
+1. Choose the **Beta — XIAO ESP32-C5** channel.
 2. Pick Full or Headless.
-3. Check the acknowledgment box.
-4. Select **Connect & Flash**.
+3. Select **Connect & Flash**.
 
 **From source:**
 
