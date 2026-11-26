@@ -248,7 +248,7 @@ The vibration sensor detects when someone moves the node.
 | Field | Meaning | Range |
 |---|---|---|
 | `on` | `1` on, `0` off | 0-1 |
-| `scan` | Which scan to start, always on both radios: `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target scan on channels 1-11, `5` drone, `6` deauth, `7` baseline, `8` packet capture on Wi-Fi 2.4 GHz. `0` starts none | 0-8 |
+| `scan` | Which scan to start, always on both radios: `1` device discovery, `2` probe, `3` randomized MAC tracer, `4` target scan on channels 1-11, `5` drone, `6` deauth, `7` baseline, `8` packet capture on Wi-Fi 2.4 GHz. `0` starts none. The names `device-scan`, `probe-scan`, `randomization-detection`, `target-scan`, `drone-detection`, `deauth`, `baseline` and `pcap` work in place of `1` to `8` | 0-8 or a name |
 | `secs` | Scan length in seconds. `0` runs until `STOP`, except scan `8`, which needs a length above 0 | 0-65535 |
 | `cooldown` | Seconds before the next movement can start a scan. Left out, it keeps the current value | 5-86400 |
 | `interrupt` | `1` stops a running scheduled scan to make room. It resumes if it had 10 seconds or more left. Left out, it keeps the current value | 0-1 |
@@ -267,7 +267,7 @@ To turn the movement scan off: `@AH01 VIBSCAN_SET:0:0:0`. The `Pre:` value in th
 
 | Command | Argument | Meaning | Range | Default |
 |---|---|---|---|---|
-| `BATTERY_SAVER_START` | `min` | Minutes between battery-saver heartbeats. Out-of-range values move to the nearest limit | 1-30 | 5 |
+| `BATTERY_SAVER_START` | `min` | Minutes between battery-saver heartbeats. Out-of-range values move to the nearest limit | 1-30 | 30 |
 | `HB_INTERVAL` | `min` | Minutes between normal heartbeats. Out-of-range values move to the nearest limit | 1-60 | 30 |
 
 ### Sentinel
@@ -314,7 +314,7 @@ A `GROUP` name selects these detectors:
 
 | Group | Detectors |
 |---|---|
-| `dos` | Evil twin, SAE flood, association sleep |
+| `dos` | SAE flood, association sleep |
 | `rogue` (or `rogue_ap`) | Evil twin, OWE downgrade, Karma bait |
 | `recon` | PMKID harvest, probe flood, forced handshake, Pwnagotchi |
 | `physical` (or `phys`) | FragAttacks, two-channel twin (one access point beaconing on two channels), Wi-Fi interference, interference baseline |
@@ -345,10 +345,11 @@ A `GROUP` name selects these detectors:
 | `jam_nf_db` | How far a channel's noise floor must rise above its learned level to raise a Wi-Fi interference alert, from 3 to 30 | dB | 8 |
 | `hunt_cooldown_ms` | Time before the same attacker can start another location hunt | ms | 60000 |
 | `attack_resp_mask` | Follow-up actions after a confirmed attack. Add the values: `2` packet capture, `4` device discovery, `8` probe scan, `16` drone Remote ID scan, `32` stop the running scan to make room. `0` turns every follow-up off | sum | 0 |
+| `attack_resp` | The same follow-ups by name, in one quoted list: `pcap`, `device-scan`, `probe-scan`, `drone-detection`, `interrupt`. `none` turns every follow-up off | names | |
 | `ar_secs_pcap` | Length of the follow-up capture | s | 120 |
 | `ar_secs_device` `ar_secs_probe` `ar_secs_drone` `ar_secs_trilat` | Length of each other follow-up | s | 60 |
 
-Example: `@AH01 DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":300}` runs a 300-second capture and a device discovery after each confirmed attack. Mask 6 is 2 (capture) plus 4 (device discovery).
+Example: `@AH01 DETECT_CFG:{"attack_resp":"pcap,device-scan","ar_secs_pcap":300}` runs a 300-second capture and a device discovery after each confirmed attack.
 
 ### CSI Motion (Beta, C5)
 

@@ -1745,7 +1745,7 @@ void registerRemainingRoutes() {
     String action = req->hasParam("action") ? req->getParam("action")->value() : "status";
 
     if (action == "start") {
-      uint32_t intervalMinutes = req->hasParam("interval") ? req->getParam("interval")->value().toInt() : 5;
+      uint32_t intervalMinutes = req->hasParam("interval") ? req->getParam("interval")->value().toInt() : 30;
       if (intervalMinutes < 1) intervalMinutes = 1;
       if (intervalMinutes > 30) intervalMinutes = 30;
       enterBatterySaver(intervalMinutes * 60000);

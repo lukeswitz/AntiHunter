@@ -871,7 +871,7 @@ AH01: VIBSCAN_ACK:OK En:1 Mode:1 Dur:300s Cd:600s Pre:0</pre></li>
     <tr><td><span class="mono">STOP</span> [X]</td><td>Stops every scan and pending attack response, and clears queued mesh output.</td></tr>
     <tr><td><span class="mono">MESH_TX_CANCEL</span> [MTC]</td><td>Drops queued mesh messages and keeps the scan running.</td></tr>
     <tr><td><span class="mono">DEVICE_DB_CLEAR</span> [DBX]</td><td>Clears the device database.</td></tr>
-    <tr><td><span class="mono">BATTERY_SAVER_START:10</span> [BSS]</td><td>Starts Battery Saver (§9.3) with a heartbeat every 10 minutes (1 to 30, default 5). <span class="mono">BATTERY_SAVER_STOP</span> [BSX] ends it.</td></tr>
+    <tr><td><span class="mono">BATTERY_SAVER_START:10</span> [BSS]</td><td>Starts Battery Saver (§9.3) with a heartbeat every 10 minutes (1 to 30, default 30). <span class="mono">BATTERY_SAVER_STOP</span> [BSX] ends it.</td></tr>
     <tr><td><span class="mono">HB_ON</span> [HB1], <span class="mono">HB_OFF</span> [HB0], <span class="mono">HB_INTERVAL:10</span> [HBI]</td><td>Turns the status heartbeat on or off, or sets its interval in minutes (§9.3).</td></tr>
   </table>
   <p><span class="mono">docs/mesh-commands.md</span> in the repository lists every command with its arguments, replies and short forms. Appendix D has the ten to learn first, and the table in §11.1 shows the command that starts each feature.</p>
