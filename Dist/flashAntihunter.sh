@@ -13,6 +13,15 @@ RADAR_VERSION="v0.1.0-radarexp2"
 
 FIRMWARE_OPTIONS=()
 IS_C5=false
+CONFIG_FILE=""
+trap 'rm -f "$CONFIG_FILE"' EXIT
+
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    printf '%s' "$s"
+}
 
 select_channel() {
     if [ ${#FIRMWARE_OPTIONS[@]} -gt 0 ]; then
@@ -267,12 +276,12 @@ collect_configuration() {
             done
         fi
 
-        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apAuth\":$AP_AUTH,\"apHidden\":$AP_HIDDEN,\"webAuth\":$WEB_AUTH"
+        AP_SSID_JSON=",\"apSsid\":\"$(json_escape "$AP_SSID")\",\"apAuth\":$AP_AUTH,\"apHidden\":$AP_HIDDEN,\"webAuth\":$WEB_AUTH"
         if [ -n "$AP_PASS" ]; then
-            AP_SSID_JSON="$AP_SSID_JSON,\"apPass\":\"$AP_PASS\""
+            AP_SSID_JSON="$AP_SSID_JSON,\"apPass\":\"$(json_escape "$AP_PASS")\""
         fi
         if [ -n "$WEB_PASS" ]; then
-            AP_SSID_JSON="$AP_SSID_JSON,\"webPass\":\"$WEB_PASS\""
+            AP_SSID_JSON="$AP_SSID_JSON,\"webPass\":\"$(json_escape "$WEB_PASS")\""
         fi
     else
         AP_SSID_JSON=""
@@ -306,8 +315,12 @@ collect_configuration() {
         SETUP_DELAY=60
     fi
 
-    cat > /tmp/antihunter_config.json <<EOF
-{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"bleLongRange":$BLE_LONG_RANGE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${TARGETS//,/\\n}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
+    local targets_json
+    targets_json=$(json_escape "$TARGETS")
+    targets_json=${targets_json//,/\\n}
+    CONFIG_FILE=$(umask 077; mktemp "${TMPDIR:-/tmp}/antihunter_config.XXXXXX")
+    cat > "$CONFIG_FILE" <<EOF
+{"nodeId":"$(json_escape "$NODE_ID")","scanMode":$SCAN_MODE,"bleLongRange":$BLE_LONG_RANGE,"channels":"$(json_escape "$CHANNELS")"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${targets_json}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
 EOF
 
     echo ""
@@ -629,8 +642,6 @@ if [ "$CONFIG_MODE" = true ]; then
     echo ""
     echo "Sending configuration to device..."
 
-    CONFIG_JSON_COMPACT=$(cat /tmp/antihunter_config.json | tr -d '\n' | tr -d ' ')
-
     $PYTHON_CMD -c "
 import serial
 import time
@@ -663,7 +674,7 @@ try:
         sys.exit(0)
 
     time.sleep(0.5)
-    config_cmd = 'CONFIG:$CONFIG_JSON_COMPACT\n'
+    config_cmd = 'CONFIG:' + ''.join(open('$CONFIG_FILE', encoding='utf-8').read().splitlines()) + chr(10)
     ser.write(config_cmd.encode())
     ser.flush()
     print('[CONFIG] Configuration sent')
@@ -681,7 +692,7 @@ except Exception as e:
     sys.exit(1)
 " || echo "[CONFIG] Warning: Config send may have failed"
 
-    rm -f /tmp/antihunter_config.json
+    rm -f "$CONFIG_FILE"
 
     echo ""
     echo "Waiting for device reboot..."
