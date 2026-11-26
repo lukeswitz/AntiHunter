@@ -295,7 +295,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - On Full, a single-node `TRIANGULATE_START` now accepts a tracer ID as the target.
 - A helper node now starts every hunt from zero hits. Before, a second hunt for the same device added to the first.
 - A helper node now takes its report order from the current hunt only. Before, nodes from an earlier hunt stayed in it.
-- `TRIANGULATE_RESULTS` now sends the coordinator's last position again, and answers during a run.
+- `TRIANGULATE_RESULTS` now sends the coordinator's last position again, and answers during a run. A helper node answers it too, with the coordinator's position.
+- The coordinator now waits for every node it knows before it starts. Before, a fast answer from another node could start the hunt and leave a known node out.
+- On the C5, triangulation and calibration now hear Wi-Fi devices. A scan of both bands takes about 9.5 seconds, and a 5 second limit cut every scan short.
 
 ### Web UI and data
 
