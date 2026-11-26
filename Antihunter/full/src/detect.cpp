@@ -7,6 +7,7 @@
 #include "main.h"
 #include "triangulation.h"
 #include "cache_shed.h"
+#include "scan_names.h"
 #include <SD.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
@@ -5051,6 +5052,18 @@ static void _setmask(const String &b, const char *k, std::atomic<uint8_t> &a) {
     int v = s.toInt();
     if (v >= 0 && v <= 255) a.store((uint8_t)v);
 }
+static void _setArNames(const String &b, std::atomic<uint8_t> &a) {
+    int p = b.indexOf("\"attack_resp\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    int q1 = b.indexOf('"', colon);
+    int q2 = (q1 >= 0) ? b.indexOf('"', q1 + 1) : -1;
+    if (q2 < 0) return;
+    static_assert(AR_PCAP == 0x02 && AR_DEVICE == 0x04 && AR_PROBE == 0x08 && AR_DRONE == 0x10 && AR_PREEMPT == 0x20, "scan_names.h flag values");
+    int m = scan_names::attackRespMaskFromList(b.substring(q1 + 1, q2).c_str());
+    if (m >= 0) a.store((uint8_t)m);
+}
 static void _setu32(const String &b, const char *k, std::atomic<uint32_t> &a) {
     int p = b.indexOf(String("\"") + k + "\"");
     if (p < 0) return;
@@ -5108,6 +5121,7 @@ bool detect_setConfigFromJson(const String &b) {
     _setu8(b, "jam_nf_db", g_jamNfDb);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
     _setmask(b, "attack_resp_mask", g_attackRespMask);
+    _setArNames(b, g_attackRespMask);
     _seti(b, "ar_secs_trilat", g_arSecsTrilat);
     _seti(b, "ar_secs_pcap", g_arSecsPcap);
     _seti(b, "ar_secs_device", g_arSecsDevice);

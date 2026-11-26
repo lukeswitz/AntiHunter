@@ -16,7 +16,7 @@ EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c \
 	--suppress=*:*/opendroneid.h --suppress=*:*/odid_wifi.h
 
-.PHONY: lint lint-full lint-headless build build-full build-headless test-ble test-psram-table test-cuckoo test-fleet test-fleet-sim clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-ble test-psram-table test-cuckoo test-fleet test-fleet-sim test-scan-names clean
 
 test-fleet:
 	c++ -std=c++17 -O1 -Wall -Wextra -I$(COMMON_SRC) scripts/test_fleet.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet
@@ -25,6 +25,10 @@ test-fleet:
 test-fleet-sim:
 	c++ -std=c++17 -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined -I$(COMMON_SRC) scripts/test_fleet_sim.cpp $(COMMON_SRC)/fleet_relay.cpp -o /tmp/test_fleet_sim
 	/tmp/test_fleet_sim
+
+test-scan-names:
+	c++ -std=c++17 -O1 -Wall -Wextra -I$(COMMON_SRC) scripts/test_scan_names.cpp -o /tmp/test_scan_names
+	/tmp/test_scan_names
 
 test-ble:
 	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_ble_class.cpp $(FULL_SRC)/ble_class.cpp -o /tmp/test_ble_class

@@ -1452,10 +1452,10 @@ R"HTML(
                     <select id="batterySaverInterval">
                       <option value="1">1 minute</option>
                       <option value="2">2 minutes</option>
-                      <option value="5" selected>5 minutes</option>
+                      <option value="5">5 minutes</option>
                       <option value="10">10 minutes</option>
                       <option value="15">15 minutes</option>
-                      <option value="30">30 minutes</option>
+                      <option value="30" selected>30 minutes</option>
                     </select>
                   </div>
                 </div>

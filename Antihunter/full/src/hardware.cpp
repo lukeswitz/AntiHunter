@@ -121,7 +121,7 @@ String eraseStatus = "INACTIVE";
 bool eraseInProgress = false;
 
 bool batterySaverEnabled = false;
-uint32_t batterySaverHeartbeatInterval = 300000;  // 5 minutes default
+uint32_t batterySaverHeartbeatInterval = 1800000;
 uint32_t lastBatterySaverHeartbeat = 0;
 
 
