@@ -23,6 +23,34 @@ json_escape() {
     printf '%s' "$s"
 }
 
+in_range() {
+    [[ "$1" =~ ^-?[0-9]+$ ]] && [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
+}
+
+ask_range() {
+    local prompt=$1 lo=$2 hi=$3 def=$4 v
+    while true; do
+        read -p "$prompt, $lo-$hi [default: $def]: " v
+        v=${v:-$def}
+        if in_range "$v" "$lo" "$hi"; then printf '%s' "$v"; return; fi
+        echo "Enter a number from $lo to $hi." >&2
+    done
+}
+
+add_opt() {
+    local prompt=$1 lo=$2 hi=$3 key=$4 scale=$5 def=${6:-} v
+    while true; do
+        read -p "$prompt, $lo to $hi${def:+ [default: $def]}: " v
+        v=${v:-$def}
+        if [ -z "$v" ]; then return 0; fi
+        if in_range "$v" "$lo" "$hi"; then
+            EXTRA_JSON="$EXTRA_JSON,\"$key\":$((v * scale))"
+            return 0
+        fi
+        echo "Enter a number from $lo to $hi, or leave it empty."
+    done
+}
+
 select_channel() {
     if [ ${#FIRMWARE_OPTIONS[@]} -gt 0 ]; then
         return
@@ -78,6 +106,8 @@ select_channel() {
 
 CUSTOM_BIN=""
 CONFIG_MODE=false
+NO_FLASH=false
+EXTRA_JSON=""
 IS_HEADLESS=false
 IS_RADAR=false
 FACTORY_MODE=false
@@ -95,6 +125,7 @@ Flash firmware to ESP32 devices.
 Options:
   -f, --file FILE    Path to custom .bin file to flash
   -c, --configure    Configure device parameters during flash
+  -n, --no-flash     Configure a node that is already flashed, without flashing
   -e, --erase        Erase flash memory before flashing (optional)
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
@@ -199,8 +230,15 @@ collect_configuration() {
     echo "  0 - Relaxed (low power)"
     echo "  1 - Balanced"
     echo "  2 - Aggressive (fast detection)"
-    read -p "Select RF preset (0-2) [default: 1]: " RF_PRESET
+    echo "  3 - Custom (you set the four scan timings)"
+    read -p "Select RF preset (0-3) [default: 1]: " RF_PRESET
     RF_PRESET=${RF_PRESET:-1}
+    if [ "$RF_PRESET" = "3" ]; then
+        add_opt "Wi-Fi channel dwell in ms" 110 300 wifiChannelTime 1 160
+        add_opt "Wi-Fi scan interval in ms" 1000 10000 wifiScanInterval 1 3000
+        add_opt "BLE scan interval in ms" 1000 10000 bleScanInterval 1 4000
+        add_opt "BLE scan duration in ms" 1000 5000 bleScanDuration 1 2000
+    fi
 
     echo ""
     read -p "Mesh enabled? (Y/n): " MESH_ON
@@ -212,11 +250,11 @@ collect_configuration() {
     read -p "Status heartbeat over mesh? (y/N): " HB_ON
     if [[ "$HB_ON" =~ ^[Yy]$ ]]; then
         HB_ENABLED="true"
-        read -p "Heartbeat interval in minutes [default: 10]: " HB_INTERVAL
-        HB_INTERVAL=${HB_INTERVAL:-10}
+        read -p "Heartbeat interval in minutes [default: 30]: " HB_INTERVAL
+        HB_INTERVAL=${HB_INTERVAL:-30}
     else
         HB_ENABLED="false"
-        HB_INTERVAL=10
+        HB_INTERVAL=30
     fi
 
     echo ""
@@ -225,8 +263,8 @@ collect_configuration() {
     read -p "Start a scan when the node is bumped? (y/N): " VIBSCAN_ON
     if [[ "$VIBSCAN_ON" =~ ^[Yy]$ ]]; then
         VIBSCAN_ENABLED="true"
-        echo "  1 - All-device scan   2 - Probe-request detect   3 - Randomized-MAC detect"
-        echo "  4 - List scan          5 - Drone / RemoteID       6 - Deauth detect"
+        echo "  1 - Device discovery   2 - Probe requests   3 - Randomized MAC tracer"
+        echo "  4 - Target scan        5 - Drone RID        6 - Deauth detection"
         echo "  7 - Baseline anomaly   8 - Packet capture to SD"
         read -p "Scan to run (1-8) [default: 1]: " VIBSCAN_MODE
         VIBSCAN_MODE=${VIBSCAN_MODE:-1}
@@ -292,27 +330,71 @@ collect_configuration() {
     read -p "Enable auto-erase? (y/N): " AUTO_ERASE_ENABLED
     if [[ "$AUTO_ERASE_ENABLED" =~ ^[Yy]$ ]]; then
         AUTO_ERASE_ENABLED="true"
-        read -p "Auto-erase delay in seconds [default: 300]: " AUTO_ERASE_DELAY
-        AUTO_ERASE_DELAY=${AUTO_ERASE_DELAY:-300}
-
-        read -p "Auto-erase cooldown in seconds [default: 600]: " AUTO_ERASE_COOLDOWN
-        AUTO_ERASE_COOLDOWN=${AUTO_ERASE_COOLDOWN:-600}
-
-        read -p "Vibrations required [default: 3]: " VIBRATIONS_REQUIRED
-        VIBRATIONS_REQUIRED=${VIBRATIONS_REQUIRED:-3}
-
-        read -p "Detection window in seconds [default: 10]: " DETECTION_WINDOW
-        DETECTION_WINDOW=${DETECTION_WINDOW:-10}
-
-        read -p "Setup delay in seconds [default: 60]: " SETUP_DELAY
-        SETUP_DELAY=${SETUP_DELAY:-60}
+        AUTO_ERASE_DELAY=$(ask_range "Erase countdown in seconds" 10 300 30)
+        AUTO_ERASE_COOLDOWN=$(ask_range "Trigger cooldown in seconds" 300 3600 300)
+        VIBRATIONS_REQUIRED=$(ask_range "Vibrations required" 2 5 3)
+        DETECTION_WINDOW=$(ask_range "Detection window in seconds" 10 60 20)
+        SETUP_DELAY=$(ask_range "Setup period in seconds" 30 600 120)
     else
         AUTO_ERASE_ENABLED="false"
-        AUTO_ERASE_DELAY=300
-        AUTO_ERASE_COOLDOWN=600
+        AUTO_ERASE_DELAY=30
+        AUTO_ERASE_COOLDOWN=300
         VIBRATIONS_REQUIRED=3
-        DETECTION_WINDOW=10
-        SETUP_DELAY=60
+        DETECTION_WINDOW=20
+        SETUP_DELAY=120
+    fi
+
+    echo ""
+    read -p "Erase key (8-64 chars, no ':', empty keeps the node's key): " ERASE_KEY
+    while [ -n "$ERASE_KEY" ] && { [ ${#ERASE_KEY} -lt 8 ] || [ ${#ERASE_KEY} -gt 64 ] || [[ "$ERASE_KEY" == *:* ]]; }; do
+        read -p "Needs 8-64 chars, no ':'. Erase key (empty keeps the node's key): " ERASE_KEY
+    done
+    if [ -n "$ERASE_KEY" ]; then EXTRA_JSON="$EXTRA_JSON,\"erasePSK\":\"$(json_escape "$ERASE_KEY")\""; fi
+
+    read -p "Start Sentinel on boot? (y/N): " SENT_BOOT
+    if [[ "$SENT_BOOT" =~ ^[Yy]$ ]]; then EXTRA_JSON="$EXTRA_JSON,\"sentinelBoot\":true"; fi
+
+    echo ""
+    read -p "More settings: scan timing, baseline alerts, detectors? (y/N): " MORE_ON
+    if [[ "$MORE_ON" =~ ^[Yy]$ ]]; then
+        echo "Leave a line empty to keep the node's value."
+        add_opt "Signal filter in dBm" -100 -10 globalRssiThreshold 1
+        add_opt "Baseline signal filter in dBm" -100 -10 baselineRssiThreshold 1
+        add_opt "Baseline learning time in seconds" 60 3600 baselineDuration 1
+        add_opt "Marked absent after seconds" 30 600 absenceThreshold 1
+        add_opt "Reappearance window in seconds" 60 1800 reappearanceWindow 1
+        add_opt "Signal change in dB" 5 50 rssiChangeDelta 1
+        if [ "$VIBSCAN_ENABLED" = "true" ]; then
+            read -p "Let the vibration scan interrupt a scheduled scan? (y/N): " VIB_PRE
+            if [[ "$VIB_PRE" =~ ^[Yy]$ ]]; then EXTRA_JSON="$EXTRA_JSON,\"vibScanPreempt\":true"; fi
+        fi
+        if [ "$IS_HEADLESS" = false ]; then
+            read -p "Keep the access point joinable during scans? (Y/n): " AP_REACH
+            if [[ "$AP_REACH" =~ ^[Nn]$ ]]; then EXTRA_JSON="$EXTRA_JSON,\"apReach\":false"; fi
+        fi
+        local det_json=""
+        read -p "Sentinel radio mode: 0 = defend one channel, 1 = scan all channels (empty keeps it): " SENT_SCAN
+        case "$SENT_SCAN" in
+            0) det_json="\"sentinel_scan\":false" ;;
+            1) det_json="\"sentinel_scan\":true" ;;
+        esac
+        echo "Detector settings as key=value pairs, comma-separated. Keys are the DETECT_CFG"
+        echo "keys in docs/mesh-commands.md, values are true, false or a number."
+        read -p "Detector settings (empty for none): " DET_PAIRS
+        local pair key val
+        IFS=',' read -ra DET_LIST <<< "$DET_PAIRS"
+        for pair in "${DET_LIST[@]}"; do
+            pair="${pair// /}"
+            [ -z "$pair" ] && continue
+            key="${pair%%=*}"
+            val="${pair#*=}"
+            if [[ "$key" =~ ^[a-z0-9_]+$ ]] && [[ "$val" =~ ^(true|false|-?[0-9]+)$ ]]; then
+                det_json="${det_json:+$det_json,}\"$key\":$val"
+            else
+                echo "Skipped '$pair': use key=true, key=false or key=number."
+            fi
+        done
+        if [ -n "$det_json" ]; then EXTRA_JSON="$EXTRA_JSON,\"detectors\":{$det_json}"; fi
     fi
 
     local targets_json
@@ -320,7 +402,7 @@ collect_configuration() {
     targets_json=${targets_json//,/\\n}
     CONFIG_FILE=$(umask 077; mktemp "${TMPDIR:-/tmp}/antihunter_config.XXXXXX")
     cat > "$CONFIG_FILE" <<EOF
-{"nodeId":"$(json_escape "$NODE_ID")","scanMode":$SCAN_MODE,"bleLongRange":$BLE_LONG_RANGE,"channels":"$(json_escape "$CHANNELS")"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${targets_json}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))}
+{"nodeId":"$(json_escape "$NODE_ID")","scanMode":$SCAN_MODE,"bleLongRange":$BLE_LONG_RANGE,"channels":"$(json_escape "$CHANNELS")"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"meshEnabled":$MESH_ENABLED,"meshDedupTtl":$MESH_DEDUP_TTL,"meshSessDedup":$MESH_SESS_DEDUP,"hbEnabled":$HB_ENABLED,"hbInterval":$HB_INTERVAL,"vibEnabled":$VIB_ENABLED,"vibScanEnabled":$VIBSCAN_ENABLED,"vibScanMode":$VIBSCAN_MODE,"vibScanDuration":$VIBSCAN_DURATION,"vibScanCooldown":$((VIBSCAN_COOLDOWN * 1000)),"sdAutoRepair":$SD_AUTO_REPAIR,"pcapMaxFileMB":$PCAP_MAX_MB,"targets":"${targets_json}","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$((AUTO_ERASE_DELAY * 1000)),"autoEraseCooldown":$((AUTO_ERASE_COOLDOWN * 1000)),"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$((DETECTION_WINDOW * 1000)),"setupDelay":$((SETUP_DELAY * 1000))${EXTRA_JSON}}
 EOF
 
     echo ""
@@ -336,6 +418,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c|--configure)
             CONFIG_MODE=true
+            shift
+            ;;
+        -n|--no-flash)
+            CONFIG_MODE=true
+            NO_FLASH=true
             shift
             ;;
         -e|--erase)
@@ -431,7 +518,13 @@ echo "====================================="
 echo "Unified for multiple ESP32S3 configs"
 echo "====================================="
 
-if [ -n "$CUSTOM_BIN" ]; then
+if [ "$NO_FLASH" = true ]; then
+    read -p "Firmware on the node: 1 = Full, 2 = Headless [default: 1]: " nf_build
+    [ "$nf_build" = "2" ] && IS_HEADLESS=true
+    read -p "Board: 1 = ESP32-S3, 2 = XIAO ESP32-C5 [default: 1]: " nf_board
+    [ "$nf_board" = "2" ] && IS_C5=true
+    firmware_choice="Configure only"
+elif [ -n "$CUSTOM_BIN" ]; then
     if [ ! -f "$CUSTOM_BIN" ]; then
         echo "Error: Custom file '$CUSTOM_BIN' not found."
         exit 1
@@ -589,7 +682,7 @@ fi
 CHIP_ARG="auto"
 [ "$IS_C5" = true ] && CHIP_ARG="esp32c5"
 
-if [ "$ERASE_FLASH" = true ]; then
+if [ "$ERASE_FLASH" = true ] && [ "$NO_FLASH" != true ]; then
     echo ""
     echo "==================================================="
     echo "Erasing flash memory..."
@@ -603,7 +696,15 @@ if [ "$ERASE_FLASH" = true ]; then
 fi
 
 echo ""
-if [ "$FACTORY_MODE" = true ]; then
+if [ "$NO_FLASH" = true ]; then
+    echo "Restarting the node..."
+    $ESPTOOL_CMD \
+        --chip "$CHIP_ARG" \
+        --port "$ESP32_PORT" \
+        --before default_reset \
+        --after hard_reset \
+        chip_id
+elif [ "$FACTORY_MODE" = true ]; then
     echo "Flashing factory image (bootloader + partitions + app) at 0x0..."
     $ESPTOOL_CMD \
         --chip "$CHIP_ARG" \
@@ -629,10 +730,12 @@ else
         0x10000 "$FIRMWARE_FILE"
 fi
 
-echo ""
-echo "==================================================="
-echo "Firmware flashing complete!"
-echo "==================================================="
+if [ "$NO_FLASH" != true ]; then
+    echo ""
+    echo "==================================================="
+    echo "Firmware flashing complete!"
+    echo "==================================================="
+fi
 
 echo ""
 echo "Device initialization..."
