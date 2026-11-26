@@ -112,6 +112,7 @@
     .cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .cfg-grid .full{grid-column:1/-1}
     .cfg-note{font-size:11px;color:var(--mut);margin-top:4px}
+    input.cfg-bad{border-color:var(--warn)}
 
     .exp-gate{border:2px solid var(--warn);background:rgba(160,120,48,0.06);border-radius:10px;padding:16px 18px;margin-bottom:16px}
     .exp-gate h4{font-size:13px;font-weight:700;color:var(--warn);margin-bottom:8px;letter-spacing:0.02em}
@@ -436,6 +437,7 @@
           Leave a field blank to keep the node's current value. The flasher sends the filled fields when you select Connect & Configure.
         </p>
 
+        <p style="font-size:12px;color:var(--mut);margin-bottom:8px;text-transform:uppercase;font-weight:600">Node, scanning and mesh</p>
         <div class="cfg-grid">
           <div>
             <label>Node ID</label>
@@ -992,6 +994,20 @@ chmod +x flashAntihunter.sh
       const th=document.getElementById('cfgDetThresh'); if(th)th.innerHTML=SENT_THRESH.map(([k,l])=>`<div><label>${l}</label><input type="number" id="dth_${k}" placeholder="default" min="0"></div>`).join('');
     }
     renderSentinelCfg();
+    function markRanges(){
+      document.querySelectorAll('#cfgDetails input[type="number"]').forEach(el=>{
+        if(el.min===''||el.max==='')return;
+        const box=el.parentElement;
+        if(!box.querySelector('.cfg-note')){
+          const n=document.createElement('div');n.className='cfg-note';n.textContent=el.min+' to '+el.max;box.appendChild(n);
+        }
+        el.addEventListener('input',()=>{
+          const v=el.value.trim(),x=parseInt(v,10);
+          el.classList.toggle('cfg-bad',v!==''&&(Number.isNaN(x)||x<parseInt(el.min,10)||x>parseInt(el.max,10)));
+        });
+      });
+    }
+    markRanges();
     function buildConfigJson() {
       const cfg = {};
       function str(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = v; }
