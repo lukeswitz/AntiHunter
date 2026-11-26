@@ -275,6 +275,7 @@ void setup() {
     }
 #endif
     delay(1000);
+    Serial.setRxBufferSize(4096);
     Serial.begin(115200);
     usbRecoverRx();
     delay(300);
