@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Beta.** Fit the XIAO on pin headers and you can swap the S3 and C5 modules by hand. The [socketed housings](../hw/Prototype_STL_Files/README.md) have the taller USB opening this needs, and the [parts list](../hw/Prototype_STL_Files/BOM-Links.md) names the sockets. A C5 soldered straight into the PCB can return to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Beta — XIAO ESP32-C5** channel. The S3 build on `main` is the stable one.
+> **Beta.** Builders who want to swap between the S3 and C5 can mount the XIAO on pin headers. The [socketed housings](../hw/Prototype_STL_Files/README.md) have the taller USB opening for that, and the [parts list](../hw/Prototype_STL_Files/BOM-Links.md) names the sockets. A C5 soldered straight into the PCB can return to stable firmware only if you desolder it and fit an ESP32-S3. The C5 build is on the web flasher's **Beta — XIAO ESP32-C5** channel. The S3 build on `main` is the stable one.
 
 The XIAO ESP32-C5 replaces the XIAO ESP32-S3 on the same AntiHunter PCB, with the same footprint, peripherals and mesh. Its radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 radio is 2.4 GHz only.
 
