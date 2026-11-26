@@ -5,6 +5,8 @@
 
 The XIAO ESP32-C5 replaces the XIAO ESP32-S3 on the same AntiHunter PCB, with the same footprint, peripherals and mesh. Its radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 radio is 2.4 GHz only.
 
+The S3 is the board we sell and support. It has two cores, and the C5 has one, so the S3 has more room to scan, detect, and run the mesh at the same time. The C5's extra band matters less than it sounds: Bluetooth runs only on 2.4 GHz, and most Wi-Fi devices a node sees use 2.4 GHz too.
+
 The C5 build has the S3 build's features: target scan, device scanner, probe scanner, baseline, deauth detection, Sentinel, drone RID, CSI motion, packet capture, triangulation, mesh, SD, GPS and vibration wipe. This page covers only what differs.
 
 - [Bands and channels](#bands-and-channels)
