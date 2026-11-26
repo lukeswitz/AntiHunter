@@ -196,7 +196,7 @@ jobs:
               full)     VARIANT_TITLE="Full" ;;
               headless) VARIANT_TITLE="Headless" ;;
             esac
-            write_manifest "AntiHunter ${VARIANT_TITLE} - Experimental C5 (${C5_VERSION})" \
+            write_manifest "AntiHunter ${VARIANT_TITLE} - Beta C5 (${C5_VERSION})" \
                            "${C5_VERSION}" "${VARIANT}-c5" "${FILE}"
           done
         fi
