@@ -6,7 +6,7 @@ This release shows your erase key when you flash, adds Sentinel to Stable, and r
 |---|---|---|---|
 | Stable | v1.0.5 | ESP32-S3 | v1.0.4 (2026-10-04) |
 | Beta | v1.0.5-beta1 | ESP32-S3 | v1.0.4-beta1 (2026-10-04) |
-| Experimental | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
+| Beta C5 | v1.0.5-c5exp1 | XIAO ESP32-C5 | v1.0.4-c5exp1 (2026-10-04) |
 
 ## Highlights
 
@@ -205,6 +205,10 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - An interrupted scheduled scan on Headless now resumes.
 - `VIBSCAN_SET` now refuses a packet capture with no duration, which never captured anything.
 - Stable no longer accepts the CSI command aliases, because only Beta and C5 have CSI.
+- `VIBSCAN_SET` now takes a scan name, such as `pcap` or `device-scan`, in place of its number.
+- `DETECT_CFG` now takes `attack_resp` with action names, such as `"pcap,device-scan"`. `attack_resp_mask` still works.
+- The `dos` detector group no longer switches evil twin detection. That detector is in the `rogue` group.
+- Battery Saver now sends its heartbeat every 30 minutes by default. It was 5.
 
 ### Scans and storage
 
@@ -306,7 +310,7 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - The Data tab keeps the current rows on screen while the next page loads.
 - The **Dst** column of **Deauth attacks** now shows the address instead of "Yes".
 
-### C5 (Experimental)
+### C5 (Beta)
 
 - With **Band** set to 2.4 GHz, scans also swept 5 GHz, timed out, and found no networks. They now sweep only 2.4 GHz.
 - Scans no longer fail to start when the air is busy with Wi-Fi traffic.
@@ -338,6 +342,13 @@ These fixes come to Stable in this release.
 - A comma-separated target list in either flasher now becomes separate targets.
 - The web flasher now sends Sentinel settings to Stable nodes too.
 - The shell flasher shows the legal disclaimer and flashes only after you type `yes`.
+- The shell flasher no longer removes spaces from network names, passwords, and targets.
+- The shell flasher can configure a node without flashing it: `./flashAntihunter.sh -n`.
+- The shell flasher now asks for the erase key, Sentinel on boot, custom scan timings, baseline alert settings, and detector settings.
+- The web flasher checks your settings before it resets the node, and refuses values the node would not accept.
+- The web flasher can set the web login, the web password, **Joinable during scans**, and **Interrupt scheduled scans**.
+- Both flashers now use the node's own defaults and limits.
+- The XIAO ESP32-C5 has its own Beta channel in both flashers. RadarNode is the only experimental build.
 
 ## Removed
 
@@ -373,9 +384,9 @@ Flashing keeps your settings, erase key, and SD files unless you check **Erase d
 
 Each build is on the release page with a `SHA256SUMS` file to check your downloads.
 
-| | Stable | Beta | Experimental (C5) |
+| | Stable | Beta | Beta C5 |
 |---|---|---|---|
-| Web flasher channel | Stable | Beta | Experimental, ESP32-C5 |
+| Web flasher channel | Stable | Beta | Beta — XIAO ESP32-C5 |
 | Flasher script channel | 1 | 2 | 3 |
 | Branch | `main` | `beta` | `feat/c5` |
 | PlatformIO, Full | `AntiHunter-full` | `AntiHunter-full` | `AntiHunter-c5-full` |
