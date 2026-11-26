@@ -12,6 +12,7 @@
 
 #include "meshcore_link.h"
 #include "fleet_relay.h"
+#include "scan_names.h"
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -1368,7 +1369,7 @@ static void handleVibScanSet(const String &command)
     return;
   }
   int en = p.substring(0, d1).toInt();
-  int mode = p.substring(d1 + 1, d2).toInt();
+  int mode = scan_names::vibModeFromToken(p.substring(d1 + 1, d2).c_str());
   int dur = (d3 >= 0) ? p.substring(d2 + 1, d3).toInt() : p.substring(d2 + 1).toInt();
   int cd = (d3 >= 0) ? ((d4 >= 0) ? p.substring(d3 + 1, d4).toInt() : p.substring(d3 + 1).toInt()) : -1;
   if (d4 >= 0) vibAutoScanPreempt = (p.substring(d4 + 1).toInt() != 0);
@@ -2190,7 +2191,7 @@ static void handleAutoeraseStatus(const String &command)
 
 static void handleBatterySaverStart(const String &command)
 {
-  uint32_t intervalMinutes = 5;  // Default 5 minutes
+  uint32_t intervalMinutes = 30;
 
   // Parse optional interval: BATTERY_SAVER_START:10 (for 10 minutes)
   if (command.length() > 19 && command.charAt(19) == ':') {
@@ -2344,7 +2345,7 @@ static void handleSentinelBoot(const String &command)
 
 static const char *groupMembers(const String &name)
 {
-  if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
+  if (name == "dos")                         return "sae,assoc_sleep";
   if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
   if (name == "recon")                       return "pmkid,probe_flood,hshk,pwna";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam,jam_baseline";

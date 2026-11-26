@@ -113,7 +113,7 @@ Every node that runs a command replies with its node ID and a result such as `SC
 | `@ALL BASELINE_START:900` | Learns which devices are normally present, then reports new, missing, returning, and moved devices. | `900` is the monitoring time in seconds after learning (60 to 86400). Learning time is a separate setting, 300 seconds by default, set in the web UI or the web flasher. |
 | `@ALL SENTINEL_ON` | Starts Sentinel, which detects Wi-Fi attacks, interference, attack devices, and LoRa mesh radios. | None. `SENTINEL_OFF` turns it off. |
 | `@ALL DRONE_START:0` | Starts the drone Remote ID scan. | `0` runs until `STOP`. Any other number is the run time in seconds. |
-| `@AH01 BATTERY_SAVER_START:10` | Stops scanning and lowers the CPU clock. The mesh stays on. | `10` is the minutes between heartbeat messages (1 to 30, default 5). `BATTERY_SAVER_STOP` ends it. |
+| `@AH01 BATTERY_SAVER_START:10` | Stops scanning and lowers the CPU clock. The mesh stays on. | `10` is the minutes between heartbeat messages (1 to 30, default 30). `BATTERY_SAVER_STOP` ends it. |
 
 Most commands also have a short alias, such as `SS` for `SCAN_START`. [Mesh Commands](mesh-commands.md) lists every command, value, reply, and alias. To control a node over HTTP instead, see the [API Reference](api-reference.md).
 

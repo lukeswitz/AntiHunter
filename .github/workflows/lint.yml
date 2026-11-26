@@ -48,3 +48,4 @@ jobs:
         make test-cuckoo
         make test-fleet
         make test-fleet-sim
+        make test-scan-names
