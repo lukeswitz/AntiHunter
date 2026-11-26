@@ -77,6 +77,15 @@ bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
 static size_t triLastChildCount = 0;
+static String triLastFinalMsg;
+static String triLastCompleteMsg;
+
+bool triangulationLastResult(String &finalMsg, String &completeMsg) {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    finalMsg = triLastFinalMsg;
+    completeMsg = triLastCompleteMsg;
+    return finalMsg.length() > 0 || completeMsg.length() > 0;
+}
 std::vector<TriangulateAckInfo> triangulateAcks;
 std::vector<String> triangulateReportedNodes;
 String triangulationCoordinator = "";
@@ -747,9 +756,7 @@ void coordinatorSetupTask(const void *parameter) {
     }
 
     triangulationActive = true;
-    triTargetChannel.store(0);
-    triTargetRadio.store(0);
-    { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
+    triangulationResetAccumulator();
 
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 
@@ -834,6 +841,8 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
         triangulationNodes.reserve(10);
         nodeSyncStatus.clear();
         nodeSyncStatus.reserve(10);
+        triLastFinalMsg = "";
+        triLastCompleteMsg = "";
     }
     triangulationStart = millis();
     triangulationDuration = duration;
@@ -1385,6 +1394,7 @@ void stopTriangulation() {
                                 " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                                 " CONF=" + String(confidence * 100.0, 1) +
                                 " UNC=" + String(cep, 1);
+                { std::lock_guard<std::mutex> lock(triangulationMutex); triLastFinalMsg = finalMsg; }
                 sendToSerial1(finalMsg, true);
                 Serial.printf("[TRIANGULATE] Initiator sent final result: %s\n", finalMsg.c_str());
 
@@ -1436,6 +1446,7 @@ void stopTriangulation() {
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     if (triangulationInitiator) {
+        { std::lock_guard<std::mutex> lock(triangulationMutex); triLastCompleteMsg = resultMsg; }
         bool sent = sendToSerial1(resultMsg, true);
         Serial.printf("[TRIANGULATE] Initiator sent T_C: %s\n", sent ? "SUCCESS" : "FAILED");
         vTaskDelay(pdMS_TO_TICKS(1000));

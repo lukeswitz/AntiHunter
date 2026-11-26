@@ -169,6 +169,7 @@ void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
 String calculateTriangulation();
+bool triangulationLastResult(String &finalMsg, String &completeMsg);
 void stopTriangulation();
 void requestTriangulationStop();
 void triangulationAbortSetup();

@@ -1444,10 +1444,10 @@ static void handleTriangulateStart(const String &command, const String &targetId
     return;
   }
   triangulationInitiator = false;
+  { std::lock_guard<std::mutex> lock(triangulationMutex); triangulationNodes.clear(); }
+  triangulationResetAccumulator();
+  reportingSchedule.reset();
   triangulationActive = true;
-  triTargetChannel.store(0);
-  triTargetRadio.store(0);
-  { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
   triangulationStart = millis();
   triangulationDuration = duration;
   currentScanMode = SCAN_BOTH;
@@ -1650,19 +1650,15 @@ static void handleTriCycleStart(const String &command)
 static void handleTriangulateResults(const String &command)
 {
   (void)command;
-  bool hasNodes;
-  {
-    std::lock_guard<std::mutex> lock(triangulationMutex);
-    hasNodes = (triangulationNodes.size() > 0);
-  }
-  if (hasNodes) {
-    String results = calculateTriangulation();
-    sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
-    sendToSerial1(results, true);
-    sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_END", true);
-  } else {
+  String finalMsg, completeMsg;
+  if (!triangulationLastResult(finalMsg, completeMsg)) {
     sendToSerial1(nodeId + ": TRIANGULATE_RESULTS:NO_DATA", true);
+    return;
   }
+  sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
+  if (finalMsg.length() > 0) sendToSerial1(finalMsg, true);
+  if (completeMsg.length() > 0) sendToSerial1(completeMsg, true);
+  sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_END", true);
 }
 
 static void handleEraseForce(const String &command)

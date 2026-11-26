@@ -293,6 +293,9 @@ The full walkthrough is on the wiki at [Secure wipe](https://github.com/lukeswit
 - A **Peer link** status replaces the misleading "Clock Sync" line in triangulation results.
 - Fake node names can no longer fill up the triangulation timing table.
 - On Full, a single-node `TRIANGULATE_START` now accepts a tracer ID as the target.
+- A helper node now starts every hunt from zero hits. Before, a second hunt for the same device added to the first.
+- A helper node now takes its report order from the current hunt only. Before, nodes from an earlier hunt stayed in it.
+- `TRIANGULATE_RESULTS` now sends the coordinator's last position again, and answers during a run.
 
 ### Web UI and data
 
